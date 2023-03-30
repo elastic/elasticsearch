@@ -35,9 +35,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -2172,9 +2172,42 @@ public class MasterServiceTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
 
         final var threadPool = deterministicTaskQueue.getThreadPool();
-        try (var masterService = createMasterService(true, null, threadPool, new StoppableExecutorServiceWrapper(threadPool.generic()))) {
+        try (var masterService = createMasterService(true, null, threadPool, new StoppableExecutorServiceWrapper(threadPool.generic()) {
 
+            boolean isShutdown = false;
+
+            @Override
+            public void shutdown() {
+                isShutdown = true;
+                // NB awaitTermination() (and therefore MasterService#close()) will return immediately without draining the queue
+            }
+
+            @Override
+            public void execute(Runnable command) {
+                if (isShutdown) {
+                    if (command instanceof AbstractRunnable abstractRunnable) {
+                        abstractRunnable.onRejection(new EsRejectedExecutionException("shut down", true));
+                    } else {
+                        fail(command + " is not an AbstractRunnable");
+                    }
+                } else {
+                    super.execute(command);
+                }
+            }
+        })) {
             final var actionCount = new AtomicInteger();
+
+            masterService.createTaskQueue("executing-during-shutdown", Priority.IMMEDIATE, batchExecutionContext -> {
+                actionCount.incrementAndGet();
+                for (ClusterStateTaskExecutor.TaskContext<ClusterStateTaskListener> taskContext : batchExecutionContext.taskContexts()) {
+                    taskContext.success(() -> fail("should not succeed"));
+                }
+                return ClusterState.builder(batchExecutionContext.initialState()).build();
+            }).submitTask("executing-during-shutdown", e -> {
+                assertTrue(e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown());
+                actionCount.incrementAndGet();
+            }, null);
+
             final var testHeader = "test-header";
 
             class TestTask implements ClusterStateTaskListener {
@@ -2198,38 +2231,57 @@ public class MasterServiceTests extends ESTestCase {
                 batchExecutionContext -> { throw new AssertionError("should not execute batch"); }
             );
 
-            while (true) {
-                try (var ignored = threadPool.getThreadContext().stashContext()) {
-                    threadPool.getThreadContext().putHeader(testHeader, randomAlphaOfLength(10));
-                    queue.submitTask("batched", new TestTask(), null);
-                }
-                try (var ignored = threadPool.getThreadContext().stashContext()) {
-                    threadPool.getThreadContext().putHeader(testHeader, randomAlphaOfLength(10));
-                    masterService.submitUnbatchedStateUpdateTask("unbatched", new ClusterStateUpdateTask() {
-                        private final TestTask innerTask = new TestTask();
-
-                        @Override
-                        public ClusterState execute(ClusterState currentState) {
-                            throw new AssertionError("should not execute task");
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            innerTask.onFailure(e);
-                        }
-                    });
-                }
-
-                if (masterService.lifecycleState() == Lifecycle.State.STARTED) {
-                    masterService.close();
-                } else {
-                    break;
-                }
+            try (var ignored = threadPool.getThreadContext().stashContext()) {
+                threadPool.getThreadContext().putHeader(testHeader, randomAlphaOfLength(10));
+                queue.submitTask("batched", new TestTask(), null);
             }
+            try (var ignored = threadPool.getThreadContext().stashContext()) {
+                threadPool.getThreadContext().putHeader(testHeader, randomAlphaOfLength(10));
+                masterService.submitUnbatchedStateUpdateTask("unbatched", new ClusterStateUpdateTask() {
+                    private final TestTask innerTask = new TestTask();
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        throw new AssertionError("should not execute task");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        innerTask.onFailure(e);
+                    }
+                });
+            }
+
+            masterService.close();
+
+            queue.submitTask("batched", new TestTask(), null);
+
+            // tasks submitted before or "concurrently with" closing the master service does not fail straight away
+            assertEquals(0, actionCount.get());
 
             threadPool.getThreadContext().markAsSystemContext();
             deterministicTaskQueue.runAllTasks();
-            assertEquals(4, actionCount.get());
+            assertEquals(5, actionCount.get());
+
+            // submitting tasks after closing the master service will fail straight away
+
+            queue.submitTask("batched", new TestTask(), null);
+            assertEquals(6, actionCount.get());
+
+            masterService.submitUnbatchedStateUpdateTask("unbatched", new ClusterStateUpdateTask() {
+                private final TestTask innerTask = new TestTask();
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    throw new AssertionError("should not execute task");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    innerTask.onFailure(e);
+                }
+            });
+            assertEquals(7, actionCount.get());
         }
     }
 

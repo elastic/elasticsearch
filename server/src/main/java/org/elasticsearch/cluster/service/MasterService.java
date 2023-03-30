@@ -206,12 +206,6 @@ public class MasterService extends AbstractLifecycleComponent {
         final BatchSummary summary,
         final ActionListener<Void> listener
     ) {
-        if (lifecycle.started() == false) {
-            logger.debug("processing [{}]: ignoring, master service not started", summary);
-            listener.onResponse(null);
-            return;
-        }
-
         logger.debug("executing cluster state update for [{}]", summary);
         final ClusterState previousClusterState = state();
 
@@ -394,9 +388,26 @@ public class MasterService extends AbstractLifecycleComponent {
                             clusterStatePublicationEvent,
                             notificationMillis
                         );
+                    } else if (exception instanceof EsRejectedExecutionException esre) {
+                        assert esre.isExecutorShutdown();
+                        final long version = newClusterState.version();
+                        logger.debug(
+                            () -> format("failing [%s]: failed to commit cluster state version [%s]", summary, version),
+                            exception
+                        );
+                        final long notificationStartTime = threadPool.rawRelativeTimeInMillis();
+                        for (final var executionResult : executionResults) {
+                            executionResult.onBatchFailure(esre);
+                            executionResult.notifyFailure();
+                        }
+                        final long notificationMillis = threadPool.rawRelativeTimeInMillis() - notificationStartTime;
+                        clusterStateUpdateStatsTracker.onPublicationFailure(
+                            threadPool.rawRelativeTimeInMillis(),
+                            clusterStatePublicationEvent,
+                            notificationMillis
+                        );
                     } else {
-                        assert publicationMayFail() || (exception instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown())
-                            : exception;
+                        assert publicationMayFail() : exception;
                         clusterStateUpdateStatsTracker.onPublicationFailure(
                             threadPool.rawRelativeTimeInMillis(),
                             clusterStatePublicationEvent,
@@ -1195,12 +1206,7 @@ public class MasterService extends AbstractLifecycleComponent {
             }, batchCompletionListener -> {
                 final var nextBatch = takeNextBatch();
                 assert currentlyExecutingBatch == nextBatch;
-                if (lifecycle.started()) {
-                    nextBatch.run(batchCompletionListener);
-                } else {
-                    nextBatch.onRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
-                    batchCompletionListener.onResponse(null);
-                }
+                nextBatch.run(batchCompletionListener);
             });
         }
 
@@ -1212,8 +1218,12 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         private void onCompletion() {
+            assert lifecycle.stoppedOrClosed() || ThreadPool.assertCurrentThreadPool(MASTER_UPDATE_THREAD_NAME);
             currentlyExecutingBatch = null;
             if (totalQueueSize.decrementAndGet() > 0) {
+                // We are already on the master update thread so forking seems unnecessary, except that:
+                // - it detects shutdown via rejection
+                // - it avoids the stack overflow that could occur when recursing here, whilst being much neater than the iterative impl
                 starvationWatcher.onNonemptyQueue();
                 forkQueueProcessor();
             } else {
@@ -1250,11 +1260,6 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private void forkQueueProcessor() {
         // single-threaded: started when totalQueueSize transitions from 0 to 1 and keeps calling itself until the queue is drained.
-        if (lifecycle.started() == false) {
-            drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", getRejectionException()));
-            return;
-        }
-
         assert totalQueueSize.get() > 0;
         final var threadContext = threadPool.getThreadContext();
         try (var ignored = threadContext.stashContext()) {

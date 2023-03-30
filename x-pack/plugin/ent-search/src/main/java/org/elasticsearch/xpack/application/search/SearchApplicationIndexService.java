@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
@@ -53,6 +54,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -218,22 +220,42 @@ public class SearchApplicationIndexService {
      * @param listener The action listener to invoke on response/failure.
      */
     public void putSearchApplication(SearchApplication app, boolean create, ActionListener<IndexResponse> listener) {
-        createOrUpdateAlias(app, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                updateSearchApplication(app, create, listener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                // Convert index not found failure from the alias API into an illegal argument
-                Exception failException = e;
-                if (e instanceof IndexNotFoundException) {
-                    failException = new IllegalArgumentException(e.getMessage(), e);
+        updateSearchApplication(app, create, listener.delegateFailure((l, indexResponse) -> {
+            createOrUpdateAlias(app, new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    l.onResponse(indexResponse);
                 }
-                listener.onFailure(failException);
-            }
-        });
+
+                @Override
+                public void onFailure(Exception e) {
+                    // Convert index not found failure from the alias API into an illegal argument
+                    if (e instanceof IndexNotFoundException) {
+                        e = new IllegalArgumentException(e.getMessage(), e);
+                    }
+                    final Exception failure = e;
+
+                    // Updating alias failed. If it was just created, let's remove it so it is consistent with no alias being created.
+                    // As we already failed, we submit the original failure to the listener
+                    if (indexResponse.status() != RestStatus.CREATED) {
+                        l.onFailure(failure);
+                        return;
+                    }
+                    deleteSearchApplication(app.name(), new ActionListener<>() {
+                        @Override
+                        public void onResponse(DeleteResponse deleteResponse) {
+                            l.onFailure(failure);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn("Search Application [" + app.name() + "] could not be deleted after failing to be created", e);
+                            l.onFailure(failure);
+                        }
+                    });
+                }
+            });
+        }));
     }
 
     private void createOrUpdateAlias(SearchApplication app, ActionListener<AcknowledgedResponse> listener) {
@@ -348,21 +370,26 @@ public class SearchApplicationIndexService {
      *
      */
     public void deleteSearchApplicationAndAlias(String resourceName, ActionListener<DeleteResponse> listener) {
-        removeAlias(resourceName, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                deleteSearchApplication(resourceName, listener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (e instanceof AliasesNotFoundException) {
-                    deleteSearchApplication(resourceName, listener);
-                } else {
-                    listener.onFailure(e);
+        deleteSearchApplication(
+            resourceName,
+            listener.delegateFailure((l, deleteResponse) -> removeAlias(resourceName, new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    l.onResponse(deleteResponse);
                 }
-            }
-        });
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof AliasesNotFoundException) {
+                        l.onResponse(deleteResponse);
+                        return;
+                    }
+                    final String message = "Couldn't remove alias [" + resourceName + "] deleting Search Application";
+                    logger.warn(message);
+                    l.onFailure(new ElasticsearchException(message, e));
+                }
+            }))
+        );
     }
 
     /**

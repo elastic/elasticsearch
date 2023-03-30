@@ -92,6 +92,18 @@ teardown:
         body:
           indices: [ "test-index1", "test-index-does-not-exist" ]
 
+  # Check neither aliases nor Search Application were created
+  - do:
+      indices.exists_alias:
+        name: test-error-search-application
+
+  - is_false: ''
+
+  - do:
+      catch: missing
+      search_application.get:
+        name: test-error-search-application
+
 ---
 "Create Search Application - Resource already exists":
   - do:
@@ -112,15 +124,26 @@ teardown:
           indices: [ "test-index1" ]
 
   - match: { error.type: "version_conflict_engine_exception" }
-
 ---
 "Create Search Application - Insufficient privilege":
   - do:
       catch: forbidden
       search_application.put:
-        name: another-search-application
+        name: another-test-search-application
         create: true
         body:
           indices: [ "another-index" ]
 
   - match: { error.type: "security_exception" }
+
+  # Check neither aliases nor Search Application were created
+  - do:
+      indices.exists_alias:
+        name: another-test-search-application
+
+  - is_false: ''
+
+  - do:
+      catch: missing
+      search_application.get:
+        name: another-test-search-application

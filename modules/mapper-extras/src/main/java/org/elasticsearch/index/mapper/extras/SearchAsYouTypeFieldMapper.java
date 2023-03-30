@@ -133,7 +133,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             }
         }).alwaysSerialize();
 
-        final TextParams.Analyzers analyzers;
+        final IndexAnalyzers indexAnalyzers;
+        final TextParams.AnalyzerParameters analyzers;
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
 
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.get());
@@ -147,10 +148,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
-            this.analyzers = new TextParams.Analyzers(
-                indexAnalyzers,
-                m -> builder(m).analyzers.getIndexAnalyzer(),
-                m -> builder(m).analyzers.positionIncrementGap.getValue(),
+            this.indexAnalyzers = indexAnalyzers;
+            this.analyzers = new TextParams.AnalyzerParameters(
+                m -> ((SearchAsYouTypeFieldMapper) m).analyzerConfiguration,
                 indexCreatedVersion
             );
         }
@@ -183,15 +183,16 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
             Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
 
-            NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
-            NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
+            TextParams.Analyzers analyzers = this.analyzers.buildAnalyzers(this.indexAnalyzers);
+            NamedAnalyzer indexAnalyzer = analyzers.indexAnalyzer();
+            NamedAnalyzer searchAnalyzer = analyzers.searchAnalyzer();
 
             SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(
                 context.buildFullName(name),
                 fieldType,
                 similarity.getValue(),
-                analyzers.getSearchAnalyzer(),
-                analyzers.getSearchQuoteAnalyzer(),
+                analyzers.searchAnalyzer(),
+                analyzers.searchQuoteAnalyzer(),
                 meta.getValue()
             );
 
@@ -267,6 +268,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 prefixFieldMapper,
                 shingleFieldMappers,
                 multiFieldsBuilder.build(this, context),
+                analyzers.configuration(),
                 this
             );
         }
@@ -666,6 +668,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     private final PrefixFieldMapper prefixField;
     private final ShingleFieldMapper[] shingleFields;
     private final Builder builder;
+    private final TextParams.AnalyzerConfiguration analyzerConfiguration;
 
     private final Map<String, NamedAnalyzer> indexAnalyzers;
 
@@ -677,6 +680,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         PrefixFieldMapper prefixField,
         ShingleFieldMapper[] shingleFields,
         MultiFields multiFields,
+        TextParams.AnalyzerConfiguration analyzerConfiguration,
         Builder builder
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
@@ -685,6 +689,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         this.maxShingleSize = builder.maxShingleSize.getValue();
         this.builder = builder;
         this.indexAnalyzers = Map.copyOf(indexAnalyzers);
+        this.analyzerConfiguration = analyzerConfiguration;
     }
 
     @Override
@@ -721,7 +726,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(simpleName(), builder.indexCreatedVersion, builder.indexAnalyzers).init(this);
     }
 
     public static String getShingleFieldName(String parentField, int shingleSize) {

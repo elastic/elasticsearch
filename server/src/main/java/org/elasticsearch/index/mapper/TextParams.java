@@ -46,52 +46,61 @@ public final class TextParams {
 
     public record AnalyzerConfiguration(String indexAnalyzer, String searchAnalyzer, String searchQuoteAnalyzer, int posIncrementGap) {
 
-        public Analyzers buildAnalyzers(IndexAnalyzers indexAnalyzers) {
+        public Analyzers buildAnalyzers(IndexAnalyzers indexAnalyzers, boolean isLegacyVersion) {
             return new Analyzers(
-                wrap(buildIndexAnalyzer(indexAnalyzers), AnalysisMode.INDEX_TIME),
-                wrap(buildSearchAnalyzer(indexAnalyzers), AnalysisMode.SEARCH_TIME),
-                wrap(buildSearchQuoteAnalyzer(indexAnalyzers), AnalysisMode.SEARCH_TIME),
+                wrap(buildIndexAnalyzer(indexAnalyzers, isLegacyVersion), AnalysisMode.INDEX_TIME),
+                wrap(buildSearchAnalyzer(indexAnalyzers, isLegacyVersion), AnalysisMode.SEARCH_TIME),
+                wrap(buildSearchQuoteAnalyzer(indexAnalyzers, isLegacyVersion), AnalysisMode.SEARCH_TIME),
                 this
             );
         }
 
-        private NamedAnalyzer buildIndexAnalyzer(IndexAnalyzers indexAnalyzers) {
+        private NamedAnalyzer buildIndexAnalyzer(IndexAnalyzers indexAnalyzers, boolean isLegacyVersion) {
             if (this.indexAnalyzer == null) {
                 return indexAnalyzers.getDefaultIndexAnalyzer();
             }
             NamedAnalyzer a = indexAnalyzers.get(this.indexAnalyzer);
             if (a == null) {
+                if (isLegacyVersion) {
+                    return indexAnalyzers.getDefaultIndexAnalyzer();
+                }
                 throw new IllegalArgumentException("Unknown analyzer [" + this.indexAnalyzer + "]");
             }
             return a;
         }
 
-        private NamedAnalyzer buildSearchAnalyzer(IndexAnalyzers indexAnalyzers) {
+        private NamedAnalyzer buildSearchAnalyzer(IndexAnalyzers indexAnalyzers, boolean isLegacyVersion) {
             if (this.searchAnalyzer == null) {
                 if (this.indexAnalyzer == null) {
                     return indexAnalyzers.getDefaultSearchAnalyzer();
                 }
-                return indexAnalyzers.get(this.indexAnalyzer);  // null check will already have happened in buildIndexAnalyzer
+                return buildIndexAnalyzer(indexAnalyzers, isLegacyVersion);
             }
             NamedAnalyzer a = indexAnalyzers.get(this.searchAnalyzer);
             if (a == null) {
+                if (isLegacyVersion) {
+                    return indexAnalyzers.getDefaultSearchAnalyzer();
+                }
                 throw new IllegalArgumentException("Unknown analyzer [" + this.searchAnalyzer + "]");
             }
             return a;
         }
 
-        private NamedAnalyzer buildSearchQuoteAnalyzer(IndexAnalyzers indexAnalyzers) {
+        private NamedAnalyzer buildSearchQuoteAnalyzer(IndexAnalyzers indexAnalyzers, boolean isLegacyVersion) {
             if (this.searchQuoteAnalyzer == null) {
                 if (this.searchAnalyzer == null) {
                     if (this.indexAnalyzer == null) {
                         return indexAnalyzers.getDefaultSearchQuoteAnalyzer();
                     }
-                    return indexAnalyzers.get(this.indexAnalyzer);  // null checked already in buildIndexAnalyzer
+                    return buildIndexAnalyzer(indexAnalyzers, isLegacyVersion);
                 }
-                return indexAnalyzers.get(this.searchAnalyzer); // null checked already in buildSearchAnalyzer
+                return buildSearchAnalyzer(indexAnalyzers, isLegacyVersion);
             }
             NamedAnalyzer a = indexAnalyzers.get(this.searchQuoteAnalyzer);
             if (a == null) {
+                if (isLegacyVersion) {
+                    return indexAnalyzers.getDefaultSearchQuoteAnalyzer();
+                }
                 throw new IllegalArgumentException("Unknown analyzer [" + this.searchQuoteAnalyzer + "]");
             }
             return a;
@@ -120,34 +129,45 @@ public final class TextParams {
         public final Parameter<String> searchQuoteAnalyzer;
         public final Parameter<Integer> positionIncrementGap;
 
+        private final Version indexCreatedVersion;
+
         public AnalyzerParameters(
             Function<FieldMapper, AnalyzerConfiguration> analyzerInitFunction,
             Version indexCreatedVersion
         ) {
-
+            this.indexCreatedVersion = indexCreatedVersion;
             this.indexAnalyzer = Parameter.stringParam(
                 "analyzer",
-                indexCreatedVersion.isLegacyIndexVersion(),
+                false,  // sort of - see merge validator!
                 mapper -> analyzerInitFunction.apply(mapper).indexAnalyzer,
                 null
             )
-                .setSerializerCheck((includeDefaults, isConfigured, value) -> value != null)
+                .acceptsNull()
+                .setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || value != null)
                 .setMergeValidator(
-                    // special case - we allow 'default' to be merged in to an unconfigured analyzer
-                    (previous, toMerge, conflicts) -> Objects.equals(previous, toMerge) || (previous == null && "default".equals(toMerge))
+                    // special cases
+                    // - we allow 'default' to be merged in to an unconfigured analyzer
+                    // - is the index was created a long time ago we allow updates to remove warnings about vanished analyzers
+                    (previous, toMerge, conflicts) -> indexCreatedVersion.isLegacyIndexVersion()
+                        || Objects.equals(previous, toMerge)
+                        || (previous == null && "default".equals(toMerge))
                 );
             this.searchAnalyzer = Parameter.stringParam(
                 "search_analyzer",
                 true,
                 mapper -> analyzerInitFunction.apply(mapper).searchAnalyzer,
                 null
-            ).setSerializerCheck((includeDefaults, isConfigured, value) -> value != null);
+            )
+                .acceptsNull()
+                .setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || value != null);
             this.searchQuoteAnalyzer = Parameter.stringParam(
                 "search_quote_analyzer",
                 true,
                 mapper -> analyzerInitFunction.apply(mapper).searchQuoteAnalyzer,
                 null
-            ).setSerializerCheck((includeDefaults, isConfigured, value) -> value != null);
+            )
+                .acceptsNull()
+                .setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || value != null);
             this.positionIncrementGap = Parameter.intParam(
                 "position_increment_gap",
                 false,
@@ -167,7 +187,7 @@ public final class TextParams {
                 searchQuoteAnalyzer.get(),
                 positionIncrementGap.get()
             );
-            return config.buildAnalyzers(indexAnalyzers);
+            return config.buildAnalyzers(indexAnalyzers, indexCreatedVersion.isLegacyIndexVersion());
         }
     }
 

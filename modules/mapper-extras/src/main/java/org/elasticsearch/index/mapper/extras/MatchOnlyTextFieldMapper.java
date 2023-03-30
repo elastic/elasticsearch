@@ -95,7 +95,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final TextParams.Analyzers analyzers;
+        final TextParams.AnalyzerParameters analyzers;
+        final IndexAnalyzers indexAnalyzers;
 
         public Builder(String name, IndexAnalyzers indexAnalyzers) {
             this(name, Version.CURRENT, indexAnalyzers);
@@ -104,10 +105,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
-            this.analyzers = new TextParams.Analyzers(
-                indexAnalyzers,
-                m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
-                m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap,
+            this.indexAnalyzers = indexAnalyzers;
+            this.analyzers = new TextParams.AnalyzerParameters(
+                m -> ((MatchOnlyTextFieldMapper) m).analyzerConfiguration,
                 indexCreatedVersion
             );
         }
@@ -117,24 +117,24 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return new Parameter<?>[] { meta };
         }
 
-        private MatchOnlyTextFieldType buildFieldType(MapperBuilderContext context) {
-            NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
-            NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
-            NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
+        private MatchOnlyTextFieldType buildFieldType(MapperBuilderContext context, TextParams.Analyzers analyzers) {
+            NamedAnalyzer searchAnalyzer = analyzers.searchAnalyzer();
+            NamedAnalyzer searchQuoteAnalyzer = analyzers.searchQuoteAnalyzer();
+            NamedAnalyzer indexAnalyzer = analyzers.indexAnalyzer();
             TextSearchInfo tsi = new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchQuoteAnalyzer);
-            MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(
+            return new MatchOnlyTextFieldType(
                 context.buildFullName(name),
                 tsi,
                 indexAnalyzer,
                 context.isSourceSynthetic(),
                 meta.getValue()
             );
-            return ft;
         }
 
         @Override
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
-            MatchOnlyTextFieldType tft = buildFieldType(context);
+            TextParams.Analyzers analyzers = this.analyzers.buildAnalyzers(this.indexAnalyzers);
+            MatchOnlyTextFieldType tft = buildFieldType(context, analyzers);
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             return new MatchOnlyTextFieldMapper(
                 name,
@@ -143,6 +143,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 multiFields,
                 copyTo.build(),
                 context.isSourceSynthetic(),
+                analyzers,
                 this
             );
         }
@@ -359,9 +360,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final Version indexCreatedVersion;
     private final IndexAnalyzers indexAnalyzers;
     private final NamedAnalyzer indexAnalyzer;
-    private final int positionIncrementGap;
     private final boolean storeSource;
     private final FieldType fieldType;
+    private final TextParams.AnalyzerConfiguration analyzerConfiguration;
 
     private MatchOnlyTextFieldMapper(
         String simpleName,
@@ -370,6 +371,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         MultiFields multiFields,
         CopyTo copyTo,
         boolean storeSource,
+        TextParams.Analyzers analyzers,
         Builder builder
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
@@ -377,9 +379,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         assert mappedFieldType.hasDocValues() == false;
         this.fieldType = fieldType;
         this.indexCreatedVersion = builder.indexCreatedVersion;
-        this.indexAnalyzers = builder.analyzers.indexAnalyzers;
-        this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
-        this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
+        this.indexAnalyzers = builder.indexAnalyzers;
+        this.indexAnalyzer = analyzers.indexAnalyzer();
+        this.analyzerConfiguration = analyzers.configuration();
         this.storeSource = storeSource;
     }
 

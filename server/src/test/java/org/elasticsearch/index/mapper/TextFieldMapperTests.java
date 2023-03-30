@@ -569,12 +569,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.fielddataMinSegmentSize(), equalTo(1000));
     }
 
-    public void testNullConfigValuesFail() throws MapperParsingException {
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("analyzer", (String) null)))
-        );
-        assertThat(e.getMessage(), containsString("[analyzer] on mapper [field] of type [text] must not have a [null] value"));
+    public void testNullConfigValuesUseDefaults() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text").field("analyzer", (String) null)));
+        TextFieldMapper m = (TextFieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertEquals("default", m.indexAnalyzers().get("field").name());
     }
 
     public void testNotIndexedFieldPositionIncrement() {

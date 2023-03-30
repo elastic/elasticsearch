@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
-public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT extends AbstractRemoteClusterSecurityTestCase {
+public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     protected static ElasticsearchCluster otherFulfillingCluster;
     protected static RestClient otherFulfillingClusterClient;

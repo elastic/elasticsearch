@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class RemoteClusterSecurityCssWithSameModelRemotesRestIT extends AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT {
+public class RemoteClusterSecurityWithSameModelRemotesRestIT extends AbstractRemoteClusterSecurityWithMultipleRemotesRestIT {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
     private static final AtomicReference<Map<String, Object>> OTHER_API_KEY_MAP_REF = new AtomicReference<>();

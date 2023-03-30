@@ -67,6 +67,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final TimestampField TIMESTAMP_FIELD = new DataStream.TimestampField("@timestamp");
+    public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
+
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
     public static Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
         try {
@@ -698,7 +700,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (rolloverInfo != null) {
             return TimeValue.timeValueMillis(rolloverInfo.getTime());
         } else {
-            return TimeValue.timeValueMillis(index.getCreationDate());
+            // We use the origination date as the creation date if it exists
+            Long originationDate = index.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, null);
+            return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, index::getCreationDate));
         }
     }
 

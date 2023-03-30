@@ -179,10 +179,7 @@ public class RerouteProcessorTests extends ESTestCase {
         ingestDocument.setFieldValue("data_stream.dataset", "foo");
         ingestDocument.setFieldValue("data_stream.namespace", "bar");
 
-        RerouteProcessor processor = createRerouteProcessor(
-            List.of("{{foo}}"),
-            List.of("{{bar}}")
-        );
+        RerouteProcessor processor = createRerouteProcessor(List.of("{{foo}}"), List.of("{{bar}}"));
         processor.execute(ingestDocument);
         assertDataSetFields(ingestDocument, "logs", "generic", "default");
     }
@@ -198,13 +195,7 @@ public class RerouteProcessorTests extends ESTestCase {
     }
 
     private RerouteProcessor createRerouteProcessor(String destination) {
-        return new RerouteProcessor(
-            null,
-            null,
-            List.of(),
-            List.of(),
-            destination
-        );
+        return new RerouteProcessor(null, null, List.of(), List.of(), destination);
     }
 
     private void assertDataSetFields(IngestDocument ingestDocument, String type, String dataset, String namespace) {

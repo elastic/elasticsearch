@@ -995,7 +995,7 @@ public class ClusterStateTests extends ESTestCase {
                     .add(new DiscoveryNode("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111), Version.CURRENT))
                     .build()
             )
-            .putTransportVersion("nodeId1", TransportVersion.V_8_0_0)
+            .putTransportVersion("nodeId1", TransportVersion.CURRENT)
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(

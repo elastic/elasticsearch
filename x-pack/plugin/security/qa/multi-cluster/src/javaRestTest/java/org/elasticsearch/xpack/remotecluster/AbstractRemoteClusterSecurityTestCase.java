@@ -149,11 +149,11 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         configureRemoteCluster(fulfillingCluster, isProxyMode);
     }
 
-    private void configureRemoteCluster(ElasticsearchCluster targetFulfillingCluster, boolean isProxyMode) throws Exception {
+    protected void configureRemoteCluster(ElasticsearchCluster targetFulfillingCluster, boolean isProxyMode) throws Exception {
         configureRemoteCluster("my_remote_cluster", targetFulfillingCluster, false, isProxyMode, false);
     }
 
-    void configureRemoteCluster(
+    protected void configureRemoteCluster(
         String clusterAlias,
         ElasticsearchCluster targetFulfillingCluster,
         boolean basicSecurity,

@@ -19,6 +19,8 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.allocation.StatelessAllocationDecider;
+import co.elastic.elasticsearch.stateless.allocation.StatelessExistingShardsAllocator;
+import co.elastic.elasticsearch.stateless.allocation.StatelessIndexSettingProvider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessShardRoutingRoleStrategy;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
@@ -40,12 +42,15 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -53,15 +58,18 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -239,6 +247,27 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                         } finally {
                             store.decRef();
                         }
+                    } else {
+                        // TODO assert we only do EmptyStoreRecoverySource / ExistingStoreRecoverySource recovery here
+                        if (indexShard.recoveryState().getRecoverySource() != RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
+                            logger.info("Recovering primary shard [{}] on {}", indexShard.shardId());
+                            var store = indexShard.store();
+                            store.incRef();
+                            try {
+                                Lucene.cleanLuceneIndex(store.directory());
+                                store.createEmpty();
+                                var translogUUID = Translog.createEmptyTranslog(
+                                    indexShard.shardPath().resolveTranslog(),
+                                    SequenceNumbers.NO_OPS_PERFORMED,
+                                    indexShard.shardId(),
+                                    indexShard.getPendingPrimaryTerm()
+                                );
+                                store.associateIndexWithNewTranslog(translogUUID);
+
+                            } finally {
+                                store.decRef();
+                            }
+                        }
                     }
                     return null;
                 });
@@ -340,6 +369,16 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
         return List.of(new StatelessAllocationDecider());
+    }
+
+    @Override
+    public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
+        return Map.of(NAME, new StatelessExistingShardsAllocator());
+    }
+
+    @Override
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
+        return List.of(new StatelessIndexSettingProvider());
     }
 
     /**

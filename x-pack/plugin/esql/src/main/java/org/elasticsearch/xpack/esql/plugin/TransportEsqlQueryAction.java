@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -48,14 +47,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         PlanExecutor planExecutor,
         SearchService searchService,
         ClusterService clusterService,
-        NodeClient nodeClient,
         ThreadPool threadPool,
         BigArrays bigArrays
     ) {
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new);
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
-        this.computeService = new ComputeService(searchService, clusterService, transportService, nodeClient, threadPool, bigArrays);
+        this.computeService = new ComputeService(searchService, clusterService, transportService, threadPool, bigArrays);
         this.settings = settings;
     }
 

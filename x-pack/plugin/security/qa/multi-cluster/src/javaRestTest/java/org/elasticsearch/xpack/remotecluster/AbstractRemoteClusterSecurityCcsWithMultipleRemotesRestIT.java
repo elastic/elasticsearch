@@ -35,7 +35,10 @@ public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT 
     protected static RestClient otherFulfillingClusterClient;
 
     @BeforeClass
-    public static void initSecondFulfillingClusterClient() {
+    public static void initOtherFulfillingClusterClient() {
+        if (otherFulfillingClusterClient != null) {
+            return;
+        }
         otherFulfillingClusterClient = buildRestClient(otherFulfillingCluster);
     }
 
@@ -46,7 +49,7 @@ public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT 
 
     public void testCrossClusterSearch() throws Exception {
         configureRemoteClusters();
-        setupRolesOnClusters();
+        configureRolesOnClusters();
 
         // Fulfilling cluster
         {
@@ -74,7 +77,7 @@ public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT 
 
         // Query cluster
         {
-            // Index some documents, to use them in a mixed-cluster search
+            // Index some documents, to use them in a multi-cluster search
             final var indexDocRequest = new Request("POST", "/local_index/_doc?refresh=true");
             indexDocRequest.setJsonEntity("{\"name\": \"doc1\"}");
             assertOK(client().performRequest(indexDocRequest));
@@ -153,7 +156,7 @@ public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT 
         }
     }
 
-    protected abstract void setupRolesOnClusters() throws IOException;
+    protected abstract void configureRolesOnClusters() throws IOException;
 
     static void searchAndAssertIndicesFound(String searchPath, String... expectedIndices) throws IOException {
         final Response response = performRequestWithRemoteSearchUser(new Request("GET", searchPath));

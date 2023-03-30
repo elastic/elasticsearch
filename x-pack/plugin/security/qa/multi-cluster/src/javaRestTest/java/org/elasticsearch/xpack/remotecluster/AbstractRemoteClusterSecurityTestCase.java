@@ -116,6 +116,10 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
 
     protected static Map<String, Object> createCrossClusterAccessApiKey(String indicesPrivilegesJson) {
         initFulfillingClusterClient();
+        return createCrossClusterAccessApiKey(fulfillingClusterClient, indicesPrivilegesJson);
+    }
+
+    static Map<String, Object> createCrossClusterAccessApiKey(RestClient targetClusterClient, String indicesPrivilegesJson) {
         // Create API key on FC
         final var createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity(Strings.format("""
@@ -129,7 +133,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
               }
             }""", indicesPrivilegesJson));
         try {
-            final Response createApiKeyResponse = performRequestAgainstFulfillingCluster(createApiKeyRequest);
+            final Response createApiKeyResponse = performRequestWithDefaultUser(targetClusterClient, createApiKeyRequest);
             assertOK(createApiKeyResponse);
             return responseAsMap(createApiKeyResponse);
         } catch (IOException e) {
@@ -146,7 +150,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     }
 
     private void configureRemoteCluster(ElasticsearchCluster targetFulfillingCluster, boolean isProxyMode) throws Exception {
-        configureRemoteCluster("my_remote_cluster", fulfillingCluster, false, isProxyMode);
+        configureRemoteCluster("my_remote_cluster", targetFulfillingCluster, false, isProxyMode);
     }
 
     void configureRemoteCluster(

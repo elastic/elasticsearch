@@ -38,7 +38,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexFormatVersion;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -607,17 +607,17 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testCalculateNumRoutingShards() {
-        assertEquals(1024, MetadataCreateIndexService.calculateNumRoutingShards(1, IndexFormatVersion.CURRENT));
-        assertEquals(1024, MetadataCreateIndexService.calculateNumRoutingShards(2, IndexFormatVersion.CURRENT));
-        assertEquals(768, MetadataCreateIndexService.calculateNumRoutingShards(3, IndexFormatVersion.CURRENT));
-        assertEquals(576, MetadataCreateIndexService.calculateNumRoutingShards(9, IndexFormatVersion.CURRENT));
-        assertEquals(1024, MetadataCreateIndexService.calculateNumRoutingShards(512, IndexFormatVersion.CURRENT));
-        assertEquals(2048, MetadataCreateIndexService.calculateNumRoutingShards(1024, IndexFormatVersion.CURRENT));
-        assertEquals(4096, MetadataCreateIndexService.calculateNumRoutingShards(2048, IndexFormatVersion.CURRENT));
+        assertEquals(1024, MetadataCreateIndexService.calculateNumRoutingShards(1, IndexVersion.CURRENT));
+        assertEquals(1024, MetadataCreateIndexService.calculateNumRoutingShards(2, IndexVersion.CURRENT));
+        assertEquals(768, MetadataCreateIndexService.calculateNumRoutingShards(3, IndexVersion.CURRENT));
+        assertEquals(576, MetadataCreateIndexService.calculateNumRoutingShards(9, IndexVersion.CURRENT));
+        assertEquals(1024, MetadataCreateIndexService.calculateNumRoutingShards(512, IndexVersion.CURRENT));
+        assertEquals(2048, MetadataCreateIndexService.calculateNumRoutingShards(1024, IndexVersion.CURRENT));
+        assertEquals(4096, MetadataCreateIndexService.calculateNumRoutingShards(2048, IndexVersion.CURRENT));
 
         for (int i = 0; i < 1000; i++) {
             int randomNumShards = randomIntBetween(1, 10000);
-            int numRoutingShards = MetadataCreateIndexService.calculateNumRoutingShards(randomNumShards, IndexFormatVersion.CURRENT);
+            int numRoutingShards = MetadataCreateIndexService.calculateNumRoutingShards(randomNumShards, IndexVersion.CURRENT);
             if (numRoutingShards <= 1024) {
                 assertTrue("numShards: " + randomNumShards, randomNumShards < 513);
                 assertTrue("numRoutingShards: " + numRoutingShards, numRoutingShards > 512);

@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.index.IndexFormatVersion;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -241,13 +241,13 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
     @Override
     protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {
-        IndexFormatVersion indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+        IndexVersion indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
         // At various stages in settings verification we will perform validation without having the
         // IndexMetadata at hand, in which case the setting version will be empty. We don't want to
         // error out on those validations, we will check with the creation version present at index
         // creation time, as well as on index update settings.
-        if (indexVersion.equals(IndexFormatVersion.ZERO) == false
-            && (indexVersion.before(IndexFormatVersion.V_7_0_0) || indexVersion.onOrAfter(IndexFormatVersion.V_8_0_0))) {
+        if (indexVersion.equals(IndexVersion.ZERO) == false
+            && (indexVersion.before(IndexVersion.V_7_0_0) || indexVersion.onOrAfter(IndexVersion.V_8_0_0))) {
             throw new IllegalArgumentException("unknown setting [" + setting.getKey() + "]");
         }
     }

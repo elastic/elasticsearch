@@ -91,7 +91,6 @@ public class QueryPhase {
     /**
      * In a package-private method so that it can be tested without having to
      * wire everything (mapperService, etc.)
-     * @return whether the rescoring phase should be executed
      */
     static void executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();

@@ -1284,6 +1284,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, is((long) numDocsBar + numDocsFoo + numDocsRolledFoo));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94481")
     public void testGetDataStream() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maximumNumberOfReplicas() + 2).build();
         DataLifecycle lifecycle = new DataLifecycle(randomMillisUpToYear9999());

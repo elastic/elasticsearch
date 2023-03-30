@@ -15,10 +15,10 @@ coming::[${majorDotMinorDotRevision}]
 [discrete]
 [[breaking-changes-${majorDotMinor}]]
 === Breaking changes
-<% if (breakingByNotabilityByArea.isEmpty()) { %>
+
 // tag::notable-breaking-changes[]
+<% if (breakingByNotabilityByArea.isEmpty()) { %>
 There are no breaking changes in {es} ${majorDotMinor}.
-// end::notable-breaking-changes[]
 <% } else { %>
 The following changes in {es} ${majorDotMinor} might affect your applications
 and prevent them from operating normally.
@@ -61,10 +61,10 @@ ${breaking.impact.trim()}
             }
         }
     }
-}
+} %>
+// end::notable-breaking-changes[]
 
-if (deprecationsByNotabilityByArea.isEmpty() == false) { %>
-
+<% if (deprecationsByNotabilityByArea.isEmpty() == false) { %>
 [discrete]
 [[deprecated-${majorDotMinor}]]
 === Deprecations

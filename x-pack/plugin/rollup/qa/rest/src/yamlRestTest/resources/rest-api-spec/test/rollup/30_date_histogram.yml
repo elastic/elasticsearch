@@ -439,3 +439,27 @@ setup:
   - match: { aggregations.auto_date_histo.buckets.7.doc_count: 0 }
   - match: { aggregations.auto_date_histo.buckets.8.key_as_string: "2021-04-29T18:00:00.000Z" }
   - match: { aggregations.auto_date_histo.buckets.8.doc_count: 8 }
+
+
+  - do:
+      search:
+        index: test1-rollup,test2-raw
+        body:
+          size: 0
+          aggs:
+            auto_date_histo:
+              auto_date_histogram:
+                field: "@timestamp"
+                buckets: 200
+
+  - match: { hits.total.value: 12 }
+  - length: { aggregations.auto_date_histo.buckets: 151 }
+  - match: { aggregations.auto_date_histo.interval: "10m" }
+  - match: { aggregations.auto_date_histo.buckets.0.key_as_string: "2021-04-28T18:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.0.doc_count: 4 }
+  - match: { aggregations.auto_date_histo.buckets.6.key_as_string: "2021-04-28T19:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.6.doc_count: 4 }
+  - match: { aggregations.auto_date_histo.buckets.149.key_as_string: "2021-04-29T18:50:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.149.doc_count: 4 }
+  - match: { aggregations.auto_date_histo.buckets.150.key_as_string: "2021-04-29T19:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.150.doc_count: 4 }

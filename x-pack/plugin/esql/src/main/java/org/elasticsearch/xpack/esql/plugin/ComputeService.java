@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
-import org.elasticsearch.compute.operator.DriverRunner;
+import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -34,7 +33,6 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
@@ -63,23 +61,21 @@ public class ComputeService {
     private static final Logger LOGGER = LogManager.getLogger(ComputeService.class);
     private final SearchService searchService;
     private final ClusterService clusterService;
-    private final NodeClient client;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
     private final TransportService transportService;
+    private final DriverTaskRunner driverRunner;
 
     public ComputeService(
         SearchService searchService,
         ClusterService clusterService,
         TransportService transportService,
-        NodeClient client,
         ThreadPool threadPool,
         BigArrays bigArrays
     ) {
         this.searchService = searchService;
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.client = client;
         this.threadPool = threadPool;
         this.bigArrays = bigArrays.withCircuitBreaking();
         transportService.registerRequestHandler(
@@ -88,6 +84,7 @@ public class ComputeService {
             AcquireSearchContextsRequest::new,
             new AcquireSearchContextHandler()
         );
+        this.driverRunner = new DriverTaskRunner(transportService, threadPool);
     }
 
     private void acquireSearchContexts(Task task, String[] indices, ActionListener<List<SearchContext>> listener) {
@@ -143,21 +140,11 @@ public class ComputeService {
                     throw new IllegalStateException("no drivers created");
                 }
                 LOGGER.info("using {} drivers", drivers.size());
-
-                TaskId parentTask = rootTask.taskInfo(client.getLocalNodeId(), false).taskId();
-
-                new DriverRunner() {
-                    @Override
-                    protected void start(Driver driver, ActionListener<Void> driverListener) {
-                        EsqlComputeEngineAction.Request request = new EsqlComputeEngineAction.Request(driver);
-                        request.setParentTask(parentTask);
-                        client.executeLocally(
-                            EsqlComputeEngineAction.INSTANCE,
-                            request,
-                            ActionListener.wrap(r -> driverListener.onResponse(null), driverListener::onFailure)
-                        );
-                    }
-                }.runToCompletion(drivers, ActionListener.releaseAfter(listener.map(unused -> collectedPages), release));
+                driverRunner.executeDrivers(
+                    rootTask,
+                    drivers,
+                    ActionListener.releaseAfter(listener.map(unused -> collectedPages), release)
+                );
                 success = true;
             } finally {
                 if (success == false) {

@@ -280,10 +280,11 @@ public class PointInTimeIT extends ESIntegTestCase {
     }
 
     public void testAllowNoIndex() {
-        var request = new OpenPointInTimeRequest("my_index").indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest("my_index").indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .keepAlive(TimeValue.timeValueMinutes(between(1, 10)));
         String pit = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet().getPointInTimeId();
-        var closeResp = client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pit)).actionGet();
+        ClosePointInTimeResponse closeResp = client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pit))
+            .actionGet();
         assertThat(closeResp.status(), equalTo(RestStatus.OK));
     }
 

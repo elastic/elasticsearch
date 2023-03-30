@@ -1,6 +1,0 @@
-pr: 93445
-summary: Support downsampling of histogram as labels
-area: Rollup
-type: bug
-issues:
- - 93263

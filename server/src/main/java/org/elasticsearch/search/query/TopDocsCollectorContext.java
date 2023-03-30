@@ -74,20 +74,6 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         this.numHits = numHits;
     }
 
-    /**
-     * Returns the number of top docs to retrieve
-     */
-    final int numHits() {
-        return numHits;
-    }
-
-    /**
-     * Returns true if the top docs should be re-scored after initial search
-     */
-    boolean shouldRescore() {
-        return false;
-    }
-
     static class EmptyTopDocsCollectorContext extends TopDocsCollectorContext {
         private final Sort sort;
         private final Collector collector;
@@ -188,7 +174,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
     }
 
-    abstract static class SimpleTopDocsCollectorContext extends TopDocsCollectorContext {
+    static class SimpleTopDocsCollectorContext extends TopDocsCollectorContext {
 
         private static TopDocsCollector<?> createCollector(
             @Nullable SortAndFormats sortAndFormats,
@@ -479,12 +465,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 searchContext.trackScores(),
                 searchContext.trackTotalHitsUpTo(),
                 hasFilterCollector
-            ) {
-                @Override
-                boolean shouldRescore() {
-                    return rescore;
-                }
-            };
+            );
         }
     }
 

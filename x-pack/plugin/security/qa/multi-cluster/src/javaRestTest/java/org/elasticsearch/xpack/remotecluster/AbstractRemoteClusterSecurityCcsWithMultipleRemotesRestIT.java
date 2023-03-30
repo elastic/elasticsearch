@@ -17,6 +17,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -24,10 +25,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT extends AbstractRemoteClusterSecurityTestCase {
 
@@ -124,70 +128,79 @@ public abstract class AbstractRemoteClusterSecurityCcsWithMultipleRemotesRestIT 
 
             // Search single remote
             final boolean searchFirstCluster = randomBoolean();
-            final String expectedIndex = searchFirstCluster ? "cluster1_index1" : "cluster2_index1";
+            final String expectedIndex1 = searchFirstCluster ? "cluster1_index1" : "cluster2_index1";
             searchAndAssertIndicesFound(
                 String.format(
                     Locale.ROOT,
                     "/%s:%s/_search?ccs_minimize_roundtrips=%s",
                     searchFirstCluster ? "my_remote_cluster" : "my_remote_cluster_2",
-                    randomFrom(expectedIndex, "*_index1", "*"),
+                    randomFrom(expectedIndex1, "*_index1", "*"),
                     randomBoolean()
                 ),
-                expectedIndex
+                expectedIndex1
             );
 
-            // Unauthorized access on either of the remotes fails the whole request
+            // To simplify the test setup, we only ever (randomly) set skip_unavailable on the other remote, not on both
+            // This impacts below failure scenarios; in some cases, skipping the other remote results in success
+            final boolean skipUnavailableOnOtherCluster = isSkipUnavailable("my_remote_cluster_2");
+
+            // Search when one cluster throws 403
             // No permissions for this index name, so searching for it on either remote will result in 403
             final String missingIndex = "index1";
             final boolean missingIndexOnFirstCluster = randomBoolean();
             // Make sure we search for missing index on at least one remote, possibly both
             final boolean missingIndexOnSecondCluster = false == missingIndexOnFirstCluster || randomBoolean();
-            final ResponseException exception1 = expectThrows(
-                ResponseException.class,
-                () -> performRequestWithRemoteSearchUser(
-                    new Request(
-                        "GET",
-                        String.format(
-                            Locale.ROOT,
-                            "/my_remote_cluster:%s,my_remote_cluster_2:%s/_search?ccs_minimize_roundtrips=%s",
-                            missingIndexOnFirstCluster ? missingIndex : randomFrom("cluster1_index1", "*_index1", "*"),
-                            missingIndexOnSecondCluster ? missingIndex : randomFrom("cluster2_index1", "*_index1", "*"),
-                            randomBoolean()
-                        )
-                    )
-                )
+            final String searchPath1 = String.format(
+                Locale.ROOT,
+                "/my_remote_cluster:%s,my_remote_cluster_2:%s/_search?ccs_minimize_roundtrips=%s",
+                missingIndexOnFirstCluster ? missingIndex : randomFrom("cluster1_index1", "*_index1", "*"),
+                missingIndexOnSecondCluster ? missingIndex : randomFrom("cluster2_index1", "*_index1", "*"),
+                randomBoolean()
             );
-            assertThat(exception1.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            if (skipUnavailableOnOtherCluster && false == missingIndexOnFirstCluster) {
+                // 403 from other cluster is skipped, so we get a result
+                searchAndAssertIndicesFound(searchPath1, "cluster1_index1");
+            } else {
+                // Unauthorized access on either of the remotes fails the whole request
+                searchAndExpect403(searchPath1);
+            }
 
-            // Same as above but with wildcard cluster alias
-            final ResponseException exception2 = expectThrows(
-                ResponseException.class,
-                () -> performRequestWithRemoteSearchUser(
-                    new Request(
-                        "GET",
-                        String.format(Locale.ROOT, "/*:%s/_search?ccs_minimize_roundtrips=%s", missingIndex, randomBoolean())
-                    )
-                )
-            );
-            assertThat(exception2.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            // Search when both clusters throw 403; in this case we always fail because first cluster is not skipped
+            searchAndExpect403(String.format(Locale.ROOT, "/*:%s/_search?ccs_minimize_roundtrips=%s", missingIndex, randomBoolean()));
 
-            // Unauthorized with cluster alias wildcard matching both remotes, where index is authorized on one but not the other
-            final ResponseException exception3 = expectThrows(
-                ResponseException.class,
-                () -> performRequestWithRemoteSearchUser(
-                    new Request(
-                        "GET",
-                        String.format(
-                            Locale.ROOT,
-                            "/my_remote_cluster*:%s/_search?ccs_minimize_roundtrips=%s",
-                            randomFrom("cluster1_index1", "cluster2_index1"),
-                            randomBoolean()
-                        )
-                    )
-                )
+            // Search with cluster alias wildcard matching both remotes, where index is authorized on one but not the other
+            final String expectedIndex2 = randomFrom("cluster1_index1", "cluster2_index1");
+            final String searchPath2 = String.format(
+                Locale.ROOT,
+                "/my_remote_cluster*:%s/_search?ccs_minimize_roundtrips=%s",
+                expectedIndex2,
+                randomBoolean()
             );
-            assertThat(exception3.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            if (expectedIndex2.equals("cluster1_index1") && skipUnavailableOnOtherCluster) {
+                // 403 from other cluster is skipped, so we get a result
+                searchAndAssertIndicesFound(searchPath1, expectedIndex2);
+            } else {
+                searchAndExpect403(searchPath2);
+            }
         }
+    }
+
+    private static boolean isSkipUnavailable(String clusterAlias) throws IOException {
+        final Request remoteInfoRequest = new Request("GET", "/_remote/info");
+        final Response remoteInfoResponse = adminClient().performRequest(remoteInfoRequest);
+        assertOK(remoteInfoResponse);
+        final Map<String, Object> remoteInfoMap = responseAsMap(remoteInfoResponse);
+        assertThat(remoteInfoMap, hasKey(clusterAlias));
+        assertThat(ObjectPath.eval(clusterAlias + ".connected", remoteInfoMap), is(true));
+        return ObjectPath.eval(clusterAlias + ".skip_unavailable", remoteInfoMap);
+    }
+
+    private static void searchAndExpect403(String searchPath) {
+        final ResponseException exception = expectThrows(
+            ResponseException.class,
+            () -> performRequestWithRemoteSearchUser(new Request("GET", searchPath))
+        );
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
     }
 
     protected abstract void configureRolesOnClusters() throws IOException;

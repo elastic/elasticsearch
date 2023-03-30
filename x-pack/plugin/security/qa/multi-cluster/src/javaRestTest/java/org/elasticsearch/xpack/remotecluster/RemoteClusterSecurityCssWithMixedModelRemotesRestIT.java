@@ -112,6 +112,6 @@ public class RemoteClusterSecurityCssWithMixedModelRemotesRestIT extends Abstrac
     @Override
     protected void configureRemoteClusters() throws Exception {
         super.configureRemoteClusters();
-        configureRemoteCluster("my_remote_cluster_2", otherFulfillingCluster, true, randomBoolean(), false);
+        configureRemoteCluster("my_remote_cluster_2", otherFulfillingCluster, true, randomBoolean(), randomBoolean());
     }
 }

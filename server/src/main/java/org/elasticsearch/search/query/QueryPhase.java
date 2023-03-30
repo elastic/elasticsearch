@@ -132,8 +132,6 @@ public class QueryPhase {
                 // add terminate_after before the filter collectors
                 // it will only be applied on documents accepted by these filter collectors
                 collectors.add(createEarlyTerminationCollectorContext(searchContext.terminateAfter()));
-                // this collector can filter documents during the collection
-                hasFilterCollector = true;
             }
             if (searchContext.parsedPostFilter() != null) {
                 // add post filters before aggregations

@@ -29,6 +29,10 @@ import java.io.InputStream;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Contains the template parameter validation, as a JSON Schema. It validates that the JSON schema
+ * is valid, and will apply it to the query parameters
+ */
 public class TemplateParamValidator implements ToXContentObject, Writeable {
 
     private static final SpecVersion.VersionFlag SCHEMA_VERSION = SpecVersion.VersionFlag.V7;
@@ -37,6 +41,7 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
     private static final JsonSchema META_SCHEMA = SCHEMA_FACTORY.getSchema(
         TemplateParamValidator.class.getResourceAsStream("json-schema-draft-07.json")
     );
+    private static final String PROPERTIES_NODE = "properties";
 
     private final JsonSchema jsonSchema;
 
@@ -48,7 +53,7 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
         try {
             // Create a new Schema with "properties" node based on the dictionary content
             final ObjectNode schemaJsonNode = OBJECT_MAPPER.createObjectNode();
-            schemaJsonNode.set("properties", OBJECT_MAPPER.readTree(dictionaryContent));
+            schemaJsonNode.set(PROPERTIES_NODE, OBJECT_MAPPER.readTree(dictionaryContent));
             final Set<ValidationMessage> validationMessages = META_SCHEMA.validate(schemaJsonNode);
 
             if (validationMessages.isEmpty() == false) {
@@ -85,7 +90,7 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
     }
 
     private String getSchemaPropertiesAsString() {
-        return jsonSchema.getSchemaNode().get("properties").toString();
+        return jsonSchema.getSchemaNode().get(PROPERTIES_NODE).toString();
     }
 
     @Override

@@ -125,6 +125,6 @@ public class RemoteClusterSecurityCssWithSameModelRemotesRestIT extends Abstract
     @Override
     protected void configureRemoteClusters() throws Exception {
         super.configureRemoteClusters();
-        configureRemoteCluster("my_remote_cluster_2", otherFulfillingCluster, false, randomBoolean());
+        configureRemoteCluster("my_remote_cluster_2", otherFulfillingCluster, false, randomBoolean(), false);
     }
 }

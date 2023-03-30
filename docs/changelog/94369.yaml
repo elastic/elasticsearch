@@ -1,5 +1,0 @@
-pr: 94369
-summary: Fix NPE thrown by prefix query in strange scenarios
-area: Search
-type: bug
-issues: []

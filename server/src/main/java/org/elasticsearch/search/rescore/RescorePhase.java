@@ -22,6 +22,10 @@ import java.io.IOException;
 public class RescorePhase {
 
     public static void execute(SearchContext context) {
+        if (context.size() == 0 || context.collapse() != null || context.rescore() == null || context.rescore().isEmpty()) {
+            return;
+        }
+
         TopDocs topDocs = context.queryResult().topDocs().topDocs;
         if (topDocs.scoreDocs.length == 0) {
             return;

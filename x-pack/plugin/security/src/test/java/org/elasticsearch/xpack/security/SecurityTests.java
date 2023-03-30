@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -818,6 +819,60 @@ public class SecurityTests extends ESTestCase {
             appender.stop();
             Loggers.removeAppender(mockLogger, appender);
         }
+    }
+
+    public void testSecurityMustBeEnableToConnectRemoteClusterWithCredentials() {
+        // Security on, no remote cluster with credentials
+        final Settings.Builder builder1 = Settings.builder();
+        if (randomBoolean()) {
+            builder1.put("xpack.security.enabled", "true");
+        }
+        try {
+            new Security(builder1.build());
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security off, no remote cluster with credentials
+        final Settings.Builder builder2 = Settings.builder().put("xpack.security.enabled", "false");
+        try {
+            new Security(builder2.build());
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security on, remote cluster with credentials
+        final Settings.Builder builder3 = Settings.builder();
+        final MockSecureSettings secureSettings3 = new MockSecureSettings();
+        final String clusterCredentials3 = randomAlphaOfLength(20);
+        secureSettings3.setString("cluster.remote.my1.credentials", clusterCredentials3);
+        builder3.setSecureSettings(secureSettings3);
+        if (randomBoolean()) {
+            builder3.put("xpack.security.enabled", "true");
+        }
+        final Settings settings3 = builder3.build();
+        try {
+            new Security(settings3);
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security off, remote cluster with credentials
+        final Settings.Builder builder4 = Settings.builder();
+        final MockSecureSettings secureSettings4 = new MockSecureSettings();
+        secureSettings4.setString("cluster.remote.my1.credentials", randomAlphaOfLength(20));
+        secureSettings4.setString("cluster.remote.my2.credentials", randomAlphaOfLength(20));
+        builder4.setSecureSettings(secureSettings4);
+        final Settings settings4 = builder4.put("xpack.security.enabled", "false").build();
+        final IllegalArgumentException e4 = expectThrows(IllegalArgumentException.class, () -> new Security(settings4));
+        assertThat(
+            e4.getMessage(),
+            containsString(
+                "Found [2] remote clusters with credentials [cluster.remote.my1.credentials,cluster.remote.my2.credentials]. "
+                    + "Security [xpack.security.enabled] must be enabled to connect to them. "
+                    + "Please either enable security or remove these settings from the keystore."
+            )
+        );
     }
 
     private void verifyHasAuthenticationHeaderValue(Exception e, String... expectedValues) {

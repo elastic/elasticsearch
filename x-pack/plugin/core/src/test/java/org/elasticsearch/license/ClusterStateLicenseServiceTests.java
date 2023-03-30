@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.licensor.LicenseSigner;
+import org.elasticsearch.license.mutable.MutableXPackLicenseState;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.test.ESTestCase;
@@ -95,7 +96,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             mock(ThreadPool.class),
             mockDefaultClusterService(),
             mock(Clock.class),
-            mock(XPackLicenseState.class)
+            mock(MutableXPackLicenseState.class)
         );
         final String message = service.buildExpirationMessage(time, expired).toString();
         if (expired) {
@@ -190,7 +191,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             mock(ThreadPool.class),
             clusterService,
             clock,
-            mock(XPackLicenseState.class)
+            mock(MutableXPackLicenseState.class)
         );
         verify(clusterService).createTaskQueue(eq("license-service-start-basic"), any(), taskExecutorCaptor.capture());
 
@@ -279,7 +280,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
 
         final ClusterService clusterService = mockDefaultClusterService();
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
-        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        final MutableXPackLicenseState licenseState = mock(MutableXPackLicenseState.class);
         final ThreadPool threadPool = mock(ThreadPool.class);
         final ClusterStateLicenseService service = new ClusterStateLicenseService(
             settings,
@@ -364,7 +365,7 @@ public class ClusterStateLicenseServiceTests extends ESTestCase {
             mock(ThreadPool.class),
             mockDefaultClusterService(),
             mock(Clock.class),
-            mock(XPackLicenseState.class)
+            mock(MutableXPackLicenseState.class)
         );
         String warning = service.getExpiryWarning(expiration, now);
         if (msg == null) {

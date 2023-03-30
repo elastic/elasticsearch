@@ -16,6 +16,8 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.licensor.LicenseSigner;
+import org.elasticsearch.license.mutable.MutableLicenseService;
+import org.elasticsearch.license.mutable.MutableXPackLicenseState;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.xcontent.ToXContent;
@@ -375,7 +377,7 @@ public class TestUtils {
     }
 
     public static void registerAndAckSignedLicenses(
-        final LicenseService.MutableLicenseService licenseService,
+        final MutableLicenseService licenseService,
         License license,
         final LicensesStatus expectedStatus
     ) {
@@ -402,7 +404,7 @@ public class TestUtils {
         assertThat(status.get(), equalTo(expectedStatus));
     }
 
-    public static class AssertingLicenseState extends XPackLicenseState {
+    public static class AssertingLicenseState extends MutableXPackLicenseState {
         public final List<License.OperationMode> modeUpdates = new ArrayList<>();
         public final List<Boolean> activeUpdates = new ArrayList<>();
         public final List<String> expiryWarnings = new ArrayList<>();
@@ -412,7 +414,7 @@ public class TestUtils {
         }
 
         @Override
-        protected void update(License.OperationMode mode, boolean active, String expiryWarning) {
+        public void update(License.OperationMode mode, boolean active, String expiryWarning) {
             modeUpdates.add(mode);
             activeUpdates.add(active);
             expiryWarnings.add(expiryWarning);
@@ -423,7 +425,7 @@ public class TestUtils {
      * A license state that makes the {@link #update(License.OperationMode, boolean, String)}
      * method public for use in tests.
      */
-    public static class UpdatableLicenseState extends XPackLicenseState {
+    public static class UpdatableLicenseState extends MutableXPackLicenseState {
         public UpdatableLicenseState() {
             this(Settings.EMPTY);
         }
@@ -438,8 +440,8 @@ public class TestUtils {
         }
     }
 
-    public static XPackLicenseState newTestLicenseState() {
-        return new XPackLicenseState(() -> 0);
+    public static MutableXPackLicenseState newTestLicenseState() {
+        return new MutableXPackLicenseState(() -> 0);
     }
 
     public static void putLicense(Metadata.Builder builder, License license) {

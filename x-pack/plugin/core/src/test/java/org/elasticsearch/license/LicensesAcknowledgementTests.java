@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.mutable.MutableXPackLicenseState;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
@@ -23,7 +24,7 @@ import static org.mockito.Mockito.verify;
 public class LicensesAcknowledgementTests extends AbstractClusterStateLicenseServiceTestCase {
 
     public void testAcknowledgment() throws Exception {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
+        MutableXPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(TestUtils.generateSignedLicense("gold", timeValueHours(2)), licenseState, Settings.EMPTY);
         licenseService.start();
         // try installing a signed license

@@ -46,6 +46,8 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.mutable.MutableLicenseService;
+import org.elasticsearch.license.mutable.MutableXPackLicenseState;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -156,6 +158,7 @@ public class XPackPlugin extends XPackClientPlugin
     // private final Environment env;
     protected final Licensing licensing;
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
+    private static final SetOnce<MutableXPackLicenseState> mutableLicenseState = new SetOnce<>();
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
     private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
@@ -166,8 +169,8 @@ public class XPackPlugin extends XPackClientPlugin
         // FIXME: The settings might be changed after this (e.g. from "additionalSettings" method in other plugins)
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
-
-        setLicenseState(new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong()));
+        mutableLicenseState.set(new MutableXPackLicenseState(() -> getEpochMillisSupplier().getAsLong()));
+        setLicenseState(mutableLicenseState.get());
 
         this.licensing = new Licensing(settings);
     }
@@ -314,14 +317,20 @@ public class XPackPlugin extends XPackClientPlugin
         List<Object> components = new ArrayList<>();
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
-        LicenseService licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
+        LicenseService licenseService = new ClusterStateLicenseService(
+            settings,
+            threadPool,
+            clusterService,
+            getClock(),
+            mutableLicenseState.get()
+        );
         setLicenseService(licenseService);
 
         setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
-        components.add(new PluginComponentBinding<>(LicenseService.MutableLicenseService.class, licenseService));
+        components.add(new PluginComponentBinding<>(MutableLicenseService.class, licenseService));
         components.add(new PluginComponentBinding<>(LicenseService.class, licenseService));
         components.add(getLicenseState());
 

@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.license.mutable.MutableXPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackField;
 
@@ -38,12 +39,12 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     /** Creates a license state with the given license type and active state, and checks the given method returns expected. */
     void assertAllowed(OperationMode mode, boolean active, Predicate<XPackLicenseState> predicate, boolean expected) {
-        XPackLicenseState licenseState = buildLicenseState(mode, active);
+        MutableXPackLicenseState licenseState = buildLicenseState(mode, active);
         assertEquals(expected, predicate.test(licenseState));
     }
 
-    XPackLicenseState buildLicenseState(OperationMode mode, boolean active) {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
+    MutableXPackLicenseState buildLicenseState(OperationMode mode, boolean active) {
+        MutableXPackLicenseState licenseState = TestUtils.newTestLicenseState();
         licenseState.update(mode, active, null);
         return licenseState;
     }
@@ -261,7 +262,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     }
 
     public void testWarningHeader() {
-        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        MutableXPackLicenseState licenseState = new MutableXPackLicenseState(() -> 0);
         License.OperationMode licenseLevel = randomFrom(STANDARD, GOLD, PLATINUM, ENTERPRISE);
         LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "testfeature", licenseLevel);
 

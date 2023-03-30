@@ -31,6 +31,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.license.mutable.MutableLicenseService;
+import org.elasticsearch.license.mutable.MutableXPackLicenseState;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,7 +58,7 @@ import java.util.stream.Collectors;
  */
 public class ClusterStateLicenseService extends AbstractLifecycleComponent
     implements
-        LicenseService.MutableLicenseService,
+        MutableLicenseService,
         ClusterStateListener,
         SchedulerEngine.Listener {
     private static final Logger logger = LogManager.getLogger(ClusterStateLicenseService.class);
@@ -68,7 +70,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     /**
      * The xpack feature state to update when license changes are made.
      */
-    private final XPackLicenseState xPacklicenseState;
+    private final MutableXPackLicenseState xPacklicenseState;
 
     /**
      * Currently active license
@@ -103,7 +105,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         ThreadPool threadPool,
         ClusterService clusterService,
         Clock clock,
-        XPackLicenseState xPacklicenseState
+        MutableXPackLicenseState xPacklicenseState
     ) {
         this.settings = settings;
         this.clusterService = clusterService;

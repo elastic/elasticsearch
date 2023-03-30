@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.license.mutable.MutableXPackLicenseState;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -278,7 +279,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             ensureClusterStateConsistency();
 
             // apply the disabling of the license once the cluster is stable
-            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+            for (MutableXPackLicenseState licenseState : internalCluster().getInstances(MutableXPackLicenseState.class)) {
                 licenseState.update(OperationMode.BASIC, false, null);
             }
         }, 30L, TimeUnit.SECONDS);
@@ -290,7 +291,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         // wait for things to stabilize!
         assertBusy(() -> {
             // first update the license so we can execute monitoring actions
-            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+            for (MutableXPackLicenseState licenseState : internalCluster().getInstances(MutableXPackLicenseState.class)) {
                 licenseState.update(operationMode, true, null);
             }
 
@@ -300,7 +301,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
             // re-apply the update in case any node received an updated cluster state that triggered the license state
             // to change
-            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+            for (MutableXPackLicenseState licenseState : internalCluster().getInstances(MutableXPackLicenseState.class)) {
                 licenseState.update(operationMode, true, null);
             }
         }, 30L, TimeUnit.SECONDS);
@@ -308,7 +309,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     private void setLicensingExpirationDate(License.OperationMode operationMode, String expiryWarning) throws Exception {
         assertBusy(() -> {
-            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+            for (MutableXPackLicenseState licenseState : internalCluster().getInstances(MutableXPackLicenseState.class)) {
                 licenseState.update(operationMode, true, expiryWarning);
             }
 

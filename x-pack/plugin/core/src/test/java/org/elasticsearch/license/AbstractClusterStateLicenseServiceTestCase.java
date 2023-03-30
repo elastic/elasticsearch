@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.mutable.MutableXPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,11 +57,11 @@ public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestC
         threadPool.shutdown();
     }
 
-    protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings) {
+    protected void setInitialState(License license, MutableXPackLicenseState licenseState, Settings settings) {
         setInitialState(license, licenseState, settings, randomBoolean() ? "trial" : "basic");
     }
 
-    protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings, String selfGeneratedType) {
+    protected void setInitialState(License license, MutableXPackLicenseState licenseState, Settings settings, String selfGeneratedType) {
         licenseType = selfGeneratedType;
         settings = Settings.builder().put(settings).put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), licenseType).build();
         licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, clock, licenseState);

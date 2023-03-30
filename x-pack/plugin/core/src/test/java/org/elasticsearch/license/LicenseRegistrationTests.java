@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.mutable.MutableXPackLicenseState;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -24,7 +25,7 @@ import static org.mockito.Mockito.when;
 public class LicenseRegistrationTests extends AbstractClusterStateLicenseServiceTestCase {
 
     public void testSelfGeneratedTrialLicense() throws Exception {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
+        MutableXPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(null, licenseState, Settings.EMPTY, "trial");
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         licenseService.start();
@@ -45,7 +46,7 @@ public class LicenseRegistrationTests extends AbstractClusterStateLicenseService
     }
 
     public void testSelfGeneratedBasicLicense() throws Exception {
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
+        MutableXPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(null, licenseState, Settings.EMPTY, "basic");
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         licenseService.start();
@@ -77,7 +78,7 @@ public class LicenseRegistrationTests extends AbstractClusterStateLicenseService
             .maxNodes(5);
         License license = TestUtils.generateSignedLicense(builder);
 
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
+        MutableXPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(license, licenseState, Settings.EMPTY);
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         licenseService.start();
@@ -109,7 +110,7 @@ public class LicenseRegistrationTests extends AbstractClusterStateLicenseService
             .expiryDate(dateMath("now-2h", now));
         License license = SelfGeneratedLicense.create(builder, License.VERSION_CURRENT);
 
-        XPackLicenseState licenseState = TestUtils.newTestLicenseState();
+        MutableXPackLicenseState licenseState = TestUtils.newTestLicenseState();
         setInitialState(license, licenseState, Settings.EMPTY);
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         licenseService.start();

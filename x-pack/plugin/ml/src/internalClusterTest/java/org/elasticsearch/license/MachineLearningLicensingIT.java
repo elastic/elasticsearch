@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.license.mutable.MutableXPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -833,7 +834,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
     }
 
     public static void disableLicensing(License.OperationMode operationMode) {
-        for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+        for (MutableXPackLicenseState licenseState : internalCluster().getInstances(MutableXPackLicenseState.class)) {
             licenseState.update(operationMode, false, null);
         }
     }
@@ -843,7 +844,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
     }
 
     public static void enableLicensing(License.OperationMode operationMode) {
-        for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+        for (MutableXPackLicenseState licenseState : internalCluster().getInstances(MutableXPackLicenseState.class)) {
             licenseState.update(operationMode, true, null);
         }
     }

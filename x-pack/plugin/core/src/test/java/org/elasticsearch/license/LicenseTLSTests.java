@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.mutable.MutableXPackLicenseState;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
 import java.net.InetAddress;
@@ -35,7 +36,7 @@ public class LicenseTLSTests extends AbstractClusterStateLicenseServiceTestCase 
         request.acknowledge(true);
         request.license(newLicense);
         Settings settings = Settings.builder().put("xpack.security.enabled", true).build();
-        XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        MutableXPackLicenseState licenseState = new MutableXPackLicenseState(() -> 0);
         inetAddress = InetAddress.getLoopbackAddress();
 
         setInitialState(null, licenseState, settings);
@@ -50,7 +51,7 @@ public class LicenseTLSTests extends AbstractClusterStateLicenseServiceTestCase 
             .put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE)
             .build();
         licenseService.stop();
-        licenseState = new XPackLicenseState(() -> 0);
+        licenseState = new MutableXPackLicenseState(() -> 0);
         setInitialState(null, licenseState, settings);
         licenseService.start();
         licenseService.registerLicense(request, responseFuture);

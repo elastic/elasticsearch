@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.mutable.MutableXPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -35,7 +36,7 @@ public class LicenseScheduleTests extends ESTestCase {
             mock(ThreadPool.class),
             mock(ClusterService.class),
             mock(Clock.class),
-            mock(XPackLicenseState.class)
+            mock(MutableXPackLicenseState.class)
         );
         schedule = service.nextLicenseCheck(license);
     }

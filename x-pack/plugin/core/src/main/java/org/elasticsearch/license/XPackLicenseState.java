@@ -290,7 +290,7 @@ public class XPackLicenseState {
     }
 
     /** A wrapper for the license mode, state, and expiration date, to allow atomically swapping. */
-    private static class Status {
+    protected static class Status {
 
         /** The current "mode" of the license (ie license type). */
         final OperationMode mode;
@@ -301,14 +301,14 @@ public class XPackLicenseState {
         /** A warning to be emitted on license checks about the license expiring soon. */
         final String expiryWarning;
 
-        Status(OperationMode mode, boolean active, String expiryWarning) {
+        public Status(OperationMode mode, boolean active, String expiryWarning) {
             this.mode = mode;
             this.active = active;
             this.expiryWarning = expiryWarning;
         }
     }
 
-    private final List<LicenseStateListener> listeners;
+    protected final List<LicenseStateListener> listeners;
 
     /**
      * A Map of features for which usage is tracked by a feature identifier and a last-used-time.
@@ -323,7 +323,7 @@ public class XPackLicenseState {
     // XPackLicenseState. However, if status is read multiple times in a method, it can change in between
     // reads. Methods should use `executeAgainstStatus` and `checkAgainstStatus` to ensure that the status
     // is only read once.
-    private volatile Status status = new Status(OperationMode.TRIAL, true, null);
+    protected volatile Status status = new Status(OperationMode.TRIAL, true, null);
 
     public XPackLicenseState(LongSupplier epochMillisProvider) {
         this.listeners = new CopyOnWriteArrayList<>();
@@ -351,18 +351,6 @@ public class XPackLicenseState {
     /** Performs predicate against status, only reading the status once to avoid races */
     private boolean checkAgainstStatus(Predicate<Status> statusPredicate) {
         return statusPredicate.test(this.status);
-    }
-
-    /**
-     * Updates the current state of the license, which will change what features are available.
-     *
-     * @param mode   The mode (type) of the current license.
-     * @param active True if the current license exists and is within its allowed usage period; false if it is expired or missing.
-     * @param expiryWarning Warning to emit on license checks about the license expiring soon.
-     */
-    void update(OperationMode mode, boolean active, String expiryWarning) {
-        status = new Status(mode, active, expiryWarning);
-        listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 
     /** Add a listener to be notified on license change */
@@ -408,7 +396,7 @@ public class XPackLicenseState {
         usage.replace(new FeatureUsage(feature, contextName), -1L, epochMillisProvider.getAsLong());
     }
 
-    void cleanupUsageTracking() {
+    protected void cleanupUsageTracking() {
         long cutoffTime = epochMillisProvider.getAsLong() - TimeValue.timeValueHours(24).getMillis();
         usage.entrySet().removeIf(e -> {
             long timeMillis = e.getValue();

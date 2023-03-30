@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
@@ -31,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterSecurityRestWithMultipleRemotesIT extends AbstractRemoteClusterSecurityTestCase {
 
@@ -62,7 +64,7 @@ public class RemoteClusterSecurityRestWithMultipleRemotesIT extends AbstractRemo
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         [
                           {
-                             "names": ["cluster1_index*"],
+                             "names": ["cluster*_index*"],
                              "privileges": ["read", "read_cross_cluster"]
                           }
                         ]""");
@@ -214,6 +216,25 @@ public class RemoteClusterSecurityRestWithMultipleRemotesIT extends AbstractRemo
                 ),
                 expectedIndex
             );
+
+            final ResponseException exception = expectThrows(
+                ResponseException.class,
+                () -> performRequestWithRemoteSearchUser(
+                    new Request(
+                        "GET",
+                        String.format(
+                            Locale.ROOT,
+                            "/my_remote_cluster:%s,my_remote_cluster_2:%s/_search?ccs_minimize_roundtrips=%s",
+                            // no permissions for this index
+                            "index1",
+                            randomFrom("cluster2_index1", "*_index1", "*"),
+                            randomBoolean()
+                        )
+                    )
+                )
+            );
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+
         }
     }
 

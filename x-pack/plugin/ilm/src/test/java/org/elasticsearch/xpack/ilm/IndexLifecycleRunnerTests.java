@@ -306,6 +306,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         assertEquals(before, after);
         assertThat(step.getExecuteCount(), equalTo(1L));
+        ClusterServiceUtils.awaitNoPendingTasks(clusterService);
         clusterService.close();
         threadPool.shutdownNow();
     }

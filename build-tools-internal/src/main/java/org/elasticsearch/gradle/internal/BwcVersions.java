@@ -96,6 +96,7 @@ public class BwcVersions {
     }
 
     private static List<VersionPair> parseVersionLines(List<String> versionLines) {
+
         return versionLines.stream()
             .map(LINE_PATTERN::matcher)
             .filter(Matcher::matches)

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
@@ -35,11 +37,15 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 
 final class CrossClusterAccessServerTransportFilter extends ServerTransportFilter {
+
+    private static final Logger logger = LogManager.getLogger(CrossClusterAccessServerTransportFilter.class);
+
     // pkg-private for testing
     static final Set<String> ALLOWED_TRANSPORT_HEADERS;
     static {
@@ -118,12 +124,17 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         final ActionListener<Authentication> authenticationListener
     ) {
         if (false == Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.check(licenseState)) {
-            authenticationListener.onFailure(
+            onFailureWithDebugLog(
+                securityAction,
+                request,
+                authenticationListener,
                 LicenseUtils.newComplianceException(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.getName())
             );
-
         } else if (false == CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST.contains(securityAction)) {
-            authenticationListener.onFailure(
+            onFailureWithDebugLog(
+                securityAction,
+                request,
+                authenticationListener,
                 new IllegalArgumentException(
                     "action ["
                         + securityAction
@@ -134,7 +145,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
             try {
                 validateHeaders();
             } catch (Exception ex) {
-                authenticationListener.onFailure(ex);
+                onFailureWithDebugLog(securityAction, request, authenticationListener, ex);
                 return;
             }
             crossClusterAccessAuthcService.authenticate(securityAction, request, authenticationListener);
@@ -167,4 +178,20 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
         }
     }
 
+    private static void onFailureWithDebugLog(
+        final String securityAction,
+        final TransportRequest request,
+        final ActionListener<Authentication> authenticationListener,
+        final Exception ex
+    ) {
+        logger.debug(
+            () -> format(
+                "Cross cluster access request [%s] for action [%s] rejected before authentication",
+                request.getClass(),
+                securityAction
+            ),
+            ex
+        );
+        authenticationListener.onFailure(ex);
+    }
 }

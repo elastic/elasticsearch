@@ -128,7 +128,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             );
             case 5 -> maxDocs = randomValueOtherThan(maxDocs, ESTestCase::randomNonNegativeLong);
-            case 6 -> maxPrimaryShardDocs = randomValueOtherThan(maxPrimaryShardDocs, ESTestCase::randomNonNegativeLong);
+            case 6 -> maxPrimaryShardDocs = randomValueOtherThan(maxPrimaryShardDocs, () -> randomLongBetween(1, 200_000_000L - 1));
             case 7 -> minSize = randomValueOtherThan(minSize, () -> {
                 ByteSizeUnit minSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);

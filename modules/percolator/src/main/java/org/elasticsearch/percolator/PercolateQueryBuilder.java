@@ -600,7 +600,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         if (indexVersion.before(Version.V_8_8_0)) {
                             transportVersion = TransportVersion.fromId(indexVersion.id);
                         } else {
-                            transportVersion = TransportVersion.readVersion(input);
+                            transportVersion = TransportVersion.fromId(input.readInt());
                         }
                         // set the transportversion here - only read vints so far, so can change the version freely at this point
                         input.setTransportVersion(transportVersion);

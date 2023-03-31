@@ -187,8 +187,9 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     }
 
     // Ugly hack: when https://github.com/elastic/elasticsearch/issues/94946 is fixed, remove the sorting by ephemeral ID here
-    private final Comparator<DiscoveryNode> MASTERS_FIRST_COMPARATOR = Comparator.<DiscoveryNode>comparingInt(n -> n.isMasterNode() ? 0 : 1)
-        .thenComparing(DiscoveryNode::getEphemeralId);
+    private static final Comparator<DiscoveryNode> MASTERS_FIRST_COMPARATOR = Comparator.<DiscoveryNode>comparingInt(
+        n -> n.isMasterNode() ? 0 : 1
+    ).thenComparing(DiscoveryNode::getEphemeralId);
 
     /**
      * Returns a stream of all nodes, with master nodes at the front

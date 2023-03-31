@@ -26,8 +26,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -53,6 +51,7 @@ import org.elasticsearch.xpack.application.analytics.action.TransportGetAnalytic
 import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
+import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.rules.action.DeleteQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.GetQueryRulesetAction;
@@ -106,8 +105,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     public static final String BEHAVIORAL_ANALYTICS_API_ENDPOINT = APPLICATION_API_ENDPOINT + "/analytics";
 
     public static final String QUERY_RULES_API_ENDPOINT = "_query_rules";
-
-    private static final Logger logger = LogManager.getLogger(EnterpriseSearch.class);
 
     public static final String FEATURE_NAME = "ent_search";
 
@@ -228,7 +225,16 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         );
         analyticsTemplateRegistry.initialize();
 
-        return List.of(analyticsTemplateRegistry);
+        // Connector components
+        final ConnectorTemplateRegistry connectorTemplateRegistry = new ConnectorTemplateRegistry(
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry
+        );
+        connectorTemplateRegistry.initialize();
+
+        return Arrays.asList(analyticsTemplateRegistry, connectorTemplateRegistry);
     }
 
     @Override

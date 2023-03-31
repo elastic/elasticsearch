@@ -226,12 +226,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             query.numCands(),
             null
         ).queryName(query.queryName()).boost(query.boost()).addFilterQueries(query.filterQueries());
-        TransportVersion beforeSimilarity = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.V_8_7_0,
-            TransportVersion.V_8_8_0
-        );
-        assertBWCSerialization(query, queryNoSimilarity, beforeSimilarity);
+        assertBWCSerialization(query, queryNoSimilarity, TransportVersion.V_8_7_0);
     }
 
     public void testBWCVersionSerializationByteQuery() throws IOException {

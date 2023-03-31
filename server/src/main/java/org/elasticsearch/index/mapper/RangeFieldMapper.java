@@ -414,7 +414,8 @@ public class RangeFieldMapper extends FieldMapper {
                             to = rangeType.parseTo(fieldType, parser, coerce.value(), includeTo);
                         }
                     } else {
-                        throw new MapperParsingException(
+                        throw new DocumentParsingException(
+                            parser.getTokenLocation(),
                             "error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]"
                         );
                     }
@@ -424,7 +425,10 @@ public class RangeFieldMapper extends FieldMapper {
         } else if (fieldType().rangeType == RangeType.IP && start == XContentParser.Token.VALUE_STRING) {
             range = parseIpRangeFromCidr(parser);
         } else {
-            throw new MapperParsingException("error parsing field [" + name() + "], expected an object but got " + parser.currentName());
+            throw new DocumentParsingException(
+                parser.getTokenLocation(),
+                "error parsing field [" + name() + "], expected an object but got " + parser.currentName()
+            );
         }
         context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
 

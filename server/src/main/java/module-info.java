@@ -160,6 +160,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.cluster.action.shard;
     exports org.elasticsearch.cluster.block;
     exports org.elasticsearch.cluster.coordination;
+    exports org.elasticsearch.cluster.coordination.stateless;
     exports org.elasticsearch.cluster.health;
     exports org.elasticsearch.cluster.metadata;
     exports org.elasticsearch.cluster.node;

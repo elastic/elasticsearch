@@ -201,7 +201,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
     }
 
     public static TransportVersion readVersion(StreamInput in) throws IOException {
-        return fromId(in.readVInt());
+        return fromId(in.readInt());
     }
 
     public static TransportVersion fromId(int id) {
@@ -214,7 +214,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
     }
 
     public static void writeVersion(TransportVersion version, StreamOutput out) throws IOException {
-        out.writeVInt(version.id);
+        out.writeInt(version.id);
     }
 
     /**

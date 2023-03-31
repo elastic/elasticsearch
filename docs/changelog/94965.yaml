@@ -1,6 +1,6 @@
 pr: 94965
-summary: Make `downsample` ILM action retry using a new target index name
-area: "ILM+SLM, Rollup"
+summary: Retry `downsample` ILM action using a new target index name
+area: "ILM"
 type: bug
 issues:
  - 93580

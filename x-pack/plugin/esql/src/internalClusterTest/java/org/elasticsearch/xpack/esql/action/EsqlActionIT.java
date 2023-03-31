@@ -925,14 +925,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         createAndPopulateIndex("sorted_test_index", builder().put("index.sort.field", "time").put("index.sort.order", sortOrder).build());
 
         int limit = randomIntBetween(1, 5);
-        EsqlQueryResponse results = run("""
-            from sorted_test_index
-            | sort time
-            """ + sortOrder + """
-            | limit
-            """ + limit + """
-            | project time
-            """);
+        EsqlQueryResponse results = run("from sorted_test_index | sort time " + sortOrder + " | limit " + limit + " | project time");
         logger.info(results);
         Assert.assertEquals(1, results.columns().size());
         Assert.assertEquals(limit, results.values().size());

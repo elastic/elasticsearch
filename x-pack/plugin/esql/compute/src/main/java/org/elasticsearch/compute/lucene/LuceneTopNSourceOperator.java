@@ -12,10 +12,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.CollectorManager;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
@@ -44,24 +46,39 @@ import java.util.stream.Collectors;
 @Experimental
 public class LuceneTopNSourceOperator extends LuceneOperator {
 
-    private TopFieldCollector currentTopFieldCollector;
+    private Thread currentThread;
 
-    private LeafCollector currentTopFieldLeafCollector;
+    private final TopFieldCollector topFieldCollector;// this should only be created via the collector manager
+
+    private LeafCollector currentLeafCollector;
 
     private IntVector.Builder currentSegmentBuilder;
 
     private final List<LeafReaderContext> leafReaderContexts;
 
-    private final Sort sort;
+    private final CollectorManager<TopFieldCollector, TopFieldDocs> collectorManager;// one for each shard
 
-    private final CollectorManager<TopFieldCollector, TopFieldDocs> collectorManager;
+    private LeafReaderContext previousLeafReaderContext;
 
-    public LuceneTopNSourceOperator(IndexReader reader, int shardId, Query query, int maxPageSize, int limit, Sort sort) {
+    public LuceneTopNSourceOperator(
+        IndexReader reader,
+        int shardId,
+        CollectorManager<TopFieldCollector, TopFieldDocs> collectorManager,
+        Query query,
+        int maxPageSize,
+        int limit
+    ) {
         super(reader, shardId, query, maxPageSize, limit);
+        // only if the limit is less than maxPageSize, topN is pushed down to Lucene (@see PhysicalPlanOptimizer.PushTopNToSource)
         this.currentSegmentBuilder = IntVector.newVectorBuilder(maxPageSize);
         this.leafReaderContexts = reader.leaves();
-        this.sort = sort;
-        this.collectorManager = TopFieldCollector.createSharedManager(sort, maxCollectedDocs, null, 0);
+        this.collectorManager = collectorManager;
+        try {
+            this.topFieldCollector = collectorManager.newCollector();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        this.currentThread = Thread.currentThread();
     }
 
     private LuceneTopNSourceOperator(
@@ -70,15 +87,21 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         List<PartialLeafReaderContext> leaves,
         List<LeafReaderContext> leafReaderContexts,
         CollectorManager<TopFieldCollector, TopFieldDocs> collectorManager,
+        Thread currentThread,
         int maxPageSize,
-        int maxCollectedDocs,
-        Sort sort
+        int maxCollectedDocs
     ) {
         super(weight, shardId, leaves, maxPageSize, maxCollectedDocs);
+        // only if the limit is less than maxPageSize, topN is pushed down to Lucene (@see PhysicalPlanOptimizer.PushTopNToSource)
         this.currentSegmentBuilder = IntVector.newVectorBuilder(maxPageSize);
         this.leafReaderContexts = leafReaderContexts;
         this.collectorManager = collectorManager;
-        this.sort = sort;
+        try {
+            this.topFieldCollector = collectorManager.newCollector();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        this.currentThread = currentThread;
     }
 
     public static class LuceneTopNSourceOperatorFactory extends LuceneOperatorFactory {
@@ -114,10 +137,10 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
             return new LuceneTopNSourceOperator(
                 ctx.getSearchExecutionContext().getIndexReader(),
                 shardIndex,
+                TopFieldCollector.createSharedManager(sort, limit, null, 0),
                 query,
                 maxPageSize,
-                limit,
-                sort
+                limit
             );
         }
 
@@ -143,9 +166,9 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
             slice,
             leafReaderContexts,
             collectorManager,
+            currentThread,
             maxPageSize,
-            maxCollectedDocs,
-            sort
+            maxCollectedDocs
         );
     }
 
@@ -157,10 +180,22 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
             Arrays.asList(leafSlice.leaves).stream().map(PartialLeafReaderContext::new).collect(Collectors.toList()),
             leafReaderContexts,
             collectorManager,
+            currentThread,
             maxPageSize,
-            maxCollectedDocs,
-            sort
+            maxCollectedDocs
         );
+    }
+
+    @Override
+    void initializeWeightIfNecessary() {
+        if (weight == null) {
+            try {
+                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+                weight = indexSearcher.createWeight(indexSearcher.rewrite(new ConstantScoreQuery(query)), ScoreMode.TOP_DOCS, 1);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
     }
 
     @Override
@@ -177,41 +212,43 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         // initialize weight if not done yet
         initializeWeightIfNecessary();
 
-        // if there are documents matching, initialize currentLeafReaderContext, currentScorer, and currentScorerPos when we switch
-        // to a new leaf reader, otherwise return
+        // if there are documents matching, initialize currentLeafReaderContext and currentScorer when we switch to a new group in the slice
         if (maybeReturnEarlyOrInitializeScorer()) {
             return null;
         }
 
         Page page = null;
-        boolean terminatedEarly = false;
 
         try {
-            if (currentTopFieldCollector == null) {
-                currentTopFieldCollector = collectorManager.newCollector();
-                currentTopFieldLeafCollector = currentTopFieldCollector.getLeafCollector(currentLeafReaderContext.leafReaderContext);
+            // one leaf collector per thread and per segment/leaf
+            if (currentLeafCollector == null
+                || currentThread.equals(Thread.currentThread()) == false
+                || previousLeafReaderContext != currentLeafReaderContext.leafReaderContext) {
+                currentLeafCollector = topFieldCollector.getLeafCollector(currentLeafReaderContext.leafReaderContext);
+                currentThread = Thread.currentThread();
+                previousLeafReaderContext = currentLeafReaderContext.leafReaderContext;
             }
+
             try {
-                currentScorerPos = currentScorer.score(
-                    currentTopFieldLeafCollector,
+                currentScorer.score(
+                    currentLeafCollector,
                     currentLeafReaderContext.leafReaderContext.reader().getLiveDocs(),
-                    currentScorerPos,
-                    Math.min(currentLeafReaderContext.maxDoc, currentScorerPos + maxPageSize - currentPagePos)
+                    currentLeafReaderContext.minDoc,
+                    currentLeafReaderContext.maxDoc
                 );
             } catch (CollectionTerminatedException cte) {
                 // Lucene terminated early the collection (doing topN for an index that's sorted and the topN uses the same sorting)
-                // make sure to move to the next leaf (topDocs can be called only once) or create a new collector for the rest of the docs
-                terminatedEarly = true;
-            }
-            TopFieldDocs topFieldDocs = currentTopFieldCollector.topDocs();
-            for (ScoreDoc doc : topFieldDocs.scoreDocs) {
-                int segment = ReaderUtil.subIndex(doc.doc, leafReaderContexts);
-                currentSegmentBuilder.appendInt(segment);
-                currentBlockBuilder.appendInt(doc.doc - leafReaderContexts.get(segment).docBase); // the offset inside the segment
-                currentPagePos++;
             }
 
-            if (terminatedEarly || currentPagePos >= minPageSize || currentScorerPos >= currentLeafReaderContext.maxDoc) {
+            // we reached the final leaf in this slice/operator, build the single Page this operator should create
+            if (currentLeaf == leaves.size() - 1) {
+                TopFieldDocs topFieldDocs = topFieldCollector.topDocs();
+                for (ScoreDoc doc : topFieldDocs.scoreDocs) {
+                    int segment = ReaderUtil.subIndex(doc.doc, leafReaderContexts);
+                    currentSegmentBuilder.appendInt(segment);
+                    currentBlockBuilder.appendInt(doc.doc - leafReaderContexts.get(segment).docBase); // the offset inside the segment
+                    currentPagePos++;
+                }
                 page = new Page(
                     currentPagePos,
                     new DocVector(
@@ -221,24 +258,19 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
                         null
                     ).asBlock()
                 );
-                currentBlockBuilder = IntVector.newVectorBuilder(maxPageSize);
-                currentSegmentBuilder = IntVector.newVectorBuilder(maxPageSize);
-                currentPagePos = 0;
+                pagesEmitted++;
             }
 
-            if (terminatedEarly || currentScorerPos >= currentLeafReaderContext.maxDoc) {
-                currentLeaf++;
-                currentLeafReaderContext = null;
-                currentScorer = null;
-                currentScorerPos = 0;
-                currentTopFieldCollector = null;
-                currentTopFieldLeafCollector = null;
-            }
+            currentLeaf++;
+            currentLeafReaderContext = null;
+            currentScorer = null;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
 
-        pagesEmitted++;
+        if (pagesEmitted > 1) {
+            throw new IllegalStateException("should emit one Page only");
+        }
         return page;
     }
 }

@@ -51,7 +51,7 @@ public abstract class LuceneOperator extends SourceOperator {
     final IndexReader indexReader;
     final int shardId;
     @Nullable
-    private final Query query;
+    final Query query;
     final List<LuceneSourceOperator.PartialLeafReaderContext> leaves;
     final int maxPageSize;
     final int minPageSize;

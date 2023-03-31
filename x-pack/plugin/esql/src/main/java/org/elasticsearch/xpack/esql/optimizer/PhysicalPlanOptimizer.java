@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.compute.ann.Experimental;
+import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
@@ -522,7 +523,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
 
             boolean canPushDownTopN = child instanceof EsQueryExec
                 || (child instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec);
-            if (canPushDownTopN && canPushDownOrders(topNExec.order())) {
+            if (canPushDownTopN && canPushDownOrders(topNExec.order()) && ((Integer) topNExec.limit().fold()) <= LuceneOperator.PAGE_SIZE) {
                 var sorts = buildFieldSorts(topNExec.order());
                 var limit = topNExec.limit();
 

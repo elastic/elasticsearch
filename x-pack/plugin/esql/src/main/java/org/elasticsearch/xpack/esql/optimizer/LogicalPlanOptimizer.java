@@ -106,21 +106,30 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class CombineProjections extends OptimizerRules.OptimizerRule<Project> {
+    static class CombineProjections extends OptimizerRules.OptimizerRule<UnaryPlan> {
 
         CombineProjections() {
             super(OptimizerRules.TransformDirection.UP);
         }
 
         @Override
-        protected LogicalPlan rule(Project plan) {
+        protected LogicalPlan rule(UnaryPlan plan) {
             LogicalPlan child = plan.child();
 
-            if (child instanceof Project p) {
-                // eliminate lower project but first replace the aliases in the upper one
-                return p.withProjections(combineProjections(plan.projections(), p.projections()));
-            } else if (child instanceof Aggregate a) {
-                return new Aggregate(a.source(), a.child(), a.groupings(), combineProjections(plan.projections(), a.aggregates()));
+            if (plan instanceof Project project) {
+                if (child instanceof Project p) {
+                    // eliminate lower project but first replace the aliases in the upper one
+                    return p.withProjections(combineProjections(project.projections(), p.projections()));
+                } else if (child instanceof Aggregate a) {
+                    return new Aggregate(a.source(), a.child(), a.groupings(), combineProjections(project.projections(), a.aggregates()));
+                }
+            }
+
+            // Agg with underlying Project (group by on sub-queries)
+            if (plan instanceof Aggregate a) {
+                if (child instanceof Project p) {
+                    return new Aggregate(a.source(), p.child(), a.groupings(), combineProjections(a.aggregates(), p.projections()));
+                }
             }
 
             return plan;

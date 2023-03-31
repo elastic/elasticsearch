@@ -172,6 +172,18 @@ h:double
 176.82
 ;
 
+groupWithMin
+// declared to double check the tests below
+from test | stats m = min(height) by languages | sort languages;
+
+m:d  | languages:i
+1.42 | 1
+1.42 | 2
+1.44 | 3
+1.52 | 4
+1.5  | 5
+; 
+
 IfDuplicateNamesLastOneWins
 from test | stats h = avg(height), h = min(height) by languages | sort languages;
 
@@ -183,6 +195,16 @@ h:d  | languages:i
 1.5  | 5
 ;
 
+groupByAlias
+from test | project l = languages, height | stats m = min(height) by l | sort l;
+
+m:d  | l:i
+1.42 | 1
+1.42 | 2
+1.44 | 3
+1.52 | 4
+1.5  | 5
+; 
 
 IfDuplicateNamesGroupingHasPriority
 from test | stats languages = avg(height), languages = min(height) by languages | sort languages;
@@ -195,11 +217,20 @@ languages:i
 5
 ;
 
-
 byStringAndLong
 from test | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by gender, trunk_worked_seconds | sort c desc;
 
 c:long | gender:keyword | trunk_worked_seconds:long
+30 | M | 300000000
+27 | M | 200000000
+22 | F | 300000000
+11 | F | 200000000
+;
+
+byStringAndLongWithAlias
+from test | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | project g = gender, tws = trunk_worked_seconds | stats c = count(g) by g, tws | sort c desc;
+
+c:long | g:keyword | tws:long
 30 | M | 300000000
 27 | M | 200000000
 22 | F | 300000000
@@ -300,6 +331,21 @@ c:long | d:date | gender:keyword | languages:integer
 2 | 1988-01-01T00:00:00.000Z | F | 5
 ;
 
+byDateAndKeywordAndIntWithAlias
+from test | eval d = date_trunc(hire_date, 1 year) | project d, g = gender, l = languages, e = emp_no | stats c = count(e) by d, g, l | sort c desc, d, l desc | limit 10;
+
+c:long | d:date | g:keyword | l:integer
+3 | 1986-01-01T00:00:00.000Z | M | 2
+3 | 1987-01-01T00:00:00.000Z | M | 2
+2 | 1985-01-01T00:00:00.000Z | M | 5
+2 | 1985-01-01T00:00:00.000Z | M | 3
+2 | 1986-01-01T00:00:00.000Z | M | 5
+2 | 1986-01-01T00:00:00.000Z | M | 4
+2 | 1987-01-01T00:00:00.000Z | F | 5
+2 | 1987-01-01T00:00:00.000Z | M | 3
+2 | 1987-01-01T00:00:00.000Z | M | 1
+2 | 1988-01-01T00:00:00.000Z | F | 5
+;
 
 byDoubleAndBoolean
 from test | stats c = count(gender) by height, still_hired | sort c desc, height | limit 10;

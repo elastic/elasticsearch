@@ -742,7 +742,7 @@ public class Security extends Plugin
         components.add(privilegeStore);
 
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
-        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
+        final FieldPermissionsCache fieldPermissionsCache = FieldPermissionsCache.init(settings);
         final FileRolesStore fileRolesStore = new FileRolesStore(
             settings,
             environment,
@@ -910,6 +910,7 @@ public class Security extends Plugin
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             failureHandler,

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.cache.Cache;
@@ -33,6 +34,8 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
  */
 public final class FieldPermissionsCache {
 
+    private static final SetOnce<FieldPermissionsCache> INSTANCE = new SetOnce<>();
+
     public static final Setting<Long> CACHE_SIZE_SETTING = Setting.longSetting(
         setting("authz.store.roles.field_permissions.cache.max_size_in_bytes"),
         100 * 1024 * 1024,
@@ -41,11 +44,35 @@ public final class FieldPermissionsCache {
     );
     private final Cache<FieldPermissionsDefinition, FieldPermissions> cache;
 
+    public static FieldPermissionsCache init(Settings settings) {
+        final FieldPermissionsCache cache = new FieldPermissionsCache(settings);
+        INSTANCE.set(cache);
+        return cache;
+    }
+
+    public static FieldPermissionsCache getCache() {
+        return INSTANCE.get();
+    }
+
+    public Cache.CacheStats getCacheStats() {
+        return cache.stats();
+    }
+
     public FieldPermissionsCache(Settings settings) {
         this.cache = CacheBuilder.<FieldPermissionsDefinition, FieldPermissions>builder()
             .setMaximumWeight(CACHE_SIZE_SETTING.get(settings))
             .weigher((key, fieldPermissions) -> fieldPermissions.ramBytesUsed())
             .build();
+    }
+
+    public static FieldPermissions resolve(String[] grantedFields, String[] deniedFields) {
+        final FieldPermissionsDefinition definition = new FieldPermissionsDefinition(grantedFields, deniedFields);
+        final FieldPermissionsCache cache = INSTANCE.get();
+        if (cache == null) {
+            return new FieldPermissions(definition);
+        } else {
+            return cache.getFieldPermissions(definition);
+        }
     }
 
     /**

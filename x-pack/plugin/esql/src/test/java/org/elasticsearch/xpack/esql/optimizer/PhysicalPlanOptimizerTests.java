@@ -57,6 +57,7 @@ import java.util.stream.Collectors;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.ql.expression.Expressions.name;
 import static org.elasticsearch.xpack.ql.expression.Expressions.names;
 import static org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC;
@@ -998,13 +999,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // System.out.println("Before\n" + plan);
         var p = physicalPlanOptimizer.optimize(plan);
         // System.out.println("After\n" + p);
+        assertSerialization(p);
         return p;
     }
 
     private PhysicalPlan physicalPlan(String query) {
         var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
-        return mapper.map(logical);
+        var physical = mapper.map(logical);
+        assertSerialization(physical);
+        return physical;
     }
 
     private List<FieldSort> sorts(List<Order> orders) {

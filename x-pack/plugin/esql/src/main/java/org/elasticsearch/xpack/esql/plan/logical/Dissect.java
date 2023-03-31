@@ -27,6 +27,20 @@ public class Dissect extends UnaryPlan {
 
     public record Parser(String pattern, String appendSeparator, DissectParser parser) {
 
+        // Override hashCode and equals since the parser is considered equal if its pattern and
+        // appendSeparator are equal ( and DissectParser uses reference equality )
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) return true;
+            if (other == null || getClass() != other.getClass()) return false;
+            Parser that = (Parser) other;
+            return Objects.equals(this.pattern, that.pattern) && Objects.equals(this.appendSeparator, that.appendSeparator);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(pattern, appendSeparator);
+        }
     }
 
     public Dissect(Source source, LogicalPlan child, Expression input, Parser parser, List<Attribute> extracted) {

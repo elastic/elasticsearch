@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
@@ -197,6 +198,7 @@ public class CsvTests extends ESTestCase {
         var analyzed = analyzer.analyze(parsed);
         var logicalOptimized = logicalPlanOptimizer.optimize(analyzed);
         var physicalPlan = mapper.map(logicalOptimized);
+        opportunisticallyAssertPlanSerialization(physicalPlan); // comment out to disable serialization
         return physicalPlanOptimizer.optimize(physicalPlan);
     }
 
@@ -230,5 +232,17 @@ public class CsvTests extends ESTestCase {
 
         th.setStackTrace(redone);
         return th;
+    }
+
+    // Asserts that the serialization and deserialization of the plan creates an equivalent plan.
+    private static void opportunisticallyAssertPlanSerialization(final PhysicalPlan plan) {
+        var tmp = plan;
+        do {
+            if (tmp instanceof LocalSourceExec) {
+                return; // skip plans with localSourceExec
+            }
+        } while (tmp.children().isEmpty() == false && (tmp = tmp.children().get(0)) != null);
+
+        SerializationTestUtils.assertSerialization(plan);
     }
 }

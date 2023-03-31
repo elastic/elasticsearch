@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -71,6 +72,10 @@ public final class EsqlDataTypes {
 
     public static Collection<DataType> types() {
         return TYPES;
+    }
+
+    public static DataType fromTypeName(String name) {
+        return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
     }
 
     public static DataType fromEs(String name) {

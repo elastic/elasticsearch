@@ -35,6 +35,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -175,5 +176,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Expression e = constantFoldable(simpleData);
         assertTrue(e.foldable());
         assertThat(e.fold(), resultMatcher(simpleData));
+    }
+
+    public void testSerializationOfSimple() {
+        assertSerialization(expressionForSimpleData());
     }
 }

@@ -253,8 +253,7 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);
             RolloverConfiguration rolloverConfiguration = new RolloverConfiguration(
-                RolloverConditions.newBuilder().addMaxIndexAgeCondition(TimeValue.timeValueDays(7)).build(),
-                Set.of()
+                RolloverConditions.newBuilder().addMaxIndexAgeCondition(TimeValue.timeValueDays(7)).build()
             );
             rolloverConfiguration.toXContent(builder, ToXContent.EMPTY_PARAMS, null);
             String serialized = Strings.toString(builder);

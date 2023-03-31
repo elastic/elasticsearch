@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.dlm.action.ExplainDataLifecycleAction.Response;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
@@ -117,7 +116,7 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
                     new MinPrimaryShardDocsCondition(4L)
                 )
             );
-            Response response = new Response(List.of(explainIndex), new RolloverConfiguration(rolloverConditions, Set.of()));
+            Response response = new Response(List.of(explainIndex), new RolloverConfiguration(rolloverConditions));
 
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             response.toXContentChunked(EMPTY_PARAMS).forEachRemaining(xcontent -> {
@@ -203,7 +202,7 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
     }
 
     @Override
-    protected Response mutateInstance(Response instance) throws IOException {
+    protected Response mutateInstance(Response instance) {
         return randomResponse();
     }
 
@@ -214,8 +213,7 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
                 ? new RolloverConfiguration(
                     new RolloverConditions(
                         Map.of(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(randomLongBetween(1000, 199_999_000)))
-                    ),
-                    Set.of()
+                    )
                 )
                 : null
         );

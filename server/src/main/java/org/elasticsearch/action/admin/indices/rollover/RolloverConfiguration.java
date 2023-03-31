@@ -74,6 +74,11 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         this.automaticConditions = automaticConditions;
     }
 
+    public RolloverConfiguration(RolloverConditions concreteConditions) {
+        this.concreteConditions = concreteConditions;
+        this.automaticConditions = Set.of();
+    }
+
     public RolloverConfiguration(StreamInput in) throws IOException {
         concreteConditions = new RolloverConditions(in);
         automaticConditions = in.readSet(StreamInput::readString);

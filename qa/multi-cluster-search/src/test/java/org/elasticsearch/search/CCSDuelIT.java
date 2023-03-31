@@ -11,8 +11,12 @@ package org.elasticsearch.search;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -26,15 +30,20 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.asyncsearch.AsyncSearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -44,6 +53,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.join.query.HasChildQueryBuilder;
 import org.elasticsearch.join.query.HasParentQueryBuilder;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -75,11 +85,16 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -141,7 +156,8 @@ public class CCSDuelIT extends ESRestTestCase {
 
     private static class HighLevelClient extends RestHighLevelClient {
         private HighLevelClient(RestClient restClient) {
-            super(restClient, (client) -> {}, Collections.emptyList());
+            super(restClient, (client) -> {
+            }, Collections.emptyList());
         }
     }
 
@@ -199,7 +215,8 @@ public class CCSDuelIT extends ESRestTestCase {
             (r, l) -> restHighLevelClient.bulkAsync(r, RequestOptions.DEFAULT, l),
             new BulkProcessor2.Listener() {
                 @Override
-                public void beforeBulk(long executionId, BulkRequest request) {}
+                public void beforeBulk(long executionId, BulkRequest request) {
+                }
 
                 @Override
                 public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
@@ -277,7 +294,7 @@ public class CCSDuelIT extends ESRestTestCase {
         assumeMultiClusterSetup();
         // verify that the order in which documents are returned when they all have the same score is the same
         SearchRequest searchRequest = initSearchRequest();
-        duelSearch(searchRequest, CCSDuelIT::assertHits);
+        duelRequest(searchRequest, CCSDuelIT::assertHits, true);
     }
 
     public void testMatchQuery() throws Exception {
@@ -287,7 +304,7 @@ public class CCSDuelIT extends ESRestTestCase {
         sourceBuilder.size(50);
         sourceBuilder.query(QueryBuilders.matchQuery("tags", "php"));
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, CCSDuelIT::assertHits);
+        duelRequest(searchRequest, CCSDuelIT::assertHits, true);
     }
 
     public void testTrackTotalHitsUpTo() throws Exception {
@@ -297,7 +314,7 @@ public class CCSDuelIT extends ESRestTestCase {
         sourceBuilder.trackTotalHitsUpTo(5);
         sourceBuilder.query(QueryBuilders.matchQuery("tags", "sql"));
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, CCSDuelIT::assertHits);
+        duelRequest(searchRequest, CCSDuelIT::assertHits, true);
     }
 
     public void testTerminateAfter() throws Exception {
@@ -307,7 +324,7 @@ public class CCSDuelIT extends ESRestTestCase {
         sourceBuilder.terminateAfter(10);
         sourceBuilder.query(QueryBuilders.matchQuery("tags", "perl"));
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, CCSDuelIT::assertHits);
+        duelRequest(searchRequest, CCSDuelIT::assertHits, true);
     }
 
     public void testPagination() throws Exception {
@@ -318,7 +335,7 @@ public class CCSDuelIT extends ESRestTestCase {
         sourceBuilder.size(20);
         sourceBuilder.query(QueryBuilders.matchQuery("tags", "python"));
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, response -> assertHits(response, 10));
+        duelRequest(searchRequest, response -> assertHits(response, 10), true);
     }
 
     public void testHighlighting() throws Exception {
@@ -328,23 +345,23 @@ public class CCSDuelIT extends ESRestTestCase {
         sourceBuilder.highlighter(new HighlightBuilder().field("tags"));
         sourceBuilder.query(QueryBuilders.matchQuery("tags", "xml"));
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertHits(response);
             assertFalse(response.getHits().getHits()[0].getHighlightFields().isEmpty());
-        });
+        }, true);
     }
 
     public void testFetchSource() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.fetchSource(new String[] { "tags" }, Strings.EMPTY_ARRAY);
+        sourceBuilder.fetchSource(new String[]{"tags"}, Strings.EMPTY_ARRAY);
         sourceBuilder.query(QueryBuilders.matchQuery("tags", "ruby"));
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertHits(response);
             assertEquals(1, response.getHits().getHits()[0].getSourceAsMap().size());
-        });
+        }, true);
     }
 
     public void testDocValueFields() throws Exception {
@@ -354,11 +371,11 @@ public class CCSDuelIT extends ESRestTestCase {
         sourceBuilder.docValueField("user.keyword");
         sourceBuilder.query(QueryBuilders.matchQuery("tags", "xml"));
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertHits(response);
             assertEquals(1, response.getHits().getHits()[0].getFields().size());
             assertNotNull(response.getHits().getHits()[0].getFields().get("user.keyword"));
-        });
+        }, true);
     }
 
     public void testScriptFields() throws Exception {
@@ -367,11 +384,11 @@ public class CCSDuelIT extends ESRestTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.scriptField("parent", new Script(ScriptType.INLINE, "painless", "doc['join#question']", Collections.emptyMap()));
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertHits(response);
             assertEquals(1, response.getHits().getHits()[0].getFields().size());
             assertNotNull(response.getHits().getHits()[0].getFields().get("parent"));
-        });
+        }, true);
     }
 
     public void testExplain() throws Exception {
@@ -381,10 +398,10 @@ public class CCSDuelIT extends ESRestTestCase {
         sourceBuilder.explain(true);
         sourceBuilder.query(QueryBuilders.matchQuery("tags", "sql"));
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertHits(response);
             assertNotNull(response.getHits().getHits()[0].getExplanation());
-        });
+        }, true);
     }
 
     public void testRescore() throws Exception {
@@ -397,7 +414,7 @@ public class CCSDuelIT extends ESRestTestCase {
         rescorerBuilder.setRescoreQueryWeight(5);
         sourceBuilder.addRescorer(rescorerBuilder);
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, CCSDuelIT::assertHits);
+        duelRequest(searchRequest, CCSDuelIT::assertHits, true);
     }
 
     public void testHasParentWithInnerHit() throws Exception {
@@ -408,7 +425,7 @@ public class CCSDuelIT extends ESRestTestCase {
         hasParentQueryBuilder.innerHit(new InnerHitBuilder("inner"));
         sourceBuilder.query(hasParentQueryBuilder);
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, CCSDuelIT::assertHits);
+        duelRequest(searchRequest, CCSDuelIT::assertHits, true);
     }
 
     public void testHasChildWithInnerHit() throws Exception {
@@ -420,7 +437,7 @@ public class CCSDuelIT extends ESRestTestCase {
         query.innerHit(new InnerHitBuilder("inner"));
         sourceBuilder.query(query);
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, CCSDuelIT::assertHits);
+        duelRequest(searchRequest, CCSDuelIT::assertHits, true);
     }
 
     public void testProfile() throws Exception {
@@ -430,14 +447,14 @@ public class CCSDuelIT extends ESRestTestCase {
         sourceBuilder.profile(true);
         sourceBuilder.query(QueryBuilders.matchQuery("tags", "html"));
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertHits(response);
             assertFalse(response.getProfileResults().isEmpty());
             assertThat(
                 response.getProfileResults().values().stream().filter(sr -> sr.getFetchPhase() != null).collect(toList()),
                 not(empty())
             );
-        });
+        }, true);
     }
 
     public void testSortByField() throws Exception {
@@ -451,12 +468,12 @@ public class CCSDuelIT extends ESRestTestCase {
         sourceBuilder.sort("creationDate", SortOrder.DESC);
         sourceBuilder.sort("user.keyword", SortOrder.ASC);
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertHits(response, 30);
             if (response.getHits().getTotalHits().value > 30) {
                 assertEquals(3, response.getHits().getHits()[0].getSortValues().length);
             }
-        });
+        }, true);
     }
 
     public void testSortByFieldOneClusterHasNoResults() throws Exception {
@@ -470,7 +487,7 @@ public class CCSDuelIT extends ESRestTestCase {
         sourceBuilder.sort("creationDate", SortOrder.DESC);
         sourceBuilder.sort("user.keyword", SortOrder.ASC);
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertHits(response);
             SearchHit[] hits = response.getHits().getHits();
             for (SearchHit hit : hits) {
@@ -482,7 +499,7 @@ public class CCSDuelIT extends ESRestTestCase {
                     assertNull(hit.getClusterAlias());
                 }
             }
-        });
+        }, true);
     }
 
     public void testFieldCollapsingOneClusterHasNoResults() throws Exception {
@@ -493,7 +510,7 @@ public class CCSDuelIT extends ESRestTestCase {
         sourceBuilder.query(new TermQueryBuilder("_index", onlyRemote ? REMOTE_INDEX_NAME : INDEX_NAME));
         sourceBuilder.collapse(new CollapseBuilder("user.keyword"));
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertHits(response);
             for (SearchHit hit : response.getHits().getHits()) {
                 assertEquals(INDEX_NAME, hit.getIndex());
@@ -503,7 +520,7 @@ public class CCSDuelIT extends ESRestTestCase {
                     assertNull(hit.getClusterAlias());
                 }
             }
-        });
+        }, true);
     }
 
     public void testFieldCollapsingSortByScore() throws Exception {
@@ -513,7 +530,7 @@ public class CCSDuelIT extends ESRestTestCase {
         searchRequest.source(sourceBuilder);
         sourceBuilder.query(QueryBuilders.matchQuery("tags", "ruby"));
         sourceBuilder.collapse(new CollapseBuilder("user.keyword"));
-        duelSearch(searchRequest, CCSDuelIT::assertHits);
+        duelRequest(searchRequest, CCSDuelIT::assertHits, true);
     }
 
     public void testFieldCollapsingSortByField() throws Exception {
@@ -525,10 +542,10 @@ public class CCSDuelIT extends ESRestTestCase {
         sourceBuilder.sort("creationDate", SortOrder.DESC);
         sourceBuilder.sort(new ScoreSortBuilder());
         sourceBuilder.collapse(new CollapseBuilder("user.keyword"));
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertHits(response);
             assertEquals(2, response.getHits().getHits()[0].getSortValues().length);
-        });
+        }, true);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40005")
@@ -536,7 +553,7 @@ public class CCSDuelIT extends ESRestTestCase {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         searchRequest.source(buildTermsAggsSource());
-        duelSearch(searchRequest, CCSDuelIT::assertAggs);
+        duelRequest(searchRequest, CCSDuelIT::assertAggs, true);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40005")
@@ -544,7 +561,7 @@ public class CCSDuelIT extends ESRestTestCase {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         searchRequest.source(buildTermsAggsSource().profile(true));
-        duelSearch(searchRequest, CCSDuelIT::assertAggs);
+        duelRequest(searchRequest, CCSDuelIT::assertAggs, true);
     }
 
     private static SearchSourceBuilder buildTermsAggsSource() {
@@ -597,7 +614,7 @@ public class CCSDuelIT extends ESRestTestCase {
         creation.calendarInterval(DateHistogramInterval.QUARTER);
         creation.subAggregation(tags);
         sourceBuilder.aggregation(creation);
-        duelSearch(searchRequest, CCSDuelIT::assertAggs);
+        duelRequest(searchRequest, CCSDuelIT::assertAggs, true);
     }
 
     public void testCardinalityAgg() throws Exception {
@@ -609,7 +626,7 @@ public class CCSDuelIT extends ESRestTestCase {
         CardinalityAggregationBuilder tags = new CardinalityAggregationBuilder("tags").userValueTypeHint(ValueType.STRING);
         tags.field("tags.keyword");
         sourceBuilder.aggregation(tags);
-        duelSearch(searchRequest, CCSDuelIT::assertAggs);
+        duelRequest(searchRequest, CCSDuelIT::assertAggs, true);
     }
 
     public void testPipelineAggs() throws Exception {
@@ -627,11 +644,11 @@ public class CCSDuelIT extends ESRestTestCase {
         sourceBuilder.aggregation(new MaxBucketPipelineAggregationBuilder("biggest_day", "daily._count"));
         daily.subAggregation(new SumAggregationBuilder("votes").field("votes"));
         sourceBuilder.aggregation(new MaxBucketPipelineAggregationBuilder("most_voted", "daily>votes"));
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertAggs(response);
             assertNotNull(response.getAggregations().get("most_voted"));
-        });
-        duelSearch(searchRequest, CCSDuelIT::assertAggs);
+        }, true);
+        duelRequest(searchRequest, CCSDuelIT::assertAggs, true);
     }
 
     public void testTopHits() throws Exception {
@@ -650,14 +667,14 @@ public class CCSDuelIT extends ESRestTestCase {
         tags.size(10);
         tags.subAggregation(topHits);
         sourceBuilder.aggregation(tags);
-        duelSearch(searchRequest, CCSDuelIT::assertAggs);
+        duelRequest(searchRequest, CCSDuelIT::assertAggs, true);
     }
 
     public void testTermsLookup() throws Exception {
         assumeMultiClusterSetup();
         IndexRequest indexRequest = new IndexRequest("lookup_index");
         indexRequest.id("id");
-        indexRequest.source("tags", new String[] { "java", "sql", "html", "jax-ws" });
+        indexRequest.source("tags", new String[]{"java", "sql", "html", "jax-ws"});
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
         IndexResponse indexResponse = restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
         assertEquals(201, indexResponse.status().getStatus());
@@ -666,7 +683,7 @@ public class CCSDuelIT extends ESRestTestCase {
         TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder("tags", new TermsLookup("lookup_index", "id", "tags"));
         sourceBuilder.query(termsQueryBuilder);
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, CCSDuelIT::assertHits);
+        duelRequest(searchRequest, CCSDuelIT::assertHits, true);
     }
 
     public void testShardFailures() throws Exception {
@@ -675,14 +692,14 @@ public class CCSDuelIT extends ESRestTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.query(QueryBuilders.matchQuery("creationDate", "err"));
         searchRequest.source(sourceBuilder);
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertMultiClusterSearchResponse(response);
             assertThat(response.getHits().getTotalHits().value, greaterThan(0L));
             assertNull(response.getAggregations());
             assertNull(response.getSuggest());
             assertThat(response.getHits().getHits().length, greaterThan(0));
             assertThat(response.getFailedShards(), greaterThanOrEqualTo(2));
-        });
+        }, true);
     }
 
     public void testTermSuggester() throws Exception {
@@ -694,12 +711,12 @@ public class CCSDuelIT extends ESRestTestCase {
         suggestBuilder.setGlobalText("jva hml");
         suggestBuilder.addSuggestion("tags", new TermSuggestionBuilder("tags").suggestMode(TermSuggestionBuilder.SuggestMode.POPULAR));
         sourceBuilder.suggest(suggestBuilder);
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertMultiClusterSearchResponse(response);
             assertEquals(1, response.getSuggest().size());
             TermSuggestion tags = response.getSuggest().getSuggestion("tags");
             assertThat(tags.getEntries().size(), greaterThan(0));
-        });
+        }, false);
     }
 
     public void testPhraseSuggester() throws Exception {
@@ -715,12 +732,12 @@ public class CCSDuelIT extends ESRestTestCase {
                 .highlight("<em>", "</em>")
         );
         sourceBuilder.suggest(suggestBuilder);
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertMultiClusterSearchResponse(response);
             assertEquals(1, response.getSuggest().size());
             PhraseSuggestion tags = response.getSuggest().getSuggestion("tags");
             assertThat(tags.getEntries().size(), greaterThan(0));
-        });
+        }, false);
     }
 
     public void testCompletionSuggester() throws Exception {
@@ -733,13 +750,13 @@ public class CCSDuelIT extends ESRestTestCase {
         suggestBuilder.addSuggestion("java", new CompletionSuggestionBuilder("suggest").size(20).text("jav"));
         suggestBuilder.addSuggestion("ruby", new CompletionSuggestionBuilder("suggest").size(30).text("rub"));
         sourceBuilder.suggest(suggestBuilder);
-        duelSearch(searchRequest, response -> {
+        duelRequest(searchRequest, response -> {
             assertMultiClusterSearchResponse(response);
             assertEquals(Strings.toString(response, true, true), 3, response.getSuggest().size());
             assertThat(response.getSuggest().getSuggestion("python").getEntries().size(), greaterThan(0));
             assertThat(response.getSuggest().getSuggestion("java").getEntries().size(), greaterThan(0));
             assertThat(response.getSuggest().getSuggestion("ruby").getEntries().size(), greaterThan(0));
-        });
+        }, false);
     }
 
     private static void assumeMultiClusterSetup() {
@@ -754,6 +771,15 @@ public class CCSDuelIT extends ESRestTestCase {
             request.setPreFilterShardSize(between(1, 20));
         }
         return request;
+    }
+
+    private void duelRequest(SearchRequest searchRequest,
+                                    Consumer<SearchResponse> responseChecker,
+                                    boolean checkAsyncSearch) throws Exception {
+        duelSearch(searchRequest, responseChecker);
+        if (checkAsyncSearch) {
+            duelAsyncSearch(searchRequest, responseChecker);
+        }
     }
 
     private static void duelSearch(SearchRequest searchRequest, Consumer<SearchResponse> responseChecker) throws Exception {
@@ -803,6 +829,119 @@ public class CCSDuelIT extends ESRestTestCase {
             }
             assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
         }
+    }
+
+    private static void duelAsyncSearch(SearchRequest searchRequest,
+                                        Consumer<SearchResponse> responseChecker) throws Exception {
+        searchRequest.setCcsMinimizeRoundtrips(true);
+        AsyncSearchResponse minimizeRoundtripsResponse =
+            submitAsyncSearch(searchRequest, TimeValue.timeValueSeconds(1), restHighLevelClient.getParserConfig());
+        try {
+            {
+                final String responseId = minimizeRoundtripsResponse.getId();
+                assertBusy(() -> {
+                    AsyncSearchResponse resp = getAsyncSearch(responseId, restHighLevelClient.getParserConfig());
+                    assertThat(resp.isRunning(), equalTo(false));
+                });
+                minimizeRoundtripsResponse = getAsyncSearch(responseId, restHighLevelClient.getParserConfig());
+            }
+        } finally {
+            deleteAsyncSearch(minimizeRoundtripsResponse.getId());
+        }
+
+        searchRequest.setCcsMinimizeRoundtrips(false);
+        AsyncSearchResponse fanOutResponse =
+            submitAsyncSearch(searchRequest, TimeValue.timeValueSeconds(1), restHighLevelClient.getParserConfig());
+        try {
+            {
+                final String responseId = fanOutResponse.getId();
+                assertBusy(() -> {
+                    AsyncSearchResponse resp = getAsyncSearch(responseId, restHighLevelClient.getParserConfig());
+                    assertThat(resp.isRunning(), equalTo(false));
+                });
+                fanOutResponse = getAsyncSearch(responseId, restHighLevelClient.getParserConfig());
+            }
+        } finally {
+            deleteAsyncSearch(fanOutResponse.getId());
+        }
+        SearchResponse minimizeRoundtripsSearchResponse = minimizeRoundtripsResponse.getSearchResponse();
+        SearchResponse fanOutSearchResponse = fanOutResponse.getSearchResponse();
+
+        responseChecker.accept(minimizeRoundtripsSearchResponse);
+        assertEquals(3, minimizeRoundtripsSearchResponse.getNumReducePhases());
+
+        responseChecker.accept(fanOutSearchResponse);
+        assertEquals(1, fanOutSearchResponse.getNumReducePhases());
+        Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsSearchResponse);
+        Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
+        if (minimizeRoundtripsResponseMap.equals(fanOutResponseMap) == false) {
+            NotEqualMessageBuilder message = new NotEqualMessageBuilder();
+            message.compareMaps(minimizeRoundtripsResponseMap, fanOutResponseMap);
+            throw new AssertionError("Didn't match expected value:\n" + message);
+        }
+        assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
+    }
+
+    private static AsyncSearchResponse submitAsyncSearch(SearchRequest searchRequest,
+                                                         TimeValue waitForCompletion,
+                                                         XContentParserConfiguration parserConfig) throws IOException {
+        String indices = Strings.collectionToDelimitedString(List.of(searchRequest.indices()), ",");
+        final Request request = new Request("POST", URLEncoder.encode(indices) + "/_async_search");
+
+        request.addParameter("wait_for_completion_timeout", waitForCompletion.toString());
+        request.addParameter("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
+        request.addParameter("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
+        request.addParameter("keep_on_completion", "true");
+        request.addParameter(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        request.setEntity(createEntity(searchRequest.source(), XContentType.JSON,  ToXContent.EMPTY_PARAMS));
+        Response resp = restHighLevelClient.getLowLevelClient().performRequest(request);
+        return parseEntity(resp.getEntity(), AsyncSearchResponse::fromXContent, parserConfig);
+
+    }
+
+    private static AsyncSearchResponse getAsyncSearch(String id,
+                                                      XContentParserConfiguration parserConfig) throws IOException {
+        final Request request = new Request("GET", "/_async_search/" + id);
+        request.addParameter("wait_for_completion_timeout", "0ms");
+        request.addParameter(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        Response resp = restHighLevelClient.getLowLevelClient().performRequest(request);
+        return parseEntity(resp.getEntity(), AsyncSearchResponse::fromXContent, parserConfig);
+    }
+
+    private static Response deleteAsyncSearch(String id) throws IOException {
+        final Request request = new Request("DELETE", "/_async_search/" + id);
+        return restHighLevelClient.getLowLevelClient().performRequest(request);
+    }
+
+    private static HttpEntity createEntity(ToXContent toXContent,
+                                           XContentType xContentType,
+                                           ToXContent.Params toXContentParams)
+        throws IOException {
+        BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
+        return new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
+    }
+
+    private static <Resp> Resp parseEntity(final HttpEntity entity,
+                                           final CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                           final XContentParserConfiguration parserConfig)
+        throws IOException {
+        if (entity == null) {
+            throw new IllegalStateException("Response body expected but not returned");
+        }
+        if (entity.getContentType() == null) {
+            throw new IllegalStateException("Elasticsearch didn't return the [Content-Type] header, unable to parse response body");
+        }
+        XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
+        if (xContentType == null) {
+            throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
+        }
+        try (XContentParser parser = xContentType.xContent().createParser(parserConfig, entity.getContent())) {
+            return entityParser.apply(parser);
+        }
+    }
+
+    static ContentType createContentType(final XContentType xContentType) {
+        return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
     }
 
     private static void assertMultiClusterSearchResponse(SearchResponse searchResponse) {

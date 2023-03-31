@@ -58,6 +58,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
     private final Map<String, String> originHeaders;
 
+    private boolean ccsMinimizeRoundtrips;
+
     private boolean hasInitialized;
     private boolean hasCompleted;
     private long completionId;
@@ -183,7 +185,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             if (hasCompleted) {
                 executeImmediately = true;
             } else {
-                addInitListener(() -> {
+                Runnable nextStep = () -> {
                     final TimeValue remainingWaitForCompletion;
                     if (waitForCompletion.getMillis() > 0) {
                         long elapsedTime = threadPool.relativeTimeInMillis() - startTime;
@@ -193,7 +195,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                         remainingWaitForCompletion = TimeValue.ZERO;
                     }
                     internalAddCompletionListener(listener, remainingWaitForCompletion);
-                });
+                };
+                addInitListener(nextStep);
             }
         }
         if (executeImmediately) {
@@ -225,7 +228,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             if (hasCompleted || waitForCompletion.getMillis() == 0) {
                 executeImmediately = true;
             } else {
-                // ensure that we consumes the listener only once
+                // ensure that we consume the listener only once
                 AtomicBoolean hasRun = new AtomicBoolean(false);
                 long id = completionId++;
                 final Cancellable cancellable;
@@ -400,6 +403,16 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         }
 
         @Override
+        protected void onMinimizeRoundtrips(boolean hasLocalShards, int numRemoteClusters) {
+            // best effort to cancel expired tasks
+            checkCancellation();
+            ccsMinimizeRoundtrips = numRemoteClusters > 0;
+            if (hasLocalShards == false) {
+                executeInitListeners();
+            }
+        }
+
+        @Override
         protected void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
             // best effort to cancel expired tasks
             checkCancellation();
@@ -442,7 +455,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         public void onResponse(SearchResponse response) {
-            searchResponse.get().updateFinalResponse(response);
+            searchResponse.get().updateFinalResponse(response, ccsMinimizeRoundtrips);
             executeCompletionListeners();
         }
 

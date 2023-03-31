@@ -33,6 +33,12 @@ public abstract class SearchProgressListener {
     private List<SearchShard> shards;
 
     /**
+     * Executed one when minimize round trips is enabled to indicate the number of remote clusters
+     * that will not be monitored during the search.
+     **/
+    protected void onMinimizeRoundtrips(boolean hasLocalShards, int numRemoteClusters) {}
+
+    /**
      * Executed when shards are ready to be queried.
      *
      * @param shards The list of shards to query.
@@ -95,7 +101,18 @@ public abstract class SearchProgressListener {
      */
     protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
-    final void notifyListShards(List<SearchShard> shards, List<SearchShard> skippedShards, Clusters clusters, boolean fetchPhase) {
+    final void notifyMinimizeRoundtrips(boolean hasLocalShards, int numRemoteClusters) {
+        try {
+            onMinimizeRoundtrips(hasLocalShards, numRemoteClusters);
+        } catch (Exception e) {
+            logger.warn("Failed to execute progress listener on minimize roundtrips", e);
+        }
+    }
+
+    final void notifyListShards(List<SearchShard> shards,
+                                List<SearchShard> skippedShards,
+                                Clusters clusters,
+                                boolean fetchPhase) {
         this.shards = shards;
         try {
             onListShards(shards, skippedShards, clusters, fetchPhase);

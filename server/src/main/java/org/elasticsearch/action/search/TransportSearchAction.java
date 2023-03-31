@@ -399,6 +399,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
             } else {
                 if (shouldMinimizeRoundtrips(rewritten)) {
+                    /**
+                     * Notifies the task listener that searches on remote clusters will not report their progress.
+                     */
+                    task.getProgressListener().notifyMinimizeRoundtrips(localIndices != null, remoteClusterIndices.size());
                     final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                     ccsRemoteReduce(
                         parentTaskId,
@@ -549,7 +553,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 true
             );
             Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
-            remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
+            remoteClusterClient.search(ccsSearchRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     Map<String, SearchProfileShardResult> profileResults = searchResponse.getProfileResults();
@@ -699,7 +703,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 .cluster()
                 .searchShards(
                     searchShardsRequest,
-                    new CCSActionListener<ClusterSearchShardsResponse, Map<String, ClusterSearchShardsResponse>>(
+                    new CCSActionListener<>(
                         clusterAlias,
                         skipUnavailable,
                         responsesCountDown,
@@ -731,7 +735,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         int totalClusters,
         ActionListener<SearchResponse> originalListener
     ) {
-        return new CCSActionListener<SearchResponse, SearchResponse>(
+        return new CCSActionListener<>(
             clusterAlias,
             skipUnavailable,
             countDown,

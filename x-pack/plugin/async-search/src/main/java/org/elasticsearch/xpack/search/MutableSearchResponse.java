@@ -41,7 +41,6 @@ class MutableSearchResponse {
     private final Clusters clusters;
     private final AtomicArray<ShardSearchFailure> queryFailures;
     private final ThreadContext threadContext;
-
     private boolean isPartial;
     private int successfulShards;
     private TotalHits totalHits;
@@ -109,11 +108,11 @@ class MutableSearchResponse {
      * Updates the response with the final {@link SearchResponse} once the
      * search is complete.
      */
-    synchronized void updateFinalResponse(SearchResponse response) {
+    synchronized void updateFinalResponse(SearchResponse response, boolean hasRemoteClusterShards) {
         failIfFrozen();
-        assert response.getTotalShards() == totalShards
+        assert (hasRemoteClusterShards && response.getTotalShards() == totalShards) || response.getTotalShards() >= totalShards
             : "received number of total shards differs from the one " + "notified through onListShards";
-        assert response.getSkippedShards() == skippedShards
+        assert (hasRemoteClusterShards && response.getSkippedShards() == skippedShards) || response.getSkippedShards() >= skippedShards
             : "received number of skipped shards differs from the one " + "notified through onListShards";
         this.responseHeaders = threadContext.getResponseHeaders();
         this.finalResponse = response;

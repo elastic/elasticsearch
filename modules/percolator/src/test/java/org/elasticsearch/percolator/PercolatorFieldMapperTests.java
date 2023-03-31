@@ -46,6 +46,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -577,7 +578,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testPercolatorFieldMapperUnMappedField() throws Exception {
         addQueryFieldMappings();
-        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> {
+        DocumentParsingException exception = expectThrows(DocumentParsingException.class, () -> {
             mapperService.documentMapper()
                 .parse(
                     new SourceToParse(
@@ -610,8 +611,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                         XContentType.JSON
                     )
                 );
-        } catch (MapperParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("query malformed, must start with start_object"));
+        } catch (DocumentParsingException e) {
+            assertThat(e.getMessage(), containsString("query malformed, must start with start_object"));
         }
     }
 
@@ -740,7 +741,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         queryBuilderAsBytes = doc.rootDoc().getField("object_field.query_field.query_builder_field").binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> {
             mapperService.documentMapper()
                 .parse(
                     new SourceToParse(

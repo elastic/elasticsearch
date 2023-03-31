@@ -260,7 +260,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         }));
 
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", "192.168.1.1", "192.168.1.1")))
         );
         assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));

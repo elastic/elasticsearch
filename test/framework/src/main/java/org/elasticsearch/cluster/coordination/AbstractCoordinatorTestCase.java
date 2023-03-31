@@ -1099,7 +1099,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     onJoinValidators,
                     Randomness.get(),
                     (s, p, r) -> {},
-                    coordinationServices.getQuorumStrategy(),
+                    coordinationServices.getElectionStrategy(),
                     nodeHealthService,
                     new NoneCircuitBreakerService(),
                     coordinationServices.getReconfigurator(),
@@ -1487,7 +1487,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     }
 
     protected interface CoordinationServices {
-        ElectionStrategy getQuorumStrategy();
+        ElectionStrategy getElectionStrategy();
 
         Reconfigurator getReconfigurator();
 
@@ -1516,7 +1516,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         ) {
             return new CoordinationServices() {
                 @Override
-                public ElectionStrategy getQuorumStrategy() {
+                public ElectionStrategy getElectionStrategy() {
                     return electionStrategy;
                 }
 

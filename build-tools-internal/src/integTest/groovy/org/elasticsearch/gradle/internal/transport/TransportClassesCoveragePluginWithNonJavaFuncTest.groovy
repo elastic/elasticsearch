@@ -39,8 +39,8 @@ class TransportClassesCoveragePluginWithNonJavaFuncTest extends AbstractGradleIn
         def result = gradleRunner(":transportMethodCoverageVerifier").buildAndFail()
 
         then:
-        result.getOutput().contains("Cannot locate tasks that match ':methodCoverageVerifier' " +
-            "as task 'methodCoverageVerifier' not found in root project")
+        result.getOutput().contains("Cannot locate tasks that match ':transportMethodCoverageVerifier' " +
+            "as task 'transportMethodCoverageVerifier' not found in root project")
     }
 
 }

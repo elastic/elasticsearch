@@ -94,7 +94,7 @@ public class BuildParams {
     }
 
     public static void withFipsEnabledOnly(Task task) {
-        task.onlyIf("Only if FIPS mode disabled", task1 -> isInFipsJvm() == false);
+        task.onlyIf("FIPS mode disabled", task1 -> isInFipsJvm() == false);
     }
 
     public static String getGitRevision() {

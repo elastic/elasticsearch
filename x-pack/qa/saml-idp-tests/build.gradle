@@ -17,7 +17,7 @@ String outputDir = "${project.buildDir}/generated-resources/${project.name}"
 tasks.register("copyIdpFiles", Sync) {
   dependsOn idpFixtureProject.postProcessFixture
   // Don't attempt to get ephemeral ports when Docker is not available
-  onlyIf("Only if " + idpFixtureProject.postProcessFixture.path + " not skipped") {
+  onlyIf(idpFixtureProject.postProcessFixture.path + " not skipped") {
     idpFixtureProject.postProcessFixture.state.skipped == false
   }
   from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml',
@@ -33,7 +33,7 @@ tasks.register("copyIdpFiles", Sync) {
 
 tasks.named("javaRestTest").configure {
   classpath += files(tasks.named("copyIdpFiles"))
-  onlyIf("Only if " + idpFixtureProject.postProcessFixture.path + " not skipped") {
+  onlyIf(idpFixtureProject.postProcessFixture.path + " not skipped") {
     idpFixtureProject.postProcessFixture.state.skipped == false
   }
 }

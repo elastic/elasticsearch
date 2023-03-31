@@ -262,7 +262,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
     public abstract Class<? extends Plugin<Project>> getBasePlugin();
 
     private void onlyIfBwcEnabled(Task task, ExtraPropertiesExtension extraProperties) {
-        task.onlyIf("Only if BWC tests enabled", t -> isEnabled(extraProperties));
+        task.onlyIf("BWC tests enabled", t -> isEnabled(extraProperties));
     }
 
     private boolean isEnabled(ExtraPropertiesExtension extraProperties) {

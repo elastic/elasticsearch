@@ -123,7 +123,7 @@ tasks.register("javaRestTestSecure", RestIntegTestTask) {
     "test.krb5.keytab.hdfs",
     project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
   )
-  onlyIf("Only if FIPS mode disabled and runtime java < 16") {
+  onlyIf("FIPS mode disabled and runtime java < 16") {
     BuildParams.inFipsJvm == false && BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16
   }
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs

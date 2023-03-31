@@ -25,7 +25,7 @@ public class BuildToolsConventionsPlugin implements Plugin<Project> {
         project.getPlugins().apply(LicenseHeadersPrecommitPlugin.class);
         int defaultParallel = ParallelDetector.findDefaultParallel(project);
         project.getTasks().withType(Test.class).configureEach(test -> {
-            test.onlyIf("Only if FIPS mode disabled",
+            test.onlyIf("FIPS mode disabled",
                     (t) -> Util.getBooleanProperty("tests.fips.enabled", false) == false);
             test.setMaxParallelForks(defaultParallel);
         });

@@ -228,6 +228,10 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94905")
+    public void testClusterRecoversAfterExceptionDuringSerialization() {}
+
+    @Override
     protected CoordinatorStrategy getCoordinatorStrategy() {
         var atomicRegister = new AtomicRegister();
         var sharedStore = new SharedStore();
@@ -415,14 +419,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             BooleanSupplier disruptStorage
         ) {
             return new AtomicRegisterPersistedState(newLocalNode, sharedStore);
-        }
-
-        @Override
-        public CoordinationMetadata.VotingConfiguration getInitialConfigurationForNode(
-            DiscoveryNode localNode,
-            CoordinationMetadata.VotingConfiguration initialConfiguration
-        ) {
-            return new CoordinationMetadata.VotingConfiguration(Set.of(localNode.getId()));
         }
     }
 

@@ -22,6 +22,7 @@ import fixture.s3.S3HttpHandler;
 
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
@@ -46,12 +47,14 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     @Override
     protected Settings.Builder nodeSettings() {
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        mockSecureSettings.setString("s3.client.test.access_key", "test_access_key");
+        mockSecureSettings.setString("s3.client.test.secret_key", "test_secret_key");
         return super.nodeSettings().put("s3.client.test.endpoint", httpServerUrl())
-            .put("insecure.s3.client.test.access_key", "test_access_key")
-            .put("insecure.s3.client.test.secret_key", "test_secret_key")
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.S3)
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
-            .put(ObjectStoreService.CLIENT_SETTING.getKey(), "test");
+            .put(ObjectStoreService.CLIENT_SETTING.getKey(), "test")
+            .setSecureSettings(mockSecureSettings);
     }
 
 }

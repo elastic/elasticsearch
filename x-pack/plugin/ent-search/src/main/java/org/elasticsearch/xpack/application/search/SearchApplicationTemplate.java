@@ -33,7 +33,25 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class SearchApplicationTemplate implements ToXContentObject, Writeable {
     private final Script script;
 
-    public SearchApplicationTemplate(StreamInput in) throws IOException {
+    private static final ParseField TEMPLATE_SCRIPT_FIELD = new ParseField("script");
+    public static final ParseField DICTIONARY_FIELD = new ParseField("dictionary");
+
+    private static final ConstructingObjectParser<SearchApplicationTemplate, Void> PARSER = new ConstructingObjectParser<>(
+        "search_template",
+        p -> new SearchApplicationTemplate((Script) p[0], (TemplateParamValidator) p[1])
+    );
+
+    static {
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> Script.parse(p, Script.DEFAULT_TEMPLATE_LANG), TEMPLATE_SCRIPT_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            return new TemplateParamValidator(builder.copyCurrentStructure(p));
+        }, DICTIONARY_FIELD);
+    }
+
+    private final TemplateParamValidator templateParamValidator;
+
+    public SearchApplicationTemplate(StreamInput in) throws IOException, ValidationException {
         this.script = in.readOptionalWriteable(Script::new);
     }
 

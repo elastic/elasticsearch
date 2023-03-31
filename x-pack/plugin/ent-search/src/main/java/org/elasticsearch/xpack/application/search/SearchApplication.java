@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.search;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -86,7 +87,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
         this.searchApplicationTemplate = searchApplicationTemplate;
     }
 
-    public SearchApplication(StreamInput in) throws IOException {
+    public SearchApplication(StreamInput in) throws IOException, ValidationException {
         this.name = in.readString();
         this.indices = in.readStringArray();
         this.analyticsCollectionName = in.readOptionalString();

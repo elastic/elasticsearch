@@ -626,7 +626,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 var before = threadPool.relativeTimeInMillis();
                 final InputStream inputStream = new InputStreamIndexInput(input, length);
                 if (writeAtomic) {
-                    blobContainer.writeMetadataBlob(name, false, true, out -> Streams.copy(inputStream, out));
+                    blobContainer.writeMetadataBlob(name, false, true, out -> Streams.copy(inputStream, out, false));
                 } else {
                     blobContainer.writeBlob(name, inputStream, length, false);
                 }

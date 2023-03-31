@@ -499,7 +499,6 @@ public class XPackPlugin extends XPackClientPlugin
             setLicenseState(
                 new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), xPackLicenseStateInitialStatusSupplier.get(0))
             );
-
         } else {
             setLicenseState(
                 new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), () -> new Status(License.OperationMode.TRIAL, true, null))

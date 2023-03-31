@@ -153,10 +153,7 @@ public class HighlightPhase implements FetchSubPhase {
                     )
                 );
             }
-            // TODO in future we can load the storedFields in advance here and make use of them,
-            // but for now they are loaded separately in HighlightUtils so we only return whether
-            // or not we need source.
-            storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(sourceRequired, false, Set.of()));
+            storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(sourceRequired, false, storedFields));
         }
         return new FieldContext(storedFieldsSpec, builders);
     }

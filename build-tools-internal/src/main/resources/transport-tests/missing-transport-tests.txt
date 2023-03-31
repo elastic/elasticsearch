@@ -695,6 +695,7 @@ org/elasticsearch/index/rankeval/ExpectedReciprocalRank$Detail
 org/elasticsearch/index/rankeval/MeanReciprocalRank$Detail
 org/elasticsearch/index/rankeval/DiscountedCumulativeGain$Detail
 org/elasticsearch/index/rankeval/RecallAtK$Detail
+org/elasticsearch/index/rankeval/RankEvalResponse
 
 // ':modules:percolator:transportMethodCoverageVerifier'.
 org/elasticsearch/percolator/PercolateQueryBuilder

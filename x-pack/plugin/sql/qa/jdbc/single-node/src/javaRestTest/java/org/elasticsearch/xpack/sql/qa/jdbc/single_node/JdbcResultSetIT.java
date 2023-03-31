@@ -9,4 +9,16 @@ package org.elasticsearch.xpack.sql.qa.jdbc.single_node;
 
 import org.elasticsearch.xpack.sql.qa.jdbc.ResultSetTestCase;
 
-public class JdbcResultSetIT extends ResultSetTestCase {}
+public class JdbcResultSetIT extends ResultSetTestCase {
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94461")
+    public void testGettingDateWithoutCalendar() throws Exception {
+        super.testGettingDateWithoutCalendar();
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94329")
+    @Override
+    public void testGettingDateWithoutCalendarWithNanos() throws Exception {
+        super.testGettingDateWithoutCalendarWithNanos();
+    }
+}

@@ -217,11 +217,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 // If snapshotVersion is not present,
                 // then lucene version must be < RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION
                 if (snapshotVersion == null) {
-                    luceneVersion = randomVersionBetween(
-                        random(),
-                        Version.V_7_0_0,
-                        RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION
-                    ).luceneVersion();
+                    luceneVersion = randomVersionBetween(random(), Version.V_7_0_0, RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION)
+                        .luceneVersion();
                 } else {
                     luceneVersion = randomCompatibleVersion(random(), Version.CURRENT).luceneVersion();
                 }

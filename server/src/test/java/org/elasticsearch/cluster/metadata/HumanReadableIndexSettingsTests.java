@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class HumanReadableIndexSettingsTests extends ESTestCase {
     public void testHumanReadableSettings() {
-        IndexVersion versionCreated = IndexVersion.fromVersion(randomVersion(random()));
+        IndexVersion versionCreated = randomVersion(random()).indexVersion;
         long created = System.currentTimeMillis();
         Settings testSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, versionCreated.id)

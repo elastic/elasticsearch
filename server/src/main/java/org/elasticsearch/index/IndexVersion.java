@@ -90,7 +90,11 @@ public final class IndexVersion implements Comparable<IndexVersion> {
     public static final IndexVersion V_7_17_7 = new IndexVersion(7_17_07_99, Version.LUCENE_8_11_1, "b672ff6b-8078-4f6e-b426-6fcf7f8687b4");
     public static final IndexVersion V_7_17_8 = new IndexVersion(7_17_08_99, Version.LUCENE_8_11_1, "0faffa1b-5fb3-4439-9367-f154fb25395f");
     public static final IndexVersion V_7_17_9 = new IndexVersion(7_17_09_99, Version.LUCENE_8_11_1, "8044989f-77ef-4d6d-9dd8-1bdd805cef74");
-    public static final IndexVersion V_7_17_10 = new IndexVersion(7_17_10_99, Version.LUCENE_8_11_1, "66b743fb-8be6-443f-8920-d8c5ed561857");
+    public static final IndexVersion V_7_17_10 = new IndexVersion(
+        7_17_10_99,
+        Version.LUCENE_8_11_1,
+        "66b743fb-8be6-443f-8920-d8c5ed561857"
+    );
     public static final IndexVersion V_8_0_0 = new IndexVersion(8_00_00_99, Version.LUCENE_9_0_0, "ff18a13c-1fa7-4cf7-a3b1-4fdcd9461d5b");
     public static final IndexVersion V_8_0_1 = new IndexVersion(8_00_01_99, Version.LUCENE_9_0_0, "4bd5650f-3eff-418f-a7a6-ad46b2a9c941");
     public static final IndexVersion V_8_1_0 = new IndexVersion(8_01_00_99, Version.LUCENE_9_0_0, "b4742461-ee43-4fd0-a260-29f8388b82ec");
@@ -145,10 +149,10 @@ public final class IndexVersion implements Comparable<IndexVersion> {
                     IndexVersion sameUniqueId = uniqueIds.put(version.uniqueId, version);
                     assert sameUniqueId == null
                         : "Versions "
-                        + version
-                        + " and "
-                        + sameUniqueId
-                        + " have the same unique id. Each IndexVersion should have a different unique id";
+                            + version
+                            + " and "
+                            + sameUniqueId
+                            + " have the same unique id. Each IndexVersion should have a different unique id";
                 } catch (IllegalAccessException e) {
                     assert false : "IndexVersion field [" + fieldName + "] should be public";
                 }
@@ -164,7 +168,11 @@ public final class IndexVersion implements Comparable<IndexVersion> {
         VERSION_IDS = getAllVersionIds(IndexVersion.class);
 
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST)
-            : "IndexVersion must be upgraded to [" + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
+            : "IndexVersion must be upgraded to ["
+                + org.apache.lucene.util.Version.LATEST
+                + "] is still set to ["
+                + CURRENT.luceneVersion
+                + "]";
     }
 
     static Collection<IndexVersion> getAllVersions() {

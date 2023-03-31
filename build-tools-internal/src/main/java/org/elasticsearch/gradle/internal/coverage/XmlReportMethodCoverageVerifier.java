@@ -13,7 +13,6 @@ import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -23,8 +22,6 @@ public class XmlReportMethodCoverageVerifier {
     private static final String STREAM_OUTPUT_DESC = "Lorg/elasticsearch/common/io/stream/StreamOutput;";
     public static final double MINIMUM_COVERAGE = 0.9;
     private Set<String> classesToSkip;
-
-    Set<String> classesFailing = new HashSet<>();
 
     public XmlReportMethodCoverageVerifier(Set<String> classesToSkip) {
         this.classesToSkip = classesToSkip;

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.remotecluster;
 
 import org.apache.http.client.methods.HttpPost;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -40,6 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94939")
 public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
@@ -75,7 +77,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                                     "names": ["index*", "not_found_index", "shared-metrics"],
                                     "privileges": ["read", "read_cross_cluster"]
                                 }
-                              ]
+                            ]
                           }
                         }""");
                     API_KEY_MAP_REF.set(apiKeyMap);
@@ -94,7 +96,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testCrossClusterSearch() throws Exception {
-        configureRemoteClusters();
+        configureRemoteCluster();
         final String crossClusterAccessApiKeyId = (String) API_KEY_MAP_REF.get().get("id");
 
         // Fulfilling cluster

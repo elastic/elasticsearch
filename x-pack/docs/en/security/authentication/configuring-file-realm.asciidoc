@@ -1,3 +1,10 @@
+You don't need to explicitly configure a `file` realm. The `file` and `native`
+realms are added to the realm chain by default. Unless configured otherwise, the
+`file` realm is added first, followed by the `native` realm.
+
+IMPORTANT: While it is possible to define multiple instances of some other
+realms, you can define only _one_ `file` realm per node.
+
 All the data about the users for the `file` realm is stored in two files on each 
 node in the cluster: `users` and `users_roles`. Both files are located in 
 `ES_PATH_CONF` and are read on startup.
@@ -13,9 +20,6 @@ A safer approach would be to apply the change on one of the nodes and have the
 files distributed or copied to all other nodes in the cluster (either manually 
 or using a configuration management system such as Puppet or Chef).
 ==============================
-
-The `file` realm is added to the realm chain by default. You don't need to
-explicitly configure a `file` realm.
 
 . (Optional) Add a realm configuration to `elasticsearch.yml` under the
 `xpack.security.authc.realms.file` namespace. At a minimum, you must set 

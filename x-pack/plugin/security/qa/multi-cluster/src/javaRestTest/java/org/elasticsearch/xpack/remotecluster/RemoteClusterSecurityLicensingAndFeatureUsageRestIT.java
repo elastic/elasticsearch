@@ -103,7 +103,7 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
      * @throws Exception in case of unexpected errors
      */
     @Override
-    protected void configureRemoteClusters(boolean isProxyMode) throws Exception {
+    protected void configureRemoteCluster(boolean isProxyMode) throws Exception {
         // This method assume the cross cluster access API key is already configured in keystore
         final Settings.Builder builder = Settings.builder();
         if (isProxyMode) {
@@ -118,7 +118,7 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
 
     public void testCrossClusterAccessFeatureTrackingAndLicensing() throws Exception {
         final boolean useProxyMode = randomBoolean();
-        configureRemoteClusters(useProxyMode);
+        configureRemoteCluster(useProxyMode);
 
         // Fulfilling cluster
         {

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
@@ -509,12 +508,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             }
         }
         for (Snapshot snapshot : toResolve) {
-            final List<String> indices = snapshotsToIndices.getOrDefault(snapshot.getSnapshotId(), Collections.emptyList());
-            CollectionUtil.timSort(indices);
             snapshotInfos.add(
                 new SnapshotInfo(
                     snapshot,
-                    indices,
+                    snapshotsToIndices.getOrDefault(snapshot.getSnapshotId(), Collections.emptyList()),
                     Collections.emptyList(),
                     Collections.emptyList(),
                     repositoryData.getSnapshotState(snapshot.getSnapshotId())

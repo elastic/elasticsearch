@@ -1,5 +1,0 @@
-pr: 93426
-summary: Add ability for Watcher's webhook actions to send additional header
-area: Watcher
-type: enhancement
-issues: []

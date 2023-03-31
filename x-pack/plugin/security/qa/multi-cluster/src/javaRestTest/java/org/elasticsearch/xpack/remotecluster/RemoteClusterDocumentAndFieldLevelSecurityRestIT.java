@@ -195,10 +195,10 @@ public class RemoteClusterDocumentAndFieldLevelSecurityRestIT extends AbstractRe
     public void testCrossClusterSearch() throws Exception {
         // Configure remote clusters on querying cluster where each remote cluster uses
         // different API key that has (or doesn't) various DLS/FLS restrictions.
-        configureRemoteClusters(randomBoolean(), REMOTE_CLUSTER_NO_DLS_FLS);
-        configureRemoteClusters(randomBoolean(), REMOTE_CLUSTER_DLS_FLS);
-        configureRemoteClusters(randomBoolean(), REMOTE_CLUSTER_DLS);
-        configureRemoteClusters(randomBoolean(), REMOTE_CLUSTER_FLS);
+        configureRemoteCluster(REMOTE_CLUSTER_NO_DLS_FLS);
+        configureRemoteCluster(REMOTE_CLUSTER_DLS_FLS);
+        configureRemoteCluster(REMOTE_CLUSTER_DLS);
+        configureRemoteCluster(REMOTE_CLUSTER_FLS);
 
         // Insert some documents on the fulfilling cluster, so we can attempt to search it from the querying cluster.
         createIndicesOnFulfillingCluster();

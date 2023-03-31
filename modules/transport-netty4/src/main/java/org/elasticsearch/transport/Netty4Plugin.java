@@ -110,7 +110,8 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                 xContentRegistry,
                 dispatcher,
                 clusterSettings,
-                getSharedGroupFactory(settings)
+                getSharedGroupFactory(settings),
+                null
             )
         );
     }

@@ -23,6 +23,7 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.timeout.ReadTimeoutException;
@@ -32,6 +33,8 @@ import io.netty.util.AttributeKey;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -41,6 +44,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.http.AbstractHttpServerTransport;
@@ -135,6 +139,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     private final SharedGroupFactory sharedGroupFactory;
     private final RecvByteBufAllocator recvByteBufAllocator;
+    protected final TriConsumer<HttpRequest, Channel, ActionListener<Void>> headerValidator;
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
@@ -150,12 +155,14 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        SharedGroupFactory sharedGroupFactory
+        SharedGroupFactory sharedGroupFactory,
+        @Nullable TriConsumer<HttpRequest, Channel, ActionListener<Void>> headerValidator
     ) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings);
         Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
+        this.headerValidator = headerValidator;
 
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
@@ -288,7 +295,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     public ChannelHandler configureServerChannelHandler() {
-        return new HttpChannelHandler(this, handlingSettings);
+        return new HttpChannelHandler(this, handlingSettings, headerValidator);
     }
 
     static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
@@ -301,13 +308,19 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final Netty4HttpRequestHandler requestHandler;
         private final Netty4HttpResponseCreator responseCreator;
         private final HttpHandlingSettings handlingSettings;
+        protected final TriConsumer<HttpRequest, Channel, ActionListener<Void>> headerValidator;
 
-        protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
+        protected HttpChannelHandler(
+            final Netty4HttpServerTransport transport,
+            final HttpHandlingSettings handlingSettings,
+            @Nullable final TriConsumer<HttpRequest, Channel, ActionListener<Void>> headerValidator
+        ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.requestCreator = new Netty4HttpRequestCreator();
             this.requestHandler = new Netty4HttpRequestHandler(transport);
             this.responseCreator = new Netty4HttpResponseCreator();
+            this.headerValidator = headerValidator;
         }
 
         @Override
@@ -323,6 +336,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             );
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder);
+            if (headerValidator != null) {
+                // runs a validation function on the first HTTP message piece which contains all the headers
+                // if validation passes, the pieces of that particular request are forwarded, otherwise they are discarded
+                ch.pipeline().addLast("header_validator", new Netty4HttpHeaderValidator(headerValidator));
+            }
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
             ch.pipeline().addLast("encoder", new HttpResponseEncoder());
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());

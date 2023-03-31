@@ -8,14 +8,18 @@ package org.elasticsearch.xpack.security.transport.netty4;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.ssl.SslHandler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,9 +52,20 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        SharedGroupFactory sharedGroupFactory
+        SharedGroupFactory sharedGroupFactory,
+        @Nullable TriConsumer<HttpRequest, Channel, ActionListener<Void>> headerValidator
     ) {
-        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings, sharedGroupFactory);
+        super(
+            settings,
+            networkService,
+            bigArrays,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            clusterSettings,
+            sharedGroupFactory,
+            headerValidator
+        );
         this.securityExceptionHandler = new SecurityHttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
@@ -86,7 +101,7 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
 
     private final class HttpSslChannelHandler extends HttpChannelHandler {
         HttpSslChannelHandler() {
-            super(SecurityNetty4HttpServerTransport.this, handlingSettings);
+            super(SecurityNetty4HttpServerTransport.this, handlingSettings, SecurityNetty4HttpServerTransport.this.headerValidator);
         }
 
         @Override

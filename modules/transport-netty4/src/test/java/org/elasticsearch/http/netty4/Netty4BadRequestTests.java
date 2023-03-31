@@ -88,7 +88,8 @@ public class Netty4BadRequestTests extends ESTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                new SharedGroupFactory(Settings.EMPTY)
+                new SharedGroupFactory(Settings.EMPTY),
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             )
         ) {
             httpServerTransport.start();

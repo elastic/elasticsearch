@@ -174,7 +174,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             )
         ) {
             transport.start();
@@ -223,7 +224,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 new NullDispatcher(),
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY)
+                new SharedGroupFactory(Settings.EMPTY),
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             )
         ) {
             transport.start();
@@ -241,7 +243,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     xContentRegistry(),
                     new NullDispatcher(),
                     clusterSettings,
-                    new SharedGroupFactory(settings)
+                    new SharedGroupFactory(settings),
+                    randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
                 )
             ) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
@@ -293,7 +296,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             )
         ) {
             transport.start();
@@ -355,7 +359,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY)
+                new SharedGroupFactory(Settings.EMPTY),
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             )
         ) {
             transport.start();
@@ -424,7 +429,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 randomClusterSettings(),
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             )
         ) {
             transport.start();
@@ -497,7 +503,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 xContentRegistry(),
                 dispatcher,
                 randomClusterSettings(),
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             )
         ) {
             transport.start();

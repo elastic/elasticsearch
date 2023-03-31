@@ -16,8 +16,11 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.util.ReferenceCounted;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -111,13 +114,14 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 xContentRegistry(),
                 new NullDispatcher(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
             );
         }
 
         @Override
         public ChannelHandler configureServerChannelHandler() {
-            return new CustomHttpChannelHandler(this, executorService);
+            return new CustomHttpChannelHandler(this, executorService, headerValidator);
         }
 
         @Override
@@ -132,8 +136,12 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
         private final ExecutorService executorService;
 
-        CustomHttpChannelHandler(Netty4HttpServerTransport transport, ExecutorService executorService) {
-            super(transport, transport.handlingSettings);
+        CustomHttpChannelHandler(
+            Netty4HttpServerTransport transport,
+            ExecutorService executorService,
+            TriConsumer<HttpRequest, Channel, ActionListener<Void>> headerValidator
+        ) {
+            super(transport, transport.handlingSettings, headerValidator);
             this.executorService = executorService;
         }
 

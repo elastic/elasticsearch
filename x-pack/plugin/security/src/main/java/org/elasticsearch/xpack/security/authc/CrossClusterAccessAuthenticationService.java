@@ -104,7 +104,9 @@ public class CrossClusterAccessAuthenticationService {
                         validate(crossClusterAccessSubjectInfo);
                         writeAuthToContext(
                             authcContext,
-                            authentication.toCrossClusterAccess(maybeRewriteForCrossClusterAccessUser(crossClusterAccessSubjectInfo)),
+                            authentication.toCrossClusterAccess(
+                                maybeRewriteForCrossClusterAccessUser(authcContext.getRequest(), crossClusterAccessSubjectInfo)
+                            ),
                             listener
                         );
                     } catch (Exception ex) {
@@ -120,12 +122,14 @@ public class CrossClusterAccessAuthenticationService {
     }
 
     private CrossClusterAccessSubjectInfo maybeRewriteForCrossClusterAccessUser(
+        AuthenticationService.AuditableRequest request,
         CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo
     ) {
         final Authentication authentication = crossClusterAccessSubjectInfo.getAuthentication();
         final Subject effectiveSubject = authentication.getEffectiveSubject();
         final User user = effectiveSubject.getUser();
         if (CrossClusterAccessUser.is(user)) {
+            logger.debug("Request [{}] performed by internal user [{}]. Will use pre-defined role descriptors", request, user.principal());
             return CrossClusterAccessUser.subjectInfoWithRoleDescriptors(
                 effectiveSubject.getTransportVersion(),
                 effectiveSubject.getRealm().getNodeName()
@@ -185,7 +189,6 @@ public class CrossClusterAccessAuthenticationService {
                 }
             }
         }
-
     }
 
     private Version getMinNodeVersion() {
@@ -213,11 +216,14 @@ public class CrossClusterAccessAuthenticationService {
             authentication.writeToContext(context.getThreadContext());
             context.getRequest().authenticationSuccess(authentication);
         } catch (Exception e) {
-            logger.debug(() -> format("Failed to store authentication [%s] for request [%s]", authentication, context.getRequest()), e);
+            logger.debug(
+                () -> format("Failed to store authentication [%s] for cross cluster request [%s]", authentication, context.getRequest()),
+                e
+            );
             withRequestProcessingFailure(context, e, listener);
             return;
         }
-        logger.trace("Established authentication [{}] for request [{}]", authentication, context.getRequest());
+        logger.trace("Established authentication [{}] for cross cluster request [{}]", authentication, context.getRequest());
         listener.onResponse(authentication);
     }
 }

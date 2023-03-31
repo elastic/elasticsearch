@@ -543,7 +543,7 @@ public class SettingsTests extends ESTestCase {
         final boolean flatSettings = randomBoolean();
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
-        settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "" + flatSettings)));
+        settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(Settings.FLAT_SETTINGS_PARAM, "" + flatSettings)));
         builder.endObject();
         XContentParser parser = createParser(builder);
         Settings build = Settings.fromXContent(parser);
@@ -591,7 +591,7 @@ public class SettingsTests extends ESTestCase {
 
         builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
-        test.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+        test.toXContent(builder, Settings.FLAT_SETTINGS_TRUE);
         builder.endObject();
         assertEquals("""
             {"foo.bar":["1","2","3"]}""", Strings.toString(builder));

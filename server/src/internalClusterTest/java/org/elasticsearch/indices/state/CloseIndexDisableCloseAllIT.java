@@ -20,10 +20,9 @@ public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
 
     @After
     public void afterTest() {
-        Settings settings = Settings.builder()
-            .put(TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey(), (String) null)
-            .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(
+            Settings.builder().put(TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey(), (String) null)
+        );
     }
 
     public void testCloseAllRequiresName() {
@@ -34,8 +33,7 @@ public class CloseIndexDisableCloseAllIT extends ESIntegTestCase {
 
         // disable closing
         createIndex("test_no_close");
-        Settings settings = Settings.builder().put(TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey(), false).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(Settings.builder().put(TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey(), false));
 
         IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,

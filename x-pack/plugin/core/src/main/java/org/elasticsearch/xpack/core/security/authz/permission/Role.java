@@ -168,10 +168,10 @@ public interface Role {
      * Returns the intersection of role descriptors defined for a remote cluster with the given alias.
      *
      * @param remoteClusterAlias the remote cluster alias for which to return a role descriptors intersection
-     * @return an intersection of defined role descriptors for the remote access to a given cluster,
+     * @return an intersection of role descriptors that describe the remote privileges towards a given cluster,
      *         otherwise an empty intersection if remote privileges are not defined
      */
-    RoleDescriptorsIntersection getRemoteAccessRoleDescriptorsIntersection(String remoteClusterAlias);
+    RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(String remoteClusterAlias);
 
     /***
      * Creates a {@link LimitedRole} that uses this Role as base and the given role as limited-by.
@@ -341,9 +341,6 @@ public interface Role {
         final RestrictedIndices restrictedIndices,
         final Collection<ApplicationPrivilegeDescriptor> storedApplicationPrivilegeDescriptors
     ) {
-        // TODO handle this when we introduce remote index privileges for built-in users and roles. That's the only production code
-        // using this builder
-        assert false == roleDescriptor.hasRemoteIndicesPrivileges();
         Objects.requireNonNull(fieldPermissionsCache);
 
         final Builder builder = builder(restrictedIndices, roleDescriptor.getName());
@@ -362,6 +359,23 @@ public interface Role {
                 IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
                 indexPrivilege.allowRestrictedIndices(),
                 indexPrivilege.getIndices()
+            );
+        }
+
+        for (RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges : roleDescriptor.getRemoteIndicesPrivileges()) {
+            final String[] clusterAliases = remoteIndicesPrivileges.remoteClusters();
+            assert Arrays.equals(new String[] { "*" }, clusterAliases)
+                : "reserved role should not define remote indices privileges for specific clusters";
+            final RoleDescriptor.IndicesPrivileges indicesPrivileges = remoteIndicesPrivileges.indicesPrivileges();
+            builder.addRemoteGroup(
+                Set.of(clusterAliases),
+                fieldPermissionsCache.getFieldPermissions(
+                    new FieldPermissionsDefinition(indicesPrivileges.getGrantedFields(), indicesPrivileges.getDeniedFields())
+                ),
+                indicesPrivileges.getQuery() == null ? null : Collections.singleton(indicesPrivileges.getQuery()),
+                IndexPrivilege.get(Set.of(indicesPrivileges.getPrivileges())),
+                indicesPrivileges.allowRestrictedIndices(),
+                indicesPrivileges.getIndices()
             );
         }
 

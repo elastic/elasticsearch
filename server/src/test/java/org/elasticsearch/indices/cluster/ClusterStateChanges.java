@@ -9,6 +9,7 @@
 package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -75,7 +76,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -108,7 +110,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
@@ -127,6 +129,7 @@ import static org.mockito.Mockito.when;
 public class ClusterStateChanges {
     private static final Settings SETTINGS = Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build();
 
+    private final TransportService transportService;
     private final AllocationService allocationService;
     private final ClusterService clusterService;
     private final ShardStateAction.ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
@@ -175,29 +178,9 @@ public class ClusterStateChanges {
             new TaskManager(SETTINGS, threadPool, Collections.emptySet())
         ) {
             @Override
-            protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+            protected ExecutorService createThreadPoolExecutor() {
                 // run master tasks inline, no need to fork to a separate thread
-                return new PrioritizedEsThreadPoolExecutor(
-                    "fake-master",
-                    1,
-                    1,
-                    1,
-                    TimeUnit.SECONDS,
-                    r -> { throw new AssertionError("should not create new threads"); },
-                    null,
-                    null,
-                    PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
-                ) {
-                    @Override
-                    public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
-                        command.run();
-                    }
-
-                    @Override
-                    public void execute(Runnable command) {
-                        command.run();
-                    }
-                };
+                return new StoppableExecutorServiceWrapper(EsExecutors.DIRECT_EXECUTOR_SERVICE);
             }
         };
         // mocks
@@ -231,7 +214,7 @@ public class ClusterStateChanges {
         }
 
         // services
-        TransportService transportService = new TransportService(
+        transportService = new TransportService(
             SETTINGS,
             transport,
             threadPool,
@@ -240,7 +223,14 @@ public class ClusterStateChanges {
             clusterSettings,
             Collections.emptySet(),
             Tracer.NOOP
-        );
+        ) {
+            @Override
+            public Transport.Connection getConnection(DiscoveryNode node) {
+                Transport.Connection conn = mock(Transport.Connection.class);
+                when(conn.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
+                return conn;
+            }
+        };
         IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(SETTINGS, xContentRegistry, null, null, null) {
             // metadata upgrader should do nothing
             @Override
@@ -402,13 +392,14 @@ public class ClusterStateChanges {
 
     private static final JoinReason DUMMY_REASON = new JoinReason("dummy reason", null);
 
-    public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode) {
+    public ClusterState addNode(ClusterState clusterState, DiscoveryNode discoveryNode, TransportVersion transportVersion) {
         return runTasks(
             new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
             List.of(
                 JoinTask.singleNode(
                     discoveryNode,
+                    transportVersion,
                     DUMMY_REASON,
                     ActionListener.running(() -> { throw new AssertionError("should not complete publication"); }),
                     clusterState.term()
@@ -417,7 +408,7 @@ public class ClusterStateChanges {
         );
     }
 
-    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
+    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes, TransportVersion transportVersion) {
         return runTasks(
             new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
@@ -427,6 +418,7 @@ public class ClusterStateChanges {
                         .map(
                             node -> new JoinTask.NodeJoinTask(
                                 node,
+                                transportVersion,
                                 DUMMY_REASON,
                                 ActionListener.running(() -> { throw new AssertionError("should not complete publication"); })
                             )

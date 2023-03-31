@@ -1,6 +1,0 @@
-module org.elasticsearch.mapper.unsignedlong {
-    requires org.elasticsearch.xcontent;
-    requires org.elasticsearch.server;
-
-    exports org.elasticsearch.xpack.rank.rrf;
-}

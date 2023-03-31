@@ -1,9 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.rank.rrf;
@@ -52,7 +51,7 @@ public class RRFRankContextBuilderTests extends RankContextBuilderTests<RRFRankC
         Assert.assertEquals(parser.currentToken(), XContentParser.Token.START_OBJECT);
         parser.nextToken();
         Assert.assertEquals(parser.currentToken(), XContentParser.Token.FIELD_NAME);
-        assertEquals(parser.currentName(), RRFRankContextBuilder.NAME);
+        Assert.assertEquals(parser.currentName(), RRFRankContextBuilder.NAME);
         RRFRankContextBuilder builder = RRFRankContextBuilder.fromXContent(parser);
         parser.nextToken();
         Assert.assertEquals(parser.currentToken(), XContentParser.Token.END_OBJECT);

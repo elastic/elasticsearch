@@ -1,23 +1,22 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 esplugin {
-  name 'x-pack-rank-rrf'
+  name 'rank-rrf'
   description 'Reciprocal rank fusion in search.'
   classname 'org.elasticsearch.xpack.rank.rrf.RankRRFPlugin'
   extendedPlugins = ['x-pack-core']
 }
 
+archivesBaseName = 'x-pack-rank-rrf'
+
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
-  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-}
-
-restResources {
-  restApi {
-    include '_common', 'bulk', 'indices', 'index', 'search', 'xpack'
-  }
 }

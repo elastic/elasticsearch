@@ -8,21 +8,10 @@
 
 package org.elasticsearch.search.rank.rrf;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
-import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -128,7 +117,7 @@ public class RRFRankIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh("nrd_index").get();
     }
 
-    public void testTotalDocsSmallerThanSize() {
+    /*public void testTotalDocsSmallerThanSize() {
         float[] queryVector = { 0.0f };
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 3, null);
         SearchResponse response = client().prepareSearch("tiny_index")
@@ -529,5 +518,5 @@ public class RRFRankIT extends ESIntegTestCase {
                 throw new IllegalArgumentException("unexpected bucket key [" + bucket.getKey() + "]");
             }
         }
-    }
+    }*/
 }

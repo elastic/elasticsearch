@@ -8,13 +8,14 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Build;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Booleans;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -32,11 +33,21 @@ import java.util.Objects;
  */
 public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentObject {
 
-    private static final boolean FEATURE_FLAG_ENABLED;
+    public static final Setting<RolloverConditions> CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING = new Setting<>(
+        "cluster.dlm.default.rollover",
+        "max_age=7d,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000",
+        (s) -> RolloverConditions.parseSetting(s, "cluster.dlm.default.rollover"),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    private static final FeatureFlag DLM_FEATURE_FLAG = new FeatureFlag("dlm");
 
     public static final DataLifecycle EMPTY = new DataLifecycle();
+    public static final String DLM_ORIGIN = "data_lifecycle";
 
     private static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
+    private static final ParseField ROLLOVER_FIELD = new ParseField("rollover");
 
     private static final ConstructingObjectParser<DataLifecycle, Void> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
@@ -45,11 +56,6 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     );
 
     static {
-        final String property = System.getProperty("es.dlm_feature_flag_enabled");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.dlm_feature_flag_enabled is only supported in non-snapshot builds");
-        }
-        FEATURE_FLAG_ENABLED = Booleans.parseBoolean(property, false);
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DATA_RETENTION_FIELD.getPreferredName()),
@@ -59,7 +65,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     public static boolean isEnabled() {
-        return Build.CURRENT.isSnapshot() || FEATURE_FLAG_ENABLED;
+        return DLM_FEATURE_FLAG.isEnabled();
     }
 
     @Nullable
@@ -114,10 +120,22 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         return Strings.toString(this, true, true);
     }
 
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContent(builder, params, null);
+    }
+
+    /**
+     * Converts the data lifecycle to XContent and injects the RolloverConditions if they exist.
+     */
+    public XContentBuilder toXContent(XContentBuilder builder, Params ignored, @Nullable RolloverConditions rolloverConditions)
+        throws IOException {
         builder.startObject();
         if (dataRetention != null) {
             builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.getStringRep());
+        }
+        if (rolloverConditions != null) {
+            builder.field(ROLLOVER_FIELD.getPreferredName(), rolloverConditions);
         }
         builder.endObject();
         return builder;

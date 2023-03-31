@@ -93,13 +93,13 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", 10)));
-        IndexableField[] fields = doc1.rootDoc().getFields("_feature");
-        assertEquals(1, fields.length);
-        assertThat(fields[0], instanceOf(FeatureField.class));
-        FeatureField featureField1 = (FeatureField) fields[0];
+        List<IndexableField> fields = doc1.rootDoc().getFields("_feature");
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(FeatureField.class));
+        FeatureField featureField1 = (FeatureField) fields.get(0);
 
         ParsedDocument doc2 = mapper.parse(source(b -> b.field("field", 12)));
-        FeatureField featureField2 = (FeatureField) doc2.rootDoc().getFields("_feature")[0];
+        FeatureField featureField2 = (FeatureField) doc2.rootDoc().getFields("_feature").get(0);
 
         int freq1 = getFrequency(featureField1.tokenStream(null, null));
         int freq2 = getFrequency(featureField2.tokenStream(null, null));
@@ -112,13 +112,13 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         );
 
         ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", 10)));
-        IndexableField[] fields = doc1.rootDoc().getFields("_feature");
-        assertEquals(1, fields.length);
-        assertThat(fields[0], instanceOf(FeatureField.class));
-        FeatureField featureField1 = (FeatureField) fields[0];
+        List<IndexableField> fields = doc1.rootDoc().getFields("_feature");
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(FeatureField.class));
+        FeatureField featureField1 = (FeatureField) fields.get(0);
 
         ParsedDocument doc2 = mapper.parse(source(b -> b.field("field", 12)));
-        FeatureField featureField2 = (FeatureField) doc2.rootDoc().getFields("_feature")[0];
+        FeatureField featureField2 = (FeatureField) doc2.rootDoc().getFields("_feature").get(0);
 
         int freq1 = getFrequency(featureField1.tokenStream(null, null));
         int freq2 = getFrequency(featureField2.tokenStream(null, null));

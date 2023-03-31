@@ -10,6 +10,8 @@ package org.elasticsearch.common.blobstore.fs;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterSeekableByteChannel;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
@@ -25,14 +27,19 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.file.CopyOption;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.Locale;
+import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -95,6 +102,14 @@ public class FsBlobContainerTests extends ESTestCase {
         assertThat(FsBlobContainer.isTempBlobName(tempBlobName), is(true));
     }
 
+    private static long getLongAsync(Consumer<ActionListener<OptionalLong>> consumer) {
+        return getAsync(consumer).orElseThrow(AssertionError::new);
+    }
+
+    private static <T> T getAsync(Consumer<ActionListener<T>> consumer) {
+        return PlainActionFuture.<T, RuntimeException>get(consumer::accept, 0, TimeUnit.SECONDS);
+    }
+
     public void testCompareAndExchange() throws Exception {
         final Path path = PathUtils.get(createTempDir().toString());
         final FsBlobContainer container = new FsBlobContainer(
@@ -108,16 +123,26 @@ public class FsBlobContainerTests extends ESTestCase {
 
         for (int i = 0; i < 5; i++) {
             switch (between(1, 4)) {
-                case 1 -> assertEquals(expectedValue.get(), container.getRegister(key));
+                case 1 -> assertEquals(expectedValue.get(), getLongAsync(l -> container.getRegister(key, l)));
                 case 2 -> assertFalse(
-                    container.compareAndSetRegister(key, randomValueOtherThan(expectedValue.get(), ESTestCase::randomLong), randomLong())
+                    getAsync(
+                        l -> container.compareAndSetRegister(
+                            key,
+                            randomValueOtherThan(expectedValue.get(), ESTestCase::randomLong),
+                            randomLong(),
+                            l
+                        )
+                    )
                 );
                 case 3 -> assertEquals(
                     expectedValue.get(),
-                    container.compareAndExchangeRegister(
-                        key,
-                        randomValueOtherThan(expectedValue.get(), ESTestCase::randomLong),
-                        randomLong()
+                    getLongAsync(
+                        l -> container.compareAndExchangeRegister(
+                            key,
+                            randomValueOtherThan(expectedValue.get(), ESTestCase::randomLong),
+                            randomLong(),
+                            l
+                        )
                     )
                 );
                 case 4 -> {/* no-op */}
@@ -125,16 +150,65 @@ public class FsBlobContainerTests extends ESTestCase {
 
             final var newValue = randomLong();
             if (randomBoolean()) {
-                assertTrue(container.compareAndSetRegister(key, expectedValue.get(), newValue));
+                assertTrue(getAsync(l -> container.compareAndSetRegister(key, expectedValue.get(), newValue, l)));
             } else {
-                assertEquals(expectedValue.get(), container.compareAndExchangeRegister(key, expectedValue.get(), newValue));
+                assertEquals(
+                    expectedValue.get(),
+                    getLongAsync(l -> container.compareAndExchangeRegister(key, expectedValue.get(), newValue, l))
+                );
             }
             expectedValue.set(newValue);
         }
 
         final byte[] corruptContents = new byte[9];
         container.writeBlob(key, new BytesArray(corruptContents, 0, randomFrom(1, 7, 9)), false);
-        expectThrows(IllegalStateException.class, () -> container.compareAndExchangeRegister(key, expectedValue.get(), 0));
+        expectThrows(
+            IllegalStateException.class,
+            () -> getLongAsync(l -> container.compareAndExchangeRegister(key, expectedValue.get(), 0, l))
+        );
+    }
+
+    public void testAtomicWriteMetadataWithoutAtomicOverwrite() throws IOException {
+        this.fileSystem = new FilterFileSystemProvider("nooverwritefs://", fileSystem) {
+            @Override
+            public void move(Path source, Path target, CopyOption... options) throws IOException {
+                if (Set.of(options).contains(StandardCopyOption.ATOMIC_MOVE) && Files.exists(target)) {
+                    // simulate a file system that can't do atomic move + overwrite
+                    throw new IOException("no atomic overwrite moves");
+                } else {
+                    super.move(source, target, options);
+                }
+            }
+        }.getFileSystem(null);
+        PathUtilsForTesting.installMock(fileSystem); // restored by restoreFileSystem in ESTestCase
+        checkAtomicWrite();
+    }
+
+    public void testAtomicWriteDefaultFs() throws Exception {
+        restoreFileSystem();
+        checkAtomicWrite();
+    }
+
+    private static void checkAtomicWrite() throws IOException {
+        final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final Path path = PathUtils.get(createTempDir().toString());
+
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.EMPTY,
+            path
+        );
+        container.writeBlobAtomic(blobName, new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))), true);
+        final var blobData = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
+        container.writeBlobAtomic(blobName, blobData, false);
+        assertEquals(blobData, Streams.readFully(container.readBlob(blobName)));
+        expectThrows(
+            FileAlreadyExistsException.class,
+            () -> container.writeBlobAtomic(blobName, new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))), true)
+        );
+        for (String blob : container.listBlobs().keySet()) {
+            assertFalse("unexpected temp blob [" + blob + "]", FsBlobContainer.isTempBlobName(blob));
+        }
     }
 
     static class MockFileSystemProvider extends FilterFileSystemProvider {

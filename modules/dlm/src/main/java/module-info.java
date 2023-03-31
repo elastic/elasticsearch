@@ -12,4 +12,9 @@ module org.elasticsearch.dlm {
     requires org.elasticsearch.xcontent;
     requires org.apache.lucene.core;
     requires org.apache.logging.log4j;
+
+    exports org.elasticsearch.dlm;
+    exports org.elasticsearch.dlm.action;
+    exports org.elasticsearch.dlm.rest;
+
 }

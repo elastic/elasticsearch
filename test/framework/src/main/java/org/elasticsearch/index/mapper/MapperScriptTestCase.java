@@ -14,10 +14,11 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTestCase {
@@ -137,7 +138,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("message", "this is some text")));
-        assertThat(doc.rootDoc().getFields("message_error"), arrayWithSize(0));
+        assertThat(doc.rootDoc().getFields("message_error"), hasSize(0));
         assertThat(doc.rootDoc().getField("_ignored").stringValue(), equalTo("message_error"));
     }
 
@@ -166,7 +167,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
         assertMultipleValues(doc.rootDoc().getFields("field"));
     }
 
-    protected abstract void assertMultipleValues(IndexableField[] fields);
+    protected abstract void assertMultipleValues(List<IndexableField> fields);
 
     public final void testDocValuesDisabled() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
@@ -178,7 +179,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
         assertDocValuesDisabled(doc.rootDoc().getFields("field"));
     }
 
-    protected abstract void assertDocValuesDisabled(IndexableField[] fields);
+    protected abstract void assertDocValuesDisabled(List<IndexableField> fields);
 
     public final void testIndexDisabled() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
@@ -190,5 +191,5 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
         assertIndexDisabled(doc.rootDoc().getFields("field"));
     }
 
-    protected abstract void assertIndexDisabled(IndexableField[] fields);
+    protected abstract void assertIndexDisabled(List<IndexableField> fields);
 }

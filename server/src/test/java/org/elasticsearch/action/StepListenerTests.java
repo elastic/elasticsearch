@@ -28,7 +28,6 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class StepListenerTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -92,7 +91,7 @@ public class StepListenerTests extends ESTestCase {
 
         if (failedStep == 1) {
             assertThat(expectThrows(RuntimeException.class, step1::result).getMessage(), equalTo("failed at step 1"));
-            assertThat(expectThrows(RuntimeException.class, step2::result).getMessage(), equalTo("step is not completed yet"));
+            assertFalse(step2.isDone());
         } else {
             assertThat(step1.result(), equalTo("hello"));
             assertThat(expectThrows(RuntimeException.class, step2::result).getMessage(), equalTo("failed at step 2"));
@@ -131,8 +130,7 @@ public class StepListenerTests extends ESTestCase {
         Collections.shuffle(stepListeners, random());
 
         final StepListener<Integer> combined = stepListeners.get(0).thenCombine(stepListeners.get(1), Math::max);
-        assertThat(combined.asFuture(), notNullValue());
-        assertThat(combined.asFuture().isDone(), equalTo(false));
+        assertFalse(combined.isDone());
 
         final List<Integer> results = Collections.synchronizedList(new ArrayList<>(stepListeners.size()));
         final CountDownLatch latch = new CountDownLatch(stepListeners.size());
@@ -157,7 +155,7 @@ public class StepListenerTests extends ESTestCase {
         }
 
         latch.await();
-        assertThat(combined.asFuture().isDone(), equalTo(true));
+        assertTrue(combined.isDone());
         if (failed.get() == false) {
             assertThat(combined.result(), equalTo(results.stream().reduce(Math::max).get()));
         } else {

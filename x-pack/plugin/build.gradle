@@ -65,6 +65,11 @@ if (BuildParams.isSnapshotBuild() == false) {
   // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
   // private key, these tests are blacklisted in non-snapshot test runs
   restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
+
+  // TODO: Remove the following when RCS feature is released
+  // cross_cluster_access privilege is only available when untrusted_remote_cluster_feature_flag_registered is enabled
+  // which requires snapshot build
+  restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
 }
 
 tasks.named("yamlRestTest").configure {

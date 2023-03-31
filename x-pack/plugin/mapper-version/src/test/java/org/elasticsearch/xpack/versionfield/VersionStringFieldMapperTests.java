@@ -80,11 +80,11 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
             )
         );
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
 
-        assertEquals("1.2.3", VersionEncoder.decodeVersion(fields[0].binaryValue()).utf8ToString());
-        IndexableFieldType fieldType = fields[0].fieldType();
+        assertEquals("1.2.3", VersionEncoder.decodeVersion(fields.get(0).binaryValue()).utf8ToString());
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
         assertFalse(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -95,8 +95,8 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
 
-        assertEquals("1.2.3", VersionEncoder.decodeVersion(fields[1].binaryValue()).utf8ToString());
-        fieldType = fields[1].fieldType();
+        assertEquals("1.2.3", VersionEncoder.decodeVersion(fields.get(1).binaryValue()).utf8ToString());
+        fieldType = fields.get(1).fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
 

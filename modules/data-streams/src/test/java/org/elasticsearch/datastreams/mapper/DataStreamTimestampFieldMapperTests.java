@@ -79,7 +79,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         }));
 
         ParsedDocument doc = docMapper.parse(source(b -> b.field("@timestamp", "2020-12-12")));
-        assertThat(doc.rootDoc().getFields("@timestamp").length, equalTo(1));
+        assertThat(doc.rootDoc().getFields("@timestamp").size(), equalTo(1));
 
         Exception e = expectThrows(
             DocumentParsingException.class,

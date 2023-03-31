@@ -234,10 +234,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 )
             );
             transformConfigHolder.set(config);
-            ClientHelper.executeWithHeadersAsync(
-                config.getHeaders(),
-                ClientHelper.TRANSFORM_ORIGIN,
+            ClientHelper.executeAsyncWithOrigin(
                 client,
+                ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
                 new ValidateTransformAction.Request(config, false, request.timeout()),
                 validationListener

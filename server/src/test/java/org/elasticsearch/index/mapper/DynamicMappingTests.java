@@ -20,8 +20,9 @@ import java.io.IOException;
 import java.time.Instant;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -811,12 +812,12 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.array("something.myfield", "value2", "value3");
         }));
 
-        assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(1));
+        assertThat(doc.rootDoc().getFields("myfield"), hasSize(1));
         for (IndexableField field : doc.rootDoc().getFields("myfield")) {
             assertThat(field.binaryValue(), equalTo(new BytesRef("value1")));
         }
         // dynamic is false, so `something.myfield` should be ignored entirely. It used to be merged with myfield by mistake.
-        assertThat(doc.rootDoc().getFields("something.myfield"), arrayWithSize(0));
+        assertThat(doc.rootDoc().getFields("something.myfield"), hasSize(0));
 
         assertNull(doc.dynamicMappingsUpdate());
     }
@@ -831,8 +832,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.array("myarray", "array1", "array2");
         }));
 
-        assertThat(doc.rootDoc().getFields("myarray"), arrayWithSize(2));
-        assertThat(doc.rootDoc().getFields("unmapped"), arrayWithSize(0));
+        assertThat(doc.rootDoc().getFields("myarray"), hasSize(2));
+        assertThat(doc.rootDoc().getFields("unmapped"), empty());
         assertNull(doc.dynamicMappingsUpdate());
     }
 
@@ -859,9 +860,9 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.endArray();
         }));
 
-        assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(1));
-        assertThat(doc.rootDoc().getFields("objects.unmapped"), arrayWithSize(0));
-        assertThat(doc.rootDoc().getFields("unmapped.subfield"), arrayWithSize(0));
+        assertThat(doc.rootDoc().getFields("objects.subfield"), hasSize(1));
+        assertThat(doc.rootDoc().getFields("objects.unmapped"), empty());
+        assertThat(doc.rootDoc().getFields("unmapped.subfield"), empty());
         assertNull(doc.dynamicMappingsUpdate());
     }
 
@@ -887,9 +888,9 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.field("myfield", 2);
         }));
 
-        assertThat(doc.rootDoc().getFields("myfield"), arrayWithSize(1));
-        assertThat(doc.rootDoc().getFields("objects.subfield"), arrayWithSize(1));
-        assertThat(doc.rootDoc().getFields("objects.unmapped"), arrayWithSize(0));
+        assertThat(doc.rootDoc().getFields("myfield"), hasSize(1));
+        assertThat(doc.rootDoc().getFields("objects.subfield"), hasSize(1));
+        assertThat(doc.rootDoc().getFields("objects.unmapped"), empty());
         assertEquals(XContentHelper.stripWhitespace("""
             {
               "_doc": {

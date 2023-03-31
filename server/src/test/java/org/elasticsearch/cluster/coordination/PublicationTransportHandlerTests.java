@@ -38,6 +38,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -232,7 +233,10 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                     VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
                 );
                 allNodes.add(node);
-                nodeTransports.put(node, node.getVersion().transportVersion);
+                nodeTransports.put(
+                    node,
+                    TransportVersionUtils.randomVersionBetween(random(), TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.CURRENT)
+                );
             }
 
             final DiscoveryNodes.Builder prevNodes = DiscoveryNodes.builder();

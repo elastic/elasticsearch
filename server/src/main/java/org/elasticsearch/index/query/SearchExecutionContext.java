@@ -58,6 +58,7 @@ import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -494,19 +495,22 @@ public class SearchExecutionContext extends QueryRewriteContext {
             SourceProvider sourceProvider = isSourceSynthetic()
                 ? (ctx, doc) -> { throw new IllegalArgumentException("Cannot access source from scripts in synthetic mode"); }
                 : SourceProvider.fromStoredFields();
-            setSourceProvider(sourceProvider);
+            setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }
         return this.lookup;
     }
 
     /**
-     * Replace the standard source provider on the SearchLookup
+     * Replace the standard source provider and field lookup provider on the SearchLookup
      *
      * Note that this will replace the current SearchLookup with a new one, but will not update
      * the source provider on previously build lookups. This method should only be called before
      * IndexReader access by the current context
      */
-    public void setSourceProvider(SourceProvider sourceProvider) {
+    public void setLookupProviders(
+        SourceProvider sourceProvider,
+        Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider
+    ) {
         // TODO can we assert that this is only called during FetchPhase?
         this.lookup = new SearchLookup(
             this::getFieldType,
@@ -514,7 +518,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 fieldType,
                 new FieldDataContext(fullyQualifiedIndex.getName(), searchLookup, this::sourcePath, fielddataOperation)
             ),
-            sourceProvider
+            sourceProvider,
+            fieldLookupProvider
         );
     }
 

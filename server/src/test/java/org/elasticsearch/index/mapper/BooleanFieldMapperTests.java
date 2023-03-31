@@ -174,16 +174,16 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         }));
 
         LuceneDocument doc = parsedDoc.rootDoc();
-        IndexableField[] fields = doc.getFields("bool1");
-        assertEquals(2, fields.length);
-        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
-        assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
+        List<IndexableField> fields = doc.getFields("bool1");
+        assertEquals(2, fields.size());
+        assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields.get(1).fieldType().docValuesType());
         fields = doc.getFields("bool2");
-        assertEquals(1, fields.length);
-        assertEquals(DocValuesType.SORTED_NUMERIC, fields[0].fieldType().docValuesType());
+        assertEquals(1, fields.size());
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields.get(0).fieldType().docValuesType());
         fields = doc.getFields("bool3");
-        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
-        assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
+        assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields.get(1).fieldType().docValuesType());
     }
 
     @Override
@@ -218,7 +218,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assumeFalse("boolean doesn't support ignore_malformed with synthetic source", ignoreMalformed);
         return new SyntheticSourceSupport() {
             Boolean nullValue = usually() ? null : randomBoolean();
 
@@ -248,6 +247,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                 if (nullValue != null) {
                     b.field("null_value", nullValue);
                 }
+                b.field("ignore_malformed", ignoreMalformed);
             }
 
             @Override
@@ -256,10 +256,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                     new SyntheticSourceInvalidExample(
                         equalTo("field [field] of type [boolean] doesn't support synthetic source because it doesn't have doc values"),
                         b -> b.field("type", "boolean").field("doc_values", false)
-                    ),
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [boolean] doesn't support synthetic source because it ignores malformed values"),
-                        b -> b.field("type", "boolean").field("ignore_malformed", true)
                     )
                 );
             }

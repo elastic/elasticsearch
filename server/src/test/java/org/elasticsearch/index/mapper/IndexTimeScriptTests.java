@@ -36,9 +36,9 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("message", "this is some text")));
-        IndexableField[] lengthFields = doc.rootDoc().getFields("message_length");
-        assertEquals(1, lengthFields.length);
-        assertEquals("LongField <message_length:17>", lengthFields[0].toString());
+        List<IndexableField> lengthFields = doc.rootDoc().getFields("message_length");
+        assertEquals(1, lengthFields.size());
+        assertEquals("LongField <message_length:17>", lengthFields.get(0).toString());
     }
 
     public void testDocAccess() throws IOException {

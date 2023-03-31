@@ -25,7 +25,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -60,6 +59,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -108,6 +108,8 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.IndexId;
@@ -2988,8 +2990,8 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         Consumer<IndexShard> assertListenerCalled = shard -> {
             AtomicBoolean called = new AtomicBoolean();
-            shard.addRefreshListener(null, b -> {
-                assertFalse(b);
+            shard.addRefreshListener(null, forced -> {
+                assertFalse(forced);
                 called.set(true);
             });
 
@@ -4054,7 +4056,6 @@ public class IndexShardTests extends IndexShardTestCase {
                 IdFieldMapper.NAME,
                 VersionFieldMapper.NAME,
                 SeqNoFieldMapper.NAME,
-                SeqNoFieldMapper.NAME,
                 SeqNoFieldMapper.PRIMARY_TERM_NAME,
                 SeqNoFieldMapper.TOMBSTONE_NAME
             )
@@ -4072,7 +4073,6 @@ public class IndexShardTests extends IndexShardTestCase {
                 VersionFieldMapper.NAME,
                 SourceFieldMapper.NAME,
                 SeqNoFieldMapper.TOMBSTONE_NAME,
-                SeqNoFieldMapper.NAME,
                 SeqNoFieldMapper.NAME,
                 SeqNoFieldMapper.PRIMARY_TERM_NAME
             )
@@ -4567,7 +4567,10 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testShardExposesWriteLoadStats() throws Exception {
-        final IndexShard primary = newStartedShard(true);
+        final IndexShard primary = newStartedShard(
+            true,
+            Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING.getKey(), TimeValue.timeValueHours(1)).build()
+        );
         for (int i = 0; i < 10; i++) {
             indexDoc(primary, "_doc", "primary-" + i);
         }
@@ -4627,6 +4630,18 @@ public class IndexShardTests extends IndexShardTestCase {
         });
         indexingThread.start();
 
+        final var recoveryFinishedLatch = new CountDownLatch(1);
+        final var recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
+            @Override
+            public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+                recoveryFinishedLatch.countDown();
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                assert false : "Unexpected failure";
+            }
+        };
         recoverReplica(replicaShard, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, null, recoveryListener) {
             @Override
             public void indexTranslogOperations(
@@ -4655,6 +4670,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 );
             }
         }, true, true);
+        recoveryFinishedLatch.await();
 
         fakeClock.setSimulatedElapsedRelativeTime(TimeValue.ZERO);
         final IndexingStats indexingStatsBeforeIndexingDocs = replicaShard.indexingStats();

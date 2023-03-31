@@ -211,11 +211,11 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         float expectedMagnitude = (float) Math.sqrt(dotProduct);
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", validVector)));
 
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertThat(fields[0], instanceOf(BinaryDocValuesField.class));
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
-        BytesRef vectorBR = fields[0].binaryValue();
+        BytesRef vectorBR = fields.get(0).binaryValue();
         float[] decodedValues = decodeDenseVector(Version.CURRENT, vectorBR);
         float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(Version.CURRENT, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
@@ -231,11 +231,11 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         float[] vector = { -0.5f, 0.5f, 0.7071f };
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", vector)));
 
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertThat(fields[0], instanceOf(KnnFloatVectorField.class));
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(KnnFloatVectorField.class));
 
-        KnnFloatVectorField vectorField = (KnnFloatVectorField) fields[0];
+        KnnFloatVectorField vectorField = (KnnFloatVectorField) fields.get(0);
         assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue(), 0.001f);
         assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
     }
@@ -255,11 +255,11 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         byte[] vector = { (byte) -1, (byte) 1, (byte) 127 };
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", vector)));
 
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertThat(fields[0], instanceOf(KnnByteVectorField.class));
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(KnnByteVectorField.class));
 
-        KnnByteVectorField vectorField = (KnnByteVectorField) fields[0];
+        KnnByteVectorField vectorField = (KnnByteVectorField) fields.get(0);
         vectorField.vectorValue();
         assertArrayEquals(
             "Parsed vector is not equal to original.",
@@ -438,11 +438,11 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         float[] validVector = { -12.1f, 100.7f, -4 };
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", validVector)));
-        IndexableField[] fields = doc1.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertThat(fields[0], instanceOf(BinaryDocValuesField.class));
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(BinaryDocValuesField.class));
         // assert that after decoding the indexed value is equal to expected
-        BytesRef vectorBR = fields[0].binaryValue();
+        BytesRef vectorBR = fields.get(0).binaryValue();
         float[] decodedValues = decodeDenseVector(indexVersion, vectorBR);
         assertArrayEquals("Decoded dense vector values is not equal to the indexed one.", validVector, decodedValues, 0.001f);
     }
@@ -590,7 +590,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 128, 0, 0 }, 3, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 128, 0, 0 }, 3, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -599,7 +599,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0.0f, 0f, -129.0f }, 3, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0.0f, 0f, -129.0f }, 3, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -608,7 +608,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0.0f, 0.5f, 0.0f }, 3, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0.0f, 0.5f, 0.0f }, 3, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -617,7 +617,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, 0.0f, -0.25f }, 3, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, 0.0f, -0.25f }, 3, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -626,13 +626,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.NaN, 0f, 0.0f }, 3, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.NaN, 0f, 0.0f }, 3, null, null)
         );
         assertThat(e.getMessage(), containsString("element_type [byte] vectors do not support NaN values but found [NaN] at dim [0];"));
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }, 3, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }, 3, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -641,7 +641,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }, 3, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }, 3, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -667,13 +667,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.NaN, 0f, 0.0f }, 3, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.NaN, 0f, 0.0f }, 3, null, null)
         );
         assertThat(e.getMessage(), containsString("element_type [float] vectors do not support NaN values but found [NaN] at dim [0];"));
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }, 3, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }, 3, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -682,7 +682,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }, 3, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }, 3, null, null)
         );
         assertThat(
             e.getMessage(),

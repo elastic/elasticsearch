@@ -52,10 +52,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         String node1 = internalCluster().startDataOnlyNode();
         String node2 = internalCluster().startDataOnlyNode();
         String indexName = "test-idx";
-        createIndex(
-            indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
-        );
+        createIndex(indexName, 1, 1);
         ensureGreen();
         // Prevalidate removal of one of the two nodes
         String nodeName = randomFrom(node1, node2);
@@ -77,7 +74,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         assertThat(nodeResult.result().message(), equalTo(""));
         assertTrue(nodeResult.result().isSafe());
         // Enforce a replica to get unassigned
-        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._name", node1));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", node1), indexName);
         ensureYellow();
         PrevalidateNodeRemovalRequest req2 = PrevalidateNodeRemovalRequest.builder().setNames(node2).build();
         PrevalidateNodeRemovalResponse resp2 = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req2).get();
@@ -152,7 +149,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         });
         logger.info("--> move shard from {} to {}, and wait for relocation to finish", node1, node2);
-        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._name", node2));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", node2), indexName);
         shardActiveRequestSent.await();
         ensureGreen(indexName);
         // To ensure that the index doesn't get relocated back to node1 after stopping node2, we

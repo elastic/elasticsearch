@@ -120,6 +120,7 @@ import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ExceptionSerializationTests extends ESTestCase {
 
@@ -371,7 +372,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testTooManyBucketsException() throws IOException {
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         MultiBucketConsumerService.TooManyBucketsException ex = serialize(
             new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100),
             version
@@ -411,7 +412,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
         ex = serialize(new ConnectTransportException(node, "msg", "action", new NullPointerException()));
         assertEquals("[][" + transportAddress + "][action] msg", ex.getMessage());
-        assertTrue(ex.getCause() instanceof NullPointerException);
+        assertThat(ex.getCause(), instanceOf(NullPointerException.class));
     }
 
     public void testSearchPhaseExecutionException() throws IOException {

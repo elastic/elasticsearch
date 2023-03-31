@@ -558,7 +558,7 @@ public class IndexSettingsTests extends ESTestCase {
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals(actualValue, settings.getFlushThresholdSize());
+        assertEquals(actualValue, settings.getFlushThresholdSize(ByteSizeValue.ofTb(1)));
         ByteSizeValue newTranslogFlushThresholdSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         ByteSizeValue actualNewTranslogFlushThresholdSize = ByteSizeValue.parseBytesSizeValue(
             newTranslogFlushThresholdSize.getBytes() + "B",
@@ -572,7 +572,7 @@ public class IndexSettingsTests extends ESTestCase {
                     .build()
             )
         );
-        assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize());
+        assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize(ByteSizeValue.ofTb(1)));
     }
 
     public void testTranslogGenerationSizeThreshold() {

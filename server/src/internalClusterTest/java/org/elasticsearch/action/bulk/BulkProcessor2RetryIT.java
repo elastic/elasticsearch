@@ -58,6 +58,7 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
     // value = "org.elasticsearch.action.bulk.Retry2:trace",
     // reason = "Logging information about locks useful for tracking down deadlock"
     // )
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94941")
     public void testBulkRejectionLoadWithBackoff() throws Throwable {
         boolean rejectedExecutionExpected = false;
         executeBulkRejectionLoad(8, rejectedExecutionExpected);

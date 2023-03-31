@@ -66,7 +66,6 @@ public final class DocumentParser {
         final InternalDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
         try (XContentParser parser = XContentHelper.createParser(parserConfiguration, source.source(), xContentType)) {
-            System.out.println("Starting document " + source.id() + ": Parser location: " + parser.getTokenLocation() + " xcontenttype: " + xContentType);
             context = new InternalDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
@@ -105,7 +104,6 @@ public final class DocumentParser {
     ) {
 
         try {
-            System.out.println("internalParseDocument Parser location: " + context.parser().getTokenLocation());
             final boolean emptyDoc = isEmptyDoc(root, context.parser());
 
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
@@ -237,7 +235,6 @@ public final class DocumentParser {
     }
 
     static void parseObjectOrNested(DocumentParserContext context, ObjectMapper mapper) throws IOException {
-        System.out.println("parseObjectOrNested Parser location: " + context.parser().getTokenLocation());
         if (mapper.isEnabled() == false) {
             context.parser().skipChildren();
             return;
@@ -286,8 +283,6 @@ public final class DocumentParser {
     }
 
     private static void innerParseObject(DocumentParserContext context, ObjectMapper mapper) throws IOException {
-
-        System.out.println("innerParseObject Parser location: " + context.parser().getTokenLocation());
 
         final XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
@@ -507,7 +502,6 @@ public final class DocumentParser {
     }
 
     private static void parseArray(DocumentParserContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {
-        System.out.println("parseArray Parser location: " + context.parser().getTokenLocation());
         Mapper mapper = getLeafMapper(context, parentMapper, lastFieldName);
         if (mapper != null) {
             // There is a concrete mapper for this field already. Need to check if the mapper

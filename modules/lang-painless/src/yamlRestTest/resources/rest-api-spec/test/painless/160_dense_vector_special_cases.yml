@@ -27,8 +27,8 @@ setup:
 ---
 "Indexing of Dense vectors should error when dims don't match defined in the mapping":
   - skip:
-      version: " - 8.6.99"
-      reason: "exception changed in 8.7"
+      version: " - 8.7.99"
+      reason: "exception changed in 8.8"
 
   - do:
       catch: bad_request

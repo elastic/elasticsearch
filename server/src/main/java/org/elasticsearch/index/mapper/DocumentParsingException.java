@@ -15,6 +15,11 @@ import org.elasticsearch.xcontent.XContentLocation;
 
 import java.io.IOException;
 
+/**
+ * An exception thrown during document parsing
+ *
+ * Contains information about the location in the document where the error was encountered
+ */
 public class DocumentParsingException extends ElasticsearchException {
 
     public DocumentParsingException(XContentLocation location, String message) {

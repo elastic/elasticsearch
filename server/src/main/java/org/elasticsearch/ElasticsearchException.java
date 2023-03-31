@@ -1834,7 +1834,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             167,
             TransportVersion.V_8_5_0
         ),
-        DOCUMENT_PARSING_EXCEPTION(DocumentParsingException.class, DocumentParsingException::new, 168, TransportVersion.V_8_7_0);
+        DOCUMENT_PARSING_EXCEPTION(DocumentParsingException.class, DocumentParsingException::new, 168, TransportVersion.V_8_8_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

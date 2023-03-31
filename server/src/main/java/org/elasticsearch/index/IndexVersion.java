@@ -9,7 +9,6 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.util.Version;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 
 import java.lang.reflect.Field;
@@ -120,7 +119,6 @@ public final class IndexVersion implements Comparable<IndexVersion> {
     public static final IndexVersion V_8_6_0 = new IndexVersion(8_06_00_99, Version.LUCENE_9_4_2, "5e78c76c-74aa-464e-9383-89bdffb74db9");
     public static final IndexVersion V_8_6_1 = new IndexVersion(8_06_01_99, Version.LUCENE_9_4_2, "8dc502be-ef27-43b3-a27b-1cb925cbef7d");
     public static final IndexVersion V_8_6_2 = new IndexVersion(8_06_02_99, Version.LUCENE_9_4_2, "e1e73b88-d188-4d82-b5e1-dee261418783");
-    public static final IndexVersion V_8_6_3 = new IndexVersion(8_06_03_99, Version.LUCENE_9_4_2, "b3d4a28b-4e0c-47dc-b1e9-5640c0749937");
     public static final IndexVersion V_8_7_0 = new IndexVersion(8_07_00_99, Version.LUCENE_9_5_0, "f9227941-d6f4-462b-957f-2bcd36c28382");
     public static final IndexVersion V_8_7_1 = new IndexVersion(8_07_01_99, Version.LUCENE_9_5_0, "758780b8-4b0c-44c6-af5d-fdac10b6093a");
     public static final IndexVersion V_8_8_0 = new IndexVersion(8_08_00_99, Version.LUCENE_9_6_0, "d6ffc8d7-f6bd-469b-8495-01688c310000");
@@ -135,7 +133,7 @@ public final class IndexVersion implements Comparable<IndexVersion> {
 
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE");
         for (Field declaredField : cls.getFields()) {
-            if (declaredField.getType().equals(TransportVersion.class)) {
+            if (declaredField.getType().equals(IndexVersion.class)) {
                 String fieldName = declaredField.getName();
                 if (ignore.contains(fieldName)) {
                     continue;

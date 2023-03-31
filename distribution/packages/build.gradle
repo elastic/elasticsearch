@@ -398,7 +398,8 @@ subprojects {
     } else {
       assert project.name.contains('rpm')
       tasks.named("checkExtraction").configure {
-        onlyIf("Only if rpm exists", rpmExists)
+        // onlyIf("Only if rpm exists", rpmExists)
+        onlyIf rpmExists
         final File rpmDatabase = new File(extractionDir, 'rpm-database')
         commandLine 'rpm',
           '--badreloc',

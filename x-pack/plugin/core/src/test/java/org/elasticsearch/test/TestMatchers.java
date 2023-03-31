@@ -60,8 +60,17 @@ public class TestMatchers extends Matchers {
             public void describeMismatch(Object item, Description description) {
                 super.describeMismatch(item, description);
                 if (item instanceof Throwable e) {
-                    final StackTraceElement at = e.getStackTrace()[0];
-                    description.appendText(" at ").appendText(at.toString());
+                    describeThrowable(description, e);
+                }
+            }
+
+            private void describeThrowable(Description description, Throwable e) {
+                final StackTraceElement at = e.getStackTrace()[0];
+                description.appendText(" at ").appendText(at.toString());
+                final Throwable cause = e.getCause();
+                if (cause != null && cause != e) {
+                    description.appendText(" caused by ").appendText(cause.getMessage());
+                    describeThrowable(description, cause);
                 }
             }
         };

@@ -1043,7 +1043,7 @@ public final class TokenService {
             }
 
             @Override
-            void onResponse(GetResponse response, Runnable maybeRetry) {
+            void onResponse(GetResponse response, Consumer<Exception> maybeRetry) {
                 if (response.isExists()) {
                     logger.trace("found document [{}] based on refresh token", response);
                     listener.onResponse(new TokenDocuments(1, () -> new TokenDocument(response)));
@@ -1091,10 +1091,10 @@ public final class TokenService {
             }
 
             @Override
-            void onResponse(SearchResponse searchResponse, Runnable maybeRetry) {
+            void onResponse(SearchResponse searchResponse, Consumer<Exception> maybeRetry) {
                 if (searchResponse.isTimedOut()) {
                     logger.debug("find token from refresh token response timed out, retrying");
-                    maybeRetry.run();
+                    maybeRetry.accept(invalidGrantException("could not find the requested token"));
                 } else {
                     final SearchHits hits = searchResponse.getHits();
                     listener.onResponse(new TokenDocuments(hits.getHits().length, () -> new TokenDocument(hits.getAt(0))));
@@ -1124,7 +1124,7 @@ public final class TokenService {
 
         abstract void performRead(Request request, ActionListener<Response> listener);
 
-        abstract void onResponse(Response response, Runnable maybeRetry);
+        abstract void onResponse(Response response, Consumer<Exception> maybeRetry);
 
         abstract void onFailure(Exception e);
     }
@@ -1133,14 +1133,14 @@ public final class TokenService {
         ReadActionWithRetry<Request, Response> action
     ) {
         Runnable retry = () -> readFromIndexWithBackoff(action);
-        final Runnable maybeRetryOnFailure = () -> {
+        final Consumer<Exception> maybeRetryOnFailure = ex -> {
             if (action.backoff.hasNext()) {
                 final TimeValue backofTimeValue = action.backoff.next();
                 logger.debug("retrying after [{}] back off", backofTimeValue);
                 client.threadPool().schedule(retry, backofTimeValue, GENERIC);
             } else {
                 logger.warn("failed to " + action.description() + " after all retries");
-                action.onFailure(new ElasticsearchSecurityException("operation failed"));
+                action.onFailure(ex);
             }
         };
         final SecurityIndexManager frozenTokensIndex = action.tokensIndexManager.freeze();
@@ -1149,7 +1149,7 @@ public final class TokenService {
             action.onFailure(frozenTokensIndex.getUnavailableReason());
         } else if (frozenTokensIndex.isAvailable() == false) {
             logger.debug("index [{}] is not available to {}, retrying", frozenTokensIndex.aliasName(), action.description());
-            maybeRetryOnFailure.run();
+            maybeRetryOnFailure.accept(frozenTokensIndex.getUnavailableReason());
         } else {
             readFromIndex(
                 action.tokensIndexManager,
@@ -1158,7 +1158,7 @@ public final class TokenService {
                 ActionListener.wrap(response -> action.onResponse(response, maybeRetryOnFailure), e -> {
                     if (isShardNotAvailableException(e)) {
                         logger.debug(action.description() + " request failed because of unavailable shards, retrying");
-                        maybeRetryOnFailure.run();
+                        maybeRetryOnFailure.accept(e);
                     } else {
                         logger.debug(action.description() + " request failed, aborting", e);
                         action.onFailure(e);

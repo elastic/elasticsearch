@@ -1,6 +1,0 @@
-pr: 93777
-summary: Suppress response headers in `AllocationActionMultiListener`
-area: Allocation
-type: bug
-issues:
- - 93773

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -496,6 +497,24 @@ public class ClusterStateCreationUtils {
     }
 
     /**
+     * Creates a cluster state where local node and master node can be specified
+     *
+     * @param localNode  node in allNodes that is the local node
+     * @param masterNode node in allNodes that is the master node. Can be null if no master exists
+     * @param allNodes   all nodes in the cluster
+     * @param transportVersion  the transport version used by the cluster
+     * @return cluster state
+     */
+    public static ClusterState state(
+        DiscoveryNode localNode,
+        DiscoveryNode masterNode,
+        DiscoveryNode[] allNodes,
+        TransportVersion transportVersion
+    ) {
+        return state(localNode, masterNode, null, allNodes, transportVersion);
+    }
+
+    /**
      * Creates a cluster state where local node, master and health node can be specified
      *
      * @param localNode  node in allNodes that is the local node
@@ -510,6 +529,26 @@ public class ClusterStateCreationUtils {
         DiscoveryNode healthNode,
         DiscoveryNode... allNodes
     ) {
+        return state(localNode, masterNode, healthNode, allNodes, TransportVersion.CURRENT);
+    }
+
+    /**
+     * Creates a cluster state where local node, master and health node can be specified
+     *
+     * @param localNode  node in allNodes that is the local node
+     * @param masterNode node in allNodes that is the master node. Can be null if no master exists
+     * @param healthNode node in allNodes that is the health node. Can be null if no health node exists
+     * @param allNodes   all nodes in the cluster
+     * @param transportVersion  the transport version used by the cluster
+     * @return cluster state
+     */
+    public static ClusterState state(
+        DiscoveryNode localNode,
+        DiscoveryNode masterNode,
+        DiscoveryNode healthNode,
+        DiscoveryNode[] allNodes,
+        TransportVersion transportVersion
+    ) {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (DiscoveryNode node : allNodes) {
             discoBuilder.add(node);
@@ -522,6 +561,10 @@ public class ClusterStateCreationUtils {
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
+        for (DiscoveryNode node : allNodes) {
+            state.putTransportVersion(node.getId(), transportVersion);
+        }
+
         Metadata.Builder metadataBuilder = Metadata.builder().generateClusterUuidIfNeeded();
         if (healthNode != null) {
             addHealthNode(metadataBuilder, healthNode);

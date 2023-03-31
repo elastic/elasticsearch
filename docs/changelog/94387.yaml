@@ -1,6 +1,0 @@
-pr: 94387
-summary: Downsampling unmapped text fields
-area: Rollup
-type: bug
-issues:
- - 94346

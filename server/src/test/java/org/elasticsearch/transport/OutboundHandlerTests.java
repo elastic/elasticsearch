@@ -222,9 +222,9 @@ public class OutboundHandlerTests extends ESTestCase {
             }
         });
         if (compress) {
-            handler.sendResponse(version, channel, requestId, action, response, compressionScheme, isHandshake);
+            handler.sendResponse(version, channel, requestId, action, response, compressionScheme, isHandshake, ResponseStatsConsumer.NONE);
         } else {
-            handler.sendResponse(version, channel, requestId, action, response, null, isHandshake);
+            handler.sendResponse(version, channel, requestId, action, response, null, isHandshake, ResponseStatsConsumer.NONE);
         }
 
         BytesReference reference = channel.getMessageCaptor().get();
@@ -282,7 +282,7 @@ public class OutboundHandlerTests extends ESTestCase {
                 responseRef.set(error);
             }
         });
-        handler.sendErrorResponse(version, channel, requestId, action, error);
+        handler.sendErrorResponse(version, channel, requestId, action, ResponseStatsConsumer.NONE, error);
 
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();

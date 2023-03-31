@@ -22,6 +22,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.IOUtils;
@@ -53,6 +54,7 @@ public class MinimumScoreCollectorTests extends ESTestCase {
         writer.flush();
         reader = writer.getReader();
         searcher = newSearcher(reader);
+        searcher.setSimilarity(new BM25Similarity());
         writer.close();
     }
 

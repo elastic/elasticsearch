@@ -97,7 +97,7 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
 
     private static Map<String, Object> mergeTemplateParams(QuerySearchApplicationAction.Request request, Script script) {
         Map<String, Object> mergedTemplateParams = new HashMap<>(script.getParams());
-        mergedTemplateParams.putAll(request.queryParams().templateParams());
+        mergedTemplateParams.putAll(request.queryParams());
 
         return mergedTemplateParams;
     }

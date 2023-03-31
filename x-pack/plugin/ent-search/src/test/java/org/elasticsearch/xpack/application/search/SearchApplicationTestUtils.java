@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
@@ -60,8 +61,8 @@ public final class SearchApplicationTestUtils {
         return new SearchApplicationTemplate(script);
     }
 
-    public static SearchApplicationQueryParams randomSearchApplicationQueryParams() {
-        return new SearchApplicationQueryParams(randomMap(0, 10, () -> Tuple.tuple(randomIdentifier(), randomAlphaOfLengthBetween(0, 10))));
+    public static Map<String, Object> randomSearchApplicationQueryParams() {
+        return randomMap(0, 10, () -> Tuple.tuple(randomIdentifier(), randomAlphaOfLengthBetween(0, 10)));
     }
 
 }

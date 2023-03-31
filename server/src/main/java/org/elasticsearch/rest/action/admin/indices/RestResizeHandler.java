@@ -17,8 +17,6 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.Scope;
-import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -95,7 +93,6 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     }
 
-    @ServerlessScope(Scope.PUBLIC)
     public static class RestCloneIndexAction extends RestResizeHandler {
 
         @Override

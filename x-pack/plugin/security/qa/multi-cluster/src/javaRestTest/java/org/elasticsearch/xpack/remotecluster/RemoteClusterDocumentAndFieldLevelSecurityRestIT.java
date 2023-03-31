@@ -24,20 +24,21 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterDocumentAndFieldLevelSecurityRestIT extends AbstractRemoteClusterSecurityTestCase {
 
-    private static final String REMOTE_CLUSTER_NO_DLS_FLS = REMOTE_CLUSTER_ALIAS + "_no_dls_fls";
-    private static final String REMOTE_CLUSTER_DLS_FLS = REMOTE_CLUSTER_ALIAS + "_dls_fls";
-    private static final String REMOTE_CLUSTER_DLS = REMOTE_CLUSTER_ALIAS + "_dls";
-    private static final String REMOTE_CLUSTER_FLS = REMOTE_CLUSTER_ALIAS + "_fls";
+    protected static final String REMOTE_CLUSTER_NO_DLS_FLS = REMOTE_CLUSTER_ALIAS + "_no_dls_fls";
+    protected static final String REMOTE_CLUSTER_DLS_FLS = REMOTE_CLUSTER_ALIAS + "_dls_fls";
+    protected static final String REMOTE_CLUSTER_DLS = REMOTE_CLUSTER_ALIAS + "_dls";
+    protected static final String REMOTE_CLUSTER_FLS = REMOTE_CLUSTER_ALIAS + "_fls";
 
     protected static final String REMOTE_SEARCH_USER_NO_DLS_FLS = REMOTE_SEARCH_USER + "_no_dls_fls";
     protected static final String REMOTE_SEARCH_USER_DLS_FLS = REMOTE_SEARCH_USER + "_dls_fls";
     protected static final String REMOTE_SEARCH_USER_DLS = REMOTE_SEARCH_USER + "_dls";
     protected static final String REMOTE_SEARCH_USER_FLS = REMOTE_SEARCH_USER + "_fls";
 
-    private static final Map<String, AtomicReference<Map<String, Object>>> API_KEY_REFERENCES = Map.ofEntries(
+    protected static final Map<String, AtomicReference<Map<String, Object>>> API_KEY_REFERENCES = Map.ofEntries(
         Map.entry(REMOTE_CLUSTER_NO_DLS_FLS, new AtomicReference<>()),
         Map.entry(REMOTE_CLUSTER_DLS_FLS, new AtomicReference<>()),
         Map.entry(REMOTE_CLUSTER_DLS, new AtomicReference<>()),
@@ -86,9 +87,9 @@ public class RemoteClusterDocumentAndFieldLevelSecurityRestIT extends AbstractRe
             "cluster": ["cross_cluster_access"],
             "index": [
               {
-                  "names": ["remote_index2", "remote_index2"],
+                  "names": ["remote_index2"],
                   "privileges": ["read", "read_cross_cluster"],
-                  "field_security": {"grant": [ "field3" ]}
+                  "field_security": {"grant": [ "field2", "field3" ]}
               }
             ]
           }
@@ -97,7 +98,6 @@ public class RemoteClusterDocumentAndFieldLevelSecurityRestIT extends AbstractRe
     static {
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
-            .nodes(3)
             .apply(commonClusterConfig)
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
@@ -129,7 +129,7 @@ public class RemoteClusterDocumentAndFieldLevelSecurityRestIT extends AbstractRe
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     /**
-     * Creates remote search users on querying cluster where each has access to all remote clusters but with different DLS/FLS restrictions.
+     * Creates remote search users where each has access to all remote clusters but with different DLS/FLS restrictions.
      *
      * @throws IOException in case of an I/O errors
      */
@@ -227,6 +227,9 @@ public class RemoteClusterDocumentAndFieldLevelSecurityRestIT extends AbstractRe
         createRemoteSearchUsers();
 
         testCrossClusterSearchUsingApiKeyWithoutDlsAndFls();
+        testCrossClusterSearchUsingApiKeyWithDlsAndFls();
+        testCrossClusterSearchUsingApiKeyWithDls();
+        testCrossClusterSearchUsingApiKeyWithFls();
     }
 
     /**
@@ -285,6 +288,174 @@ public class RemoteClusterDocumentAndFieldLevelSecurityRestIT extends AbstractRe
                 searchResponse,
                 new String[] { "remote_index1", "remote_index2", "remote_index3", "remote_index4" },
                 new String[] { "field1", "field3" }
+            );
+        }
+
+    }
+
+    private void testCrossClusterSearchUsingApiKeyWithDlsAndFls() throws IOException {
+        final Request searchRequest = new Request(
+            "GET",
+            Strings.format(
+                "/%s:%s/_search?ccs_minimize_roundtrips=%s",
+                randomFrom(REMOTE_CLUSTER_DLS_FLS),
+                randomFrom("remote_index*", "*"),
+                randomBoolean()
+            )
+        );
+
+        // Running a CCS request with a user without DLS/FLS should be restricted by cross cluster access API key.
+        {
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_NO_DLS_FLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index1", "remote_index3", "remote_index4" },
+                new String[] { "field1", "field2" }
+            );
+        }
+
+        // Running a CCS request with a user with DLS and FLS should be intersected with cross cluster API key's DLS and FLS permissions.
+        {
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_DLS_FLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index1" },
+                new String[] { "field1", "field2" }
+            );
+        }
+
+        // Running a CCS request with a user with DLS only.
+        {
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_DLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index3", "remote_index4" },
+                new String[] { "field1", "field2" }
+            );
+        }
+
+        // Running a CCS request with a user with FLS only.
+        {
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_FLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index1", "remote_index3", "remote_index4" },
+                new String[] { "field1" }
+            );
+        }
+
+    }
+
+    private void testCrossClusterSearchUsingApiKeyWithDls() throws IOException {
+        final Request searchRequest = new Request(
+            "GET",
+            Strings.format(
+                "/%s:%s/_search?ccs_minimize_roundtrips=%s",
+                randomFrom(REMOTE_CLUSTER_DLS),
+                randomFrom("remote_index*", "*"),
+                randomBoolean()
+            )
+        );
+
+        // Running a CCS request with a user without DLS/FLS should be restricted by cross cluster access API key.
+        {
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_NO_DLS_FLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index1" },
+                new String[] { "field1", "field2", "field3" }
+            );
+        }
+
+        // Running a CCS request with a user with DLS and FLS should be intersected with cross cluster API key's DLS and FLS permissions.
+        {
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_DLS_FLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index1" },
+                new String[] { "field1", "field2" }
+            );
+        }
+
+        // Running a CCS request with a user with DLS only.
+        {
+            final Response response = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_DLS);
+            assertOK(response);
+            SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        }
+
+        // Running a CCS request with a user with FLS only.
+        {
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_FLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index1" },
+                new String[] { "field1", "field3" }
+            );
+        }
+
+    }
+
+    private void testCrossClusterSearchUsingApiKeyWithFls() throws IOException {
+        final Request searchRequest = new Request(
+            "GET",
+            Strings.format(
+                "/%s:%s/_search?ccs_minimize_roundtrips=%s",
+                randomFrom(REMOTE_CLUSTER_FLS),
+                randomFrom("remote_index*", "*"),
+                randomBoolean()
+            )
+        );
+
+        // Running a CCS request with a user with DLS and FLS should be intersected with cross cluster API key's DLS and FLS permissions.
+        {
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_NO_DLS_FLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index2" },
+                new String[] { "field2", "field3" }
+            );
+        }
+
+        // Running a CCS request with a user with DLS and FLS.
+        {
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_DLS_FLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index2" },
+                new String[] { "field2" }
+            );
+        }
+
+        // Running a CCS request with a user with DLS only.
+        {
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_DLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index2" },
+                new String[] { "field2", "field3" }
+            );
+        }
+
+        // Running a CCS request with a user with FLS only.
+        {
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_FLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index2" },
+                new String[] { "field3" }
             );
         }
 

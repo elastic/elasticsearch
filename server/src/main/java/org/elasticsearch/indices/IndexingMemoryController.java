@@ -455,6 +455,9 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                 // shards concurrently. So there are chances that if we flush a single segment now, then it won't be re-created shortly
                 // because the peak indexing concurrency is rarely observed, and we end up indexing into fewer pending segments globally on
                 // average, which in-turn reduces the total number of segments that get produced, and also reduces merging.
+                // The downside of picking the shard that has the biggest indexing buffer is that it is often also the shard that has the
+                // highest ingestion rate, and thus it is also the shard that is the most likely to re-create a new pending segment in the
+                // very near future after one segment has been flushed.
 
                 // We want to go over shards in a round-robin fashion across calls to #runUnlocked. First sort shards by something stable
                 // like the shard ID.

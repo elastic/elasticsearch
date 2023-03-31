@@ -46,6 +46,8 @@ import org.elasticsearch.xpack.application.analytics.action.RestPutAnalyticsColl
 import org.elasticsearch.xpack.application.analytics.action.TransportDeleteAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportGetAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.connector.Connector;
+import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.GetSearchApplicationAction;
@@ -158,6 +160,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             xContentRegistry
         );
         analyticsTemplateRegistry.initialize();
+
+        final ConnectorIndexService connectorIndexService = new ConnectorIndexService(client, clusterService, namedWriteableRegistry);
 
         return Arrays.asList(analyticsTemplateRegistry);
     }

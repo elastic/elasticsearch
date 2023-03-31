@@ -11,8 +11,8 @@ show functions;
   name:keyword           |           synopsis:keyword
 abs                      |abs(arg1)
 avg                      |avg(arg1)
-case                     |case(arg1[])
-concat                   |concat(arg1, arg2[])
+case                     |case(arg1...)
+concat                   |concat(arg1, arg2...)
 count                    |count(arg1)
 date_format              |date_format(arg1, arg2)
 date_trunc               |date_trunc(arg1, arg2)

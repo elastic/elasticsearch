@@ -55,6 +55,9 @@
         },
         "avg_worked_seconds" : {
             "type" : "long"
+        },
+        "job_positions" : {
+          "type" : "keyword"
         }
     }
 }

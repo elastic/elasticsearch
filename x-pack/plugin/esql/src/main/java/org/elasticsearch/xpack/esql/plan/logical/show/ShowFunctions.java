@@ -55,7 +55,7 @@ public class ShowFunctions extends LeafPlan {
                 for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
                     sb.append(params[i].getName());
                     if (List.class.isAssignableFrom(params[i].getType())) {
-                        sb.append("[]");
+                        sb.append("...");
                     }
                     sb.append(", ");
                 }

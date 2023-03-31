@@ -68,7 +68,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
 
         TaskContainer tasks = project.getTasks();
         TaskProvider<LoggedExec> createCloneTaskProvider = tasks.register("createClone", LoggedExec.class, createClone -> {
-            createClone.onlyIf(task -> this.gitExtension.getCheckoutDir().get().exists() == false);
+            createClone.onlyIf("git checkout dir missing", task -> this.gitExtension.getCheckoutDir().get().exists() == false);
             createClone.commandLine("git", "clone", buildLayout.getRootDirectory(), gitExtension.getCheckoutDir().get());
         });
 
@@ -83,7 +83,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
 
         TaskProvider<LoggedExec> addRemoteTaskProvider = tasks.register("addRemote", LoggedExec.class, addRemote -> {
             addRemote.dependsOn(findRemoteTaskProvider);
-            addRemote.onlyIf(task -> ((boolean) extraProperties.get("remoteExists")) == false);
+            addRemote.onlyIf("remote exists", task -> ((boolean) extraProperties.get("remoteExists")) == false);
             addRemote.getWorkingDir().set(gitExtension.getCheckoutDir().get());
             String remoteRepo = remote.get();
             // for testing only we can override the base remote url
@@ -103,7 +103,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                 }
                 throw new GradleException("tests.bwc.git_fetch_latest must be [true] or [false] but was [" + fetchProp + "]");
             });
-            fetchLatest.onlyIf(t -> isOffline == false && gitFetchLatest.get());
+            fetchLatest.onlyIf("online and gitFetchLatest == true", t -> isOffline == false && gitFetchLatest.get());
             fetchLatest.dependsOn(addRemoteTaskProvider);
             fetchLatest.getWorkingDir().set(gitExtension.getCheckoutDir().get());
             fetchLatest.commandLine("git", "fetch", "--all");

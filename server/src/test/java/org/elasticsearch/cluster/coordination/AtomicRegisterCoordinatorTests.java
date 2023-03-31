@@ -228,6 +228,10 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94905")
+    public void testClusterRecoversAfterExceptionDuringSerialization() {}
+
+    @Override
     protected CoordinatorStrategy getCoordinatorStrategy() {
         var atomicRegister = new AtomicRegister();
         var sharedStore = new SharedStore();

@@ -86,7 +86,7 @@ teardown:
 "Query Search Application with default parameters":
 
   - do:
-      search_application.query:
+      search_application.search:
         name: test-search-application
 
   - match: { hits.total.value: 2 }
@@ -97,7 +97,7 @@ teardown:
 "Query Search Application overriding part of the parameters":
 
   - do:
-      search_application.query:
+      search_application.search:
         name: test-search-application
         body:
           params:
@@ -111,7 +111,7 @@ teardown:
 "Query Search Application overriding all parameters":
 
   - do:
-      search_application.query:
+      search_application.search:
         name: test-search-application
         body:
           params:
@@ -127,7 +127,7 @@ teardown:
 
   - do:
       catch: "missing"
-      search_application.query:
+      search_application.search:
         name: nonexisting-test-search-application
         body:
           params:
@@ -155,5 +155,5 @@ teardown:
 
   - do:
       catch: "forbidden"
-      search_application.query:
+      search_application.search:
         name: test-search-application

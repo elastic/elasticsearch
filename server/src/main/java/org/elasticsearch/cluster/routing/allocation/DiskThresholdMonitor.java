@@ -317,8 +317,8 @@ public class DiskThresholdMonitor {
                 rerouteService.reroute(
                     "disk threshold monitor",
                     Priority.HIGH,
-                    ActionListener.releaseAfter(ActionListener.runAfter(ActionListener.wrap(reroutedClusterState -> {
-
+                    ActionListener.releaseAfter(ActionListener.runAfter(ActionListener.wrap(ignored -> {
+                        final var reroutedClusterState = clusterStateSupplier.get();
                         for (DiskUsage diskUsage : usagesOverHighThreshold) {
                             final RoutingNode routingNode = reroutedClusterState.getRoutingNodes().node(diskUsage.getNodeId());
                             final DiskUsage usageIncludingRelocations;

@@ -23,13 +23,13 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLicenseRequest, PutLicenseResponse> {
 
-    private final ClusterStateLicenseService clusterStateLicenseService;
+    private final LicenseService.MutableLicenseService licenseService;
 
     @Inject
     public TransportPutLicenseAction(
         TransportService transportService,
         ClusterService clusterService,
-        ClusterStateLicenseService clusterStateLicenseService,
+        LicenseService.MutableLicenseService licenseService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -45,7 +45,7 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
             PutLicenseResponse::new,
             ThreadPool.Names.MANAGEMENT
         );
-        this.clusterStateLicenseService = clusterStateLicenseService;
+        this.licenseService = licenseService;
     }
 
     @Override
@@ -60,7 +60,7 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
         ClusterState state,
         final ActionListener<PutLicenseResponse> listener
     ) throws ElasticsearchException {
-        clusterStateLicenseService.registerLicense(request, listener);
+        licenseService.registerLicense(request, listener);
     }
 
 }

@@ -11,9 +11,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
-import org.elasticsearch.xpack.application.search.SearchApplicationQueryParams;
+import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction.Request;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,13 +36,14 @@ public class RestQuerySearchApplicationAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        SearchApplicationQueryParams queryParams = new SearchApplicationQueryParams();
+        final String searchAppName = restRequest.param("name");
+        Request request;
         if (restRequest.hasContent()) {
-            try (XContentParser contentParser = restRequest.contentParser()) {
-                queryParams = SearchApplicationQueryParams.parse(contentParser);
-            }
+            request = Request.fromXContent(searchAppName, restRequest.contentParser());
+        } else {
+            request = new Request(searchAppName);
         }
-        QuerySearchApplicationAction.Request request = new QuerySearchApplicationAction.Request(restRequest.param("name"), queryParams);
-        return channel -> client.execute(QuerySearchApplicationAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        final Request finalRequest = request;
+        return channel -> client.execute(QuerySearchApplicationAction.INSTANCE, finalRequest, new RestToXContentListener<>(channel));
     }
 }

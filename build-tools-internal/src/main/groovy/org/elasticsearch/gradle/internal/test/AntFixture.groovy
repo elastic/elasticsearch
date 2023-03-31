@@ -266,7 +266,7 @@ class AntFixture extends AntTask implements Fixture {
     /** Returns a file that wraps around the actual command when {@code spawn == true}. */
     @Internal
     protected File getWrapperScript() {
-        return new File(cwd, OS.current() == OS.WINDOWS) ? 'run.bat' : 'run')
+        return new File(cwd, (OS.current() == OS.WINDOWS) ? 'run.bat' : 'run')
     }
 
     /** Returns a file that the wrapper script writes when the command failed. */

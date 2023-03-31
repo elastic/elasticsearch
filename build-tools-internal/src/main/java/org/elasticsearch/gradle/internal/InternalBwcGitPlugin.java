@@ -68,10 +68,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
 
         TaskContainer tasks = project.getTasks();
         TaskProvider<LoggedExec> createCloneTaskProvider = tasks.register("createClone", LoggedExec.class, createClone -> {
-            createClone.onlyIf(
-                "git checkout dir does not exist",
-                task -> this.gitExtension.getCheckoutDir().get().exists() == false
-            );
+            createClone.onlyIf("git checkout dir does not exist", task -> this.gitExtension.getCheckoutDir().get().exists() == false);
             createClone.commandLine("git", "clone", buildLayout.getRootDirectory(), gitExtension.getCheckoutDir().get());
         });
 

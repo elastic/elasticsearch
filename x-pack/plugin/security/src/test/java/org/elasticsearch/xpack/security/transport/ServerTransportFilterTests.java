@@ -20,21 +20,23 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.Before;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
@@ -46,7 +48,7 @@ import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubj
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
-import static org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST;
+import static org.elasticsearch.xpack.security.transport.CrossClusterAccessServerTransportFilter.CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,6 +62,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -71,6 +74,7 @@ public class ServerTransportFilterTests extends ESTestCase {
     private boolean failDestructiveOperations;
     private DestructiveOperations destructiveOperations;
     private CrossClusterAccessAuthenticationService crossClusterAccessAuthcService;
+    private MockLicenseState mockLicenseState;
 
     @Before
     public void init() throws Exception {
@@ -87,6 +91,8 @@ public class ServerTransportFilterTests extends ESTestCase {
         );
         crossClusterAccessAuthcService = mock(CrossClusterAccessAuthenticationService.class);
         when(crossClusterAccessAuthcService.getAuthenticationService()).thenReturn(authcService);
+        mockLicenseState = MockLicenseState.createMock();
+        Mockito.when(mockLicenseState.isAllowed(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(true);
     }
 
     public void testInbound() {
@@ -112,12 +118,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         PlainActionFuture<Void> listener = spy(new PlainActionFuture<>());
         filter.inbound(action, request, channel, listener);
         if (allowlisted) {
-            verify(authzService).authorize(
-                eq(replaceWithInternalUserAuthcForHandshake(action, authentication)),
-                eq(action),
-                eq(request),
-                anyActionListener()
-            );
+            verify(authzService).authorize(eq(authentication), eq(action), eq(request), anyActionListener());
             verify(crossClusterAccessAuthcService).authenticate(anyString(), any(), anyActionListener());
             verify(authcService, never()).authenticate(anyString(), any(), anyBoolean(), anyActionListener());
         } else {
@@ -189,7 +190,8 @@ public class ServerTransportFilterTests extends ESTestCase {
             threadContext,
             false,
             destructiveOperations,
-            new SecurityContext(settings, threadContext)
+            new SecurityContext(settings, threadContext),
+            mockLicenseState
         );
 
         PlainActionFuture<Void> listener = new PlainActionFuture<>();
@@ -336,6 +338,26 @@ public class ServerTransportFilterTests extends ESTestCase {
         }
     }
 
+    public void testCrossClusterAccessInboundFailsWithUnsupportedLicense() {
+        final MockLicenseState unsupportedLicenseState = MockLicenseState.createMock();
+        Mockito.when(unsupportedLicenseState.isAllowed(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(false);
+
+        ServerTransportFilter crossClusterAccessFilter = getNodeCrossClusterAccessFilter(unsupportedLicenseState);
+        PlainActionFuture<Void> listener = new PlainActionFuture<>();
+        String action = randomBoolean() ? randomFrom(CROSS_CLUSTER_ACCESS_ACTION_ALLOWLIST) : "_action";
+        crossClusterAccessFilter.inbound(action, mock(TransportRequest.class), channel, listener);
+
+        ElasticsearchSecurityException actualException = expectThrows(ElasticsearchSecurityException.class, listener::actionGet);
+        assertThat(
+            actualException.getMessage(),
+            equalTo("current license is non-compliant for [" + Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.getName() + "]")
+        );
+
+        // License check should be executed first, hence we don't expect authc/authz to be even attempted.
+        verify(crossClusterAccessAuthcService, never()).authenticate(anyString(), any(), anyActionListener());
+        verifyNoInteractions(authzService, authcService);
+    }
+
     public void testAllowsNodeActions() {
         final String internalAction = "internal:foo/bar";
         final String nodeOrShardAction = "indices:action" + randomFrom("[s]", "[p]", "[r]", "[n]", "[s][p]", "[s][r]", "[f]");
@@ -388,10 +410,21 @@ public class ServerTransportFilterTests extends ESTestCase {
     }
 
     private CrossClusterAccessServerTransportFilter getNodeCrossClusterAccessFilter() {
-        return getNodeCrossClusterAccessFilter(Collections.emptySet());
+        return getNodeCrossClusterAccessFilter(Collections.emptySet(), mockLicenseState);
     }
 
     private CrossClusterAccessServerTransportFilter getNodeCrossClusterAccessFilter(Set<String> additionalHeadersKeys) {
+        return getNodeCrossClusterAccessFilter(additionalHeadersKeys, mockLicenseState);
+    }
+
+    private CrossClusterAccessServerTransportFilter getNodeCrossClusterAccessFilter(XPackLicenseState licenseState) {
+        return getNodeCrossClusterAccessFilter(Collections.emptySet(), licenseState);
+    }
+
+    private CrossClusterAccessServerTransportFilter getNodeCrossClusterAccessFilter(
+        Set<String> additionalHeadersKeys,
+        XPackLicenseState licenseState
+    ) {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ThreadContext threadContext = new ThreadContext(settings);
         for (var header : additionalHeadersKeys) {
@@ -419,13 +452,8 @@ public class ServerTransportFilterTests extends ESTestCase {
             threadContext,
             false,
             destructiveOperations,
-            new SecurityContext(settings, threadContext)
+            new SecurityContext(settings, threadContext),
+            licenseState
         );
-    }
-
-    private static Authentication replaceWithInternalUserAuthcForHandshake(String action, Authentication authentication) {
-        return action.equals(TransportService.HANDSHAKE_ACTION_NAME)
-            ? Authentication.newInternalAuthentication(SystemUser.INSTANCE, authentication.getEffectiveSubject().getTransportVersion(), "")
-            : authentication;
     }
 }

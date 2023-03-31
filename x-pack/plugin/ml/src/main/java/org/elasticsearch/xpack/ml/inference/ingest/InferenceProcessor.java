@@ -198,10 +198,10 @@ public class InferenceProcessor extends AbstractProcessor {
         private volatile int maxIngestProcessors;
         private volatile Version minNodeVersion = Version.CURRENT;
 
-        public Factory(Client client, ClusterService clusterService, Settings settings) {
+        public Factory(Client client, ClusterService clusterService, Settings settings, boolean includeNodeInfo) {
             this.client = client;
             this.maxIngestProcessors = MAX_INFERENCE_PROCESSORS.get(settings);
-            this.auditor = new InferenceAuditor(client, clusterService);
+            this.auditor = new InferenceAuditor(client, clusterService, includeNodeInfo);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_INFERENCE_PROCESSORS, this::setMaxIngestProcessors);
         }
 

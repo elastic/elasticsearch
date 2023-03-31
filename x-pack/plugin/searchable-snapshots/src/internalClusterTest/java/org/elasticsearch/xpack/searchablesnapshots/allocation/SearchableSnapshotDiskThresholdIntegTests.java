@@ -71,7 +71,6 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSn
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94935")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTestCase {
 

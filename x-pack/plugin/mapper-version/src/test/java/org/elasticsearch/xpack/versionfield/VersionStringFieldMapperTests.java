@@ -15,8 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -108,12 +108,12 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         BytesReference source = BytesReference.bytes(
             XContentFactory.jsonBuilder().startObject().startObject("field").endObject().endObject()
         );
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
             () -> defaultMapper.parse(new SourceToParse("1", source, XContentType.JSON))
         );
         assertEquals(
-            "failed to parse field [field] of type [version] in document with id '1'. " + "Preview of field's value: '{}'",
+            "[1:11] failed to parse field [field] of type [version] in document with id '1'. " + "Preview of field's value: '{}'",
             ex.getMessage()
         );
     }
@@ -133,12 +133,12 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
                 .endArray()
                 .endObject()
         );
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
             () -> defaultMapper.parse(new SourceToParse("1", source, XContentType.JSON))
         );
         assertEquals(
-            "failed to parse field [field] of type [version] in document with id '1'. "
+            "[1:67] failed to parse field [field] of type [version] in document with id '1'. "
                 + "Preview of field's value: '{array_name=[inner_field_first, inner_field_second]}'",
             ex.getMessage()
         );

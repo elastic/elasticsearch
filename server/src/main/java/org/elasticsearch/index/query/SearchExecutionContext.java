@@ -35,12 +35,12 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -306,7 +306,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     /**
      * Parse a document with current mapping.
      */
-    public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
+    public ParsedDocument parseDocument(SourceToParse source) throws DocumentParsingException {
         return mapperService.documentParser().parseDocument(source, mappingLookup);
     }
 

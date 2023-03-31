@@ -22,6 +22,7 @@ import fixture.azure.AzureHttpHandler;
 
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.azure.AzureRepositoryPlugin;
@@ -55,17 +56,19 @@ public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase 
 
         final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl() + "/" + accountName;
         Settings.Builder settings = super.nodeSettings().put("azure.client.test.endpoint_suffix", endpoint)
-            .put("insecure.azure.client.test.account", accountName)
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.AZURE)
             .put(ObjectStoreService.BUCKET_SETTING.getKey(), "container")
             .put(ObjectStoreService.CLIENT_SETTING.getKey(), "test");
 
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        mockSecureSettings.setString("azure.client.test.account", accountName);
         if (randomBoolean()) {
-            settings = settings.put("insecure.azure.client.test.key", key);
+            mockSecureSettings.setString("azure.client.test.key", key);
         } else {
             // The SDK expects a valid SAS TOKEN
-            settings = settings.put("insecure.azure.client.test.sas_token", "se=2021-07-20T13%3A21Z&sp=rwdl&sv=2018-11-09&sr=c&sig=random");
+            mockSecureSettings.setString("azure.client.test.sas_token", "se=2021-07-20T13%3A21Z&sp=rwdl&sv=2018-11-09&sr=c&sig=random");
         }
+        settings.setSecureSettings(mockSecureSettings);
 
         return settings;
     }

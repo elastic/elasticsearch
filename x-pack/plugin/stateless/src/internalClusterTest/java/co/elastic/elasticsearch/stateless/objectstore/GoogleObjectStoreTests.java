@@ -24,12 +24,12 @@ import fixture.gcs.TestUtils;
 
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Map;
 
@@ -55,8 +55,9 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
         settings.put(ObjectStoreService.CLIENT_SETTING.getKey(), "test");
 
         final byte[] serviceAccount = TestUtils.createServiceAccount(random());
-        final String serviceAccountString = new String(serviceAccount, StandardCharsets.UTF_8);
-        settings.put("insecure.gcs.client.test.credentials_file", serviceAccountString);
+        MockSecureSettings mockSecureSettings = new MockSecureSettings();
+        mockSecureSettings.setFile("gcs.client.test.credentials_file", serviceAccount);
+        settings.setSecureSettings(mockSecureSettings);
 
         return settings;
     }

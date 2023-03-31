@@ -159,7 +159,8 @@ public class Environment {
             finalSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataFile.toString());
         }
 
-        if (DiscoveryNode.isStateless(settings)) {
+        if (DiscoveryNode.isStateless(settings)
+            && (Objects.isNull(finalSettings.getSecureSettings()) || finalSettings.getSecureSettings().getSettingNames().isEmpty())) {
             this.settings = StatelessSecureSettings.install(finalSettings.build());
         } else {
             this.settings = finalSettings.build();

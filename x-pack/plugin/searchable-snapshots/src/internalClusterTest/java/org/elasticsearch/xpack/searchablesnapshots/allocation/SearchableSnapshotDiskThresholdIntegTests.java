@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.ClusterInfoService;

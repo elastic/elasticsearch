@@ -9,7 +9,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditionsTests;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -61,11 +62,13 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
         DataLifecycle dataLifecycle = createTestInstance();
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);
-            RolloverConditions rolloverConditions = RolloverConditionsTests.randomRolloverConditions();
-            dataLifecycle.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConditions);
+            RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
+            dataLifecycle.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConditions.getConditions().keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(dataLifecycle.getDataRetention())
+                .getConditions()
+                .keySet()) {
                 assertThat(serialized, containsString(label));
             }
         }
@@ -73,7 +76,8 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
 
     public void testDefaultClusterSetting() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        RolloverConditions rolloverConditions = clusterSettings.get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
+        RolloverConditions rolloverConditions = clusterSettings.get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING)
+            .resolveRolloverConditions(null);
         assertThat(rolloverConditions.getMaxAge(), equalTo(TimeValue.timeValueDays(7)));
         assertThat(rolloverConditions.getMaxPrimaryShardSize(), equalTo(ByteSizeValue.ofGb(50)));
         assertThat(rolloverConditions.getMaxPrimaryShardDocs(), equalTo(200_000_000L));

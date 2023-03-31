@@ -14,7 +14,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -78,7 +78,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private final DataLifecycleErrorStore errorStore;
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
-    private volatile RolloverConditions rolloverConditions;
+    private volatile RolloverConfiguration rolloverConfiguration;
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
 
@@ -100,7 +100,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.errorStore = errorStore;
         this.scheduledJob = null;
         this.pollInterval = DLM_POLL_INTERVAL_SETTING.get(settings);
-        this.rolloverConditions = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
+        this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
     }
 
     /**
@@ -214,7 +214,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private void maybeExecuteRollover(ClusterState state, DataStream dataStream) {
         Index writeIndex = dataStream.getWriteIndex();
         if (dataStream.isIndexManagedByDLM(writeIndex, state.metadata()::index)) {
-            RolloverRequest rolloverRequest = getDefaultRolloverRequest(dataStream.getName());
+            RolloverRequest rolloverRequest = getDefaultRolloverRequest(dataStream.getName(), dataStream.getLifecycle().getDataRetention());
             transportActionsDeduplicator.executeOnce(
                 rolloverRequest,
                 new ErrorRecordingActionListener(writeIndex.getName(), errorStore),
@@ -360,9 +360,9 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         }
     }
 
-    private RolloverRequest getDefaultRolloverRequest(String dataStream) {
+    private RolloverRequest getDefaultRolloverRequest(String dataStream, TimeValue dataRetention) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
-        rolloverRequest.setConditions(rolloverConditions);
+        rolloverRequest.setConditions(rolloverConfiguration.resolveRolloverConditions(dataRetention));
         return rolloverRequest;
     }
 
@@ -371,8 +371,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         maybeScheduleJob();
     }
 
-    private void updateRolloverConditions(RolloverConditions newRolloverConditions) {
-        this.rolloverConditions = newRolloverConditions;
+    private void updateRolloverConditions(RolloverConfiguration newRolloverConfiguration) {
+        this.rolloverConfiguration = newRolloverConfiguration;
     }
 
     private void cancelJob() {

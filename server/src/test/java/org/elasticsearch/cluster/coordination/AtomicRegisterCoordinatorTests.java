@@ -591,6 +591,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
     public interface HeartBeatStore {
         void writeHeartBeat(HeartBeat newHeartBeat, ActionListener<Void> listener);
+
         void readLatestHeartbeat(ActionListener<HeartBeat> listener);
     }
 

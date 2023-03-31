@@ -223,10 +223,8 @@ import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.rank.RankContextBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
-import org.elasticsearch.search.rank.rrf.RRFRankContextBuilder;
 import org.elasticsearch.search.rank.rrf.RRFRankDoc;
 import org.elasticsearch.search.rank.rrf.RRFRankShardResult;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
@@ -807,18 +805,8 @@ public class SearchModule {
     }
 
     private void registerRanks() {
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(RankContextBuilder.class, RRFRankContextBuilder.NAME, RRFRankContextBuilder::new)
-        );
-        namedXContents.add(
-            new NamedXContentRegistry.Entry(
-                RankContextBuilder.class,
-                new ParseField(RRFRankContextBuilder.NAME),
-                RRFRankContextBuilder::fromXContent
-            )
-        );
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankShardResult.class, RRFRankContextBuilder.NAME, RRFRankShardResult::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankDoc.class, RRFRankContextBuilder.NAME, RRFRankDoc::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankShardResult.class, "rrf", RRFRankShardResult::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankDoc.class, "rrf", RRFRankDoc::new));
     }
 
     private static <T> void registerFromPlugin(List<SearchPlugin> plugins, Function<SearchPlugin, List<T>> producer, Consumer<T> consumer) {

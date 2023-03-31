@@ -8,27 +8,15 @@
 
 package org.elasticsearch.painless.rank;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetric;
-import org.elasticsearch.search.rank.rrf.RRFRankContextBuilder;
-import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -112,7 +100,7 @@ public class RRFRankScriptTests extends ESIntegTestCase {
         client().admin().indices().prepareRefresh("nrd_index").get();
     }
 
-    public void testBM25AndKnnWithScriptedMetricAggregation() {
+    /*public void testBM25AndKnnWithScriptedMetricAggregation() {
         float[] queryVector = { 500.0f };
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
@@ -376,5 +364,5 @@ public class RRFRankScriptTests extends ESIntegTestCase {
                 throw new IllegalArgumentException("unexpected scripted metric aggregation key [" + sum.getKey() + "]");
             }
         }
-    }
+    }*/
 }

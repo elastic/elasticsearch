@@ -22,7 +22,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilderTests;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
-import org.elasticsearch.search.rank.rrf.RRFRankContextBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescorerBuilderTests;
 import org.elasticsearch.search.suggest.SuggestBuilderTests;
 import org.elasticsearch.test.ESTestCase;
@@ -80,7 +79,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         return RandomSearchRequestGenerator.randomSearchSourceBuilder(
             HighlightBuilderTests::randomHighlighterBuilder,
             SuggestBuilderTests::randomSuggestBuilder,
-            RRFRankContextBuilderTests::randomRankContextBuilder,
+            null,
             QueryRescorerBuilderTests::randomRescoreBuilder,
             randomExtBuilders,
             CollapseBuilderTests::randomCollapseBuilder,

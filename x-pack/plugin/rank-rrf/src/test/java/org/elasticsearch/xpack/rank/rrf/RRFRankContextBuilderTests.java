@@ -6,11 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.rank.rrf;
+package org.elasticsearch.xpack.rank.rrf;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.rank.RankContextBuilderTests;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.junit.Assert;
 
 import java.io.IOException;
 
@@ -18,7 +20,7 @@ public class RRFRankContextBuilderTests extends RankContextBuilderTests<RRFRankC
 
     public static RRFRankContextBuilder randomRankContextBuilder() {
         RRFRankContextBuilder builder = new RRFRankContextBuilder();
-        builder.rankConstant(randomIntBetween(1, Integer.MAX_VALUE));
+        builder.rankConstant(ESTestCase.randomIntBetween(1, Integer.MAX_VALUE));
         RankContextBuilderTests.randomRankContextBuilder(builder);
         return builder;
     }
@@ -26,14 +28,14 @@ public class RRFRankContextBuilderTests extends RankContextBuilderTests<RRFRankC
     @Override
     protected RRFRankContextBuilder doCreateTestInstance() {
         RRFRankContextBuilder builder = new RRFRankContextBuilder();
-        builder.rankConstant(randomIntBetween(1, Integer.MAX_VALUE));
+        builder.rankConstant(ESTestCase.randomIntBetween(1, Integer.MAX_VALUE));
         return builder;
     }
 
     @Override
     protected RRFRankContextBuilder doMutateInstance(RRFRankContextBuilder instance) throws IOException {
         RRFRankContextBuilder builder = new RRFRankContextBuilder();
-        if (randomBoolean()) {
+        if (ESTestCase.randomBoolean()) {
             builder.rankConstant(instance.rankConstant() == 1 ? 2 : instance.rankConstant() - 1);
         }
         return builder;
@@ -47,15 +49,15 @@ public class RRFRankContextBuilderTests extends RankContextBuilderTests<RRFRankC
     @Override
     protected RRFRankContextBuilder doParseInstance(XContentParser parser) throws IOException {
         parser.nextToken();
-        assertEquals(parser.currentToken(), XContentParser.Token.START_OBJECT);
+        Assert.assertEquals(parser.currentToken(), XContentParser.Token.START_OBJECT);
         parser.nextToken();
-        assertEquals(parser.currentToken(), XContentParser.Token.FIELD_NAME);
+        Assert.assertEquals(parser.currentToken(), XContentParser.Token.FIELD_NAME);
         assertEquals(parser.currentName(), RRFRankContextBuilder.NAME);
         RRFRankContextBuilder builder = RRFRankContextBuilder.fromXContent(parser);
         parser.nextToken();
-        assertEquals(parser.currentToken(), XContentParser.Token.END_OBJECT);
+        Assert.assertEquals(parser.currentToken(), XContentParser.Token.END_OBJECT);
         parser.nextToken();
-        assertNull(parser.currentToken());
+        Assert.assertNull(parser.currentToken());
         return builder;
     }
 }

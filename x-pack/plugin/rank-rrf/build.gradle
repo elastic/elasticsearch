@@ -12,4 +12,12 @@ esplugin {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'indices', 'index', 'search', 'xpack'
+  }
 }

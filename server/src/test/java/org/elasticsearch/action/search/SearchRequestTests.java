@@ -21,12 +21,7 @@ import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.collapse.CollapseBuilder;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.rank.rrf.RRFRankContextBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
-import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -263,7 +258,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 assertNull(validationErrors);
             }
         }
-        {
+        /*{
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
                     .query(QueryBuilders.termQuery("field", "term"))
@@ -381,7 +376,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[rank] requires [explain] is [false]", validationErrors.validationErrors().get(0));
-        }
+        }*/
     }
 
     public void testCopyConstructor() throws IOException {

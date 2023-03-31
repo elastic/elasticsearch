@@ -71,9 +71,7 @@ public class RRFRankDocTests extends AbstractNamedWriteableTestCase<RRFRankDoc> 
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(
-            List.of(new NamedWriteableRegistry.Entry(RRFRankDoc.class, RRFRankContextBuilder.NAME, RRFRankDoc::new))
-        );
+        return new NamedWriteableRegistry(List.of(new NamedWriteableRegistry.Entry(RRFRankDoc.class, "rrf", RRFRankDoc::new)));
     }
 
     @Override

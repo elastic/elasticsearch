@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.rank.rrf;
+package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
@@ -19,6 +19,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankContext;
 import org.elasticsearch.search.rank.RankContextBuilder;
 import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.rrf.RRFRankContext;
+import org.elasticsearch.search.rank.rrf.RRFRankShardContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;

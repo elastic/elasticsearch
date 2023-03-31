@@ -607,6 +607,9 @@ public class InternalEngine extends Engine {
                     if (synced) {
                         revisitIndexDeletionPolicyOnTranslogSynced();
                     }
+                } catch (AlreadyClosedException ex) {
+                    // that's fine since we already synced everything on engine close - this also is conform with the methods
+                    // documentation
                 } catch (IOException ex) { // if this fails we are in deep shit - fail the request
                     logger.debug("failed to sync translog", ex);
                     throw ex;

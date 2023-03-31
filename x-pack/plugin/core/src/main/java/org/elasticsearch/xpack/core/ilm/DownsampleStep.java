@@ -8,18 +8,14 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
@@ -73,22 +69,22 @@ public class DownsampleStep extends AsyncActionStep {
         if (Strings.hasText(downsampleIndexName) == false) {
             listener.onFailure(
                 new IllegalStateException(
-                    "rollup index name was not generated for policy [" + policyName + "] and index [" + indexName + "]"
+                    "downsample index name was not generated for policy [" + policyName + "] and index [" + indexName + "]"
                 )
             );
             return;
         }
 
-        IndexMetadata rollupIndexMetadata = currentState.metadata().index(downsampleIndexName);
-        if (rollupIndexMetadata != null) {
-            IndexMetadata.DownsampleTaskStatus rollupIndexStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
-                rollupIndexMetadata.getSettings()
+        IndexMetadata downsampleIndexMetadata = currentState.metadata().index(downsampleIndexName);
+        if (downsampleIndexMetadata != null) {
+            IndexMetadata.DownsampleTaskStatus downsampleIndexStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
+                downsampleIndexMetadata.getSettings()
             );
-            // Rollup index has already been created with the generated name and its status is "success".
-            // So we skip index rollup creation.
-            if (IndexMetadata.DownsampleTaskStatus.SUCCESS.equals(rollupIndexStatus)) {
+            // Downsample index has already been created with the generated name and its status is "success".
+            // So we skip index downsample creation.
+            if (IndexMetadata.DownsampleTaskStatus.SUCCESS.equals(downsampleIndexStatus)) {
                 logger.warn(
-                    "skipping [{}] step for index [{}] as part of policy [{}] as the rollup index [{}] already exists",
+                    "skipping [{}] step for index [{}] as part of policy [{}] as the downsample index [{}] already exists",
                     DownsampleStep.NAME,
                     indexName,
                     policyName,
@@ -97,7 +93,7 @@ public class DownsampleStep extends AsyncActionStep {
                 listener.onResponse(null);
             } else {
                 logger.warn(
-                    "[{}] step for index [{}] as part of policy [{}] found the rollup index [{}] already exists. Deleting it.",
+                    "[{}] step for index [{}] as part of policy [{}] found the downsample index [{}] already exists. Deleting it.",
                     DownsampleStep.NAME,
                     indexName,
                     policyName,
@@ -116,8 +112,8 @@ public class DownsampleStep extends AsyncActionStep {
                     IndexMetadata.builder(indexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap()).build();
                 }
 
-                // Rollup index has already been created with the generated name but its status is not "success".
-                // So we delete the index and proceed with executing the rollup step.
+                // Downsample index has already been created with the generated name but its status is not "success".
+                // So we delete the index and proceed with executing the downsample step.
                 DeleteIndexRequest deleteRequest = new DeleteIndexRequest(downsampleIndexName);
                 getClient().admin().indices().delete(deleteRequest, ActionListener.wrap(response -> {
                     if (response.isAcknowledged()) {
@@ -131,10 +127,10 @@ public class DownsampleStep extends AsyncActionStep {
                                     + indexName
                                     + "] as part of policy ["
                                     + policyName
-                                    + "] because the rollup index ["
+                                    + "] because the downsample index ["
                                     + downsampleIndexName
-                                    + "] already exists with rollup status ["
-                                    + rollupIndexStatus
+                                    + "] already exists with downsample status ["
+                                    + downsampleIndexStatus
                                     + "]"
                             )
                         );
@@ -146,9 +142,9 @@ public class DownsampleStep extends AsyncActionStep {
         }
     }
 
-    private void performDownsampleIndex(String indexName, String rollupIndexName, ActionListener<Void> listener) {
+    private void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
         DownsampleConfig config = new DownsampleConfig(fixedInterval);
-        DownsampleAction.Request request = new DownsampleAction.Request(indexName, rollupIndexName, config).masterNodeTimeout(
+        DownsampleAction.Request request = new DownsampleAction.Request(indexName, downsampleIndexName, config).masterNodeTimeout(
             TimeValue.MAX_VALUE
         );
         // Currently, DownsampleAction always acknowledges action was complete when no exceptions are thrown.

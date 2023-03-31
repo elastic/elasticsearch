@@ -69,7 +69,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         lifecycleState.setAction(step.getKey().action());
         lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
-        lifecycleState.setRollupIndexName("rollup-index");
+        lifecycleState.setDownsampleIndexName("downsample-index");
 
         return IndexMetadata.builder(index)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
@@ -79,10 +79,10 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             .build();
     }
 
-    private static void assertRollupActionRequest(DownsampleAction.Request request, String sourceIndex) {
+    private static void assertDownsampleActionRequest(DownsampleAction.Request request, String sourceIndex) {
         assertNotNull(request);
         assertThat(request.getSourceIndex(), equalTo(sourceIndex));
-        assertThat(request.getTargetIndex(), equalTo("rollup-index"));
+        assertThat(request.getTargetIndex(), equalTo("downsample-index"));
     }
 
     public void testPerformAction() throws Exception {
@@ -91,7 +91,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         String index = randomAlphaOfLength(5);
 
         IndexMetadata indexMetadata = getIndexMetadata(index, lifecycleName, step);
-        mockClientRollupCall(index);
+        mockClientDownsampleCall(index);
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
@@ -119,7 +119,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         step.performAction(indexMetadata, emptyClusterState(), null, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                fail("expecting a failure as the index doesn't have any rollup index name in its ILM execution state");
+                fail("expecting a failure as the index doesn't have any downsample index name in its ILM execution state");
             }
 
             @Override
@@ -127,7 +127,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                 assertThat(e, instanceOf(IllegalStateException.class));
                 assertThat(
                     e.getMessage(),
-                    is("rollup index name was not generated for policy [" + policyName + "] and index [" + indexName + "]")
+                    is("downsample index name was not generated for policy [" + policyName + "] and index [" + indexName + "]")
                 );
             }
         });
@@ -140,7 +140,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         IndexMetadata indexMetadata = getIndexMetadata(backingIndexName, lifecycleName, step);
 
-        mockClientRollupCall(backingIndexName);
+        mockClientDownsampleCall(backingIndexName);
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()))).put(indexMetadata, true))
@@ -149,9 +149,9 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
     }
 
     /**
-     * Test rollup step when a successfully completed rollup index already exists.
+     * Test downsample step when a successfully completed downsample index already exists.
      */
-    public void testPerformActionCompletedRollupIndexExists() {
+    public void testPerformActionCompletedDownsampleIndexExists() {
         String sourceIndexName = randomAlphaOfLength(10);
         String lifecycleName = randomAlphaOfLength(5);
         DownsampleStep step = createRandomInstance();
@@ -162,8 +162,8 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
 
-        String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
-        lifecycleState.setRollupIndexName(rollupIndex);
+        String downsampleIndex = GenerateUniqueIndexNameStep.generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
+        lifecycleState.setDownsampleIndexName(downsampleIndex);
 
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
@@ -172,18 +172,18 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        // Create a successfully completed rollup index (index.rollup.status: success)
-        IndexMetadata indexMetadata = IndexMetadata.builder(rollupIndex)
+        // Create a successfully completed downsample index (index.downsample.status: success)
+        IndexMetadata indexMetadata = IndexMetadata.builder(downsampleIndex)
             .settings(
                 settings(Version.CURRENT).put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.SUCCESS)
             )
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        Map<String, IndexMetadata> indices = Map.of(rollupIndex, indexMetadata);
+        Map<String, IndexMetadata> indices = Map.of(downsampleIndex, indexMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices)).build();
 
-        Mockito.doThrow(new IllegalStateException("Rollup action should not be invoked"))
+        Mockito.doThrow(new IllegalStateException("Downsample action should not be invoked"))
             .when(client)
             .execute(Mockito.any(), Mockito.any(), Mockito.any());
 
@@ -199,9 +199,9 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
     }
 
     /**
-     * Test rollup step when an in-progress rollup index already exists.
+     * Test downsample step when an in-progress downsample index already exists.
      */
-    public void testPerformActionRollupInProgressIndexExists() {
+    public void testPerformActionDownsampleInProgressIndexExists() {
         String sourceIndexName = randomAlphaOfLength(10);
         String lifecycleName = randomAlphaOfLength(5);
         DownsampleStep step = createRandomInstance();
@@ -212,8 +212,8 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         lifecycleState.setStep(step.getKey().name());
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
 
-        String rollupIndex = GenerateUniqueIndexNameStep.generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
-        lifecycleState.setRollupIndexName(rollupIndex);
+        String downsampleIndex = GenerateUniqueIndexNameStep.generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
+        lifecycleState.setDownsampleIndexName(downsampleIndex);
 
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
@@ -222,37 +222,37 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        // Create an in-progress rollup index (index.rollup.status: started)
-        IndexMetadata indexMetadata = IndexMetadata.builder(rollupIndex)
+        // Create an in-progress downsample index (index.downsample.status: started)
+        IndexMetadata indexMetadata = IndexMetadata.builder(downsampleIndex)
             .settings(
                 settings(Version.CURRENT).put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), IndexMetadata.DownsampleTaskStatus.STARTED)
             )
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        Map<String, IndexMetadata> indices = Map.of(rollupIndex, indexMetadata);
+        Map<String, IndexMetadata> indices = Map.of(downsampleIndex, indexMetadata);
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices)).build();
 
         step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                fail("onResponse should not be called in this test, because there's an in-progress rollup index");
+                fail("onResponse should not be called in this test, because there's an in-progress downsample index");
             }
 
             @Override
             public void onFailure(Exception e) {
                 assertTrue(e instanceof IllegalStateException);
-                assertTrue(e.getMessage().contains("already exists with rollup status [started]"));
+                assertTrue(e.getMessage().contains("already exists with downsample status [started]"));
             }
         });
     }
 
-    private void mockClientRollupCall(String sourceIndex) {
+    private void mockClientDownsampleCall(String sourceIndex) {
         Mockito.doAnswer(invocation -> {
             DownsampleAction.Request request = (DownsampleAction.Request) invocation.getArguments()[1];
             @SuppressWarnings("unchecked")
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
-            assertRollupActionRequest(request, sourceIndex);
+            assertDownsampleActionRequest(request, sourceIndex);
             listener.onResponse(AcknowledgedResponse.of(true));
             return null;
         }).when(client).execute(Mockito.any(), Mockito.any(), Mockito.any());

@@ -826,7 +826,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 // then the length of the field value in bytes.
                 input.readVInt();
                 input.readVInt();
-                TransportVersion.readVersion(input);
+                input.readInt();
                 QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                 assertThat(queryBuilder, equalTo(expected));
             }
@@ -890,7 +890,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 // then the length of the field value in bytes.
                 input.readVInt();
                 input.readVInt();
-                TransportVersion.readVersion(input);
+                input.readInt();
                 ScriptQueryBuilder queryBuilder = (ScriptQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
                 assertEquals(Script.DEFAULT_SCRIPT_LANG, queryBuilder.script().getLang());
             }
@@ -933,7 +933,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), writableRegistry())) {
                 input.readVInt();
                 input.readVInt();
-                TransportVersion.readVersion(input);
+                input.readInt();
                 FunctionScoreQueryBuilder queryBuilder = (FunctionScoreQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
                 ScriptScoreFunctionBuilder function = (ScriptScoreFunctionBuilder) queryBuilder.filterFunctionBuilders()[0]
                     .getScoreFunction();

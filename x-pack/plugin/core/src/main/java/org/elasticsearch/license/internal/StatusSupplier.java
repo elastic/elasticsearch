@@ -7,6 +7,7 @@
 
 package org.elasticsearch.license.internal;
 
+@FunctionalInterface
 public interface StatusSupplier {
     Status get();
 }

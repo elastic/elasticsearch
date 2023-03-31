@@ -49,6 +49,7 @@ import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.license.internal.Status;
+import org.elasticsearch.license.internal.StatusSupplier;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -163,17 +164,13 @@ public class XPackPlugin extends XPackClientPlugin
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
     private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
     private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
+    private static final SetOnce<StatusSupplier> xPackLicenseStateInitialStatusSupplier = new SetOnce<>();
 
     public XPackPlugin(final Settings settings) {
         super();
         // FIXME: The settings might be changed after this (e.g. from "additionalSettings" method in other plugins)
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
-
-        setLicenseState(
-            new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), () -> new Status(License.OperationMode.TRIAL, true, null))
-        );
-
         this.licensing = new Licensing(settings);
     }
 
@@ -319,8 +316,11 @@ public class XPackPlugin extends XPackClientPlugin
         List<Object> components = new ArrayList<>();
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
-        LicenseService licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
-        setLicenseService(licenseService);
+        LicenseService licenseService = getLicenseService();
+        if (licenseService == null) {
+            licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
+            setLicenseService(licenseService);
+        }
 
         setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
 
@@ -481,5 +481,29 @@ public class XPackPlugin extends XPackClientPlugin
         reloader.setSSLService(sslService);
         setSslService(sslService);
         return sslService;
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        List<MutableLicenseService> licenseServiceFactories = loader.loadExtensions(MutableLicenseService.class);
+        if (licenseServiceFactories.size() > 1) {
+            throw new IllegalStateException(MutableLicenseService.class + " may not have multiple implementations");
+        } else if (licenseServiceFactories.size() == 1) {
+            setLicenseService(licenseServiceFactories.get(0));
+        }
+
+        List<StatusSupplier> xPackLicenseStateInitialStatusSupplier = loader.loadExtensions(StatusSupplier.class);
+        if (xPackLicenseStateInitialStatusSupplier.size() > 1) {
+            throw new IllegalStateException(StatusSupplier.class + " may not have multiple implementations");
+        } else if (licenseServiceFactories.size() == 1) {
+            setLicenseState(
+                new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), xPackLicenseStateInitialStatusSupplier.get(0))
+            );
+
+        } else {
+            setLicenseState(
+                new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), () -> new Status(License.OperationMode.TRIAL, true, null))
+            );
+        }
     }
 }

@@ -286,6 +286,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#grouping}.
+   * @param ctx the parse tree
+   */
+  void enterGrouping(EsqlBaseParser.GroupingContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#grouping}.
+   * @param ctx the parse tree
+   */
+  void exitGrouping(EsqlBaseParser.GroupingContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#sourceIdentifier}.
    * @param ctx the parse tree
    */
@@ -305,16 +315,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
-   * @param ctx the parse tree
-   */
-  void enterQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
-   * @param ctx the parse tree
-   */
-  void exitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#identifier}.
    * @param ctx the parse tree

@@ -175,6 +175,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#grouping}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitGrouping(EsqlBaseParser.GroupingContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#sourceIdentifier}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -186,12 +192,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#identifier}.
    * @param ctx the parse tree

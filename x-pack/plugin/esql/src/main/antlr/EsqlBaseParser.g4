@@ -90,11 +90,15 @@ evalCommand
     ;
 
 statsCommand
-    : STATS fields (BY qualifiedNames)?
+    : STATS fields? (BY grouping)?
     ;
 
 inlinestatsCommand
-    : INLINESTATS fields (BY qualifiedNames)?
+    : INLINESTATS fields (BY grouping)?
+    ;
+
+grouping
+    : qualifiedName (COMMA qualifiedName)*
     ;
 
 sourceIdentifier
@@ -106,9 +110,6 @@ qualifiedName
     : identifier (DOT identifier)*
     ;
 
-qualifiedNames
-    : qualifiedName (COMMA qualifiedName)*
-    ;
 
 identifier
     : UNQUOTED_IDENTIFIER

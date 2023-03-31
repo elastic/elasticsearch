@@ -167,6 +167,25 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(con.value(), equalTo(5));
     }
 
+    public void testCombineProjectionWithPruning() {
+        var plan = plan("""
+            from test
+            | project x = first_name, salary, last_name
+            | stats count(salary) by x
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("count(salary)", "x"));
+        assertThat(Expressions.names(agg.groupings()), contains("x"));
+        var alias = as(agg.aggregates().get(1), Alias.class);
+        var field = as(alias.child(), FieldAttribute.class);
+        assertThat(field.name(), is("first_name"));
+        var group = as(agg.groupings().get(0), Attribute.class);
+        assertThat(group, is(alias.toAttribute()));
+        var from = as(agg.child(), EsRelation.class);
+    }
+
     public void testCombineLimits() {
         var limitValues = new int[] { randomIntBetween(10, 99), randomIntBetween(100, 1000) };
         var firstLimit = randomBoolean() ? 0 : 1;
@@ -790,7 +809,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query) {
-        return logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        var analyzed = analyzer.analyze(parser.createStatement(query));
+        // System.out.println(analyzed);
+        var optimized = logicalOptimizer.optimize(analyzed);
+        // System.out.println(optimized);
+        return optimized;
     }
 
     private void assertNullLiteral(Expression expression) {

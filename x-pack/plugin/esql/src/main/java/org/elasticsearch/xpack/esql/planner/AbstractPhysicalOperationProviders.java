@@ -16,10 +16,11 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -84,61 +85,76 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         } else {
             // grouping
             List<GroupingAggregator.GroupingAggregatorFactory> aggregatorFactories = new ArrayList<>();
-            AttributeSet groups = Expressions.references(aggregateExec.groupings());
-            List<GroupSpec> groupSpecs = new ArrayList<>(groups.size());
-            Set<NameId> allGrpAttribIds = new HashSet<>();
-            for (Attribute grpAttrib : groups) {
+            List<GroupSpec> groupSpecs = new ArrayList<>(aggregateExec.groupings().size());
+            for (Expression group : aggregateExec.groupings()) {
+                var groupAttribute = Expressions.attribute(group);
+                if (groupAttribute == null) {
+                    throw new EsqlIllegalArgumentException("Unexpected non-named expression[{}] as grouping in [{}]", group, aggregateExec);
+                }
                 Set<NameId> grpAttribIds = new HashSet<>();
-                grpAttribIds.add(grpAttrib.id());
+                grpAttribIds.add(groupAttribute.id());
+
                 /*
-                 * since the aggregate node can define aliases of the grouping column,
-                 * there might be additional ids for the grouping column e.g. in
-                 * `... | stats c = count(a) by b | project c, bb = b`,
-                 * the alias `bb = b` will be inlined in the resulting aggregation node.
+                 * Check for aliasing in aggregates which occurs in two cases (due to combining project + stats):
+                 *  - before stats (project x = a | stats by x) which requires the partial input to use a's channel
+                 *  - after  stats (stats by a | project x = a) which causes the output layout to refer to the follow-up alias
                  */
                 for (NamedExpression agg : aggregateExec.aggregates()) {
-                    if (agg instanceof Alias a && a.child()instanceof Attribute attr && attr.id() == grpAttrib.id()) {
-                        grpAttribIds.add(a.id());
+                    if (agg instanceof Alias a) {
+                        if (a.child()instanceof Attribute attr) {
+                            if (groupAttribute.id().equals(attr.id())) {
+                                grpAttribIds.add(a.id());
+                                // TODO: investigate whether a break could be used since it shouldn't be possible to have multiple
+                                // attributes
+                                // pointing to the same attribute
+                            }
+                            // partial mode only
+                            // check if there's any alias used in grouping - no need for the final reduction since the intermediate data
+                            // is in the output form
+                            // if the group points to an alias declared in the aggregate, use the alias child as source
+                            else if (mode == AggregateExec.Mode.PARTIAL) {
+                                if (groupAttribute.semanticEquals(a.toAttribute())) {
+                                    groupAttribute = attr;
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
-                allGrpAttribIds.addAll(grpAttribIds);
                 layout.appendChannel(grpAttribIds);
 
-                groupSpecs.add(new GroupSpec(source.layout.getChannel(grpAttrib.id()), grpAttrib));
+                groupSpecs.add(new GroupSpec(source.layout.getChannel(groupAttribute.id()), groupAttribute));
             }
 
             for (NamedExpression ne : aggregateExec.aggregates()) {
+                if (ne instanceof Alias alias) {
+                    var child = alias.child();
+                    if (child instanceof AggregateFunction aggregateFunction) {
+                        layout.appendChannel(alias.id());  // <<<< TODO: this one looks suspicious
 
-                if (ne instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
-                    layout.appendChannel(alias.id());  // <<<< TODO: this one looks suspicious
+                        AggregatorMode aggMode = null;
+                        NamedExpression sourceAttr = null;
 
-                    AggregatorMode aggMode = null;
-                    NamedExpression sourceAttr = null;
+                        if (mode == AggregateExec.Mode.PARTIAL) {
+                            aggMode = AggregatorMode.INITIAL;
+                            sourceAttr = Expressions.attribute(aggregateFunction.field());
+                        } else if (aggregateExec.getMode() == AggregateExec.Mode.FINAL) {
+                            aggMode = AggregatorMode.FINAL;
+                            sourceAttr = alias;
+                        } else {
+                            throw new UnsupportedOperationException();
+                        }
 
-                    if (mode == AggregateExec.Mode.PARTIAL) {
-                        aggMode = AggregatorMode.INITIAL;
-                        sourceAttr = Expressions.attribute(aggregateFunction.field());
-                    } else if (aggregateExec.getMode() == AggregateExec.Mode.FINAL) {
-                        aggMode = AggregatorMode.FINAL;
-                        sourceAttr = alias;
-                    } else {
-                        throw new UnsupportedOperationException();
+                        aggregatorFactories.add(
+                            new GroupingAggregator.GroupingAggregatorFactory(
+                                context.bigArrays(),
+                                AggregateMapper.mapToName(aggregateFunction),
+                                AggregateMapper.mapToType(aggregateFunction),
+                                aggMode,
+                                source.layout.getChannel(sourceAttr.id())
+                            )
+                        );
                     }
-
-                    aggregatorFactories.add(
-                        new GroupingAggregator.GroupingAggregatorFactory(
-                            context.bigArrays(),
-                            AggregateMapper.mapToName(aggregateFunction),
-                            AggregateMapper.mapToType(aggregateFunction),
-                            aggMode,
-                            source.layout.getChannel(sourceAttr.id())
-                        )
-                    );
-                } else if (allGrpAttribIds.contains(ne.id()) == false && aggregateExec.groupings().contains(ne) == false) {
-                    var u = ne instanceof Alias ? ((Alias) ne).child() : ne;
-                    throw new UnsupportedOperationException(
-                        "expected an aggregate function, but got [" + u + "] of type [" + u.nodeName() + "]"
-                    );
                 }
             }
 

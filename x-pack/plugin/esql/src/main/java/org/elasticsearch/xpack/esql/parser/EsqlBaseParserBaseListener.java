@@ -317,6 +317,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterGrouping(EsqlBaseParser.GroupingContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitGrouping(EsqlBaseParser.GroupingContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterSourceIdentifier(EsqlBaseParser.SourceIdentifierContext ctx) { }
   /**
    * {@inheritDoc}
@@ -336,18 +348,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) { }
   /**
    * {@inheritDoc}
    *

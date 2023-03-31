@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
+//@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
 public class AnalyzerTests extends ESTestCase {
     public void testIndexResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
@@ -902,6 +903,38 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(Expressions.names(aggregates), contains("b"));
     }
 
+    public void testAggsWithoutAgg() throws Exception {
+        var plan = analyze("""
+            row a = 1, b = 2
+            | stats by a
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(1));
+        assertThat(Expressions.names(aggregates), contains("a"));
+        assertThat(Expressions.names(agg.groupings()), contains("a"));
+        assertEquals(agg.groupings(), agg.aggregates());
+    }
+
+    public void testAggsWithoutAggAndFollowingCommand() throws Exception {
+        var plan = analyze("""
+            row a = 1, b = 2
+            | stats by a
+            | sort a
+            """);
+
+        var limit = as(plan, Limit.class);
+        var order = as(limit.child(), OrderBy.class);
+        var agg = as(order.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(1));
+        assertThat(Expressions.names(aggregates), contains("a"));
+        assertThat(Expressions.names(agg.groupings()), contains("a"));
+        assertEquals(agg.groupings(), agg.aggregates());
+    }
+
     public void testUnsupportedFieldsInStats() {
         var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
 
@@ -1011,6 +1044,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private LogicalPlan analyze(String query, String mapping) {
-        return newAnalyzer(loadMapping(mapping, "test")).analyze(new EsqlParser().createStatement(query));
+        var plan = new EsqlParser().createStatement(query);
+        // System.out.println(plan);
+        var analyzed = newAnalyzer(loadMapping(mapping, "test")).analyze(plan);
+        // System.out.println(analyzed);
+        return analyzed;
     }
 }

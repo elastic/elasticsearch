@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -22,12 +23,14 @@ import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
+import org.elasticsearch.xpack.ql.parser.ParserUtils;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -47,11 +50,16 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
+import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
     protected LogicalPlan plan(ParseTree ctx) {
-        return typedParsing(this, ctx, LogicalPlan.class);
+        return ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
+    }
+
+    protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {
+        return ParserUtils.visitList(this, ctxs, LogicalPlan.class);
     }
 
     @Override
@@ -61,7 +69,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitCompositeQuery(EsqlBaseParser.CompositeQueryContext ctx) {
-        LogicalPlan input = typedParsing(this, ctx.query(), LogicalPlan.class);
+        LogicalPlan input = plan(ctx.query());
         PlanFactory makePlan = typedParsing(this, ctx.processingCommand(), PlanFactory.class);
         return makePlan.apply(input);
     }
@@ -138,7 +146,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         List<NamedExpression> aggregates = visitFields(ctx.fields());
-        List<NamedExpression> groupings = visitQualifiedNames(ctx.qualifiedNames());
+        List<NamedExpression> groupings = visitGrouping(ctx.grouping());
+        if (aggregates.isEmpty() && groupings.isEmpty()) {
+            throw new ParsingException(source(ctx), "At least one aggregation or grouping expression required in [{}]", ctx.getText());
+        }
+        // grouping keys are automatically added as aggregations however the user is not allowed to specify them
+        if (groupings.isEmpty() == false && aggregates.isEmpty() == false) {
+            var groupNames = Expressions.names(groupings);
+
+            for (NamedExpression aggregate : aggregates) {
+                if (aggregate instanceof Alias a && a.child()instanceof UnresolvedAttribute ua && groupNames.contains(ua.name())) {
+                    throw new ParsingException(ua.source(), "Cannot specify grouping expression [{}] as an aggregate", ua.name());
+                }
+            }
+        }
         aggregates.addAll(groupings);
         return input -> new Aggregate(source(ctx), input, new ArrayList<>(groupings), aggregates);
     }
@@ -146,7 +167,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) {
         List<NamedExpression> aggregates = visitFields(ctx.fields());
-        List<NamedExpression> groupings = visitQualifiedNames(ctx.qualifiedNames());
+        List<NamedExpression> groupings = visitGrouping(ctx.grouping());
         aggregates.addAll(groupings);
         return input -> new InlineStats(source(ctx), input, new ArrayList<>(groupings), aggregates);
     }
@@ -158,16 +179,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public Alias visitField(EsqlBaseParser.FieldContext ctx) {
-        UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
-        Expression value = expression(ctx.booleanExpression());
-        String name = id == null ? ctx.getText() : id.qualifiedName();
-        return new Alias(source(ctx), name, value);
-    }
-
-    @Override
     public List<NamedExpression> visitFields(EsqlBaseParser.FieldsContext ctx) {
-        return visitList(this, ctx.field(), NamedExpression.class);
+        return ctx != null ? visitList(this, ctx.field(), NamedExpression.class) : new ArrayList<>();
     }
 
     @Override
@@ -185,13 +198,25 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public Object visitExplainCommand(EsqlBaseParser.ExplainCommandContext ctx) {
-        return new Explain(source(ctx), typedParsing(this, ctx.subqueryExpression().query(), LogicalPlan.class));
+    public Explain visitExplainCommand(EsqlBaseParser.ExplainCommandContext ctx) {
+        return new Explain(source(ctx), plan(ctx.subqueryExpression().query()));
     }
 
     @Override
     public PlanFactory visitDropCommand(EsqlBaseParser.DropCommandContext ctx) {
-        return child -> new Drop(source(ctx), child, ctx.sourceIdentifier().stream().map(this::visitDropExpression).toList());
+        var identifiers = ctx.sourceIdentifier();
+        List<NamedExpression> removals = new ArrayList<>(identifiers.size());
+
+        for (EsqlBaseParser.SourceIdentifierContext idCtx : identifiers) {
+            Source src = source(idCtx);
+            String identifier = visitSourceIdentifier(idCtx);
+            if (identifier.equals(WILDCARD)) {
+                throw new ParsingException(src, "Removing all fields is not allowed [{}]", src.text());
+            }
+            removals.add(new UnresolvedAttribute(src, identifier));
+        }
+
+        return child -> new Drop(source(ctx), child, removals);
     }
 
     @Override

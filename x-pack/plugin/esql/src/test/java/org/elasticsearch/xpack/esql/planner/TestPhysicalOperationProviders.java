@@ -20,6 +20,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -264,13 +265,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
     private Block extractBlockForColumn(Page page, String columnName) {
         var columnIndex = -1;
-        var i = 0;
         // locate the block index corresponding to "columnName"
-        while (columnIndex < 0) {
+        for (int i = 0, size = columnNames.size(); i < size && columnIndex < 0; i++) {
             if (columnNames.get(i).equals(columnName)) {
                 columnIndex = i;
             }
-            i++;
+        }
+        if (columnIndex < 0) {
+            throw new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", columnName, columnNames);
         }
         // this is the first block added by TestSourceOperator
         IntBlock docIndexBlock = page.getBlock(0);

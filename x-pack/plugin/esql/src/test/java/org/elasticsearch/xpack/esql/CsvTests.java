@@ -95,6 +95,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
  *
  * To log the results logResults() should return "true".
  */
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);

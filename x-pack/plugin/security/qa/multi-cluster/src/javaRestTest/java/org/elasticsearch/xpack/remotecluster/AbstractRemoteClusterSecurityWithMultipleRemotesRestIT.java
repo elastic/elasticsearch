@@ -47,7 +47,7 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
     }
 
     @AfterClass
-    public static void closeSecondFulfillingClusterClient() throws IOException {
+    public static void closeOtherFulfillingClusterClient() throws IOException {
         IOUtils.close(otherFulfillingClusterClient);
     }
 
@@ -140,13 +140,14 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
                 index1
             );
 
-            // To simplify the test setup, we only ever (randomly) set skip_unavailable on the other remote, not on both
+            // To simplify the test setup, we only ever (randomly) set skip_unavailable on the other remote, not on both,
+            // i.e. the first remote cluster always has skip_unavailable = false.
             // This impacts below failure scenarios; in some cases, skipping the other remote results in overall request success
             final boolean skipUnavailableOnOtherCluster = isSkipUnavailable("my_remote_cluster_2");
 
             // Search when one cluster throws 403
             // No permissions for this index name, so searching for it on either remote will result in 403
-            final String missingIndex = "index1";
+            final String missingIndex = "missingIndex";
             final boolean missingIndexOnFirstCluster = randomBoolean();
             // Make sure we search for missing index on at least one remote, possibly both
             final boolean missingIndexOnSecondCluster = false == missingIndexOnFirstCluster || randomBoolean();
@@ -180,7 +181,7 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
             }
 
             // Search when both clusters throw 403; in this case we always fail because first cluster is not skipped
-            searchAndExpect403(String.format(Locale.ROOT, "/*:%s/_search?ccs_minimize_roundtrips=%s", "index1", randomBoolean()));
+            searchAndExpect403(String.format(Locale.ROOT, "/*:%s/_search?ccs_minimize_roundtrips=%s", "missingIndex", randomBoolean()));
         }
     }
 
@@ -220,6 +221,6 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
     }
 
     static Response performRequestAgainstOtherFulfillingCluster(Request putRoleRequest) throws IOException {
-        return performRequestWithDefaultUser(otherFulfillingClusterClient, putRoleRequest);
+        return performRequestWithAdminUser(otherFulfillingClusterClient, putRoleRequest);
     }
 }

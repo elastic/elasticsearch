@@ -133,7 +133,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
               }
             }""", indicesPrivilegesJson));
         try {
-            final Response createApiKeyResponse = performRequestWithDefaultUser(targetClusterClient, createApiKeyRequest);
+            final Response createApiKeyResponse = performRequestWithAdminUser(targetClusterClient, createApiKeyRequest);
             assertOK(createApiKeyResponse);
             return responseAsMap(createApiKeyResponse);
         } catch (IOException e) {
@@ -197,10 +197,10 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     }
 
     protected static Response performRequestAgainstFulfillingCluster(Request request) throws IOException {
-        return performRequestWithDefaultUser(fulfillingClusterClient, request);
+        return performRequestWithAdminUser(fulfillingClusterClient, request);
     }
 
-    protected static Response performRequestWithDefaultUser(RestClient targetFulfillingClusterClient, Request request) throws IOException {
+    protected static Response performRequestWithAdminUser(RestClient targetFulfillingClusterClient, Request request) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
         return targetFulfillingClusterClient.performRequest(request);
     }

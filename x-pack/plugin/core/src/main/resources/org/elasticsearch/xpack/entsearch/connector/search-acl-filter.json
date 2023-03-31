@@ -1,0 +1,27 @@
+{
+  "index_patterns": ["${access-control.index_pattern}"],
+  "priority": 100,
+  "template": {
+    "mappings": {
+      "dynamic": "false",
+      "properties": {
+        "created_at": {
+          "type": "date"
+        }
+      }
+    },
+    "settings": {
+      "index": {
+        "hidden": true,
+        "number_of_shards": 1,
+        "number_of_replicas": 1
+      }
+    }
+  },
+  "allow_auto_create": true,
+  "_meta": {
+    "description": "Built-in template for access control indices",
+    "managed": true
+  },
+  "version": ${xpack.application.connector.template.version}
+}

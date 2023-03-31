@@ -36,6 +36,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.cluster.coordination.AtomicRegisterCoordinatorTests.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
+import static org.elasticsearch.cluster.coordination.AtomicRegisterCoordinatorTests.StoreHeartbeatService.MAX_MISSED_HEARTBEATS;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
 
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
@@ -234,36 +236,48 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         return new AtomicRegisterCoordinatorStrategy(atomicRegister, sharedStore);
     }
 
-    record HeartBeat(DiscoveryNode leader, long term, long absoluteTimeInMillis) {
+    public record HeartBeat(DiscoveryNode leader, long term, long absoluteTimeInMillis) {
         long timeSinceLastHeartbeatInMillis(long nowInMillis) {
             return nowInMillis - absoluteTimeInMillis;
         }
     }
 
-    static class StoreHeartbeatService implements LeaderHeartbeatService {
+    public static class StoreHeartbeatService implements LeaderHeartbeatService {
+        public static final Setting<TimeValue> HEARTBEAT_FREQUENCY = Setting.timeSetting(
+            "heartbeat_frequency",
+            TimeValue.timeValueSeconds(15),
+            Setting.Property.NodeScope
+        );
+
+        public static final Setting<Integer> MAX_MISSED_HEARTBEATS = Setting.intSetting(
+            "max_missed_heartbeats",
+            2,
+            1,
+            Setting.Property.NodeScope
+        );
 
         private static final Logger logger = LogManager.getLogger(StoreHeartbeatService.class);
 
-        private final SharedStore sharedStore;
+        private final HeartBeatStore heartBeatStore;
         private final ThreadPool threadPool;
         private final TimeValue heartbeatFrequency;
         private final TimeValue maxTimeSinceLastHeartbeat;
-        private final AtomicRegister register;
+        private final LongSupplier currentTermSupplier;
 
         private volatile HeartbeatTask heartbeatTask;
 
-        StoreHeartbeatService(
-            SharedStore sharedStore,
+        public StoreHeartbeatService(
+            HeartBeatStore heartBeatStore,
             ThreadPool threadPool,
             TimeValue heartbeatFrequency,
             TimeValue maxTimeSinceLastHeartbeat,
-            AtomicRegister register
+            LongSupplier currentTermSupplier
         ) {
-            this.sharedStore = sharedStore;
+            this.heartBeatStore = heartBeatStore;
             this.threadPool = threadPool;
             this.heartbeatFrequency = heartbeatFrequency;
             this.maxTimeSinceLastHeartbeat = maxTimeSinceLastHeartbeat;
-            this.register = register;
+            this.currentTermSupplier = currentTermSupplier;
         }
 
         @Override
@@ -279,7 +293,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         void runIfNoRecentLeader(Runnable runnable) {
-            sharedStore.readLatestHeartbeat(new ActionListener<>() {
+            heartBeatStore.readLatestHeartbeat(new ActionListener<>() {
                 @Override
                 public void onResponse(HeartBeat heartBeat) {
                     if (heartBeat == null
@@ -324,9 +338,9 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     return;
                 }
 
-                final var registerTerm = register.readCurrentTerm();
+                final var registerTerm = currentTermSupplier.getAsLong();
                 if (registerTerm == heartbeatTerm) {
-                    sharedStore.writeHeartBeat(
+                    heartBeatStore.writeHeartBeat(
                         new HeartBeat(currentLeader, heartbeatTerm, threadPool.absoluteTimeInMillis()),
                         rerunListener
                     );
@@ -339,13 +353,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     class AtomicRegisterCoordinatorStrategy implements CoordinatorStrategy {
-        static final Setting<TimeValue> HEARTBEAT_FREQUENCY = Setting.timeSetting(
-            "heartbeat_frequency",
-            TimeValue.timeValueSeconds(15),
-            Setting.Property.NodeScope
-        );
-        static final Setting<Integer> MAX_MISSED_HEARTBEATS = Setting.intSetting("max_missed_heartbeats", 2, 1, Setting.Property.NodeScope);
-
         private final AtomicRegister atomicRegister;
         private final SharedStore sharedStore;
 
@@ -367,7 +374,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 threadPool,
                 heartbeatFrequency,
                 TimeValue.timeValueMillis(heartbeatFrequency.millis() * MAX_MISSED_HEARTBEATS.get(settings)),
-                atomicRegister
+                atomicRegister::readCurrentTerm
             );
             var reconfigurator = new SingleNodeReconfigurator(settings, clusterSettings);
             var quorumStrategy = new AtomicRegisterElectionStrategy(atomicRegister);
@@ -418,8 +425,8 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
     }
 
-    static class SingleNodeReconfigurator extends Reconfigurator {
-        SingleNodeReconfigurator(Settings settings, ClusterSettings clusterSettings) {
+    public static class SingleNodeReconfigurator extends Reconfigurator {
+        public SingleNodeReconfigurator(Settings settings, ClusterSettings clusterSettings) {
             super(settings, clusterSettings);
         }
 
@@ -547,7 +554,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
     record PersistentClusterState(long term, long version, Metadata state) {}
 
-    private static class SharedStore {
+    private static class SharedStore implements HeartBeatStore {
         private final Map<Long, PersistentClusterState> clusterStateByTerm = new HashMap<>();
         private HeartBeat heartBeat;
 
@@ -570,14 +577,21 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             });
         }
 
-        void writeHeartBeat(HeartBeat newHeartBeat, ActionListener<Void> listener) {
+        @Override
+        public void writeHeartBeat(HeartBeat newHeartBeat, ActionListener<Void> listener) {
             this.heartBeat = newHeartBeat;
             listener.onResponse(null);
         }
 
-        void readLatestHeartbeat(ActionListener<HeartBeat> listener) {
+        @Override
+        public void readLatestHeartbeat(ActionListener<HeartBeat> listener) {
             listener.onResponse(heartBeat);
         }
+    }
+
+    public interface HeartBeatStore {
+        void writeHeartBeat(HeartBeat newHeartBeat, ActionListener<Void> listener);
+        void readLatestHeartbeat(ActionListener<HeartBeat> listener);
     }
 
     private static class AtomicRegister {
@@ -596,11 +610,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
     }
 
-    static class AtomicRegisterPreVoteCollector extends PreVoteCollector {
+    public static class AtomicRegisterPreVoteCollector extends PreVoteCollector {
         private final StoreHeartbeatService heartbeatService;
         private final Runnable startElection;
 
-        AtomicRegisterPreVoteCollector(StoreHeartbeatService heartbeatService, Runnable startElection) {
+        public AtomicRegisterPreVoteCollector(StoreHeartbeatService heartbeatService, Runnable startElection) {
             this.heartbeatService = heartbeatService;
             this.startElection = startElection;
         }

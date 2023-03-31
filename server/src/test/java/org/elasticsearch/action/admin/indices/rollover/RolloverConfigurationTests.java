@@ -97,10 +97,10 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
     }
 
     public void testSameConditionCanOnlyBeAddedOnce() {
-        RolloverConditions.Builder builder = RolloverConditions.newBuilder();
-        Consumer<RolloverConditions.Builder> rolloverRequestConsumer = randomFrom(conditionsGenerator);
-        rolloverRequestConsumer.accept(builder);
-        expectThrows(IllegalArgumentException.class, () -> rolloverRequestConsumer.accept(builder));
+        RolloverConfiguration.ValueParser valueParser = new RolloverConfiguration.ValueParser();
+        Consumer<RolloverConfiguration.ValueParser> rolloverRequestConsumer = randomFrom(conditionsGenerator);
+        rolloverRequestConsumer.accept(valueParser);
+        expectThrows(IllegalArgumentException.class, () -> rolloverRequestConsumer.accept(valueParser));
     }
 
     public void testClusterSettingParsing() {
@@ -261,16 +261,16 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
         }
     }
 
-    private static final List<Consumer<RolloverConditions.Builder>> conditionsGenerator = Arrays.asList(
+    private static final List<Consumer<RolloverConfiguration.ValueParser>> conditionsGenerator = Arrays.asList(
         (builder) -> builder.addMaxIndexDocsCondition(randomNonNegativeLong()),
-        (builder) -> builder.addMaxIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-        (builder) -> builder.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
-        (builder) -> builder.addMaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
+        (builder) -> builder.addMaxIndexSizeCondition(randomByteSizeValue().getStringRep(), "test"),
+        (builder) -> builder.addMaxIndexAgeCondition(randomPositiveTimeValue(), "test"),
+        (builder) -> builder.addMaxPrimaryShardSizeCondition(randomByteSizeValue().getStringRep(), "test"),
         (builder) -> builder.addMaxPrimaryShardDocsCondition(randomNonNegativeLong()),
         (builder) -> builder.addMinIndexDocsCondition(randomNonNegativeLong()),
-        (builder) -> builder.addMinIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-        (builder) -> builder.addMinIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
-        (builder) -> builder.addMinPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
+        (builder) -> builder.addMinIndexSizeCondition(randomByteSizeValue().getStringRep(), "test"),
+        (builder) -> builder.addMinIndexAgeCondition(randomPositiveTimeValue(), "test"),
+        (builder) -> builder.addMinPrimaryShardSizeCondition(randomByteSizeValue().getStringRep(), "test"),
         (builder) -> builder.addMinPrimaryShardDocsCondition(randomNonNegativeLong())
     );
 }

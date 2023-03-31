@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.rollover.Condition;
-import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.internal.Client;
@@ -26,9 +24,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -236,19 +232,17 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     RolloverRequest createRolloverRequest(String rolloverTarget, TimeValue masterTimeout, boolean rolloverOnlyIfHasDocuments) {
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
+        RolloverConditions.Builder builder = RolloverConditions.newBuilder(conditions);
         if (rolloverOnlyIfHasDocuments && (conditions.getMinDocs() == null && conditions.getMinPrimaryShardDocs() == null)) {
-            rolloverRequest.setConditions(RolloverConditions.newBuilder(conditions).addMinIndexDocsCondition(1L).build());
-        } else {
-            rolloverRequest.setConditions(conditions);
+            builder.addMinIndexDocsCondition(1L);
         }
-        long currentMaxPrimaryShardDocs = rolloverRequest.getConditions().getMaxPrimaryShardDocs() != null
-            ? rolloverRequest.getConditions().getMaxPrimaryShardDocs()
+        long currentMaxPrimaryShardDocs = conditions.getMaxPrimaryShardDocs() != null
+            ? conditions.getMaxPrimaryShardDocs()
             : Long.MAX_VALUE;
         if (currentMaxPrimaryShardDocs > MAX_PRIMARY_SHARD_DOCS) {
-            Map<String, Condition<?>> conditions = new HashMap<>(rolloverRequest.getConditions().getConditions());
-            conditions.put(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(MAX_PRIMARY_SHARD_DOCS));
-            rolloverRequest.setConditions(new RolloverConditions(conditions));
+            builder.addMaxPrimaryShardDocsCondition(MAX_PRIMARY_SHARD_DOCS);
         }
+        rolloverRequest.setConditions(builder.build());
         return rolloverRequest;
     }
 

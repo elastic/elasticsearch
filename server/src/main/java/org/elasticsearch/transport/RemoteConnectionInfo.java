@@ -93,6 +93,10 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         return skipUnavailable;
     }
 
+    public boolean hasClusterCredentials() {
+        return hasClusterCredentials;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0)) {

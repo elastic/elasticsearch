@@ -11,6 +11,7 @@ metadata:
 spec:
   type: buildkite-pipeline
   system: buildkite
+  owner: group:elasticsearch-team
   implementation:
     apiVersion: buildkite.elastic.dev/v1
     kind: Pipeline

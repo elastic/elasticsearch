@@ -173,7 +173,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             minimalMapping(b);
             b.field("coerce", false);
         }));
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper2.parse(source(b -> b.field("field", "123"))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper2.parse(source(b -> b.field("field", "123"))));
         assertThat(e.getCause().getMessage(), containsString("passed as String"));
     }
 
@@ -202,7 +202,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 minimalMapping(b);
                 b.field("ignore_malformed", ignoreMalformed);
             }));
-            MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(malformed));
+            DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(malformed));
             assertThat(e.getCause().getMessage(), containsString("Cannot parse object as number"));
         }
     }
@@ -233,7 +233,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     public void testOutOfRangeValues() throws IOException {
         for (OutOfRangeSpec item : outOfRangeSpecs()) {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", item.type.typeName())));
-            Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(item::write)));
+            Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(item::write)));
             assertThat(
                 "Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
                 e.getCause().getMessage(),
@@ -372,7 +372,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }
 
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapperService.documentMapper().parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
         );
         assertThat(e.getCause().getMessage(), containsString("Only one field can be stored per key"));

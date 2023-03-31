@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -275,7 +276,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             )
         );
         float[] vector = { -12.1f, 2.7f, -4 };
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", vector))));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", vector)))
+        );
         assertNotNull(e.getCause());
         assertThat(
             e.getCause().getMessage(),
@@ -290,7 +294,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             )
         );
         float[] largerVector = { -12.1f, 2.7f, -4, 1.05f, 10.0f, 29.9f };
-        e = expectThrows(MapperParsingException.class, () -> mapperWithLargerDim.parse(source(b -> b.array("field", largerVector))));
+        e = expectThrows(DocumentParsingException.class, () -> mapperWithLargerDim.parse(source(b -> b.array("field", largerVector))));
         assertNotNull(e.getCause());
         assertThat(
             e.getCause().getMessage(),
@@ -308,7 +312,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             )
         );
         float[] vector = { -0.0f, 0.0f, 0.0f };
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", vector))));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", vector)))
+        );
         assertNotNull(e.getCause());
         assertThat(
             e.getCause().getMessage(),
@@ -329,7 +336,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             )
         );
         float[] vector = { -0.0f, 0.0f, 0.0f };
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", vector))));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", vector)))
+        );
         assertNotNull(e.getCause());
         assertThat(
             e.getCause().getMessage(),
@@ -464,16 +474,16 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
             // test that error is thrown when a document has number of dims more than defined in the mapping
             float[] invalidVector = new float[dims + 1];
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
+            DocumentParsingException e = expectThrows(
+                DocumentParsingException.class,
                 () -> mapper.parse(source(b -> b.array("field", invalidVector)))
             );
             assertThat(e.getCause().getMessage(), containsString("has more dimensions than defined in the mapping [3]"));
 
             // test that error is thrown when a document has number of dims less than defined in the mapping
             float[] invalidVector2 = new float[dims - 1];
-            MapperParsingException e2 = expectThrows(
-                MapperParsingException.class,
+            DocumentParsingException e2 = expectThrows(
+                DocumentParsingException.class,
                 () -> mapper.parse(source(b -> b.array("field", invalidVector2)))
             );
             assertThat(
@@ -538,7 +548,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
 
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", new float[] { 128, 0, 0 })))
         );
         assertThat(
@@ -546,14 +556,14 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             containsString("element_type [byte] vectors only support integers between [-128, 127] but found [128] at dim [0];")
         );
 
-        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", new float[] { 18.2f, 0, 0 }))));
+        e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array("field", new float[] { 18.2f, 0, 0 }))));
         assertThat(
             e.getCause().getMessage(),
             containsString("element_type [byte] vectors only support non-decimal values but found decimal value [18.2] at dim [0];")
         );
 
         e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", new float[] { 0.0f, 0.0f, -129.0f })))
         );
         assertThat(

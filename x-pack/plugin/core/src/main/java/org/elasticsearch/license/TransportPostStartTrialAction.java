@@ -21,13 +21,13 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportPostStartTrialAction extends TransportMasterNodeAction<PostStartTrialRequest, PostStartTrialResponse> {
 
-    private final ClusterStateLicenseService clusterStateLicenseService;
+    private final LicenseService.MutableLicenseService licenseService;
 
     @Inject
     public TransportPostStartTrialAction(
         TransportService transportService,
         ClusterService clusterService,
-        ClusterStateLicenseService clusterStateLicenseService,
+        LicenseService.MutableLicenseService licenseService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -43,7 +43,7 @@ public class TransportPostStartTrialAction extends TransportMasterNodeAction<Pos
             PostStartTrialResponse::new,
             ThreadPool.Names.SAME
         );
-        this.clusterStateLicenseService = clusterStateLicenseService;
+        this.licenseService = licenseService;
     }
 
     @Override
@@ -53,7 +53,7 @@ public class TransportPostStartTrialAction extends TransportMasterNodeAction<Pos
         ClusterState state,
         ActionListener<PostStartTrialResponse> listener
     ) throws Exception {
-        clusterStateLicenseService.startTrialLicense(request, listener);
+        licenseService.startTrialLicense(request, listener);
     }
 
     @Override

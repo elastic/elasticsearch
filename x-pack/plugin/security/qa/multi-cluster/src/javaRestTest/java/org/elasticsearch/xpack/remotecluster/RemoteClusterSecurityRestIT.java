@@ -43,6 +43,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
+    private static final AtomicReference<Boolean> SSL_ENABLED_REF = new AtomicReference<>();
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -51,7 +52,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             .apply(commonClusterConfig)
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
-            .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
+            .setting("xpack.security.remote_cluster_server.ssl.enabled", () -> atomicallyRandomizeSslEnabled(SSL_ENABLED_REF))
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
             .setting("xpack.security.authc.token.enabled", "true")
@@ -61,7 +62,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
         queryCluster = ElasticsearchCluster.local()
             .name("query-cluster")
             .apply(commonClusterConfig)
-            .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
+            .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> atomicallyRandomizeSslEnabled(SSL_ENABLED_REF))
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .setting("xpack.security.authc.token.enabled", "true")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
@@ -82,6 +83,17 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             .rolesFile(Resource.fromClasspath("roles.yml"))
             .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics")
             .build();
+    }
+
+    /**
+     * This is needed because `randomBoolean` is not available inside the outer `static {}` scope,
+     * where the initial cluster settings are set
+     */
+    private static String atomicallyRandomizeSslEnabled(AtomicReference<Boolean> sslEnabledRef) {
+        if (sslEnabledRef.get() == null) {
+            sslEnabledRef.set(randomBoolean());
+        }
+        return String.valueOf(sslEnabledRef.get());
     }
 
     @ClassRule

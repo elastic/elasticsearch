@@ -17,9 +17,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.search.SearchApplication;
+import org.elasticsearch.xpack.application.search.SearchApplicationTemplate;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -62,6 +65,19 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
 
             if (searchApp.indices().length == 0) {
                 validationException = addValidationError("indices are missing", validationException);
+            }
+
+            final SearchApplicationTemplate template = searchApp.searchApplicationTemplate();
+            if (template != null && template.script() != null) {
+                final Script script = template.script();
+                if (script != null && script.getLang() != null) {
+                    if (MustacheScriptEngine.NAME.equals(script.getLang()) == false) {
+                        validationException = addValidationError(
+                            "only [" + MustacheScriptEngine.NAME + "] scripting language is supported",
+                            validationException
+                        );
+                    }
+                }
             }
 
             return validationException;

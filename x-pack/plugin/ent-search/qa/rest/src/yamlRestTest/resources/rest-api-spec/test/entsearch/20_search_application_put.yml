@@ -165,3 +165,21 @@ teardown:
           indices: [ "another-index" ]
 
   - match: { error.type: "security_exception" }
+
+---
+"Create Search Application - Incorrect template language":
+  - do:
+      catch: bad_request
+      search_application.put:
+        name: test-error-search-application
+        body:
+          indices: [ "test-index1", "test-index-does-not-exist" ]
+          template:
+            script:
+              lang: painless
+              source: >
+                int total = 0;
+                for (int i = 0; i < doc['goals'].length; ++i) {
+                  total += doc['goals'][i];
+                }
+                return total;

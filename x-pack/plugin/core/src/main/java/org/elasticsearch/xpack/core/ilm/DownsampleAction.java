@@ -132,24 +132,21 @@ public class DownsampleAction implements LifecycleAction {
             checkNotWriteIndex,
             waitForNoFollowerStepKey
         );
-        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(
-            waitForNoFollowerStepKey,
-            cleanupDownsampleIndexKey,
-            client
-        );
+        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
 
-        // We generate a unique downsample index name, but we also retry if the allocation of the downsample index is not possible, so we
-        // want to delete the "previously generated" downsample index (this is a no-op if it's the first run of the action, and we haven't
-        // generated a downsample index name)
+        // Mark source index as read-only
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, cleanupDownsampleIndexKey, client);
+
+        // We generate a unique downsample index name, but we also retry if the allocation of the downsample index
+        // is not possible, so we want to delete the "previously generated" downsample index (this is a no-op if it's
+        // the first run of the action, and we haven't generated a downsample index name)
         CleanupTargetIndexStep cleanupDownsampleIndexStep = new CleanupTargetIndexStep(
             cleanupDownsampleIndexKey,
-            readOnlyKey,
+            generateDownsampleIndexNameKey,
             client,
             (indexMetadata) -> IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(indexMetadata.getSettings()),
             (indexMetadata) -> indexMetadata.getLifecycleExecutionState().downsampleIndexName()
         );
-        // Mark source index as read-only
-        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateDownsampleIndexNameKey, client);
 
         // Generate a unique downsample index name and store it in the ILM execution state
         GenerateUniqueIndexNameStep generateDownsampleIndexNameStep = new GenerateUniqueIndexNameStep(
@@ -163,7 +160,7 @@ public class DownsampleAction implements LifecycleAction {
         DownsampleStep downsampleStep = new DownsampleStep(
             downsampleKey,
             waitForDownsampleIndexKey,
-            generateDownsampleIndexNameStep.getKey(),
+            cleanupDownsampleIndexKey,
             client,
             fixedInterval
         );
@@ -223,8 +220,8 @@ public class DownsampleAction implements LifecycleAction {
             isTimeSeriesIndexBranchingStep,
             checkNotWriteIndexStep,
             waitForNoFollowersStep,
-            cleanupDownsampleIndexStep,
             readOnlyStep,
+            cleanupDownsampleIndexStep,
             generateDownsampleIndexNameStep,
             downsampleStep,
             downsampleAllocatedStep,

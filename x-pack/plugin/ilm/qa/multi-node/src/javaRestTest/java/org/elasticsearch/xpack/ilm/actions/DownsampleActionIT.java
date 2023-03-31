@@ -93,7 +93,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         }""";
 
     @Before
-    public void refreshAbstractions() {
+    public void refreshAbstractions() throws IOException {
         index = "index-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
         alias = "alias-" + randomAlphaOfLength(5);
@@ -107,6 +107,7 @@ public class DownsampleActionIT extends ESRestTestCase {
             alias,
             policy
         );
+        updateClusterSettings(client(), Settings.builder().put("indices.lifecycle.poll_interval", "5s").build());
     }
 
     private void createIndex(String index, String alias, boolean isTimeSeries) throws IOException {

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -23,8 +22,6 @@ import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-
 /**
  * ILM step that invokes the downsample action for an index using a {@link DateHistogramInterval}. The downsample
  * index name is retrieved from the lifecycle state {@link LifecycleExecutionState#downsampleIndexName()}
@@ -37,12 +34,20 @@ public class DownsampleStep extends AsyncActionStep {
     private static final Logger logger = LogManager.getLogger(DownsampleStep.class);
 
     private final DateHistogramInterval fixedInterval;
+    private final StepKey nextStepOnSuccess;
+    private final StepKey nextStepOnFailure;
+    private boolean downsampleFailed;
 
-    private final StepKey failureStep;
-
-    public DownsampleStep(StepKey key, StepKey nextStepKey, StepKey failureStep, Client client, DateHistogramInterval fixedInterval) {
-        super(key, nextStepKey, client);
-        this.failureStep = failureStep;
+    public DownsampleStep(
+        StepKey key,
+        StepKey nextStepOnSuccess,
+        StepKey nextStepOnFailure,
+        Client client,
+        DateHistogramInterval fixedInterval
+    ) {
+        super(key, null, client);
+        this.nextStepOnSuccess = nextStepOnSuccess;
+        this.nextStepOnFailure = nextStepOnFailure;
         this.fixedInterval = fixedInterval;
     }
 
@@ -67,6 +72,7 @@ public class DownsampleStep extends AsyncActionStep {
         final String indexName = indexMetadata.getIndex().getName();
         final String downsampleIndexName = lifecycleState.downsampleIndexName();
         if (Strings.hasText(downsampleIndexName) == false) {
+            downsampleFailed = true;
             listener.onFailure(
                 new IllegalStateException(
                     "downsample index name was not generated for policy [" + policyName + "] and index [" + indexName + "]"
@@ -80,9 +86,9 @@ public class DownsampleStep extends AsyncActionStep {
             IndexMetadata.DownsampleTaskStatus downsampleIndexStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
                 downsampleIndexMetadata.getSettings()
             );
-            // Downsample index has already been created with the generated name and its status is "success".
-            // So we skip index downsample creation.
             if (IndexMetadata.DownsampleTaskStatus.SUCCESS.equals(downsampleIndexStatus)) {
+                // Downsample index has already been created with the generated name and its status is "success".
+                // So we skip index downsample creation.
                 logger.warn(
                     "skipping [{}] step for index [{}] as part of policy [{}] as the downsample index [{}] already exists",
                     DownsampleStep.NAME,
@@ -92,53 +98,31 @@ public class DownsampleStep extends AsyncActionStep {
                 );
                 listener.onResponse(null);
             } else {
-                logger.warn(
-                    "[{}] step for index [{}] as part of policy [{}] found the downsample index [{}] already exists. Deleting it.",
-                    DownsampleStep.NAME,
-                    indexName,
-                    policyName,
-                    downsampleIndexName
-                );
-
-                // On failure we must rewind ILM so that it executes GenerateUniqueIndexNameStep again
-                // so that a new downsample index will be created. On the other hand, this means that
-                // garbage indices may be left from this process. We will try to cleanup here, but it
-                // is not guaranteed 100%
-                if (failureStep != null) {
-                    LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
-                    newLifecycleState.setStep(failureStep.name());
-                    // newLifecycleState.setFailedStep(failureStep.name());
-
-                    IndexMetadata.builder(indexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.build().asMap()).build();
-                }
-
                 // Downsample index has already been created with the generated name but its status is not "success".
-                // So we delete the index and proceed with executing the downsample step.
-                DeleteIndexRequest deleteRequest = new DeleteIndexRequest(downsampleIndexName);
-                getClient().admin().indices().delete(deleteRequest, ActionListener.wrap(response -> {
-                    if (response.isAcknowledged()) {
-                        performDownsampleIndex(indexName, downsampleIndexName, listener);
-                    } else {
-                        listener.onFailure(
-                            new IllegalStateException(
-                                "failing ["
-                                    + DownsampleStep.NAME
-                                    + "] step for index ["
-                                    + indexName
-                                    + "] as part of policy ["
-                                    + policyName
-                                    + "] because the downsample index ["
-                                    + downsampleIndexName
-                                    + "] already exists with downsample status ["
-                                    + downsampleIndexStatus
-                                    + "]"
-                            )
-                        );
-                    }
-                }, listener::onFailure));
+                // So we fail this step so that we go back to cleaning up the index and try again with a new downsample
+                // index name.
+                downsampleFailed = true;
+                listener.onFailure(
+                    new IllegalStateException(
+                        "failing ["
+                            + DownsampleStep.NAME
+                            + "] step for index ["
+                            + indexName
+                            + "] as part of policy ["
+                            + policyName
+                            + "] because the downsample index ["
+                            + downsampleIndexName
+                            + "] already exists with downsample status ["
+                            + downsampleIndexStatus
+                            + "]"
+                    )
+                );
             }
         } else {
-            performDownsampleIndex(indexName, downsampleIndexName, listener);
+            performDownsampleIndex(indexName, downsampleIndexName, ActionListener.wrap(listener::onResponse, e -> {
+                downsampleFailed = true;
+                listener.onFailure(e);
+            }));
         }
     }
 
@@ -155,17 +139,25 @@ public class DownsampleStep extends AsyncActionStep {
         );
     }
 
+    @Override
+    public final StepKey getNextStepKey() {
+        return downsampleFailed ? nextStepOnFailure : nextStepOnSuccess;
+    }
+
     public DateHistogramInterval getFixedInterval() {
         return fixedInterval;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fixedInterval);
+        return Objects.hash(super.hashCode(), fixedInterval, nextStepOnSuccess, nextStepOnFailure);
     }
 
     @Override
     public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
         if (obj == null) {
             return false;
         }
@@ -173,6 +165,9 @@ public class DownsampleStep extends AsyncActionStep {
             return false;
         }
         DownsampleStep other = (DownsampleStep) obj;
-        return super.equals(obj) && Objects.equals(fixedInterval, other.fixedInterval);
+        return super.equals(obj)
+            && Objects.equals(fixedInterval, other.fixedInterval)
+            && Objects.equals(nextStepOnSuccess, other.nextStepOnSuccess)
+            && Objects.equals(nextStepOnFailure, other.nextStepOnFailure);
     }
 }

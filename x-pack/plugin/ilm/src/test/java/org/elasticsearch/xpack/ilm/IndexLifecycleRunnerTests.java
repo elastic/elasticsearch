@@ -306,6 +306,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         assertEquals(before, after);
         assertThat(step.getExecuteCount(), equalTo(1L));
+        ClusterServiceUtils.awaitNoPendingTasks(clusterService);
         clusterService.close();
         threadPool.shutdownNow();
     }
@@ -367,6 +368,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertThat(newExecutionState.stepTime(), equalTo(stepTime));
         assertThat(step.getExecuteCount(), equalTo(1L));
         assertThat(nextStep.getExecuteCount(), equalTo(1L));
+        ClusterServiceUtils.awaitNoPendingTasks(clusterService);
         clusterService.close();
         threadPool.shutdownNow();
 
@@ -458,6 +460,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             newExecutionState.stepInfo(),
             containsString("{\"type\":\"illegal_argument_exception\",\"reason\":\"fake failure retrieving step\"}")
         );
+        ClusterServiceUtils.awaitNoPendingTasks(clusterService);
         clusterService.close();
         threadPool.shutdownNow();
     }
@@ -489,6 +492,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         assertEquals(before, after);
         assertThat(step.getExecuteCount(), equalTo(0L));
+        ClusterServiceUtils.awaitNoPendingTasks(clusterService);
         clusterService.close();
         threadPool.shutdownNow();
     }
@@ -547,6 +551,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertNotEquals(before, after);
         assertThat(step.getExecuteCount(), equalTo(1L));
         assertThat(nextStep.getExecuteCount(), equalTo(1L));
+        ClusterServiceUtils.awaitNoPendingTasks(clusterService);
         clusterService.close();
         threadPool.shutdownNow();
 
@@ -618,6 +623,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertEquals(before, after);
         assertThat(step.getExecuteCount(), equalTo(1L));
         assertThat(nextStep.getExecuteCount(), equalTo(0L));
+        ClusterServiceUtils.awaitNoPendingTasks(clusterService);
         clusterService.close();
         threadPool.shutdownNow();
     }

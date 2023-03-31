@@ -3,12 +3,11 @@
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: buildkite-pipeline-elasticsearch
-  description: Buildkite Pipeline for elasticsearch
+  name: buildkite-pipeline-elasticsearch-promote-serverless
+  description: Promote to elasticsearch-serverless
   links:
     - title: Pipeline
-      url: https://buildkite.com/elastic/elasticsearch
-
+      url: https://buildkite.com/elastic/elasticsearch-promote-serverless
 spec:
   type: buildkite-pipeline
   system: buildkite
@@ -16,12 +15,18 @@ spec:
     apiVersion: buildkite.elastic.dev/v1
     kind: Pipeline
     metadata:
-      name: elasticsearch
+      description: ':elasticsearch: Promote to elasticsearch-serverless'
+      name: elasticsearch / promote serverless
     spec:
       repository: elastic/elasticsearch
-      pipeline_file: ".buildkite/pipeline.yml"
+      pipeline_file: .buildkite/promote-es-serverless.yml
       teams:
-        # your-team:
-        #  access_level: MANAGE_BUILD_AND_READ
+        elasticsearch-team: {}
         everyone:
           access_level: READ_ONLY
+      provider_settings:
+        trigger_mode: none
+      schedules:
+        daily promotion:
+          branch: main
+          cronline: '@daily'

@@ -314,8 +314,8 @@ setup:
 ---
 "Basic numeric histogram":
   - skip:
-      version: " - 7.99.99"
-      reason:  Multivalue Handling changed in 8.0
+      version: " - 8.3.99"
+      reason:  Multivalue Handling changed in 8.4
   - do:
       search:
         rest_total_hits_as_int: true
@@ -344,8 +344,8 @@ setup:
 ---
 "Basic numeric histogram legacy multivalue":
   - skip:
-      version: " 8.0.0 - "
-      reason:  Multivalue Handling changed in 8.0
+      version: " 8.4.0 - "
+      reason:  Multivalue Handling changed in 8.4
   - do:
       search:
         rest_total_hits_as_int: true
@@ -374,8 +374,8 @@ setup:
 ---
 "Basic numeric histogram with missing bucket":
   - skip:
-      version: " - 7.99.99"
-      reason:  Multivalue Handling changed in 8.0
+      version: " - 8.3.99"
+      reason:  Multivalue Handling changed in 8.4
   - do:
       search:
         rest_total_hits_as_int: true
@@ -407,8 +407,8 @@ setup:
 ---
 "Basic numeric histogram with missing bucket order desc":
   - skip:
-      version: " - 7.99.99"
-      reason:  Multivalue Handling changed in 8.0
+      version: " - 8.3.99"
+      reason:  Multivalue Handling changed in 8.4
   - do:
       search:
         rest_total_hits_as_int: true

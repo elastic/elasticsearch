@@ -1,4 +1,4 @@
-[[esql-from]]
+
 == `from`
 
 The `from` keyword in ESQL chooses which index to query.

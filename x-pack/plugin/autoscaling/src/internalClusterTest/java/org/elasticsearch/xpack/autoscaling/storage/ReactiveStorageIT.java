@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;

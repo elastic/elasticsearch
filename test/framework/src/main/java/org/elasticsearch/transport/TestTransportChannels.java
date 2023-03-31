@@ -31,6 +31,7 @@ public class TestTransportChannels {
             requestId,
             version,
             null,
+            ResponseStatsConsumer.NONE,
             false,
             () -> {}
         );

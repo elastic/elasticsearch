@@ -192,6 +192,26 @@ public class RemoteClusterDocumentAndFieldLevelSecurityRestIT extends AbstractRe
             }""");
     }
 
+    private void createIndicesOnFulfillingCluster() throws IOException {
+        final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity("""
+            { "index": { "_index": "remote_index1" } }
+            { "field1": "value1", "field2": "value1", "field3": "value1" }
+            { "index": { "_index": "remote_index2" } }
+            { "field1": "value2", "field2": "value2", "field3": "value2" }
+            { "index": { "_index": "remote_index3" } }
+            { "field1": "value3", "field2": "value3", "field3": "value3" }
+            { "index": { "_index": "remote_index4" } }
+            { "field1": "value4", "field2": "value4", "field3": "value4" }
+            { "index": { "_index": "not-shared-index1" } }
+            { "name": "foo" }
+            { "index": { "_index": "not-shared-index2" } }
+            { "name": "bar" }
+            { "index": { "_index": "not-shared-index3" } }
+            { "name": "baz" }\n""");
+        assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+    }
+
     public void testCrossClusterSearch() throws Exception {
         // Configure remote clusters on querying cluster where each remote cluster uses
         // different API key that has (or doesn't) various DLS/FLS restrictions.
@@ -226,72 +246,60 @@ public class RemoteClusterDocumentAndFieldLevelSecurityRestIT extends AbstractRe
 
         // Running a CCS request with a user without DLS/FLS should return all remote indices and their fields.
         {
-            final Response response = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_NO_DLS_FLS);
-            assertOK(response);
-            final var searchResult = readIndicesAndFields(SearchResponse.fromXContent(responseAsParser(response)));
-            final String[] expectedRemoteIndices = new String[] { "remote_index1", "remote_index2", "remote_index3", "remote_index4" };
-            assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
-            for (String remoteIndex : expectedRemoteIndices) {
-                assertThat(searchResult.get(remoteIndex), containsInAnyOrder("field1", "field2", "field3"));
-            }
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_NO_DLS_FLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index1", "remote_index2", "remote_index3", "remote_index4" },
+                new String[] { "field1", "field2", "field3" }
+            );
         }
 
         // Running a CCS request with a user with DLS and FLS.
         {
-            final Response response = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_DLS_FLS);
-            assertOK(response);
-            final var searchResult = readIndicesAndFields(SearchResponse.fromXContent(responseAsParser(response)));
-            final String[] expectedRemoteIndices = new String[] { "remote_index1", "remote_index2" };
-            assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
-            for (String remoteIndex : expectedRemoteIndices) {
-                assertThat(searchResult.get(remoteIndex), containsInAnyOrder("field1", "field2"));
-            }
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_DLS_FLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index1", "remote_index2" },
+                new String[] { "field1", "field2" }
+            );
         }
 
         // Running a CCS request with a user with DLS only.
         {
-            final Response response = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_DLS);
-            assertOK(response);
-            final var searchResult = readIndicesAndFields(SearchResponse.fromXContent(responseAsParser(response)));
-            final String[] expectedRemoteIndices = new String[] { "remote_index2", "remote_index3", "remote_index4" };
-            assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
-            for (String remoteIndex : expectedRemoteIndices) {
-                assertThat(searchResult.get(remoteIndex), containsInAnyOrder("field1", "field2", "field3"));
-            }
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_DLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index2", "remote_index3", "remote_index4" },
+                new String[] { "field1", "field2", "field3" }
+            );
         }
 
         // Running a CCS request with a user with FLS only.
         {
-            final Response response = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_FLS);
-            assertOK(response);
-            final var searchResult = readIndicesAndFields(SearchResponse.fromXContent(responseAsParser(response)));
-            final String[] expectedRemoteIndices = new String[] { "remote_index1", "remote_index2", "remote_index3", "remote_index4" };
-            assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
-            for (String remoteIndex : expectedRemoteIndices) {
-                assertThat(searchResult.get(remoteIndex), containsInAnyOrder("field1", "field3"));
-            }
+            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_FLS);
+            assertOK(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                searchResponse,
+                new String[] { "remote_index1", "remote_index2", "remote_index3", "remote_index4" },
+                new String[] { "field1", "field3" }
+            );
         }
 
     }
 
-    private void createIndicesOnFulfillingCluster() throws IOException {
-        final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
-        bulkRequest.setJsonEntity("""
-            { "index": { "_index": "remote_index1" } }
-            { "field1": "value1", "field2": "value1", "field3": "value1" }
-            { "index": { "_index": "remote_index2" } }
-            { "field1": "value2", "field2": "value2", "field3": "value2" }
-            { "index": { "_index": "remote_index3" } }
-            { "field1": "value3", "field2": "value3", "field3": "value3" }
-            { "index": { "_index": "remote_index4" } }
-            { "field1": "value4", "field2": "value4", "field3": "value4" }
-            { "index": { "_index": "not-shared-index1" } }
-            { "name": "foo" }
-            { "index": { "_index": "not-shared-index2" } }
-            { "name": "bar" }
-            { "index": { "_index": "not-shared-index3" } }
-            { "name": "baz" }\n""");
-        assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+    private void assertSearchResponseContainsExpectedIndicesAndFields(
+        Response searchResponse,
+        String[] expectedRemoteIndices,
+        String[] expectedFields
+    ) throws IOException {
+        final var searchResult = readIndicesAndFields(SearchResponse.fromXContent(responseAsParser(searchResponse)));
+        assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
+        for (String remoteIndex : expectedRemoteIndices) {
+            assertThat(searchResult.get(remoteIndex), containsInAnyOrder(expectedFields));
+        }
     }
 
     private void createRemoteSearchUserAndRole(String username, String roleName, String roleJson) throws IOException {

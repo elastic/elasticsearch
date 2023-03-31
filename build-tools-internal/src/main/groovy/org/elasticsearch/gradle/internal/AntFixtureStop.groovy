@@ -8,8 +8,8 @@
 
 package org.elasticsearch.gradle.internal
 
-import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.gradle.api.file.FileSystemOperations
 import org.gradle.api.file.ProjectLayout
@@ -37,7 +37,7 @@ abstract class AntFixtureStop extends LoggedExec implements FixtureStop {
             logger.info("Shutting down ${fixture.name} with pid ${pid}")
         }
 
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        if (OS.current() == OS.WINDOWS) {
             getExecutable().set('Taskkill')
             args('/PID', pid, '/F')
         } else {

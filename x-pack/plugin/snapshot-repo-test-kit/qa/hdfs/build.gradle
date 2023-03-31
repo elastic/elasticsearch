@@ -6,7 +6,7 @@
  */
 
 
-import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.internal.util.ports.ReservedPortRange
@@ -149,7 +149,7 @@ testClusters.matching { it.name == "javaRestTestSecure" }.configureEach {
 
 // Determine HDFS Fixture compatibility for the current build environment.
 boolean fixtureSupported = false
-if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+if (OS.current() == OS.WINDOWS) {
   // hdfs fixture will not start without hadoop native libraries on windows
   String nativePath = System.getenv("HADOOP_HOME")
   if (nativePath != null) {

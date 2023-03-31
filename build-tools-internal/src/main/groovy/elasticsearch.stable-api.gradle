@@ -45,7 +45,7 @@ BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ex
   }
 
   jarApiComparisonTask.configure {
-    onlyIf {
+    onlyIf("Only if OS != windows") {
       !Os.isFamily(Os.FAMILY_WINDOWS)
     }
   }

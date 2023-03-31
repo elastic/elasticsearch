@@ -273,7 +273,7 @@ tasks.withType(RestIntegTestTask).configureEach { testTask ->
     if (disabledIntegTestTaskNames.contains(name)) {
         enabled = false;
     }
-    onlyIf { BuildParams.inFipsJvm == false }
+    BuildParams.withFipsEnabledOnly(testTask)
 
     if (name.contains("Secure")) {
         if (disabledIntegTestTaskNames.contains(name) == false) {

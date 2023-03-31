@@ -27,14 +27,18 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
@@ -51,7 +55,6 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
     // Transform Health statuses
     private static final String GREEN = "green";
-    private static final String YELLOW = "yellow";
     private static final String RED = "red";
 
     @After
@@ -120,7 +123,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
                 .build()
         );
 
-        assertHealthAndAuthState(transformId, GREEN, GREEN, null);
+        assertGreen(transformId);
     }
 
     /**
@@ -128,7 +131,6 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
      * unattended              = false
      * pre-existing dest index = false
      */
-    @SuppressWarnings("unchecked")
     public void testTransformPermissionsDeferNoUnattendedNoDest() throws Exception {
         String transformId = "transform-permissions-defer-nounattended";
         String sourceIndexName = transformId + "-index";
@@ -141,7 +143,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             Strings.toString(config),
             RequestOptions.DEFAULT.toBuilder().addParameter("defer_validation", String.valueOf(true)).build()
         );
-        String expectedErrorMessage = Strings.format(
+        String authIssue = Strings.format(
             "Cannot create transform [%s] because user %s lacks the required permissions "
                 + "[%s:[read, view_index_metadata], %s:[create_index, index, read]]",
             transformId,
@@ -149,36 +151,36 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             sourceIndexName,
             destIndexName
         );
-        assertHealthAndAuthState(transformId, GREEN, RED, expectedErrorMessage);
+        assertRed(transformId, authIssue);
 
         ResponseException e = expectThrows(
             ResponseException.class,
             () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, JUNIOR_HEADER).build())
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
-        assertThat(e.getMessage(), containsString(expectedErrorMessage));
+        assertThat(e.getMessage(), containsString(authIssue));
 
-        assertHealthAndAuthState(transformId, GREEN, RED, expectedErrorMessage);
+        assertRed(transformId, authIssue);
 
         e = expectThrows(
             ResponseException.class,
             () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build())
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
-        assertThat(e.getMessage(), containsString(expectedErrorMessage));
+        assertThat(e.getMessage(), containsString(authIssue));
 
-        assertHealthAndAuthState(transformId, GREEN, RED, expectedErrorMessage);
+        assertRed(transformId, authIssue);
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build());
 
-        assertHealthAndAuthState(transformId, GREEN, GREEN, null);
+        assertGreen(transformId);
 
         // _start API now works
         startTransform(config.getId(), RequestOptions.DEFAULT);
         waitUntilCheckpoint(transformId, 1);
 
-        assertHealthAndAuthState(transformId, GREEN, GREEN, null);
+        assertGreen(transformId);
     }
 
     /**
@@ -186,7 +188,6 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
      * unattended              = false
      * pre-existing dest index = true
      */
-    @SuppressWarnings("unchecked")
     public void testTransformPermissionsDeferNoUnattendedDest() throws Exception {
         String transformId = "transform-permissions-defer-nounattended-dest-exists";
         String sourceIndexName = transformId + "-index";
@@ -201,7 +202,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             Strings.toString(config),
             RequestOptions.DEFAULT.toBuilder().addParameter("defer_validation", String.valueOf(true)).build()
         );
-        String expectedErrorMessage = Strings.format(
+        String authIssue = Strings.format(
             "Cannot create transform [%s] because user %s lacks the required permissions "
                 + "[%s:[read, view_index_metadata], %s:[index, read]]",
             transformId,
@@ -209,43 +210,42 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             sourceIndexName,
             destIndexName
         );
-        assertHealthAndAuthState(transformId, GREEN, RED, expectedErrorMessage);
+        assertRed(transformId, authIssue);
 
         ResponseException e = expectThrows(
             ResponseException.class,
             () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, JUNIOR_HEADER).build())
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
-        assertThat(e.getMessage(), containsString(expectedErrorMessage));
+        assertThat(e.getMessage(), containsString(authIssue));
 
-        assertHealthAndAuthState(transformId, GREEN, RED, expectedErrorMessage);
+        assertRed(transformId, authIssue);
 
         e = expectThrows(
             ResponseException.class,
             () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build())
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
-        assertThat(e.getMessage(), containsString(expectedErrorMessage));
+        assertThat(e.getMessage(), containsString(authIssue));
 
-        assertHealthAndAuthState(transformId, GREEN, RED, expectedErrorMessage);
+        assertRed(transformId, authIssue);
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build());
 
-        assertHealthAndAuthState(transformId, GREEN, GREEN, null);
+        assertGreen(transformId);
 
         // _start API now works
         startTransform(config.getId(), RequestOptions.DEFAULT);
         waitUntilCheckpoint(transformId, 1);
 
-        assertHealthAndAuthState(transformId, GREEN, GREEN, null);
+        assertGreen(transformId);
     }
 
     /**
      * defer_validation = true
      * unattended       = false
      */
-    @SuppressWarnings("unchecked")
     public void testNoTransformAdminRoleInSecondaryAuth() throws Exception {
         String transformId = "transform-permissions-no-admin-role";
         String sourceIndexName = transformId + "-index";
@@ -280,7 +280,6 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
      * unattended              = true
      * pre-existing dest index = false
      */
-    @SuppressWarnings("unchecked")
     public void testTransformPermissionsDeferUnattendedNoDest() throws Exception {
         String transformId = "transform-permissions-defer-unattended";
         String sourceIndexName = transformId + "-index";
@@ -293,7 +292,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             Strings.toString(config),
             RequestOptions.DEFAULT.toBuilder().addParameter("defer_validation", String.valueOf(true)).build()
         );
-        String expectedErrorMessage = Strings.format(
+        String authIssue = Strings.format(
             "Cannot create transform [%s] because user %s lacks the required permissions "
                 + "[%s:[read, view_index_metadata], %s:[create_index, index, read]]",
             transformId,
@@ -301,28 +300,20 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             sourceIndexName,
             destIndexName
         );
-        assertHealthAndAuthState(transformId, GREEN, RED, expectedErrorMessage);
+        assertRed(transformId, authIssue);
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
-        // transform is yellow
-        assertBusy(() -> {
-            Map<String, Object> stats = getTransformStats(transformId);
-            assertThat(extractValue(stats, "health", "status"), is(equalTo(YELLOW)));
-            List<Object> issues = (List<Object>) extractValue(stats, "health", "issues");
-            assertThat(issues, hasSize(1));
-            assertThat(
-                (String) extractValue((Map<String, Object>) issues.get(0), "details"),
-                containsString(Strings.format("no such index [%s]", destIndexName))
-            );
-        }, 10, TimeUnit.SECONDS);
+        // transform is red with two issues
+        String noSuchIndexIssue = Strings.format("org.elasticsearch.index.IndexNotFoundException: no such index [%s]", destIndexName);
+        assertBusy(() -> assertRed(transformId, authIssue, noSuchIndexIssue), 10, TimeUnit.SECONDS);
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build());
         waitUntilCheckpoint(transformId, 1);
 
         // transform is green again
-        assertHealthAndAuthState(transformId, GREEN, GREEN, null);
+        assertGreen(transformId);
     }
 
     /**
@@ -330,7 +321,6 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
      * unattended              = true
      * pre-existing dest index = true
      */
-    @SuppressWarnings("unchecked")
     public void testTransformPermissionsDeferUnattendedDest() throws Exception {
         String transformId = "transform-permissions-defer-unattended-dest-exists";
         String sourceIndexName = transformId + "-index";
@@ -345,7 +335,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             Strings.toString(config),
             RequestOptions.DEFAULT.toBuilder().addParameter("defer_validation", String.valueOf(true)).build()
         );
-        String expectedErrorMessage = Strings.format(
+        String authIssue = Strings.format(
             "Cannot create transform [%s] because user %s lacks the required permissions "
                 + "[%s:[read, view_index_metadata], %s:[index, read]]",
             transformId,
@@ -353,19 +343,19 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             sourceIndexName,
             destIndexName
         );
-        assertHealthAndAuthState(transformId, GREEN, RED, expectedErrorMessage);
+        assertRed(transformId, authIssue);
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
         // transform's auth state status is still RED, but the health status is GREEN (because dest index exists)
-        assertHealthAndAuthState(transformId, GREEN, RED, expectedErrorMessage);
+        assertRed(transformId, authIssue);
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build());
         waitUntilCheckpoint(transformId, 1);
 
         // transform is green again
-        assertHealthAndAuthState(transformId, GREEN, GREEN, null);
+        assertGreen(transformId);
     }
 
     public void testPreviewRequestFailsPermissionsCheck() throws Exception {
@@ -432,15 +422,21 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
         return config;
     }
 
-    private void assertHealthAndAuthState(
-        String transformId,
-        String expectedHealthStatus,
-        String expectedAuthStatus,
-        String expectedLastAuthError
-    ) throws IOException {
+    private void assertGreen(String transformId) throws IOException {
         Map<String, Object> stats = getTransformStats(transformId);
-        assertThat("Stats were: " + stats, extractValue(stats, "health", "status"), is(equalTo(expectedHealthStatus)));
-        assertThat("Stats were: " + stats, extractValue(stats, "auth_state", "status"), is(equalTo(expectedAuthStatus)));
-        assertThat("Stats were: " + stats, extractValue(stats, "auth_state", "last_auth_error"), is(equalTo(expectedLastAuthError)));
+        assertThat("Stats were: " + stats, extractValue(stats, "health", "status"), is(equalTo(GREEN)));
+        assertThat("Stats were: " + stats, extractValue(stats, "health", "issues"), is(nullValue()));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertRed(String transformId, String... expectedHealthIssueDetails) throws IOException {
+        Map<String, Object> stats = getTransformStats(transformId);
+        assertThat("Stats were: " + stats, extractValue(stats, "health", "status"), is(equalTo(RED)));
+        List<Object> issues = (List<Object>) extractValue(stats, "health", "issues");
+        assertThat("Stats were: " + stats, issues, hasSize(expectedHealthIssueDetails.length));
+        Set<String> actualHealthIssueDetailsSet = issues.stream()
+            .map(issue -> (String) extractValue((Map<String, Object>) issue, "details"))
+            .collect(toSet());
+        assertThat("Stats were: " + stats, actualHealthIssueDetailsSet, containsInAnyOrder(expectedHealthIssueDetails));
     }
 }

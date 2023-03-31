@@ -70,4 +70,11 @@ public class AuthorizationStateTests extends AbstractSerializingTransformTestCas
         assertThat(authState.getStatus(), is(equalTo(HealthStatus.RED)));
         assertThat(authState.getLastAuthError(), is(equalTo("unknown exception")));
     }
+
+    public void testIsNullOrGreen() {
+        assertThat(AuthorizationState.isNullOrGreen(null), is(true));
+        assertThat(AuthorizationState.isNullOrGreen(AuthorizationState.green()), is(true));
+        Exception e = new Exception("some exception");
+        assertThat(AuthorizationState.isNullOrGreen(AuthorizationState.red(e)), is(false));
+    }
 }

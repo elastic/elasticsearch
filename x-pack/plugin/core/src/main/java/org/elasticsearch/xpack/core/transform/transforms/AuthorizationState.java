@@ -39,6 +39,10 @@ public class AuthorizationState implements Writeable, ToXContentObject {
         return new AuthorizationState(System.currentTimeMillis(), HealthStatus.GREEN, null);
     }
 
+    public static boolean isNullOrGreen(AuthorizationState authState) {
+        return authState == null || HealthStatus.GREEN.equals(authState.getStatus());
+    }
+
     public static AuthorizationState red(Exception e) {
         return new AuthorizationState(System.currentTimeMillis(), HealthStatus.RED, e != null ? e.getMessage() : "unknown exception");
     }

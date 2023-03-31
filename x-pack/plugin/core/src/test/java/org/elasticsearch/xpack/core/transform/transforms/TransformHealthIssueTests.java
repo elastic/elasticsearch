@@ -17,6 +17,7 @@ public class TransformHealthIssueTests extends AbstractWireSerializingTestCase<T
     public static TransformHealthIssue randomTransformHealthIssue() {
         return new TransformHealthIssue(
             randomAlphaOfLengthBetween(10, 200),
+            randomAlphaOfLengthBetween(10, 200),
             randomBoolean() ? randomAlphaOfLengthBetween(10, 200) : null,
             randomIntBetween(1, 10),
             randomBoolean() ? null : Instant.ofEpochSecond(randomLongBetween(1, 100000), randomLongBetween(-999_999_999, 999_999_999))

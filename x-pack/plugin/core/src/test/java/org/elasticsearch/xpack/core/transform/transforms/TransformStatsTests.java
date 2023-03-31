@@ -20,8 +20,7 @@ public class TransformStatsTests extends AbstractWireSerializingTestCase<Transfo
             randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
             TransformIndexerStatsTests.randomStats(),
             TransformCheckpointingInfoTests.randomTransformCheckpointingInfo(),
-            TransformHealthTests.randomTransformHealth(),
-            randomBoolean() ? null : AuthorizationStateTests.randomAuthorizationState()
+            TransformHealthTests.randomTransformHealth()
         );
     }
 

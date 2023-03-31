@@ -66,10 +66,6 @@
     },
     "health": {
       "$ref": "file:transform_health.schema.json"
-    },
-    "auth_state": {
-      "$ref": "file:transform_authorization_state.schema.json"
     }
   }
 }
-

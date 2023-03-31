@@ -14,13 +14,13 @@ import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformHealth;
-import org.elasticsearch.xpack.core.transform.transforms.TransformHealthIssue;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStatsTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.transforms.TransformContext;
+import org.elasticsearch.xpack.transform.transforms.TransformHealthChecker;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.time.Instant;
@@ -67,8 +67,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                     null,
                     stats,
                     TransformCheckpointingInfo.EMPTY,
-                    TransformHealth.GREEN,
-                    null
+                    TransformHealth.GREEN
                 )
             )
         );
@@ -82,8 +81,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                     null,
                     stats,
                     CHECKPOINTING_INFO,
-                    TransformHealth.GREEN,
-                    null
+                    TransformHealth.GREEN
                 )
             )
         );
@@ -102,8 +100,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                     null,
                     stats,
                     TransformCheckpointingInfo.EMPTY,
-                    TransformHealth.GREEN,
-                    null
+                    TransformHealth.GREEN
                 )
             )
         );
@@ -117,28 +114,32 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                     null,
                     stats,
                     CHECKPOINTING_INFO,
-                    TransformHealth.GREEN,
-                    null
+                    TransformHealth.GREEN
                 )
             )
         );
     }
 
     public void testDeriveStatsStoppedWithAuthStateGreen() {
-        testDeriveStatsStoppedWithAuthState(null, AuthorizationState.green(), TransformCheckpointingInfo.EMPTY);
-        testDeriveStatsStoppedWithAuthState(CHECKPOINTING_INFO, AuthorizationState.green(), CHECKPOINTING_INFO);
+        testDeriveStatsStoppedWithAuthState(null, AuthorizationState.green(), TransformCheckpointingInfo.EMPTY, TransformHealth.GREEN);
+        testDeriveStatsStoppedWithAuthState(CHECKPOINTING_INFO, AuthorizationState.green(), CHECKPOINTING_INFO, TransformHealth.GREEN);
     }
 
     public void testDeriveStatsStoppedWithAuthStateRed() {
         AuthorizationState redAuthState = AuthorizationState.red(new ElasticsearchSecurityException("missing privileges"));
-        testDeriveStatsStoppedWithAuthState(null, redAuthState, TransformCheckpointingInfo.EMPTY);
-        testDeriveStatsStoppedWithAuthState(CHECKPOINTING_INFO, redAuthState, CHECKPOINTING_INFO);
+        TransformHealth expectedHealth = new TransformHealth(
+            HealthStatus.RED,
+            List.of(TransformHealthChecker.IssueType.PRIVILEGES_CHECK_FAILED.newIssue("missing privileges", 1, null))
+        );
+        testDeriveStatsStoppedWithAuthState(null, redAuthState, TransformCheckpointingInfo.EMPTY, expectedHealth);
+        testDeriveStatsStoppedWithAuthState(CHECKPOINTING_INFO, redAuthState, CHECKPOINTING_INFO, expectedHealth);
     }
 
     private void testDeriveStatsStoppedWithAuthState(
         TransformCheckpointingInfo info,
         AuthorizationState authState,
-        TransformCheckpointingInfo expectedInfo
+        TransformCheckpointingInfo expectedInfo,
+        TransformHealth expectedHealth
     ) {
         String transformId = "transform-with-auth-state";
         TransformIndexerStats stats = TransformIndexerStatsTests.randomStats();
@@ -157,18 +158,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
 
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, info),
-            equalTo(
-                new TransformStats(
-                    transformId,
-                    TransformStats.State.STOPPED,
-                    null,
-                    null,
-                    stats,
-                    expectedInfo,
-                    TransformHealth.GREEN,
-                    authState
-                )
-            )
+            equalTo(new TransformStats(transformId, TransformStats.State.STOPPED, null, null, stats, expectedInfo, expectedHealth))
         );
     }
 
@@ -177,7 +167,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
         String reason = null;
         TransformHealth expectedHealth = new TransformHealth(
             HealthStatus.RED,
-            List.of(new TransformHealthIssue("Transform task state is [failed]", null, 1, null))
+            List.of(TransformHealthChecker.IssueType.TRANSFORM_TASK_FAILED.newIssue(null, 1, null))
         );
 
         TransformIndexerStats stats = TransformIndexerStatsTests.randomStats();
@@ -203,22 +193,19 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                     null,
                     stats,
                     TransformCheckpointingInfo.EMPTY,
-                    expectedHealth,
-                    null
+                    expectedHealth
                 )
             )
         );
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, CHECKPOINTING_INFO),
-            equalTo(
-                new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, CHECKPOINTING_INFO, expectedHealth, null)
-            )
+            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, CHECKPOINTING_INFO, expectedHealth))
         );
 
         reason = "the task is failed";
         expectedHealth = new TransformHealth(
             HealthStatus.RED,
-            List.of(new TransformHealthIssue("Transform task state is [failed]", reason, 1, null))
+            List.of(TransformHealthChecker.IssueType.TRANSFORM_TASK_FAILED.newIssue(reason, 1, null))
         );
         failedState = new TransformState(TransformTaskState.FAILED, IndexerState.STOPPED, null, 0, reason, null, null, true, null);
         withIdStateAndStats(transformId, failedState, stats);
@@ -233,16 +220,13 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                     null,
                     stats,
                     TransformCheckpointingInfo.EMPTY,
-                    expectedHealth,
-                    null
+                    expectedHealth
                 )
             )
         );
         assertThat(
             TransportGetTransformStatsAction.deriveStats(task, CHECKPOINTING_INFO),
-            equalTo(
-                new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, CHECKPOINTING_INFO, expectedHealth, null)
-            )
+            equalTo(new TransformStats(transformId, TransformStats.State.FAILED, reason, null, stats, CHECKPOINTING_INFO, expectedHealth))
         );
     }
 
@@ -273,8 +257,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                     null,
                     stats,
                     TransformCheckpointingInfo.EMPTY,
-                    TransformHealth.GREEN,
-                    null
+                    TransformHealth.GREEN
                 )
             )
         );
@@ -288,8 +271,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                     null,
                     stats,
                     CHECKPOINTING_INFO,
-                    TransformHealth.GREEN,
-                    null
+                    TransformHealth.GREEN
                 )
             )
         );
@@ -308,8 +290,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                     null,
                     stats,
                     TransformCheckpointingInfo.EMPTY,
-                    TransformHealth.GREEN,
-                    null
+                    TransformHealth.GREEN
                 )
             )
         );
@@ -323,8 +304,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                     null,
                     stats,
                     CHECKPOINTING_INFO,
-                    TransformHealth.GREEN,
-                    null
+                    TransformHealth.GREEN
                 )
             )
         );
@@ -343,8 +323,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                     null,
                     stats,
                     TransformCheckpointingInfo.EMPTY,
-                    TransformHealth.GREEN,
-                    null
+                    TransformHealth.GREEN
                 )
             )
         );
@@ -358,8 +337,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                     null,
                     stats,
                     CHECKPOINTING_INFO,
-                    TransformHealth.GREEN,
-                    null
+                    TransformHealth.GREEN
                 )
             )
         );

@@ -69,7 +69,6 @@ public class XmlReportMethodCoverageVerifier {
                 if (classesToSkip.contains(className) == false) {
                     failures.add(new Failure(className, methodName, coverage));
                 }
-                classesFailing.add(className);
             }
         }
     }

@@ -22,48 +22,48 @@ ext.pluginApiVersion = '8.7.0'
 ext.luceneVersion = '9.5.0'
 
 buildscript {
-    ext.pluginApiVersion = '8.7.0'
-    repositories {
-        mavenCentral()
-    }
-    dependencies {
-        classpath "org.elasticsearch.gradle:build-tools:${pluginApiVersion}"
-    }
+  ext.pluginApiVersion = '8.7.0'
+  repositories {
+      mavenCentral()
+  }
+  dependencies {
+      classpath "org.elasticsearch.gradle:build-tools:${pluginApiVersion}"
+  }
 }
 
 apply plugin: 'elasticsearch.stable-esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
-    name 'my-plugin'
-    description 'My analysis plugin'
+  name 'my-plugin'
+  description 'My analysis plugin'
 }
 
 group 'org.example'
 version '1.0-SNAPSHOT'
 
 repositories {
-    mavenLocal()
-    mavenCentral()
+  mavenLocal()
+  mavenCentral()
 }
 
 dependencies {
 
-    //TODO transitive dependency off and plugin-api dependency?
-    compileOnly "org.elasticsearch.plugin:elasticsearch-plugin-api:${pluginApiVersion}"
-    compileOnly "org.elasticsearch.plugin:elasticsearch-plugin-analysis-api:${pluginApiVersion}"
-    compileOnly "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
+  //TODO transitive dependency off and plugin-api dependency?
+  compileOnly "org.elasticsearch.plugin:elasticsearch-plugin-api:${pluginApiVersion}"
+  compileOnly "org.elasticsearch.plugin:elasticsearch-plugin-analysis-api:${pluginApiVersion}"
+  compileOnly "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
 
-    //TODO for testing this also have to be declared
-    testImplementation "org.elasticsearch.plugin:elasticsearch-plugin-api:${pluginApiVersion}"
-    testImplementation "org.elasticsearch.plugin:elasticsearch-plugin-analysis-api:${pluginApiVersion}"
-    testImplementation "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
+  //TODO for testing this also have to be declared
+  testImplementation "org.elasticsearch.plugin:elasticsearch-plugin-api:${pluginApiVersion}"
+  testImplementation "org.elasticsearch.plugin:elasticsearch-plugin-analysis-api:${pluginApiVersion}"
+  testImplementation "org.apache.lucene:lucene-analysis-common:${luceneVersion}"
 
-    testImplementation ('junit:junit:4.13.2'){
-        exclude group: 'org.hamcrest'
-    }
-    testImplementation 'org.mockito:mockito-core:4.4.0'
-    testImplementation 'org.hamcrest:hamcrest:2.2'
+  testImplementation ('junit:junit:4.13.2'){
+      exclude group: 'org.hamcrest'
+  }
+  testImplementation 'org.mockito:mockito-core:4.4.0'
+  testImplementation 'org.hamcrest:hamcrest:2.2'
 
 }
 ----

@@ -552,7 +552,8 @@ public class MachineLearning extends Plugin
         InferenceProcessor.Factory inferenceFactory = new InferenceProcessor.Factory(
             parameters.client,
             parameters.ingestService.getClusterService(),
-            this.settings
+            this.settings,
+            machineLearningExtension.get().includeNodeInfo()
         );
         parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
         return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
@@ -886,9 +887,17 @@ public class MachineLearning extends Plugin
         );
         registry.initialize();
 
-        AnomalyDetectionAuditor anomalyDetectionAuditor = new AnomalyDetectionAuditor(client, clusterService);
-        DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(client, clusterService);
-        InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService);
+        AnomalyDetectionAuditor anomalyDetectionAuditor = new AnomalyDetectionAuditor(
+            client,
+            clusterService,
+            machineLearningExtension.get().includeNodeInfo()
+        );
+        DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(
+            client,
+            clusterService,
+            machineLearningExtension.get().includeNodeInfo()
+        );
+        InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService, machineLearningExtension.get().includeNodeInfo());
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
         OriginSettingClient originSettingClient = new OriginSettingClient(client, ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(
@@ -1233,7 +1242,8 @@ public class MachineLearning extends Plugin
                 memoryTracker.get(),
                 client,
                 expressionResolver,
-                getLicenseState()
+                getLicenseState(),
+                machineLearningExtension.get().includeNodeInfo()
             ),
             new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver),
             new TransportStartDataFrameAnalyticsAction.TaskExecutor(
@@ -1253,7 +1263,8 @@ public class MachineLearning extends Plugin
                 memoryTracker.get(),
                 expressionResolver,
                 client,
-                getLicenseState()
+                getLicenseState(),
+                machineLearningExtension.get().includeNodeInfo()
             )
         );
     }

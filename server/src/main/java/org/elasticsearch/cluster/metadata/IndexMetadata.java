@@ -2234,7 +2234,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             builder.startObject(KEY_SETTINGS);
             if (context != Metadata.XContentContext.API) {
-                indexMetadata.getSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
+                indexMetadata.getSettings().toXContent(builder, Settings.FLAT_SETTINGS_TRUE);
             } else {
                 indexMetadata.getSettings().toXContent(builder, params);
             }

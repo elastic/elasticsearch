@@ -381,6 +381,13 @@ public class AuthenticationService {
         @Override
         void authenticationSuccess(Authentication authentication) {
             // REST requests are audited in the {@code SecurityRestFilter} because they need access to the request body
+            // see {@code AuditTrail#authenticationSuccess(RestRequest)}
+            // It's still valuable to keep the parent interface {@code AuditableRequest#AuthenticationSuccess(Authentication)} around
+            // in order to audit authN success for transport requests for CCS. We may be able to find another way to audit that, which
+            // doesn't rely on an `AuditableRequest` instance, but it's not trivial because we'd have to make sure to not audit
+            // existing authentications. Separately, it's not easy to reconstruct another `AuditableRequest` outside the
+            // `AuthenticationService` because that's tied to the audit `request.id` generation.
+            // For more context see: https://github.com/elastic/elasticsearch/pull/94120#discussion_r1152804133
         }
 
         @Override

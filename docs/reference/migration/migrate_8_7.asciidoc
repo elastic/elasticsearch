@@ -9,9 +9,6 @@ your application to {es} 8.7.
 
 See also {ref-bare}/8.7/release-highlights.html[What's new in 8.7] and <<es-release-notes>>.
 
-coming::[8.7.0]
-
-
 [discrete]
 [[breaking-changes-8.7]]
 === Breaking changes

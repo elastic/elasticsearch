@@ -217,7 +217,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             }
             // Metric mapper rejects multi-valued data
             {
-                Exception e = expectThrows(MapperParsingException.class, () -> metricMapper.parse(source(b -> b.field("field", values))));
+                Exception e = expectThrows(DocumentParsingException.class, () -> metricMapper.parse(source(b -> b.field("field", values))));
                 assertThat(e.getCause().getMessage(), containsString("field type for [field] does not accept more than single value"));
             }
         }

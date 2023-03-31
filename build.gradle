@@ -259,6 +259,7 @@ allprojects {
     }
   }
 
+  apply plugin: 'elasticsearch.transport-coverage'
   apply plugin: 'elasticsearch.formatting'
 }
 

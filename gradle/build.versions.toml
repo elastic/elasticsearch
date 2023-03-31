@@ -25,6 +25,7 @@ json-assert = "org.skyscreamer:jsonassert:1.5.0"
 jackson-core = { group = "com.fasterxml.jackson.core", name="jackson-core", version.ref="jackson" }
 jackson-databind = { group = "com.fasterxml.jackson.core", name="jackson-databind", version.ref="jackson" }
 jackson-dataformat-yaml = { group = "com.fasterxml.jackson.dataformat", name="jackson-dataformat-yaml", version.ref="jackson" }
+jackson-dataformat-xml = { group = "com.fasterxml.jackson.dataformat", name="jackson-dataformat-xml", version.ref="jackson" }
 jackson-platform = { group = "com.fasterxml.jackson", name="jackson-bom", version.ref="jackson" }
 jna = "net.java.dev.jna:jna:5.10.0"
 junit = "junit:junit:4.13.2"

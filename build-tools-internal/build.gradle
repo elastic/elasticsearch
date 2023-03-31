@@ -187,6 +187,10 @@ gradlePlugin {
       id = 'elasticsearch.internal-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
     }
+    transport_coverage {
+      id = 'elasticsearch.transport-coverage'
+      implementationClass = 'org.elasticsearch.gradle.internal.coverage.TransportClassesCoveragePlugin'
+    }
   }
 }
 
@@ -265,6 +269,7 @@ dependencies {
   // needs to match the jackson minor version in use
   api buildLibs.json.schema.validator
   api buildLibs.jackson.dataformat.yaml
+  api buildLibs.jackson.dataformat.xml
   api buildLibs.asm
   api buildLibs.asm.tree
   api buildLibs.httpclient
@@ -310,6 +315,7 @@ dependencies {
   testImplementation buildLibs.spock.junit4
   testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
+  integTestImplementation buildLibs.jackson.dataformat.xml
 
 }
 

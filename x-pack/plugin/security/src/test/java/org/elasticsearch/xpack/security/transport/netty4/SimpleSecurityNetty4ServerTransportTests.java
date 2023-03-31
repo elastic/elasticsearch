@@ -38,7 +38,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1041,7 +1040,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             if (doHandshake) {
                 super.executeHandshake(node, channel, profile, listener);
             } else {
-                listener.onResponse(TransportVersionUtils.minimumCompatibilityVersion(getVersion()));
+                assert getVersion().equals(TransportVersion.CURRENT);
+                listener.onResponse(TransportVersion.MINIMUM_COMPATIBLE);
             }
         }
 

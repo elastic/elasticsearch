@@ -871,7 +871,17 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         UpdateSettingsAction.NAME
                     )
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices(".ds-logs-ti*").privileges("read", "view_index_metadata").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".ds-logs-ti*")
+                    .privileges(
+                        UpdateSettingsAction.NAME,
+                        PutMappingAction.NAME,
+                        RolloverAction.NAME,
+                        DeleteIndexAction.NAME,
+                        "read",
+                        "view_index_metadata"
+                    )
+                    .build(),
                 // For src/dest indices of the example transform package
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("kibana_sample_data_*")

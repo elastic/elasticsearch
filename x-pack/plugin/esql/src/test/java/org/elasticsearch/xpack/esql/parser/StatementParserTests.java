@@ -49,7 +49,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
 
 public class StatementParserTests extends ESTestCase {
 
@@ -171,6 +170,38 @@ public class StatementParserTests extends ESTestCase {
         );
     }
 
+    public void testStatsWithoutAggs() throws Exception {
+        assertEquals(
+            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(attribute("a")), List.of(attribute("a"))),
+            processingCommand("stats by a")
+        );
+    }
+
+    public void testStatsWithoutAggsOrGroup() throws Exception {
+        expectError("from text | stats", "At least one aggregation or grouping expression required in [stats]");
+    }
+
+    public void testAggsWithGroupKeyAsAgg() throws Exception {
+        var queries = new String[] { """
+            row a = 1, b = 2
+            | stats a by a
+            """, """
+            row a = 1, b = 2
+            | stats a by a
+            | sort a
+            """, """
+            row a = 1, b = 2
+            | stats a = a by a
+            """, """
+            row a = 1, b = 2
+            | stats x = a by a
+            """ };
+
+        for (String query : queries) {
+            expectError(query, "Cannot specify grouping expression [a] as an aggregate");
+        }
+    }
+
     public void testInlineStatsWithGroups() {
         assertEquals(
             new InlineStats(
@@ -273,8 +304,7 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testLimitConstraints() {
-        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error", () -> statement("from text | limit -1"));
-        assertThat(e.getMessage(), startsWith("line 1:19: extraneous input '-' expecting INTEGER_LITERAL"));
+        expectError("from text | limit -1", "extraneous input '-' expecting INTEGER_LITERAL");
     }
 
     public void testBasicSortCommand() {
@@ -451,18 +481,15 @@ public class StatementParserTests extends ESTestCase {
             Tuple.tuple("from a | dissect foo \" \"", "[ ]"),
             Tuple.tuple("from a | dissect foo \"no fields\"", "[no fields]")
         )) {
-            ParsingException pe = expectThrows(ParsingException.class, () -> statement(queryWithUnexpectedCmd.v1()));
-            assertThat(pe.getMessage(), containsString("Invalid pattern for dissect: " + queryWithUnexpectedCmd.v2()));
+            expectError(queryWithUnexpectedCmd.v1(), "Invalid pattern for dissect: " + queryWithUnexpectedCmd.v2());
         }
 
-        ParsingException pe = expectThrows(ParsingException.class, () -> statement("from a | dissect foo \"%{*a}:%{&a}\""));
-        assertThat(pe.getMessage(), containsString("Reference keys not supported in dissect patterns: [%{*a}]"));
-
-        pe = expectThrows(ParsingException.class, () -> statement("from a | dissect foo \"%{bar}\" invalid_option=3"));
-        assertThat(pe.getMessage(), containsString("Invalid option for dissect: [invalid_option]"));
-
-        pe = expectThrows(ParsingException.class, () -> statement("from a | dissect foo \"%{bar}\" append_separator=3"));
-        assertThat(pe.getMessage(), containsString("Invalid value for dissect append_separator: expected a string, but was [3]"));
+        expectError("from a | dissect foo \"%{*a}:%{&a}\"", "Reference keys not supported in dissect patterns: [%{*a}]");
+        expectError("from a | dissect foo \"%{bar}\" invalid_option=3", "Invalid option for dissect: [invalid_option]");
+        expectError(
+            "from a | dissect foo \"%{bar}\" append_separator=3",
+            "Invalid value for dissect append_separator: expected a string, but was [3]"
+        );
     }
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {
@@ -492,5 +519,10 @@ public class StatementParserTests extends ESTestCase {
 
     private static Literal integer(int i) {
         return new Literal(EMPTY, i, INTEGER);
+    }
+
+    private void expectError(String query, String errorMessage) {
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
+        assertThat(e.getMessage(), containsString(errorMessage));
     }
 }

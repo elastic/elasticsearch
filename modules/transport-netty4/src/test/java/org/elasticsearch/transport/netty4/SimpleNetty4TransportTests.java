@@ -77,15 +77,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
-                    TransportVersion version = getVersion();
-                    TransportVersion compatible;
-                    if (version.equals(TransportVersion.CURRENT)) {
-                        compatible = TransportVersion.MINIMUM_COMPATIBLE;
-                    } else {
-                        throw new IllegalArgumentException("Unknown transport version " + version);
-                    }
-
-                    listener.onResponse(compatible);
+                    assert getVersion().equals(TransportVersion.CURRENT);
+                    listener.onResponse(TransportVersion.MINIMUM_COMPATIBLE);
                 }
             }
         };

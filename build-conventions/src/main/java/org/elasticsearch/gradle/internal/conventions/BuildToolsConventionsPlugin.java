@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.conventions;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.tasks.bundling.Jar;
@@ -26,7 +25,7 @@ public class BuildToolsConventionsPlugin implements Plugin<Project> {
         project.getPlugins().apply(LicenseHeadersPrecommitPlugin.class);
         int defaultParallel = ParallelDetector.findDefaultParallel(project);
         project.getTasks().withType(Test.class).configureEach(test -> {
-            BuildParams.withFipsEnabledOnly(test);
+            test.onlyIf((t) -> Util.getBooleanProperty("tests.fips.enabled", false) == false);
             test.setMaxParallelForks(defaultParallel);
         });
         // we put all our distributable files under distributions

@@ -12,7 +12,6 @@ import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.specs.Spec;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 
 import java.io.File;

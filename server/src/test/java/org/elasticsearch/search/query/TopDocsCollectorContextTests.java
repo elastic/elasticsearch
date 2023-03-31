@@ -103,7 +103,7 @@ public class TopDocsCollectorContextTests extends ESTestCase {
         }
     }
 
-    public void testShortcutTotalHitCountMatchAllQuery() throws IOException{
+    public void testShortcutTotalHitCountMatchAllQuery() throws IOException {
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             int numDocs = randomIntBetween(5, 10);
             for (int i = 0; i < numDocs; i++) {

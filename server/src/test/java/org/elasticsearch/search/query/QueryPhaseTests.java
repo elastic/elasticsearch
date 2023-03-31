@@ -339,6 +339,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94912")
     public void testTerminateAfterEarlyTermination() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig();

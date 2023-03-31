@@ -71,7 +71,7 @@ for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
     maxWaitInSeconds 60
-    onlyIf { BuildParams.inFipsJvm == false }
+    BuildParams.withFipsEnabledOnly(it)
     waitCondition = { fixture, ant ->
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
@@ -109,7 +109,7 @@ tasks.named("javaRestTest").configure {
   def hdfsPort = project.getExtensions().getByType(ReservedPortRange).getOrAllocate("hdfsFixture")
   systemProperty 'test.hdfs.uri', "hdfs://localhost:$hdfsPort"
   nonInputProperties.systemProperty 'test.hdfs.path', '/user/elasticsearch/test/repository_test_kit/simple'
-  onlyIf { BuildParams.inFipsJvm == false }
+  BuildParams.withFipsEnabledOnly(it)
 }
 
 tasks.register("javaRestTestSecure", RestIntegTestTask) {

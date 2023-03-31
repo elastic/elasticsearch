@@ -10,7 +10,9 @@ package org.elasticsearch.gradle.internal.info;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
+import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.specs.Spec;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 
 import java.io.File;
@@ -90,6 +92,10 @@ public class BuildParams {
 
     public static Boolean isInFipsJvm() {
         return value(inFipsJvm);
+    }
+
+    public static void withFipsEnabledOnly(Task task) {
+        task.onlyIf("Only if FIPS mode disabled", task1 -> isInFipsJvm() == false);
     }
 
     public static String getGitRevision() {

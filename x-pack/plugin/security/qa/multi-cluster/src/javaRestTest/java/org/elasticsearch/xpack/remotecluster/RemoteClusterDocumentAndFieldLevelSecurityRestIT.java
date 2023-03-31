@@ -20,6 +20,7 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -231,7 +232,7 @@ public class RemoteClusterDocumentAndFieldLevelSecurityRestIT extends AbstractRe
             final String[] expectedRemoteIndices = new String[] { "remote_index1", "remote_index2", "remote_index3", "remote_index4" };
             assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
             for (String remoteIndex : expectedRemoteIndices) {
-                assertThat(searchResult.get(remoteIndex).keySet(), containsInAnyOrder("field1", "field2", "field3"));
+                assertThat(searchResult.get(remoteIndex), containsInAnyOrder("field1", "field2", "field3"));
             }
         }
 
@@ -243,7 +244,7 @@ public class RemoteClusterDocumentAndFieldLevelSecurityRestIT extends AbstractRe
             final String[] expectedRemoteIndices = new String[] { "remote_index1", "remote_index2" };
             assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
             for (String remoteIndex : expectedRemoteIndices) {
-                assertThat(searchResult.get(remoteIndex).keySet(), containsInAnyOrder("field1", "field2"));
+                assertThat(searchResult.get(remoteIndex), containsInAnyOrder("field1", "field2"));
             }
         }
 
@@ -255,7 +256,7 @@ public class RemoteClusterDocumentAndFieldLevelSecurityRestIT extends AbstractRe
             final String[] expectedRemoteIndices = new String[] { "remote_index2", "remote_index3", "remote_index4" };
             assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
             for (String remoteIndex : expectedRemoteIndices) {
-                assertThat(searchResult.get(remoteIndex).keySet(), containsInAnyOrder("field1", "field2", "field3"));
+                assertThat(searchResult.get(remoteIndex), containsInAnyOrder("field1", "field2", "field3"));
             }
         }
 
@@ -267,7 +268,7 @@ public class RemoteClusterDocumentAndFieldLevelSecurityRestIT extends AbstractRe
             final String[] expectedRemoteIndices = new String[] { "remote_index1", "remote_index2", "remote_index3", "remote_index4" };
             assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
             for (String remoteIndex : expectedRemoteIndices) {
-                assertThat(searchResult.get(remoteIndex).keySet(), containsInAnyOrder("field1", "field3"));
+                assertThat(searchResult.get(remoteIndex), containsInAnyOrder("field1", "field3"));
             }
         }
 
@@ -312,10 +313,10 @@ public class RemoteClusterDocumentAndFieldLevelSecurityRestIT extends AbstractRe
         return client().performRequest(request);
     }
 
-    private Map<String, Map<String, Object>> readIndicesAndFields(SearchResponse response) {
-        final Map<String, Map<String, Object>> result = new HashMap<>();
+    private Map<String, Set<String>> readIndicesAndFields(SearchResponse response) {
+        final Map<String, Set<String>> result = new HashMap<>();
         for (var hit : response.getHits().getHits()) {
-            result.put(hit.getIndex(), hit.getSourceAsMap());
+            result.put(hit.getIndex(), hit.getSourceAsMap().keySet());
         }
         return result;
     }

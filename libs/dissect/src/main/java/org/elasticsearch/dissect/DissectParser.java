@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -296,20 +297,20 @@ public final class DissectParser {
         return results;
     }
 
-    public List<String> outputKeyNames() {
-        List<String> result = new ArrayList<>();
+    public Set<String> outputKeys() {
+        Set<String> result = new LinkedHashSet<>(matchPairs.size());
         for (DissectPair matchPair : matchPairs) {
-            if (matchPair.key.getModifier() != DissectKey.Modifier.NAMED_SKIP && result.contains(matchPair.key.getName()) == false) {
+            if (matchPair.key.getModifier() != DissectKey.Modifier.NAMED_SKIP) {
                 result.add(matchPair.key.getName());
             }
         }
         return result;
     }
 
-    public List<String> referenceKeyNames() {
-        List<String> result = new ArrayList<>();
+    public Set<String> referenceKeys() {
+        Set<String> result = new LinkedHashSet<>(matchPairs.size());
         for (DissectPair matchPair : matchPairs) {
-            if (matchPair.key.getModifier() == DissectKey.Modifier.FIELD_NAME && result.contains(matchPair.key.getName()) == false) {
+            if (matchPair.key.getModifier() == DissectKey.Modifier.FIELD_NAME) {
                 result.add(matchPair.key.getName());
             }
         }
@@ -329,7 +330,7 @@ public final class DissectParser {
             this.delimiter = delimiter;
         }
 
-        DissectKey getKey() {
+        private DissectKey getKey() {
             return key;
         }
 

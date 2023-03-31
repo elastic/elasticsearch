@@ -454,7 +454,7 @@ subprojects {
 
     tasks.register("checkNotice") {
       dependsOn buildDist, "checkExtraction"
-      onlyIf("deb project and dpkg exists or rpm project and rpm exists") {
+      onlyIf("${project.name.contains('deb') ? 'dpkg' : 'rpm'} exists") {
         (project.name.contains('deb') && dpkgExists.call(it)) || (project.name.contains('rpm') && rpmExists.call(it))
       }
       doLast {

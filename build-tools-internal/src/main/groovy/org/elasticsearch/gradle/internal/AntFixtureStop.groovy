@@ -32,7 +32,7 @@ abstract class AntFixtureStop extends LoggedExec implements FixtureStop {
         assert this.fixture == null
         this.fixture = fixture;
         final Object pid = "${ -> this.fixture.pid }"
-        onlyIf { fixture.pidFile.exists() }
+        onlyIf("pidFile exists") { fixture.pidFile.exists() }
         doFirst {
             logger.info("Shutting down ${fixture.name} with pid ${pid}")
         }

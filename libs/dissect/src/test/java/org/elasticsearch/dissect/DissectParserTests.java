@@ -445,7 +445,7 @@ public class DissectParserTests extends ESTestCase {
         }
     }
 
-    public void testGetOutputKeyNames() {
+    public void testOutputKeys() {
         assertOutputKeys("%{a} %{b}", linkedHashSetOf("a", "b"));
         assertOutputKeys("%{a->} %{b}", linkedHashSetOf("a", "b"));
         assertOutputKeys("%{?a} %{b}", linkedHashSetOf("b"));
@@ -453,7 +453,7 @@ public class DissectParserTests extends ESTestCase {
         assertOutputKeys("%{a} %{b} %{*c} %{&c}", linkedHashSetOf("a", "b", "c"));
     }
 
-    public void testGetReferenceKeyNames() {
+    public void testReferenceKeys() {
         assertReferenceKeys("%{a} %{b}", linkedHashSetOf());
         assertReferenceKeys("%{a->} %{b}", linkedHashSetOf());
         assertReferenceKeys("%{?a} %{b}", linkedHashSetOf());

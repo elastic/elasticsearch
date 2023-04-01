@@ -18,12 +18,12 @@ import org.mockito.internal.util.collections.Sets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiAlphanumOfLengthBetween;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 
 public class DissectParserTests extends ESTestCase {
 
@@ -446,21 +446,21 @@ public class DissectParserTests extends ESTestCase {
     }
 
     public void testOutputKeys() {
-        assertOutputKeys("%{a} %{b}", linkedHashSetOf("a", "b"));
-        assertOutputKeys("%{a->} %{b}", linkedHashSetOf("a", "b"));
-        assertOutputKeys("%{?a} %{b}", linkedHashSetOf("b"));
-        assertOutputKeys("%{+a} %{b} %{+a}", linkedHashSetOf("a", "b"));
-        assertOutputKeys("%{a} %{b} %{*c} %{&c}", linkedHashSetOf("a", "b", "c"));
+        assertThat(new DissectParser("%{a} %{b}", "").outputKeys(), contains("a", "b"));
+        assertThat(new DissectParser("%{a->} %{b}", "").outputKeys(), contains("a", "b"));
+        assertThat(new DissectParser("%{?a} %{b}", "").outputKeys(), contains("b"));
+        assertThat(new DissectParser("%{+a} %{b} %{+a}", "").outputKeys(), contains("a", "b"));
+        assertThat(new DissectParser("%{a} %{b} %{*c} %{&c}", "").outputKeys(), contains("a", "b", "c"));
     }
 
     public void testReferenceKeys() {
-        assertReferenceKeys("%{a} %{b}", linkedHashSetOf());
-        assertReferenceKeys("%{a->} %{b}", linkedHashSetOf());
-        assertReferenceKeys("%{?a} %{b}", linkedHashSetOf());
-        assertReferenceKeys("%{+a} %{b} %{+a}", linkedHashSetOf());
-        assertReferenceKeys("%{*a} %{&a}", linkedHashSetOf("a"));
-        assertReferenceKeys("%{a} %{b} %{*c} %{&c}", linkedHashSetOf("c"));
-        assertReferenceKeys("%{a} %{b} %{*c} %{&c} %{*d} %{&d}", linkedHashSetOf("c", "d"));
+        assertThat(new DissectParser("%{a} %{b}", "").referenceKeys(), empty());
+        assertThat(new DissectParser("%{a->} %{b}", "").referenceKeys(), empty());
+        assertThat(new DissectParser("%{?a} %{b}", "").referenceKeys(), empty());
+        assertThat(new DissectParser("%{+a} %{b} %{+a}", "").referenceKeys(), empty());
+        assertThat(new DissectParser("%{*a} %{&a}", "").referenceKeys(), contains("a"));
+        assertThat(new DissectParser("%{a} %{b} %{*c} %{&c}", "").referenceKeys(), contains("c"));
+        assertThat(new DissectParser("%{a} %{b} %{*c} %{&c} %{*d} %{&d}", "").referenceKeys(), contains("c", "d"));
     }
 
     private DissectException assertFail(String pattern, String input) {
@@ -503,32 +503,5 @@ public class DissectParserTests extends ESTestCase {
             final String key = expectedKeys.get(i);
             assertThat(results.get(key), Matchers.equalTo(expectedValues.get(i)));
         }
-    }
-
-    private void assertOutputKeys(String pattern, Set<String> expectedKeys) {
-        DissectParser parser = new DissectParser(pattern, "");
-        assertSetsEqualWithOrder(expectedKeys, parser.outputKeys());
-    }
-
-    private void assertReferenceKeys(String pattern, Set<String> expectedKeys) {
-        DissectParser parser = new DissectParser(pattern, "");
-        assertSetsEqualWithOrder(expectedKeys, parser.referenceKeys());
-    }
-
-    private void assertSetsEqualWithOrder(Set<?> set1, Set<?> set2) {
-        assertEquals(set1.size(), set2.size());
-        Iterator<?> iter1 = set1.iterator();
-        Iterator<?> iter2 = set2.iterator();
-        while (iter1.hasNext()) {
-            assertEquals(iter1.next(), iter2.next());
-        }
-    }
-
-    private LinkedHashSet<String> linkedHashSetOf(String... items) {
-        LinkedHashSet<String> result = new LinkedHashSet<>(items.length);
-        for (String item : items) {
-            result.add(item);
-        }
-        return result;
     }
 }

@@ -105,6 +105,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             pl.onResponse(null);
         });
         clusterService.getMasterService().setClusterStateSupplier(() -> clusterState);
+        clusterService.start();
         env = newEnvironment(Settings.EMPTY);
 
         Files.createDirectories(env.configFile());

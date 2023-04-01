@@ -77,10 +77,13 @@ class HdfsSecurityContext {
             // Still far and away fewer permissions than the original full plugin policy
         };
         WEBHDFS_PERMISSIONS = new Permission[] {
+            // 1) allow hadoop to act as the logged in Subject
             new AuthPermission("doAs")
         };
         SWEBHDFS_PERMISSIONS = new Permission[] {
+            // 1) allow hadoop to act as the logged in Subject
             new AuthPermission("doAs"),
+            // 2) allow hadoop to call setSSLSocketFactory on HttpsURLConnection
             new RuntimePermission("setFactory"),
         };
     }

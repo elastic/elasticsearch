@@ -73,7 +73,7 @@ public final class HdfsRepository extends BlobStoreRepository {
             throw new IllegalArgumentException("No 'uri' defined for hdfs snapshot/restore");
         }
         uri = URI.create(uriSetting);
-        if (uri.getScheme() == null || allowedSchemes.contains(uri.getScheme().toLowerCase(Locale.ROOT)) == false) {
+        if (uri.getScheme() == null || allowedSchemes.contains(uri.getScheme()) == false) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,

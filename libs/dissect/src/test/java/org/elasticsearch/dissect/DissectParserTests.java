@@ -12,7 +12,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.mockito.internal.util.collections.Sets;
 
@@ -471,21 +470,21 @@ public class DissectParserTests extends ESTestCase {
     private void assertMiss(String pattern, String input) {
         assertNull(new DissectParser(pattern, null).parse(input));
         DissectException e = assertFail(pattern, input);
-        assertThat(e.getMessage(), CoreMatchers.containsString("Unable to find match for dissect pattern"));
-        assertThat(e.getMessage(), CoreMatchers.containsString(pattern));
-        assertThat(e.getMessage(), input == null ? CoreMatchers.containsString("null") : CoreMatchers.containsString(input));
+        assertThat(e.getMessage(), Matchers.containsString("Unable to find match for dissect pattern"));
+        assertThat(e.getMessage(), Matchers.containsString(pattern));
+        assertThat(e.getMessage(), input == null ? Matchers.containsString("null") : Matchers.containsString(input));
     }
 
     private void assertBadPattern(String pattern) {
         DissectException e = assertFail(pattern, null);
-        assertThat(e.getMessage(), CoreMatchers.containsString("Unable to parse pattern"));
-        assertThat(e.getMessage(), CoreMatchers.containsString(pattern));
+        assertThat(e.getMessage(), Matchers.containsString("Unable to parse pattern"));
+        assertThat(e.getMessage(), Matchers.containsString(pattern));
     }
 
     private void assertBadKey(String pattern, String key) {
         DissectException e = assertFail(pattern, null);
-        assertThat(e.getMessage(), CoreMatchers.containsString("Unable to parse key"));
-        assertThat(e.getMessage(), CoreMatchers.containsString(key));
+        assertThat(e.getMessage(), Matchers.containsString("Unable to parse key"));
+        assertThat(e.getMessage(), Matchers.containsString(key));
     }
 
     private void assertBadKey(String pattern) {

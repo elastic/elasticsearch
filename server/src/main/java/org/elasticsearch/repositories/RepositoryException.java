@@ -11,6 +11,7 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 
 import java.io.IOException;
 
@@ -20,12 +21,12 @@ import java.io.IOException;
 public class RepositoryException extends ElasticsearchException {
     private final String repository;
 
-    public RepositoryException(String repository, String msg) {
-        this(repository, msg, null);
+    public RepositoryException(String repository, String msg, Object... args) {
+        this(repository, msg, (Throwable)null, args);
     }
 
-    public RepositoryException(String repository, String msg, Throwable cause) {
-        super("[" + (repository == null ? "_na" : repository) + "] " + msg, cause);
+    public RepositoryException(String repository, String msg, Throwable cause, Object... args) {
+        super("[" + (repository == null ? "_na" : repository) + "] " + LoggerMessageFormat.format(msg, args), cause);
         this.repository = repository;
     }
 

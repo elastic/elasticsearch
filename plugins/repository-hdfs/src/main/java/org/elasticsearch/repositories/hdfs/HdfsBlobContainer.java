@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -248,7 +247,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     ) throws IOException {
         final byte[] buffer = new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize];
 
-        Options.CreateOpts[] createOptsWithBufferSize = ArrayUtils.add(createOpts, CreateOpts.bufferSize(buffer.length));
+        Options.CreateOpts[] createOptsWithBufferSize = addOptionToArray(createOpts, CreateOpts.bufferSize(buffer.length));
         try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, createOptsWithBufferSize)) {
             int bytesRead;
             while ((bytesRead = inputStream.read(buffer)) != -1) {
@@ -342,5 +341,16 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     @Override
     public long compareAndExchangeRegister(String key, long expected, long updated) {
         throw new UnsupportedOperationException("HDFS repositories do not support this operation");
+    }
+
+    private static CreateOpts[] addOptionToArray(final CreateOpts[] opts, final CreateOpts opt) {
+        if (opts == null) {
+            return new CreateOpts[] { opt };
+        }
+        CreateOpts[] newOpts = new CreateOpts[opts.length + 1];
+        System.arraycopy(opts, 0, newOpts, 0, opts.length);
+        newOpts[opts.length] = opt;
+
+        return newOpts;
     }
 }

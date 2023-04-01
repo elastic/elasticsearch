@@ -40,10 +40,12 @@ import java.net.URI;
 import java.net.UnknownHostException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.text.MessageFormat;
 import java.util.Locale;
 
 public final class HdfsRepository extends BlobStoreRepository {
+
+    private static final int MIN_REPLICATION_FACTOR = 1;
+    private static final int MAX_REPLICATION_FACTOR = Short.MAX_VALUE;
 
     private static final Logger logger = LogManager.getLogger(HdfsRepository.class);
 
@@ -111,27 +113,39 @@ public final class HdfsRepository extends BlobStoreRepository {
             hadoopConfiguration.set(key, confSettings.get(key));
         }
 
-        Integer replicationFactor = repositorySettings.getAsInt("create_opts.replication", null);
+        Integer replicationFactor = repositorySettings.getAsInt("replication_factor", null);
+        if (replicationFactor != null && replicationFactor < MIN_REPLICATION_FACTOR) {
+            throw new RepositoryException(
+                metadata.name(),
+                "Value of replication_factor [{}] must be >= {}",
+                replicationFactor,
+                MIN_REPLICATION_FACTOR
+            );
+        }
+        if (replicationFactor != null && replicationFactor > MAX_REPLICATION_FACTOR) {
+            throw new RepositoryException(
+                metadata.name(),
+                "Value of replication_factor [{}] must be <= {}",
+                replicationFactor,
+                MAX_REPLICATION_FACTOR
+            );
+        }
         int minReplicationFactory = hadoopConfiguration.getInt("dfs.replication.min", 0);
         int maxReplicationFactory = hadoopConfiguration.getInt("dfs.replication.max", 512);
         if (replicationFactor != null && replicationFactor < minReplicationFactory) {
             throw new RepositoryException(
                 metadata.name(),
-                MessageFormat.format(
-                    "Value of create_opts.replication [{0}] must be >= dfs.replication.min [{1}]",
-                    replicationFactor,
-                    minReplicationFactory
-                )
+                "Value of replication_factor [{}] must be >= dfs.replication.min [{}]",
+                replicationFactor,
+                minReplicationFactory
             );
         }
         if (replicationFactor != null && replicationFactor > maxReplicationFactory) {
             throw new RepositoryException(
                 metadata.name(),
-                MessageFormat.format(
-                    "Value of create_opts.replication [{0}] must be <= dfs.replication.max [{1}]",
-                    replicationFactor,
-                    maxReplicationFactory
-                )
+                "Value of replication_factor [{}] must be <= dfs.replication.max [{}]",
+                replicationFactor,
+                maxReplicationFactory
             );
         }
 

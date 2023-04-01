@@ -211,7 +211,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testReplicationFactorTooSmall() {
+    public void testReplicationFactorBelowOne() {
         try {
             client().admin()
                 .cluster()
@@ -220,20 +220,19 @@ public class HdfsTests extends ESSingleNodeTestCase {
                 .setSettings(
                     Settings.builder()
                         .put("uri", "hdfs:///")
-                        .put("create_opts.replication", "-1")
+                        .put("replication_factor", "0")
                         .put("path", "foo")
-                        .put("conf.dfs.replication.min", "0")
                         .build()
                 )
                 .get();
             fail();
         } catch (RepositoryException e) {
             assertTrue(e.getCause() instanceof RepositoryException);
-            assertTrue(e.getCause().getMessage().contains("Value of create_opts.replication [-1] must be >= dfs.replication.min [0]"));
+            assertTrue(e.getCause().getMessage().contains("Value of replication_factor [0] must be >= 1"));
         }
     }
 
-    public void testReplicationFactorTooBig() {
+    public void testReplicationFactorOverMaxShort() {
         try {
             client().admin()
                 .cluster()
@@ -242,7 +241,50 @@ public class HdfsTests extends ESSingleNodeTestCase {
                 .setSettings(
                     Settings.builder()
                         .put("uri", "hdfs:///")
-                        .put("create_opts.replication", "600")
+                        .put("replication_factor", "32768")
+                        .put("path", "foo")
+                        .build()
+                )
+                .get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof RepositoryException);
+            assertTrue(e.getCause().getMessage().contains("Value of replication_factor [32768] must be <= 32767"));
+        }
+    }
+
+    public void testReplicationFactorBelowReplicationMin() {
+        try {
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(
+                    Settings.builder()
+                        .put("uri", "hdfs:///")
+                        .put("replication_factor", "4")
+                        .put("path", "foo")
+                        .put("conf.dfs.replication.min", "5")
+                        .build()
+                )
+                .get();
+            fail();
+        } catch (RepositoryException e) {
+            assertTrue(e.getCause() instanceof RepositoryException);
+            assertTrue(e.getCause().getMessage().contains("Value of replication_factor [4] must be >= dfs.replication.min [5]"));
+        }
+    }
+
+    public void testReplicationFactorOverReplicationMax() {
+        try {
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(
+                    Settings.builder()
+                        .put("uri", "hdfs:///")
+                        .put("replication_factor", "600")
                         .put("path", "foo")
                         .put("conf.dfs.replication.max", "512")
                         .build()
@@ -251,7 +293,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
             fail();
         } catch (RepositoryException e) {
             assertTrue(e.getCause() instanceof RepositoryException);
-            assertTrue(e.getCause().getMessage().contains("Value of create_opts.replication [600] must be <= dfs.replication.max [512]"));
+            assertTrue(e.getCause().getMessage().contains("Value of replication_factor [600] must be <= dfs.replication.max [512]"));
         }
     }
 

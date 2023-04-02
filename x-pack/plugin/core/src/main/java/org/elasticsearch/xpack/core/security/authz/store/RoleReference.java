@@ -150,12 +150,12 @@ public interface RoleReference {
             final Set<RoleDescriptor> roleDescriptors = getRoleDescriptorsBytes().toRoleDescriptors();
             if (false == CrossClusterAccessUser.is(user)) {
                 for (RoleDescriptor roleDescriptor : roleDescriptors) {
-                    final boolean privilegesOtherThanIndex = roleDescriptor.hasClusterPrivileges()
+                    final boolean hasPrivilegesOtherThanIndex = roleDescriptor.hasClusterPrivileges()
                         || roleDescriptor.hasConfigurableClusterPrivileges()
                         || roleDescriptor.hasApplicationPrivileges()
                         || roleDescriptor.hasRunAs()
                         || roleDescriptor.hasRemoteIndicesPrivileges();
-                    if (privilegesOtherThanIndex) {
+                    if (hasPrivilegesOtherThanIndex) {
                         throw new IllegalArgumentException(
                             "role descriptor for cross cluster access can only contain index privileges "
                                 + "but other privileges found for subject ["

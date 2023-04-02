@@ -1,11 +1,3 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
-
 package org.elasticsearch.rest.action.cat;
 
 import org.apache.lucene.search.TotalHits;
@@ -15,6 +7,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -72,7 +66,7 @@ public class RestCountAction extends AbstractCatAction {
             @Override
             public RestResponse buildResponse(SearchResponse countResponse) throws Exception {
                 assert countResponse.getHits().getTotalHits().relation == TotalHits.Relation.EQUAL_TO;
-                return RestTable.buildResponse(buildTable(request, countResponse), channel);
+                return RestTable.buildResponse(getTableWithStats(request, countResponse), channel);
             }
         });
     }
@@ -86,12 +80,52 @@ public class RestCountAction extends AbstractCatAction {
         return table;
     }
 
-    private Table buildTable(RestRequest request, SearchResponse response) {
-        Table table = getTableWithHeader(request);
-        table.startRow();
-        table.addCell(response.getHits().getTotalHits().value);
-        table.endRow();
-
+    protected Table getTableWithStats(final RestRequest request) {
+        Table table = new Table();
+        table.startHeadersWithTimestamp();
+        table.addCell("count", "alias:dc,docs.count,docsCount;desc:the document count");
+        table.addCell("stats", "alias:s,docs.stats,docsStats;desc:the document stats");
+        table.endHeaders();
         return table;
     }
-}
+
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        SearchRequest countRequest = new SearchRequest(indices);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
+
+        // New code for stats parameter
+        boolean includeStats = request.paramAsBoolean("stats", false);
+        if (includeStats) {
+            searchSourceBuilder.aggregation(AggregationBuilders.stats("stats").field("_index"));
+        }
+
+        countRequest.source(searchSourceBuilder);
+        try {
+            request.withContentOrSourceParamParserOrNull(parser -> {
+                if (parser == null) {
+                    QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+                    if (queryBuilder != null) {
+                        searchSourceBuilder.query(queryBuilder);
+                    }
+                } else {
+                    searchSourceBuilder.query(RestActions.getQueryContent(parser));
+                }
+            });
+        } catch (IOException e) {
+            throw new ElasticsearchException("Couldn't parse query", e);
+        }
+        return channel -> client.search(countRequest, new RestResponseListener<SearchResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(SearchResponse countResponse) throws Exception {
+                assert countResponse.getHits().getTotalHits().relation == TotalHits.Relation.EQUAL_TO;
+                // New code for stats parameter
+                if (includeStats) {
+                    return RestTable.buildResponse(buildTableWithStats(request, countResponse), channel);
+                } else {
+                    return RestTable.buildResponse(buildTable(request, countResponse), channel);
+                }
+            }
+        });
+    }
+

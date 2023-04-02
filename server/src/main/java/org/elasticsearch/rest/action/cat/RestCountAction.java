@@ -97,6 +97,23 @@ public class RestCountAction extends AbstractCatAction {
         return table;
     }
 
+    private Table buildTable(RestRequest request, SearchResponse response) {
+        Table table = getTableWithHeader(request);
+        table.startRow();
+        table.addCell(response.getHits().getTotalHits().value);
+        table.endRow();
+        return table;
+    }
+
+    private Table buildTableWithStats(RestRequest request, SearchResponse response) {
+        Table table = getTableWithStats(request);
+        table.startRow();
+        table.addCell(response.getHits().getTotalHits().value);
+        table.addCell(response.getAggregations().toString());
+        table.endRow();
+        return table;
+    }
+
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         SearchRequest countRequest = new SearchRequest(indices);

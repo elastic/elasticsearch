@@ -20,13 +20,11 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -168,26 +166,6 @@ public class CrossClusterAccessAuthenticationService {
             throw new IllegalArgumentException(
                 "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
             );
-        } else {
-            for (CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes : crossClusterAccessSubjectInfo
-                .getRoleDescriptorsBytesList()) {
-                final Set<RoleDescriptor> roleDescriptors = roleDescriptorsBytes.toRoleDescriptors();
-                for (RoleDescriptor roleDescriptor : roleDescriptors) {
-                    final boolean privilegesOtherThanIndex = roleDescriptor.hasClusterPrivileges()
-                        || roleDescriptor.hasConfigurableClusterPrivileges()
-                        || roleDescriptor.hasApplicationPrivileges()
-                        || roleDescriptor.hasRunAs()
-                        || roleDescriptor.hasRemoteIndicesPrivileges();
-                    if (privilegesOtherThanIndex) {
-                        throw new IllegalArgumentException(
-                            "role descriptor for cross cluster access can only contain index privileges "
-                                + "but other privileges found for subject ["
-                                + effectiveSubject.getUser().principal()
-                                + "]"
-                        );
-                    }
-                }
-            }
         }
     }
 

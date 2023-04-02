@@ -273,14 +273,14 @@ public class Subject {
         if (crossClusterAccessRoleDescriptorsBytes.isEmpty()) {
             // If the cross cluster access role descriptors are empty, the remote user has no privileges. We need to add an empty role to
             // restrict access of the overall intersection accordingly
-            roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(RoleDescriptorsBytes.EMPTY));
+            roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(getUser(), RoleDescriptorsBytes.EMPTY));
         } else {
             // This is just a sanity check, since we should never have more than 2 role descriptors.
             // We can have max two role descriptors in case when API key is used for cross cluster access.
             assert crossClusterAccessRoleDescriptorsBytes.size() <= 2
                 : "not expected to have list of cross cluster access role descriptors bytes which have more than 2 elements";
             for (RoleDescriptorsBytes roleDescriptorsBytes : crossClusterAccessRoleDescriptorsBytes) {
-                roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(roleDescriptorsBytes));
+                roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(getUser(), roleDescriptorsBytes));
             }
         }
         roleReferences.addAll(buildRoleReferencesForApiKey().getRoleReferences());

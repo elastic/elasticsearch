@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.store;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 
 import java.util.Set;
@@ -68,7 +69,10 @@ public class RoleReferenceTests extends ESTestCase {
 
     public void testCrossClusterAccessRoleReference() {
         final var roleDescriptorsBytes = new CrossClusterAccessSubjectInfo.RoleDescriptorsBytes(new BytesArray(randomAlphaOfLength(50)));
-        final var crossClusterAccessRoleReference = new RoleReference.CrossClusterAccessRoleReference(roleDescriptorsBytes);
+        final var crossClusterAccessRoleReference = new RoleReference.CrossClusterAccessRoleReference(
+            AuthenticationTestHelper.randomUser(),
+            roleDescriptorsBytes
+        );
 
         final RoleKey roleKey = crossClusterAccessRoleReference.id();
         assertThat(roleKey.getNames(), hasItem("cross_cluster_access:" + roleDescriptorsBytes.digest()));

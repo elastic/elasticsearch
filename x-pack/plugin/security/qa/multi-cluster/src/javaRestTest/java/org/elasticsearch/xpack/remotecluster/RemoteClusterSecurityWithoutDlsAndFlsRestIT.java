@@ -68,7 +68,7 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
      * Tests cross cluster search with different users against fulfilling cluster using API key without DLS and FLS restrictions.
      * Expectation is that only user defined DLS and FLS restrictions will be respected.
      */
-    public void testCrossClusterSearchUsingApiKeyWithoutDlsAndFls() throws Exception {
+    public void testCrossClusterSearchWithoutDlsAndFls() throws Exception {
         setupRemoteClusterTestCase(REMOTE_CLUSTER_NO_DLS_FLS);
 
         final Request searchRequest = new Request(

@@ -18,6 +18,9 @@ import org.junit.rules.TestRule;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Tests cross cluster search against a remote cluster which is connected using API Key which has both DLS and FLS permissions defined.
+ */
 public class RemoteClusterSecurityWithDlsAndFlsRestIT extends AbstractRemoteClusterSecurityWithDlsAndFlsRestIT {
 
     private static final String REMOTE_CLUSTER_DLS_FLS = REMOTE_CLUSTER_ALIAS + "_dls_fls";
@@ -66,7 +69,7 @@ public class RemoteClusterSecurityWithDlsAndFlsRestIT extends AbstractRemoteClus
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    public void testCrossClusterSearchUsingApiKeyWithDlsAndFls() throws Exception {
+    public void testCrossClusterSearchWithDlsAndFls() throws Exception {
         setupRemoteClusterTestCase(REMOTE_CLUSTER_DLS_FLS);
 
         final Request searchRequest = new Request(

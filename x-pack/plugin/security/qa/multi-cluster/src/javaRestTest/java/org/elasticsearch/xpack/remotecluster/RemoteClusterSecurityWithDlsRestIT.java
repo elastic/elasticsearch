@@ -68,7 +68,7 @@ public class RemoteClusterSecurityWithDlsRestIT extends AbstractRemoteClusterSec
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    public void testCrossClusterSearchUsingApiKeyWithDls() throws Exception {
+    public void testCrossClusterSearchWithDls() throws Exception {
         setupRemoteClusterTestCase(REMOTE_CLUSTER_DLS);
 
         final Request searchRequest = new Request(

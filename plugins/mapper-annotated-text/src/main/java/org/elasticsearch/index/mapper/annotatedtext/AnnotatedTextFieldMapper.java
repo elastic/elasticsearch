@@ -77,7 +77,9 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.getValue(), false);
 
-        final TextParams.Analyzers analyzers;
+        final TextParams.AnalyzerParameters analyzers;
+        final IndexAnalyzers indexAnalyzers;
+
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.getValue());
 
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.getValue());
@@ -91,10 +93,9 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
-            this.analyzers = new TextParams.Analyzers(
-                indexAnalyzers,
-                m -> builder(m).analyzers.getIndexAnalyzer(),
-                m -> builder(m).analyzers.positionIncrementGap.getValue(),
+            this.indexAnalyzers = indexAnalyzers;
+            this.analyzers = new TextParams.AnalyzerParameters(
+                m -> ((AnnotatedTextFieldMapper) m).analyzerConfiguration,
                 indexCreatedVersion
             );
         }
@@ -114,12 +115,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 meta };
         }
 
-        private AnnotatedTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
+        private AnnotatedTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context, TextParams.Analyzers analyzers) {
             TextSearchInfo tsi = new TextSearchInfo(
                 fieldType,
                 similarity.get(),
-                wrapAnalyzer(analyzers.getSearchAnalyzer()),
-                wrapAnalyzer(analyzers.getSearchQuoteAnalyzer())
+                wrapAnalyzer(analyzers.searchAnalyzer()),
+                wrapAnalyzer(analyzers.searchQuoteAnalyzer())
             );
             return new AnnotatedTextFieldType(
                 context.buildFullName(name),
@@ -132,11 +133,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         @Override
         public AnnotatedTextFieldMapper build(MapperBuilderContext context) {
+            TextParams.Analyzers analyzers = this.analyzers.buildAnalyzers(indexAnalyzers);
             FieldType fieldType = TextParams.buildFieldType(() -> true, store, indexOptions, norms, termVectors);
             if (fieldType.indexOptions() == IndexOptions.NONE) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields must be indexed");
             }
-            if (analyzers.positionIncrementGap.isConfigured()) {
+            if (this.analyzers.positionIncrementGap.isConfigured()) {
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                     throw new IllegalArgumentException(
                         "Cannot set position_increment_gap on field [" + name + "] without positions enabled"
@@ -146,9 +148,10 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             return new AnnotatedTextFieldMapper(
                 name,
                 fieldType,
-                buildFieldType(fieldType, context),
+                buildFieldType(fieldType, context, analyzers),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
+                analyzers,
                 this
             );
         }
@@ -494,6 +497,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     private final FieldType fieldType;
+    private final TextParams.AnalyzerConfiguration analyzerConfiguration;
     private final Builder builder;
 
     private final NamedAnalyzer indexAnalyzer;
@@ -504,13 +508,15 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         AnnotatedTextFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
+        TextParams.Analyzers analyzers,
         Builder builder
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         assert fieldType.tokenized();
         this.fieldType = fieldType;
         this.builder = builder;
-        this.indexAnalyzer = wrapAnalyzer(builder.analyzers.getIndexAnalyzer());
+        this.indexAnalyzer = wrapAnalyzer(analyzers.indexAnalyzer());
+        this.analyzerConfiguration = analyzers.configuration();
     }
 
     @Override
@@ -542,6 +548,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(simpleName(), builder.indexCreatedVersion, builder.indexAnalyzers).init(this);
     }
 }

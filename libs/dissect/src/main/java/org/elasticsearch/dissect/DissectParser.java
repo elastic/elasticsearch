@@ -94,7 +94,7 @@ public final class DissectParser {
         DissectKey.Modifier.APPEND,
         DissectKey.Modifier.APPEND_WITH_ORDER
     );
-    private static final Function<DissectPair, String> KEY_NAME = val -> val.getKey().getName();
+    private static final Function<DissectPair, String> KEY_NAME = val -> val.key().getName();
     private final List<DissectPair> matchPairs;
     private final String pattern;
     private String leadingDelimiter = "";
@@ -120,7 +120,7 @@ public final class DissectParser {
         }
         this.maxMatches = dissectPairs.size();
         this.maxResults = Long.valueOf(
-            dissectPairs.stream().filter(dissectPair -> dissectPair.getKey().skip() == false).map(KEY_NAME).distinct().count()
+            dissectPairs.stream().filter(dissectPair -> dissectPair.key().skip() == false).map(KEY_NAME).distinct().count()
         ).intValue();
         if (this.maxMatches == 0 || maxResults == 0) {
             throw new DissectException.PatternParse(pattern, "Unable to find any keys or delimiters.");
@@ -128,15 +128,15 @@ public final class DissectParser {
         // append validation - look through all of the keys to see if there are any keys that need to participate in an append operation
         // but don't have the '+' defined
         Set<String> appendKeyNames = dissectPairs.stream()
-            .filter(dissectPair -> APPEND_MODIFIERS.contains(dissectPair.getKey().getModifier()))
+            .filter(dissectPair -> APPEND_MODIFIERS.contains(dissectPair.key().getModifier()))
             .map(KEY_NAME)
             .distinct()
             .collect(Collectors.toSet());
         if (appendKeyNames.size() > 0) {
             List<DissectPair> modifiedMatchPairs = new ArrayList<>(dissectPairs.size());
             for (DissectPair p : dissectPairs) {
-                if (p.getKey().getModifier().equals(DissectKey.Modifier.NONE) && appendKeyNames.contains(p.getKey().getName())) {
-                    modifiedMatchPairs.add(new DissectPair(new DissectKey(p.getKey(), DissectKey.Modifier.APPEND), p.getDelimiter()));
+                if (p.key().getModifier().equals(DissectKey.Modifier.NONE) && appendKeyNames.contains(p.key().getName())) {
+                    modifiedMatchPairs.add(new DissectPair(new DissectKey(p.key(), DissectKey.Modifier.APPEND), p.delimiter()));
                 } else {
                     modifiedMatchPairs.add(p);
                 }
@@ -147,7 +147,7 @@ public final class DissectParser {
 
         // reference validation - ensure that '*' and '&' come in pairs
         Map<String, List<DissectPair>> referenceGroupings = dissectPairs.stream()
-            .filter(dissectPair -> ASSOCIATE_MODIFIERS.contains(dissectPair.getKey().getModifier()))
+            .filter(dissectPair -> ASSOCIATE_MODIFIERS.contains(dissectPair.key().getModifier()))
             .collect(Collectors.groupingBy(KEY_NAME));
         for (Map.Entry<String, List<DissectPair>> entry : referenceGroupings.entrySet()) {
             if (entry.getValue().size() != 2) {
@@ -202,8 +202,8 @@ public final class DissectParser {
             byte[] input = inputString.getBytes(StandardCharsets.UTF_8);
             // grab the first key/delimiter pair
             DissectPair dissectPair = it.next();
-            DissectKey key = dissectPair.getKey();
-            byte[] delimiter = dissectPair.getDelimiter().getBytes(StandardCharsets.UTF_8);
+            DissectKey key = dissectPair.key();
+            byte[] delimiter = dissectPair.delimiter().getBytes(StandardCharsets.UTF_8);
             // start dissection after the first delimiter
             int i = leadingDelimiter.length();
             int valueStart = i;
@@ -245,7 +245,7 @@ public final class DissectParser {
                                         break; // the while loop
                                     }
                                     dissectPair = it.next();
-                                    key = dissectPair.getKey();
+                                    key = dissectPair.key();
                                     // add the key with an empty value for the empty delimiter
                                     dissectMatch.add(key, "");
                                 }
@@ -258,8 +258,8 @@ public final class DissectParser {
                             break; // the for loop
                         }
                         dissectPair = it.next();
-                        key = dissectPair.getKey();
-                        delimiter = dissectPair.getDelimiter().getBytes(StandardCharsets.UTF_8);
+                        key = dissectPair.key();
+                        delimiter = dissectPair.delimiter().getBytes(StandardCharsets.UTF_8);
                         // i is always one byte after the last found delimiter, aka the start of the next value
                         valueStart = i;
                     } else {
@@ -339,23 +339,6 @@ public final class DissectParser {
     /**
      * A tuple class to hold the dissect key and delimiter
      */
-    private class DissectPair {
-
-        private final DissectKey key;
-        private final String delimiter;
-
-        private DissectPair(DissectKey key, String delimiter) {
-            this.key = key;
-            this.delimiter = delimiter;
-        }
-
-        private DissectKey getKey() {
-            return key;
-        }
-
-        private String getDelimiter() {
-            return delimiter;
-        }
-    }
+    private record DissectPair(DissectKey key, String delimiter) {}
 
 }

@@ -394,9 +394,21 @@ public class MasterService extends AbstractLifecycleComponent {
                             clusterStatePublicationEvent,
                             notificationMillis
                         );
+                    } else if (exception instanceof EsRejectedExecutionException esRejectedExecutionException) {
+                        assert esRejectedExecutionException.isExecutorShutdown();
+                        clusterStateUpdateStatsTracker.onPublicationFailure(
+                            threadPool.rawRelativeTimeInMillis(),
+                            clusterStatePublicationEvent,
+                            0L
+                        );
+                        final long version = newClusterState.version();
+                        logger.debug(
+                            () -> format("shut down during publication of cluster state version [%s]: [%s]", version, summary),
+                            exception
+                        );
+                        // TODO also bubble the failure up to the tasks too, see https://github.com/elastic/elasticsearch/issues/94930
                     } else {
-                        assert publicationMayFail() || (exception instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown())
-                            : exception;
+                        assert publicationMayFail() : exception;
                         clusterStateUpdateStatsTracker.onPublicationFailure(
                             threadPool.rawRelativeTimeInMillis(),
                             clusterStatePublicationEvent,

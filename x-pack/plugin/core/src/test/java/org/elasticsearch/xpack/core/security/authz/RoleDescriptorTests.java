@@ -398,10 +398,8 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testParsingFieldPermissionsUsesCache() throws IOException {
-        FieldPermissionsCache fieldPermissionsCache = FieldPermissionsCache.getCache();
-        if (fieldPermissionsCache == null) {
-            fieldPermissionsCache = FieldPermissionsCache.init(Settings.EMPTY);
-        }
+        FieldPermissionsCache.clearInstanceForTesting();
+        var fieldPermissionsCache = FieldPermissionsCache.init(Settings.EMPTY);
 
         final Cache.CacheStats beforeStats = fieldPermissionsCache.getCacheStats();
 
@@ -617,6 +615,8 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testParseIndicesPrivilegesFailsWhenExceptFieldsAreNotSubsetOfGrantedFields() {
+        randomiseFieldPermissionsCache();
+
         final String json = """
             {
               "indices": [
@@ -1067,5 +1067,12 @@ public class RoleDescriptorTests extends ESTestCase {
             }
         }
         return builder;
+    }
+
+    private static void randomiseFieldPermissionsCache() {
+        FieldPermissionsCache.clearInstanceForTesting();
+        if (randomBoolean()) {
+            FieldPermissionsCache.init(Settings.EMPTY);
+        }
     }
 }

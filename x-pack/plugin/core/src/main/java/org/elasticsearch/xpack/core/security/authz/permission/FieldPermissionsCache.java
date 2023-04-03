@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -34,7 +35,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
  */
 public final class FieldPermissionsCache {
 
-    private static final SetOnce<FieldPermissionsCache> INSTANCE = new SetOnce<>();
+    private static final AtomicReference<FieldPermissionsCache> INSTANCE = new AtomicReference<>();
 
     public static final Setting<Long> CACHE_SIZE_SETTING = Setting.longSetting(
         setting("authz.store.roles.field_permissions.cache.max_size_in_bytes"),
@@ -45,9 +46,17 @@ public final class FieldPermissionsCache {
     private final Cache<FieldPermissionsDefinition, FieldPermissions> cache;
 
     public static FieldPermissionsCache init(Settings settings) {
-        final FieldPermissionsCache cache = new FieldPermissionsCache(settings);
-        INSTANCE.set(cache);
-        return cache;
+        if (INSTANCE.get() == null) {
+            final FieldPermissionsCache cache = new FieldPermissionsCache(settings);
+            if (INSTANCE.compareAndSet(null, cache)) {
+                return cache;
+            }
+        }
+        throw new IllegalStateException(FieldPermissionsCache.class.getName() + " is already initialized");
+    }
+
+    public static void clearInstanceForTesting() {
+        INSTANCE.set(null);
     }
 
     public static FieldPermissionsCache getCache() {
@@ -94,7 +103,11 @@ public final class FieldPermissionsCache {
                 (key) -> new FieldPermissions(key, FieldPermissions.initializePermittedFieldsAutomaton(key))
             );
         } catch (ExecutionException e) {
-            throw new ElasticsearchException("unable to compute field permissions", e);
+            if (e.getCause()instanceof ElasticsearchException es) {
+                throw es;
+            } else {
+                throw new ElasticsearchSecurityException("unable to compute field permissions", e);
+            }
         }
     }
 

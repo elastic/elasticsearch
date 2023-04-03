@@ -202,7 +202,7 @@ class FlattenedFieldSyntheticWriterHelper {
         }
 
         public Prefix end(final KeyValue other) {
-            return this.prefix.diff(this.prefix.shared(other.prefix)).reverse();
+            return start(other).reverse();
         }
 
         public String value() {

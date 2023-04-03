@@ -102,10 +102,9 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
 
     @ClassRule
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
-    public static TestRule clusterRule = RuleChain.outerRule(skipOnWindows)
-        .around(new RunnableTestRuleAdapter(RemoteClusterSecuritySpecialUserIT::randomClientAuthenticationConfig))
-        .around(fulfillingCluster)
-        .around(queryCluster);
+    public static TestRule clusterRule = RuleChain.outerRule(
+        new RunnableTestRuleAdapter(RemoteClusterSecuritySpecialUserIT::randomClientAuthenticationConfig)
+    ).around(fulfillingCluster).around(queryCluster);
 
     public void testAnonymousUserFromQueryClusterWorks() throws Exception {
         configureRemoteClusters();

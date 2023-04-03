@@ -86,7 +86,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
 
     @ClassRule
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
-    public static TestRule clusterRule = RuleChain.outerRule(skipOnWindows).around(fulfillingCluster).around(queryCluster);
+    public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testCrossClusterSearch() throws Exception {
         configureRemoteClusters();

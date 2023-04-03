@@ -82,10 +82,7 @@ public class RemoteClusterSecurityWithSameModelRemotesRestIT extends AbstractRem
 
     @ClassRule
     // Use a RuleChain to ensure that fulfilling clusters are started before query cluster
-    public static TestRule clusterRule = RuleChain.outerRule(skipOnWindows)
-        .around(fulfillingCluster)
-        .around(otherFulfillingCluster)
-        .around(queryCluster);
+    public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(otherFulfillingCluster).around(queryCluster);
 
     @Override
     protected void configureRolesOnClusters() throws IOException {

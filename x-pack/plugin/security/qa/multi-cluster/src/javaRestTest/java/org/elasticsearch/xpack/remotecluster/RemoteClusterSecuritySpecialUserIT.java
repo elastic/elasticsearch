@@ -13,9 +13,12 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -35,6 +38,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
+    private static final AtomicReference<Tuple<LocalClusterConfigProvider, LocalClusterConfigProvider>> CLIENT_AUTH_CONFIG_PROVIDERS =
+        new AtomicReference<>();
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -45,9 +50,11 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
+            .setting("xpack.security.remote_cluster_server.ssl.certificate_authorities", "remote-cluster-client-ca.crt")
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
+            .apply(() -> CLIENT_AUTH_CONFIG_PROVIDERS.get().v1())
             .build();
 
         queryCluster = ElasticsearchCluster.local()
@@ -72,12 +79,33 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                 }
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })
+            .apply(() -> CLIENT_AUTH_CONFIG_PROVIDERS.get().v2())
             .build();
+    }
+
+    // Randomly enable client authentication for remote cluster connection
+    public static void randomClientAuthenticationConfig() {
+        if (randomBoolean()) {
+            CLIENT_AUTH_CONFIG_PROVIDERS.set(
+                new Tuple<>(
+                    cluster -> cluster.setting("xpack.security.remote_cluster_server.ssl.client_authentication", "required")
+                        .setting("xpack.security.remote_cluster_server.ssl.certificate_authorities", "remote-cluster-client-ca.crt"),
+                    cluster -> cluster.setting("xpack.security.remote_cluster_client.ssl.key", "remote-cluster-client.key")
+                        .setting("xpack.security.remote_cluster_client.ssl.certificate", "remote-cluster-client.crt")
+                        .keystore("xpack.security.remote_cluster_client.ssl.secure_key_passphrase", "remote-cluster-client-password")
+                )
+            );
+        } else {
+            CLIENT_AUTH_CONFIG_PROVIDERS.set(new Tuple<>(cluster -> {}, cluster -> {}));
+        }
     }
 
     @ClassRule
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
-    public static TestRule clusterRule = RuleChain.outerRule(skipOnWindows).around(fulfillingCluster).around(queryCluster);
+    public static TestRule clusterRule = RuleChain.outerRule(skipOnWindows)
+        .around(new RunnableTestRuleAdapter(RemoteClusterSecuritySpecialUserIT::randomClientAuthenticationConfig))
+        .around(fulfillingCluster)
+        .around(queryCluster);
 
     public void testAnonymousUserFromQueryClusterWorks() throws Exception {
         configureRemoteClusters();

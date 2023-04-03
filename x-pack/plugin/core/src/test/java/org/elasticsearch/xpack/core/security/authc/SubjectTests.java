@@ -19,11 +19,14 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSetting
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.ApiKeyRoleReference;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference.BaseCrossClusterAccessRoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.BwcApiKeyRoleReference;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference.CrossClusterAccessInternalRoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.NamedRoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference.ServiceAccountRoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
@@ -170,7 +173,7 @@ public class SubjectTests extends ESTestCase {
 
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = randomBoolean()
             ? AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(RoleDescriptorsIntersection.EMPTY)
-            : AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(false);
+            : AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
         authMetadata = crossClusterAccessSubjectInfo.copyWithCrossClusterAccessEntries(authMetadata);
 
         final Subject subject = new Subject(
@@ -180,6 +183,12 @@ public class SubjectTests extends ESTestCase {
             authMetadata
         );
 
+        final boolean isInternalUser = CrossClusterAccessUser.is(
+            crossClusterAccessSubjectInfo.getAuthentication().getEffectiveSubject().getUser()
+        );
+        final Class<? extends BaseCrossClusterAccessRoleReference> expectedCrossClusterAccessRoleRefClazz = isInternalUser
+            ? CrossClusterAccessInternalRoleReference.class
+            : CrossClusterAccessRoleReference.class;
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser());
         // Number of role references depends on the authentication and its number of roles.
         // Test setup can randomly authentication with 0, 1 or 2 (in case of API key) role descriptors,
@@ -192,14 +201,14 @@ public class SubjectTests extends ESTestCase {
                 assertThat(
                     roleReferences,
                     contains(
-                        isA(CrossClusterAccessRoleReference.class),
-                        isA(CrossClusterAccessRoleReference.class),
+                        isA(expectedCrossClusterAccessRoleRefClazz),
+                        isA(expectedCrossClusterAccessRoleRefClazz),
                         isA(ApiKeyRoleReference.class)
                     )
                 );
 
-                final CrossClusterAccessRoleReference crossClusterAccessRoleReference1 = (CrossClusterAccessRoleReference) roleReferences
-                    .get(0);
+                final BaseCrossClusterAccessRoleReference crossClusterAccessRoleReference1 =
+                    (BaseCrossClusterAccessRoleReference) roleReferences.get(0);
                 assertThat(
                     crossClusterAccessRoleReference1.getRoleDescriptorsBytes(),
                     equalTo(
@@ -209,8 +218,8 @@ public class SubjectTests extends ESTestCase {
                     )
                 );
 
-                final CrossClusterAccessRoleReference crossClusterAccessRoleReference2 = (CrossClusterAccessRoleReference) roleReferences
-                    .get(1);
+                final BaseCrossClusterAccessRoleReference crossClusterAccessRoleReference2 =
+                    (BaseCrossClusterAccessRoleReference) roleReferences.get(1);
                 assertThat(
                     crossClusterAccessRoleReference2.getRoleDescriptorsBytes(),
                     equalTo(
@@ -226,10 +235,10 @@ public class SubjectTests extends ESTestCase {
 
             } else {
 
-                assertThat(roleReferences, contains(isA(CrossClusterAccessRoleReference.class), isA(ApiKeyRoleReference.class)));
+                assertThat(roleReferences, contains(isA(expectedCrossClusterAccessRoleRefClazz), isA(ApiKeyRoleReference.class)));
 
-                final CrossClusterAccessRoleReference crossClusterAccessRoleReference = (CrossClusterAccessRoleReference) roleReferences
-                    .get(0);
+                final BaseCrossClusterAccessRoleReference crossClusterAccessRoleReference =
+                    (BaseCrossClusterAccessRoleReference) roleReferences.get(0);
                 assertThat(
                     crossClusterAccessRoleReference.getRoleDescriptorsBytes(),
                     equalTo(
@@ -248,15 +257,15 @@ public class SubjectTests extends ESTestCase {
                 assertThat(
                     roleReferences,
                     contains(
-                        isA(CrossClusterAccessRoleReference.class),
-                        isA(CrossClusterAccessRoleReference.class),
+                        isA(expectedCrossClusterAccessRoleRefClazz),
+                        isA(expectedCrossClusterAccessRoleRefClazz),
                         isA(ApiKeyRoleReference.class),
                         isA(ApiKeyRoleReference.class)
                     )
                 );
 
-                final CrossClusterAccessRoleReference crossClusterAccessRoleReference1 = (CrossClusterAccessRoleReference) roleReferences
-                    .get(0);
+                final BaseCrossClusterAccessRoleReference crossClusterAccessRoleReference1 =
+                    (BaseCrossClusterAccessRoleReference) roleReferences.get(0);
                 assertThat(
                     crossClusterAccessRoleReference1.getRoleDescriptorsBytes(),
                     equalTo(
@@ -266,8 +275,8 @@ public class SubjectTests extends ESTestCase {
                     )
                 );
 
-                final CrossClusterAccessRoleReference crossClusterAccessRoleReference2 = (CrossClusterAccessRoleReference) roleReferences
-                    .get(1);
+                final BaseCrossClusterAccessRoleReference crossClusterAccessRoleReference2 =
+                    (BaseCrossClusterAccessRoleReference) roleReferences.get(1);
                 assertThat(
                     crossClusterAccessRoleReference2.getRoleDescriptorsBytes(),
                     equalTo(
@@ -291,11 +300,11 @@ public class SubjectTests extends ESTestCase {
             } else {
                 assertThat(
                     roleReferences,
-                    contains(isA(CrossClusterAccessRoleReference.class), isA(ApiKeyRoleReference.class), isA(ApiKeyRoleReference.class))
+                    contains(isA(expectedCrossClusterAccessRoleRefClazz), isA(ApiKeyRoleReference.class), isA(ApiKeyRoleReference.class))
                 );
 
-                final CrossClusterAccessRoleReference crossClusterAccessRoleReference = (CrossClusterAccessRoleReference) roleReferences
-                    .get(0);
+                final BaseCrossClusterAccessRoleReference crossClusterAccessRoleReference =
+                    (BaseCrossClusterAccessRoleReference) roleReferences.get(0);
                 assertThat(
                     crossClusterAccessRoleReference.getRoleDescriptorsBytes(),
                     equalTo(

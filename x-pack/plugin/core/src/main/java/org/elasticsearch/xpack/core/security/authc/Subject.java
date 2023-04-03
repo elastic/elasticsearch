@@ -274,7 +274,8 @@ public class Subject {
         final var innerAuthentication = (Authentication) metadata.get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
         final User innerUser = innerAuthentication.getEffectiveSubject().getUser();
         if (CrossClusterAccessUser.is(innerUser)) {
-            assert crossClusterAccessRoleDescriptorsBytes.size() == 1;
+            assert crossClusterAccessRoleDescriptorsBytes.size() == 1
+                : "expected single role descriptor for cross cluster access internal user";
             roleReferences.add(new RoleReference.CrossClusterAccessInternalRoleReference(crossClusterAccessRoleDescriptorsBytes.get(0)));
         } else if (crossClusterAccessRoleDescriptorsBytes.isEmpty()) {
             // If the cross cluster access role descriptors are empty, the remote user has no privileges. We need to add an empty role to

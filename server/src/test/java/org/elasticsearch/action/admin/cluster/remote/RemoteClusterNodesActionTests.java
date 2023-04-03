@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.remote;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -26,7 +27,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterServerInfo;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -44,6 +47,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RemoteClusterNodesActionTests extends ESTestCase {
+
+    @BeforeClass
+    public static void ensureFeatureFlag() {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+    }
 
     public void testDoExecute() {
         final ThreadPool threadPool = mock(ThreadPool.class);
@@ -75,6 +83,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
             nodeInfos.add(
                 new NodeInfo(
                     Version.CURRENT,
+                    TransportVersion.CURRENT,
                     null,
                     node,
                     null,

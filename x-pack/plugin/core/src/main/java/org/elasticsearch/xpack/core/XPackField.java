@@ -77,6 +77,7 @@ public final class XPackField {
     public static final String HEALTH_API = "health_api";
     /** Name for Enterprise Search. */
     public static final String ENTERPRISE_SEARCH = "enterprise_search";
+    public static final String REMOTE_CLUSTERS = "remote_clusters";
 
     private XPackField() {}
 

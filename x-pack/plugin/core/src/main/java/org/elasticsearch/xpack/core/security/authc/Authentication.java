@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -1291,7 +1292,17 @@ public final class Authentication implements ToXContentObject {
         assert metadata.containsKey(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)
             : "metadata must contain authentication object for cross cluster access authentication";
         final Authentication authenticationFromMetadata = (Authentication) metadata.get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
-        if (authenticationFromMetadata.getEffectiveSubject().getTransportVersion().after(olderVersion)) {
+        final TransportVersion effectiveSubjectVersion = authenticationFromMetadata.getEffectiveSubject().getTransportVersion();
+        if (effectiveSubjectVersion.after(olderVersion)) {
+            logger.trace(
+                () -> "Cross cluster access authentication has authentication field in metadata ["
+                    + authenticationFromMetadata
+                    + "] that may require a rewrite from version ["
+                    + effectiveSubjectVersion
+                    + "] to ["
+                    + olderVersion
+                    + "]"
+            );
             final Map<String, Object> rewrittenMetadata = new HashMap<>(metadata);
             rewrittenMetadata.put(
                 CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
@@ -1407,6 +1418,8 @@ public final class Authentication implements ToXContentObject {
                     return SecurityProfileUser.INSTANCE;
                 } else if (AsyncSearchUser.NAME.equals(username)) {
                     return AsyncSearchUser.INSTANCE;
+                } else if (CrossClusterAccessUser.NAME.equals(username)) {
+                    return CrossClusterAccessUser.INSTANCE;
                 }
                 throw new IllegalStateException("username [" + username + "] does not match any internal user");
             }
@@ -1431,6 +1444,8 @@ public final class Authentication implements ToXContentObject {
                 output.writeString(SecurityProfileUser.NAME);
             } else if (AsyncSearchUser.is(user)) {
                 output.writeString(AsyncSearchUser.NAME);
+            } else if (CrossClusterAccessUser.is(user)) {
+                output.writeString(CrossClusterAccessUser.NAME);
             } else {
                 assert false;
                 throw new IllegalStateException("user [" + user + "] is not internal");

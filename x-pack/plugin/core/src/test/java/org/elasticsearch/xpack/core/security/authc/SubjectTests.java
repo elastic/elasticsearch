@@ -170,7 +170,7 @@ public class SubjectTests extends ESTestCase {
 
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = randomBoolean()
             ? AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(RoleDescriptorsIntersection.EMPTY)
-            : AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
+            : AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(false);
         authMetadata = crossClusterAccessSubjectInfo.copyWithCrossClusterAccessEntries(authMetadata);
 
         final Subject subject = new Subject(

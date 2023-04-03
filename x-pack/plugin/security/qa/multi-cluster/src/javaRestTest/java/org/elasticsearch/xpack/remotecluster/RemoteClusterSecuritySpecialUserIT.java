@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -23,6 +24,8 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -30,13 +33,16 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94939")
 public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSecurityTestCase {
+
+    private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)
-            // anonymous user has superuser role, but it won't be applied to remote access users
+            // anonymous user has superuser role, but it won't be applied to cross cluster access users
             .setting("xpack.security.authc.anonymous.roles", "superuser")
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
@@ -54,6 +60,20 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .user(REMOTE_SEARCH_USER, PASS.toString(), "read_remote_shared_metrics")
+            .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
+                if (API_KEY_MAP_REF.get() == null) {
+                    final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
+                        [
+                          {
+                            "names": ["shared-*", "apm-1", ".security*"],
+                            "privileges": ["read", "read_cross_cluster"],
+                            "allow_restricted_indices": true
+                          }
+                        ]""");
+                    API_KEY_MAP_REF.set(apiKeyMap);
+                }
+                return (String) API_KEY_MAP_REF.get().get("encoded");
+            })
             .build();
     }
 
@@ -62,14 +82,8 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testAnonymousUserFromQueryClusterWorks() throws Exception {
-        final String remoteAccessApiKeyId = configureRemoteClustersWithApiKey("""
-            [
-               {
-                 "names": ["shared-*", "apm-1", ".security*"],
-                 "privileges": ["read", "read_cross_cluster"],
-                 "allow_restricted_indices": true
-               }
-             ]""");
+        configureRemoteClusters();
+        final String crossClusterAccessApiKeyId = (String) API_KEY_MAP_REF.get().get("id");
 
         // Fulfilling cluster
         {
@@ -120,7 +134,7 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                 containsString(
                     "action [indices:data/read/search] towards remote cluster is unauthorized for user [_anonymous] "
                         + "with assigned roles [read_remote_shared_logs] authenticated by API key id ["
-                        + remoteAccessApiKeyId
+                        + crossClusterAccessApiKeyId
                         + "] of user [test_user] on indices ["
                         + inaccessibleIndexForAnonymous
                         + "]"

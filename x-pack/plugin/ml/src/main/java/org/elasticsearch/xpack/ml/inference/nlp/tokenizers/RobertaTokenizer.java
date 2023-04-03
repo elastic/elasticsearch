@@ -159,6 +159,11 @@ public class RobertaTokenizer extends NlpTokenizer {
     }
 
     @Override
+    public List<String> getVocabulary() {
+        return originalVocab;
+    }
+
+    @Override
     TokenizationResult.TokensBuilder createTokensBuilder(int clsTokenId, int sepTokenId, boolean withSpecialTokens) {
         return new RobertaTokenizationResult.RobertaTokensBuilder(withSpecialTokens, clsTokenId, sepTokenId);
     }

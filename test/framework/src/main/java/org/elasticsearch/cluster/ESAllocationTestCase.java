@@ -10,6 +10,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -166,6 +167,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 lastAllocation = allocation;
                 super.allocate(allocation, listener);
                 queue.runAllTasks();
+                completeToLastConvergedIndex();
+                queue.runAllTasks();
             }
 
             @Override
@@ -309,11 +312,14 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterState clusterState,
         List<ShardRouting> initializingShards
     ) {
-        return allocationService.reroute(
-            allocationService.applyStartedShards(clusterState, initializingShards),
-            "reroute after starting",
-            ActionListener.noop()
-        );
+        return reroute(allocationService, allocationService.applyStartedShards(clusterState, initializingShards));
+    }
+
+    public static ClusterState reroute(AllocationService allocationService, ClusterState clusterState) {
+        final var listener = new PlainActionFuture<Void>();
+        final var result = allocationService.reroute(clusterState, "test reroute", listener);
+        listener.result(); // ensures it completed successfully
+        return result;
     }
 
     public static class TestAllocateDecision extends AllocationDecider {

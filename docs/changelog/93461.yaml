@@ -1,5 +1,0 @@
-pr: 93461
-summary: Fallback to the actual shard size when forecast is not available
-area: Allocation
-type: bug
-issues: []

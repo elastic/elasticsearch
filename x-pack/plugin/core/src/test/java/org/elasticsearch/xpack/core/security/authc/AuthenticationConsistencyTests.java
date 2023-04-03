@@ -170,11 +170,12 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 )
             ),
             entry(
-                "Remote access authentication requires metadata to contain a non-null serialized remote access authentication",
+                "Cross cluster access authentication requires metadata to contain "
+                    + "a non-null serialized cross cluster access authentication field",
                 encodeAuthentication(
                     new Subject(
                         userFoo,
-                        Authentication.RealmRef.newRemoteAccessRealmRef("node"),
+                        Authentication.RealmRef.newCrossClusterAccessRealmRef("node"),
                         TransportVersion.CURRENT,
                         Map.of(AuthenticationField.API_KEY_ID_KEY, "abc")
                     ),
@@ -182,33 +183,34 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 )
             ),
             entry(
-                "Remote access authentication cannot contain another remote access authentication in its metadata",
+                "Cross cluster access authentication cannot contain another cross cluster access authentication in its metadata",
                 encodeAuthentication(
                     new Subject(
                         userFoo,
-                        Authentication.RealmRef.newRemoteAccessRealmRef("node"),
+                        Authentication.RealmRef.newCrossClusterAccessRealmRef("node"),
                         TransportVersion.CURRENT,
                         Map.of(
                             AuthenticationField.API_KEY_ID_KEY,
                             "abc",
-                            AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY,
-                            AuthenticationTestHelper.builder().remoteAccess().build()
+                            AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
+                            AuthenticationTestHelper.builder().crossClusterAccess().build()
                         )
                     ),
                     Authentication.AuthenticationType.API_KEY
                 )
             ),
             entry(
-                "Remote access authentication requires metadata to contain a non-null serialized remote access role descriptors",
+                "Cross cluster access authentication requires metadata to contain "
+                    + "a non-null serialized cross cluster access role descriptors field",
                 encodeAuthentication(
                     new Subject(
                         userFoo,
-                        Authentication.RealmRef.newRemoteAccessRealmRef("node"),
+                        Authentication.RealmRef.newCrossClusterAccessRealmRef("node"),
                         TransportVersion.CURRENT,
                         Map.of(
                             AuthenticationField.API_KEY_ID_KEY,
                             "abc",
-                            AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY,
+                            AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
                             Authentication.newRealmAuthentication(userBar, realm2)
                         )
                     ),
@@ -221,14 +223,14 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                     new Subject(userBar, realm2),
                     new Subject(
                         userFoo,
-                        Authentication.RealmRef.newRemoteAccessRealmRef("node"),
+                        Authentication.RealmRef.newCrossClusterAccessRealmRef("node"),
                         TransportVersion.CURRENT,
                         Map.of(
                             AuthenticationField.API_KEY_ID_KEY,
                             "abc",
-                            AuthenticationField.REMOTE_ACCESS_AUTHENTICATION_KEY,
+                            AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
                             Authentication.newRealmAuthentication(userBar, realm2),
-                            AuthenticationField.REMOTE_ACCESS_ROLE_DESCRIPTORS_KEY,
+                            AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY,
                             List.of()
                         )
                     ),

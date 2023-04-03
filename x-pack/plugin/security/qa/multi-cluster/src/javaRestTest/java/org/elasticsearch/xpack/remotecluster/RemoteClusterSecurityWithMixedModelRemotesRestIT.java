@@ -58,7 +58,10 @@ public class RemoteClusterSecurityWithMixedModelRemotesRestIT extends AbstractRe
 
     @ClassRule
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
-    public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(otherFulfillingCluster).around(queryCluster);
+    public static TestRule clusterRule = RuleChain.outerRule(skipOnWindows)
+        .around(fulfillingCluster)
+        .around(otherFulfillingCluster)
+        .around(queryCluster);
 
     @Override
     protected void configureRolesOnClusters() throws IOException {

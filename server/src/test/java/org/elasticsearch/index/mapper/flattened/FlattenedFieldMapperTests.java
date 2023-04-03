@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -256,10 +257,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     public void testMalformedJson() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
-        expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field", "not a JSON object"))));
+        expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", "not a JSON object"))));
 
         BytesReference doc2 = new BytesArray("{ \"field\": { \"key\": \"value\" ");
-        expectThrows(MapperParsingException.class, () -> mapper.parse(new SourceToParse("1", doc2, XContentType.JSON)));
+        expectThrows(DocumentParsingException.class, () -> mapper.parse(new SourceToParse("1", doc2, XContentType.JSON)));
     }
 
     public void testFieldMultiplicity() throws Exception {
@@ -315,7 +316,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.field("depth_limit", 2);
         }));
 
-        expectThrows(MapperParsingException.class, () -> mapperService.documentMapper().parse(source(b -> {
+        expectThrows(DocumentParsingException.class, () -> mapperService.documentMapper().parse(source(b -> {
             b.startObject("field");
             {
                 b.startObject("key1");
@@ -394,7 +395,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         DocumentMapper newMapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "flattened"); }));
 
         String longKey = "x".repeat(32800);
-        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> newMapper.parse(source(b -> {
+        DocumentParsingException ex = expectThrows(DocumentParsingException.class, () -> newMapper.parse(source(b -> {
             b.startArray("field");
             {
                 b.startObject().field(longKey, "value").endObject();
@@ -410,7 +411,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         );
 
         String value = "x".repeat(32800);
-        ex = expectThrows(MapperParsingException.class, () -> newMapper.parse(source(b -> {
+        ex = expectThrows(DocumentParsingException.class, () -> newMapper.parse(source(b -> {
             b.startArray("field");
             {
                 b.startObject().field("key", value).endObject();

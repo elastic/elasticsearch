@@ -354,6 +354,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/logstash",
         "cluster:monitor/xpack/usage/ml",
         "cluster:monitor/xpack/usage/monitoring",
+        "cluster:monitor/xpack/usage/remote_clusters",
         "cluster:monitor/xpack/usage/rollup",
         "cluster:monitor/xpack/usage/searchable_snapshots",
         "cluster:monitor/xpack/usage/security",

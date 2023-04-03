@@ -50,6 +50,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -928,7 +929,11 @@ public class Security extends Plugin
         components.add(allRolesStore); // for SecurityInfoTransportAction and clear roles cache
         components.add(authzService);
 
-        final SecondaryAuthenticator secondaryAuthenticator = new SecondaryAuthenticator(securityContext.get(), authcService.get());
+        final SecondaryAuthenticator secondaryAuthenticator = new SecondaryAuthenticator(
+            securityContext.get(),
+            authcService.get(),
+            auditTrailService
+        );
         this.secondayAuthc.set(secondaryAuthenticator);
         components.add(secondaryAuthenticator);
 
@@ -1633,7 +1638,8 @@ public class Security extends Plugin
                 getNettySharedGroupFactory(settings),
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
-                acceptPredicate
+                acceptPredicate,
+                Netty4HttpHeaderValidator.NOOP_VALIDATOR
             );
         });
         return httpTransports;
@@ -1653,6 +1659,7 @@ public class Security extends Plugin
             threadContext,
             authcService.get(),
             secondayAuthc.get(),
+            auditTrailService.get(),
             handler,
             extractClientCertificate
         );

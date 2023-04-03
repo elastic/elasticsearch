@@ -282,7 +282,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
       }
 
-      onlyIf { isArchitectureSupported(architecture) }
+      onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
     }
 
   if (base == DockerBase.IRON_BANK) {
@@ -329,7 +329,7 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
       inputs.property(k, { v.toString() })
     }
 
-    onlyIf { isArchitectureSupported(architecture) }
+    onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
   }
 
   // Register transformed context as a project artifact
@@ -401,7 +401,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
         baseImages = [base.image]
       }
 
-      onlyIf { isArchitectureSupported(architecture) }
+      onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
     }
 
   if (base != DockerBase.IRON_BANK && base != DockerBase.CLOUD && base != DockerBase.CLOUD_ESS) {
@@ -448,7 +448,7 @@ void addBuildEssDockerImageTask(Architecture architecture) {
       tags = generateTags(base, architecture)
       platform = architecture.dockerPlatform
 
-      onlyIf { isArchitectureSupported(architecture) }
+      onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
     }
 
   tasks.named("assemble").configure {
@@ -518,7 +518,7 @@ subprojects { Project subProject ->
         tarFile,
         "elasticsearch${base.suffix}:${architecture.classifier}"
       dependsOn(parent.path + ":" + buildTaskName)
-      onlyIf { isArchitectureSupported(architecture) }
+      onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
     }
 
     exportDockerImages.configure {

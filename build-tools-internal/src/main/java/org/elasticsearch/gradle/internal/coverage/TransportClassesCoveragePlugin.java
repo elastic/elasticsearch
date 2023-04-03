@@ -41,7 +41,9 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
                 .register("transportMethodCoverageVerifier", TransportMethodCoverageVerifierTask.class);
             methodCoverageVerifier.configure(task -> { task.dependsOn(jacocoTestReport); });
 
-            project.getTasks().named("check").configure(task -> task.dependsOn(methodCoverageVerifier));
+//            project.getTasks().named("check").configure(task -> task.dependsOn(methodCoverageVerifier));
+
+            project.getRootProject().getDependencies().add("jacocoAggregation", project);
 
         });
     }

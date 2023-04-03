@@ -68,7 +68,9 @@ public class RoleReferenceTests extends ESTestCase {
 
     public void testCrossClusterAccessRoleReference() {
         final var roleDescriptorsBytes = new CrossClusterAccessSubjectInfo.RoleDescriptorsBytes(new BytesArray(randomAlphaOfLength(50)));
-        final var crossClusterAccessRoleReference = new RoleReference.CrossClusterAccessRoleReference(roleDescriptorsBytes, "user");
+        final var crossClusterAccessRoleReference = randomBoolean()
+            ? new RoleReference.CrossClusterAccessInternalRoleReference(roleDescriptorsBytes)
+            : new RoleReference.CrossClusterAccessRoleReference(roleDescriptorsBytes, "user");
 
         final RoleKey roleKey = crossClusterAccessRoleReference.id();
         assertThat(roleKey.getNames(), hasItem("cross_cluster_access:" + roleDescriptorsBytes.digest()));

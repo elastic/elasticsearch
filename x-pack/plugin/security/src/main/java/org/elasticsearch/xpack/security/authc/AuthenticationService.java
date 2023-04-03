@@ -18,7 +18,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpRequestLineAndHeaders;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -121,7 +120,7 @@ public class AuthenticationService {
      *
      * @param request The request to be authenticated
      */
-    public void authenticate(RestRequest request, ActionListener<Authentication> authenticationListener) {
+    public void authenticate(HttpRequestLineAndHeaders request, ActionListener<Authentication> authenticationListener) {
         authenticate(request, true, authenticationListener);
     }
 
@@ -136,10 +135,14 @@ public class AuthenticationService {
      *                               If {@code true}, then authentication <em>will</em> fallback to anonymous, if this service is
      *                               configured to allow anonymous access.
      */
-    public void authenticate(RestRequest request, boolean allowAnonymous, ActionListener<Authentication> authenticationListener) {
+    public void authenticate(
+        HttpRequestLineAndHeaders request,
+        boolean allowAnonymous,
+        ActionListener<Authentication> authenticationListener
+    ) {
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
-            new AuditableHttpRequest(auditTrailService.get(), failureHandler, threadContext, request.getHttpRequest()),
+            new AuditableHttpRequest(auditTrailService.get(), failureHandler, threadContext, request),
             null,
             allowAnonymous,
             realms
@@ -382,7 +385,7 @@ public class AuthenticationService {
         @Override
         void authenticationSuccess(Authentication authentication) {
             // REST requests are audited in the {@code SecurityRestFilter} because they need access to the request body
-            // see {@code AuditTrail#authenticationSuccess(RestRequest)}
+            // see {@code AuditTrail#authenticationSuccess(HttpRequestLineAndHeaders)}
             // It's still valuable to keep the parent interface {@code AuditableRequest#AuthenticationSuccess(Authentication)} around
             // in order to audit authN success for transport requests for CCS. We may be able to find another way to audit that, which
             // doesn't rely on an `AuditableRequest` instance, but it's not trivial because we'd have to make sure to not audit

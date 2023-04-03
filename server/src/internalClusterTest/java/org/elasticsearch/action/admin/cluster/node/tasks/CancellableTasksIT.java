@@ -386,7 +386,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
         // Make sure all descendent requests have completed
         for (TestRequest subRequest : rootRequest.descendants()) {
-            assertTrue(completedLatches.get(subRequest).await(60, TimeUnit.SECONDS));
+            safeAwait(completedLatches.get(subRequest));
         }
     }
 

@@ -54,6 +54,10 @@ public class AnalyticsEventPageData implements ToXContent, Writeable {
         this.referrer = referrer;
     }
 
+    protected AnalyticsEventPageData(String url) {
+        this(url, null, null);
+    }
+
     public AnalyticsEventPageData(StreamInput in) throws IOException {
         this(in.readString(), in.readOptionalString(), in.readOptionalString());
     }

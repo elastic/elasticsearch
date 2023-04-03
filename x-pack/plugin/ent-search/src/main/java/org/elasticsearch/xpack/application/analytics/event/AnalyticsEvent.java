@@ -20,6 +20,9 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSessionData.SESSION_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventUserData.USER_FIELD;
+
 /**
  * This class represents Analytics events object meant to be emitted to the event queue.
  * Subclasses are implementing the different event types.
@@ -76,8 +79,8 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
     protected AnalyticsEvent(String eventCollectionName, long eventTime, AnalyticsEventSessionData session, AnalyticsEventUserData user) {
         this.eventCollectionName = Strings.requireNonBlank(eventCollectionName, "eventCollectionName");
         this.eventTime = eventTime;
-        this.session = Objects.requireNonNull(session, AnalyticsEventSessionData.SESSION_FIELD.getPreferredName());
-        this.user = Objects.requireNonNull(user, AnalyticsEventUserData.USER_FIELD.getPreferredName());
+        this.session = Objects.requireNonNull(session, SESSION_FIELD.getPreferredName());
+        this.user = Objects.requireNonNull(user, USER_FIELD.getPreferredName());
     }
 
     protected AnalyticsEvent(StreamInput in) throws IOException {
@@ -131,8 +134,8 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
             }
             builder.endObject();
 
-            builder.field(AnalyticsEventSessionData.SESSION_FIELD.getPreferredName(), session());
-            builder.field(AnalyticsEventUserData.USER_FIELD.getPreferredName(), user());
+            builder.field(SESSION_FIELD.getPreferredName(), session());
+            builder.field(USER_FIELD.getPreferredName(), user());
 
             // Render additional fields from the event payload (session, user, page, ...)
             addCustomFieldToXContent(builder, params);

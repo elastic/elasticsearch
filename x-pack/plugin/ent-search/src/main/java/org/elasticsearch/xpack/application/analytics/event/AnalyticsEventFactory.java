@@ -21,6 +21,10 @@ import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAc
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.Type.PAGEVIEW;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.Type.SEARCH;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.Type.SEARCH_CLICK;
+
 /**
  * A utility class for parsing {@link AnalyticsEvent} objects from payloads (such as HTTP POST request bodies) or input streams.
  */
@@ -31,17 +35,17 @@ public class AnalyticsEventFactory {
     private static final Map<AnalyticsEvent.Type, ContextParser<AnalyticsEvent.Context, AnalyticsEvent>> EVENT_PARSERS = MapBuilder.<
         AnalyticsEvent.Type,
         ContextParser<AnalyticsEvent.Context, AnalyticsEvent>>newMapBuilder()
-        .put(AnalyticsEvent.Type.PAGEVIEW, AnalyticsEventPageView::fromXContent)
-        .put(AnalyticsEvent.Type.SEARCH, AnalyticsEventSearch::fromXContent)
-        .put(AnalyticsEvent.Type.SEARCH_CLICK, AnalyticsEventSearchClick::fromXContent)
+        .put(PAGEVIEW, AnalyticsEventPageView::fromXContent)
+        .put(SEARCH, AnalyticsEventSearch::fromXContent)
+        .put(SEARCH_CLICK, AnalyticsEventSearchClick::fromXContent)
         .immutableMap();
 
     private static final Map<AnalyticsEvent.Type, Writeable.Reader<AnalyticsEvent>> EVENT_READERS = MapBuilder.<
         AnalyticsEvent.Type,
         Writeable.Reader<AnalyticsEvent>>newMapBuilder()
-        .put(AnalyticsEvent.Type.PAGEVIEW, AnalyticsEventPageView::new)
-        .put(AnalyticsEvent.Type.SEARCH, AnalyticsEventSearch::new)
-        .put(AnalyticsEvent.Type.SEARCH_CLICK, AnalyticsEventSearchClick::new)
+        .put(PAGEVIEW, AnalyticsEventPageView::new)
+        .put(SEARCH, AnalyticsEventSearch::new)
+        .put(SEARCH_CLICK, AnalyticsEventSearchClick::new)
         .immutableMap();
 
     private AnalyticsEventFactory() {

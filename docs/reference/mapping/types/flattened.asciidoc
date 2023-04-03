@@ -324,7 +324,7 @@ disabled.
 
 Synthetic source always sorts alphabetically and de-duplicates keyword fields.
 For example:
-[source,console,id=synthetic-source-flattened-example]
+[source,console,id=synthetic-source-flattened-sorting-example]
 ----
 PUT idx
 {
@@ -355,7 +355,7 @@ Will become:
 
 Synthetic source always uses nested objects instead of array of objects.
 For example:
-[source,console,id=synthetic-source-flattened-example]
+[source,console,id=synthetic-source-flattened-array-example]
 ----
 PUT idx
 {
@@ -410,7 +410,7 @@ Will become (note the nested objects instead of the "keywords" array):
 
 Synthetic source always uses single-valued fields for one-element arrays.
 For example:
-[source,console,id=synthetic-source-flattened-example]
+[source,console,id=synthetic-source-flattened-single-value-example]
 ----
 PUT idx
 {

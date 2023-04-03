@@ -138,7 +138,23 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         RoleReference.CrossClusterAccessRoleReference crossClusterAccessRoleReference,
         ActionListener<RolesRetrievalResult> listener
     ) {
-        final Set<RoleDescriptor> roleDescriptors = getRoleDescriptorsWithValidation(crossClusterAccessRoleReference);
+        final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
+        for (RoleDescriptor roleDescriptor : roleDescriptors) {
+            final boolean hasPrivilegesOtherThanIndex = roleDescriptor.hasClusterPrivileges()
+                || roleDescriptor.hasConfigurableClusterPrivileges()
+                || roleDescriptor.hasApplicationPrivileges()
+                || roleDescriptor.hasRunAs()
+                || roleDescriptor.hasRemoteIndicesPrivileges();
+            if (hasPrivilegesOtherThanIndex) {
+                final String message = "Role descriptor for cross cluster access can only contain index privileges "
+                    + "but other privileges found for subject ["
+                    + crossClusterAccessRoleReference.getUserPrincipal()
+                    + "]";
+                logger.debug("{}. Invalid role descriptor is [{}]", message, roleDescriptor);
+                listener.onFailure(new IllegalArgumentException(message));
+                return;
+            }
+        }
         if (roleDescriptors.isEmpty()) {
             logger.debug(
                 () -> "Cross cluster access role reference ["
@@ -282,25 +298,4 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         }, asyncRoleProviders, threadContext, Function.identity(), iterationPredicate).run();
     }
 
-    private Set<RoleDescriptor> getRoleDescriptorsWithValidation(
-        RoleReference.CrossClusterAccessRoleReference crossClusterAccessRoleReference
-    ) {
-        final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
-        for (RoleDescriptor roleDescriptor : roleDescriptors) {
-            final boolean hasPrivilegesOtherThanIndex = roleDescriptor.hasClusterPrivileges()
-                || roleDescriptor.hasConfigurableClusterPrivileges()
-                || roleDescriptor.hasApplicationPrivileges()
-                || roleDescriptor.hasRunAs()
-                || roleDescriptor.hasRemoteIndicesPrivileges();
-            if (hasPrivilegesOtherThanIndex) {
-                throw new IllegalArgumentException(
-                    "role descriptor for cross cluster access can only contain index privileges "
-                        + "but other privileges found for subject ["
-                        + crossClusterAccessRoleReference.getUserPrincipal()
-                        + "]"
-                );
-            }
-        }
-        return roleDescriptors;
-    }
 }

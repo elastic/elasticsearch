@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.esql.io.stream;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -23,6 +25,8 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.function.LongFunction;
 
 /**
@@ -123,6 +127,18 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         } else {
             return null;
         }
+    }
+
+    public AttributeSet readAttributeSet(Writeable.Reader<Attribute> reader) throws IOException {
+        int count = readArraySize();
+        if (count == 0) {
+            return new AttributeSet();
+        }
+        Collection<Attribute> builder = new HashSet<>();
+        for (int i = 0; i < count; i++) {
+            builder.add(reader.read(this));
+        }
+        return new AttributeSet(builder);
     }
 
     static void throwOnNullOptionalRead(Class<?> type) throws IOException {

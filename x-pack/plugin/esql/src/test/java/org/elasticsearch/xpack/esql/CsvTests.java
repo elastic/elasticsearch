@@ -198,8 +198,9 @@ public class CsvTests extends ESTestCase {
         var analyzed = analyzer.analyze(parsed);
         var logicalOptimized = logicalPlanOptimizer.optimize(analyzed);
         var physicalPlan = mapper.map(logicalOptimized);
-        opportunisticallyAssertPlanSerialization(physicalPlan); // comment out to disable serialization
-        return physicalPlanOptimizer.optimize(physicalPlan);
+        var optimizedPlan = physicalPlanOptimizer.optimize(physicalPlan);
+        opportunisticallyAssertPlanSerialization(physicalPlan, optimizedPlan); // comment out to disable serialization
+        return optimizedPlan;
     }
 
     private ActualResults executePlan(LocalExecutionPlanner planner) {
@@ -235,14 +236,16 @@ public class CsvTests extends ESTestCase {
     }
 
     // Asserts that the serialization and deserialization of the plan creates an equivalent plan.
-    private static void opportunisticallyAssertPlanSerialization(final PhysicalPlan plan) {
-        var tmp = plan;
-        do {
-            if (tmp instanceof LocalSourceExec) {
-                return; // skip plans with localSourceExec
-            }
-        } while (tmp.children().isEmpty() == false && (tmp = tmp.children().get(0)) != null);
+    private static void opportunisticallyAssertPlanSerialization(PhysicalPlan... plans) {
+        for (var plan : plans) {
+            var tmp = plan;
+            do {
+                if (tmp instanceof LocalSourceExec) {
+                    return; // skip plans with localSourceExec
+                }
+            } while (tmp.children().isEmpty() == false && (tmp = tmp.children().get(0)) != null);
 
-        SerializationTestUtils.assertSerialization(plan);
+            SerializationTestUtils.assertSerialization(plan);
+        }
     }
 }

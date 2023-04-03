@@ -306,7 +306,7 @@ public final class PlanNamedTypes {
         return new FieldExtractExec(
             Source.EMPTY,
             in.readPhysicalPlanNode(),
-            in.readSet(readerFromPlanReader(PlanStreamInput::readAttribute))
+            in.readAttributeSet(readerFromPlanReader(PlanStreamInput::readAttribute))
         );
     }
 
@@ -442,13 +442,20 @@ public final class PlanNamedTypes {
     }
 
     static UnsupportedAttribute readUnsupportedAttr(PlanStreamInput in) throws IOException {
-        return new UnsupportedAttribute(Source.EMPTY, in.readString(), readUnsupportedEsField(in), in.readOptionalString());
+        return new UnsupportedAttribute(
+            Source.EMPTY,
+            in.readString(),
+            readUnsupportedEsField(in),
+            in.readOptionalString(),
+            in.nameIdFromLongValue(in.readLong())
+        );
     }
 
     static void writeUnsupportedAttr(PlanStreamOutput out, UnsupportedAttribute unsupportedAttribute) throws IOException {
         out.writeString(unsupportedAttribute.name());
         writeUnsupportedEsField(out, unsupportedAttribute.field());
         out.writeOptionalString(unsupportedAttribute.hasCustomMessage() ? unsupportedAttribute.unresolvedMessage() : null);
+        out.writeLong(Long.parseLong(unsupportedAttribute.id().toString()));
     }
 
     // -- EsFields

@@ -43,7 +43,7 @@ public class SerializationTestUtils {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(expression, unused -> deserExpression);
     }
 
-    private static <T> T serializeDeserialize(T orig, Serializer<T> serializer, Deserializer<T> deserializer) {
+    public static <T> T serializeDeserialize(T orig, Serializer<T> serializer, Deserializer<T> deserializer) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, planNameRegistry);
             serializer.write(planStreamOutput, orig);
@@ -58,15 +58,15 @@ public class SerializationTestUtils {
         }
     }
 
-    interface Serializer<T> {
+    public interface Serializer<T> {
         void write(PlanStreamOutput out, T object) throws IOException;
     }
 
-    interface Deserializer<T> {
+    public interface Deserializer<T> {
         T read(PlanStreamInput in) throws IOException;
     }
 
-    private static NamedWriteableRegistry writableRegistry() {
+    public static NamedWriteableRegistry writableRegistry() {
         return new NamedWriteableRegistry(
             List.of(
                 new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new),

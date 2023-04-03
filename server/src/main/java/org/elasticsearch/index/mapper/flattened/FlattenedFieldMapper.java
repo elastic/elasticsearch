@@ -741,7 +741,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         throw new IllegalArgumentException(
-            "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source " + "because it doesn't have doc values"
+            "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
         );
     }
 }

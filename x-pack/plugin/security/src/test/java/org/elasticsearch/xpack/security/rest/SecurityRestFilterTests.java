@@ -37,11 +37,14 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
@@ -78,17 +81,31 @@ public class SecurityRestFilterTests extends ESTestCase {
     public void init() throws Exception {
         authcService = mock(AuthenticationService.class);
         channel = mock(RestChannel.class);
+        when(channel.newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
         restHandler = mock(RestHandler.class);
         threadContext = new ThreadContext(Settings.EMPTY);
-        secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService);
-        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        secondaryAuthenticator = new SecondaryAuthenticator(
+            Settings.EMPTY,
+            threadContext,
+            authcService,
+            new AuditTrailService(Arrays.asList(mock(AuditTrail.class)), licenseState)
+        );
+        filter = new SecurityRestFilter(
+            licenseState,
+            threadContext,
+            authcService,
+            secondaryAuthenticator,
+            new AuditTrailService(Arrays.asList(mock(AuditTrail.class)), licenseState),
+            restHandler,
+            false
+        );
     }
 
     public void testProcess() throws Exception {
-        RestRequest request = mock(RestRequest.class);
-        when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
+        RestRequest request = new FakeRestRequest();
+        when(channel.request()).thenReturn(request);
         Authentication authentication = mock(Authentication.class);
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
@@ -164,7 +181,15 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessAuthenticationFailedNoTrace() throws Exception {
-        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        filter = new SecurityRestFilter(
+            licenseState,
+            threadContext,
+            authcService,
+            secondaryAuthenticator,
+            mock(AuditTrailService.class),
+            restHandler,
+            false
+        );
         testProcessAuthenticationFailed(
             randomBoolean()
                 ? authenticationError("failed authn")
@@ -284,7 +309,15 @@ public class SecurityRestFilterTests extends ESTestCase {
             callback.onResponse(new Authentication(XPackUser.INSTANCE, new RealmRef("test", "test", "t"), null));
             return Void.TYPE;
         }).when(authcService).authenticate(any(RestRequest.class), anyActionListener());
-        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        filter = new SecurityRestFilter(
+            licenseState,
+            threadContext,
+            authcService,
+            secondaryAuthenticator,
+            new AuditTrailService(Arrays.asList(mock(AuditTrail.class)), licenseState),
+            restHandler,
+            false
+        );
 
         filter.handleRequest(restRequest, channel, null);
 

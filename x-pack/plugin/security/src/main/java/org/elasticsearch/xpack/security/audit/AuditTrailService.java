@@ -82,7 +82,7 @@ public class AuditTrailService {
         }
 
         @Override
-        public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {}
+        public void authenticationSuccess(RestRequest request) {}
 
         @Override
         public void authenticationSuccess(
@@ -221,9 +221,9 @@ public class AuditTrailService {
         }
 
         @Override
-        public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {
+        public void authenticationSuccess(RestRequest request) {
             for (AuditTrail auditTrail : auditTrails) {
-                auditTrail.authenticationSuccess(requestId, authentication, request);
+                auditTrail.authenticationSuccess(request);
             }
         }
 

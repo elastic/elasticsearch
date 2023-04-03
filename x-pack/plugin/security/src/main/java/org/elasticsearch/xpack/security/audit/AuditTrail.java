@@ -23,7 +23,7 @@ public interface AuditTrail {
 
     String name();
 
-    void authenticationSuccess(String requestId, Authentication authentication, RestRequest request);
+    void authenticationSuccess(RestRequest request);
 
     void authenticationSuccess(String requestId, Authentication authentication, String action, TransportRequest transportRequest);
 

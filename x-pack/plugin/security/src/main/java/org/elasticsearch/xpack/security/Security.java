@@ -856,7 +856,11 @@ public class Security extends Plugin
         components.add(allRolesStore); // for SecurityFeatureSet and clear roles cache
         components.add(authzService);
 
-        final SecondaryAuthenticator secondaryAuthenticator = new SecondaryAuthenticator(securityContext.get(), authcService.get());
+        final SecondaryAuthenticator secondaryAuthenticator = new SecondaryAuthenticator(
+            securityContext.get(),
+            authcService.get(),
+            auditTrailService
+        );
         this.secondayAuthc.set(secondaryAuthenticator);
         components.add(secondaryAuthenticator);
 
@@ -1531,6 +1535,7 @@ public class Security extends Plugin
             threadContext,
             authcService.get(),
             secondayAuthc.get(),
+            auditTrailService.get(),
             handler,
             extractClientCertificate
         );

@@ -41,7 +41,6 @@ import static org.elasticsearch.action.admin.indices.rollover.RolloverConditions
 /**
  * This class holds the configuration of the rollover conditions as they are defined in DLM lifecycle. Currently, it can handle automatic
  * configuration for the max index age condition.
- * TODO: extend this for ILM too, when the design is settled
  */
 public class RolloverConfiguration implements Writeable, ToXContentObject {
 
@@ -166,9 +165,9 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
             } else if (MaxAgeCondition.NAME.equals(condition)) {
                 valueParser.addMaxIndexAgeCondition(value, setting);
             } else if (MaxDocsCondition.NAME.equals(condition)) {
-                valueParser.addMaxIndexDocsCondition(parseLong(value, setting));
+                valueParser.addMaxIndexDocsCondition(value, setting);
             } else if (MaxPrimaryShardDocsCondition.NAME.equals(condition)) {
-                valueParser.addMaxPrimaryShardDocsCondition(parseLong(value, setting));
+                valueParser.addMaxPrimaryShardDocsCondition(value, setting);
             } else if (MinSizeCondition.NAME.equals(condition)) {
                 valueParser.addMinIndexSizeCondition(value, setting);
             } else if (MinPrimaryShardSizeCondition.NAME.equals(condition)) {
@@ -176,27 +175,14 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
             } else if (MinAgeCondition.NAME.equals(condition)) {
                 valueParser.addMinIndexAgeCondition(value, setting);
             } else if (MinDocsCondition.NAME.equals(condition)) {
-                valueParser.addMinIndexDocsCondition(parseLong(value, setting));
+                valueParser.addMinIndexDocsCondition(value, setting);
             } else if (MinPrimaryShardDocsCondition.NAME.equals(condition)) {
-                valueParser.addMinPrimaryShardDocsCondition(parseLong(value, condition));
+                valueParser.addMinPrimaryShardDocsCondition(value, condition);
             } else {
                 throw new SettingsException("Unknown condition: '{}'", condition);
             }
         }
         return valueParser.getRolloverConfiguration();
-    }
-
-    private static Long parseLong(String sValue, String settingName) {
-        try {
-            return Long.parseLong(sValue);
-        } catch (NumberFormatException e) {
-            throw new SettingsException(
-                "Invalid value '{}' in setting '{}', the value is expected to be of type long",
-                sValue,
-                settingName,
-                e.getMessage()
-            );
-        }
     }
 
     /**
@@ -217,7 +203,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     }
 
     /**
-     * Simple builder class that helps keeping track of the values during parsing
+     * Parses and keeps track of the condition values during parsing
      */
     public static class ValueParser {
         private final RolloverConditions.Builder concreteConditions = RolloverConditions.newBuilder();
@@ -239,6 +225,13 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
                 });
             }
             return this;
+        }
+
+        /**
+         * Parses and adds max index docs condition
+         */
+        public ValueParser addMaxIndexDocsCondition(String value, String setting) {
+            return addMaxIndexDocsCondition(parseLong(value, setting));
         }
 
         /**
@@ -281,6 +274,13 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         }
 
         /**
+         * Parses and adds max primary shard doc count
+         */
+        public ValueParser addMaxPrimaryShardDocsCondition(String value, String setting) {
+            return addMaxPrimaryShardDocsCondition(parseLong(value, setting));
+        }
+
+        /**
          * Adds max primary shard doc count
          */
         public ValueParser addMaxPrimaryShardDocsCondition(Long maxDocs) {
@@ -303,6 +303,13 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
                 );
             }
             return this;
+        }
+
+        /**
+         * Parses and adds the min index docs count condition
+         */
+        public ValueParser addMinIndexDocsCondition(String value, String setting) {
+            return addMinIndexDocsCondition(parseLong(value, setting));
         }
 
         /**
@@ -345,6 +352,13 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         }
 
         /**
+         * Parses and adds the max primary shard doc count
+         */
+        public ValueParser addMinPrimaryShardDocsCondition(String value, String setting) {
+            return addMinPrimaryShardDocsCondition(parseLong(value, setting));
+        }
+
+        /**
          * Adds the max primary shard doc count
          */
         public ValueParser addMinPrimaryShardDocsCondition(Long minDocs) {
@@ -365,6 +379,19 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
 
         RolloverConfiguration getRolloverConfiguration() {
             return new RolloverConfiguration(concreteConditions.build(), Collections.unmodifiableSet(automatic));
+        }
+
+        private static Long parseLong(String sValue, String settingName) {
+            try {
+                return Long.parseLong(sValue);
+            } catch (NumberFormatException e) {
+                throw new SettingsException(
+                    "Invalid value '{}' in setting '{}', the value is expected to be of type long",
+                    sValue,
+                    settingName,
+                    e.getMessage()
+                );
+            }
         }
     }
 

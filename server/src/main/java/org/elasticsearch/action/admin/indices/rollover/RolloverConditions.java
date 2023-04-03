@@ -255,7 +255,7 @@ public class RolloverConditions implements Writeable, ToXContentObject {
     }
 
     /**
-     * This method add the conditions as fields in an already existing object.
+     * This method adds the conditions as fields in an already existing object.
      */
     public XContentBuilder toXContentFragment(XContentBuilder builder, Params params) throws IOException {
         for (Condition<?> condition : conditions.values()) {

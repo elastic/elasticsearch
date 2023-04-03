@@ -29,14 +29,25 @@ public class RemoteClusterSecurityWithDlsAndFlsRestIT extends AbstractRemoteClus
 
     private static final String API_KEY_ROLE = """
         {
-          "role": {
+          "role1": {
             "cluster": ["cross_cluster_access"],
             "index": [
               {
                   "names": ["remote_index*"],
                   "privileges": ["read", "read_cross_cluster"],
                   "query": {"bool": { "must_not": { "term" : {"field2" : "value2"}}}},
-                  "field_security": {"grant": [ "field1", "field2" ]}
+                  "field_security": {"grant": [ "field2" ]}
+              }
+            ]
+          },
+          "role2": {
+            "cluster": ["cross_cluster_access"],
+            "index": [
+              {
+                  "names": ["remote_index*"],
+                  "privileges": ["read", "read_cross_cluster"],
+                  "query": {"bool": { "must_not": { "term" : {"field1" : "value2"}}}},
+                  "field_security": {"grant": [ "field1" ]}
               }
             ]
           }

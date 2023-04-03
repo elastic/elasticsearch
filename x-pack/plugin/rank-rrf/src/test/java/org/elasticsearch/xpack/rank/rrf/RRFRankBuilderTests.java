@@ -50,7 +50,7 @@ public class RRFRankBuilderTests extends RankBuilderTests<RRFRankBuilder> {
         Assert.assertEquals(parser.currentToken(), XContentParser.Token.START_OBJECT);
         parser.nextToken();
         assertEquals(parser.currentToken(), XContentParser.Token.FIELD_NAME);
-        assertEquals(parser.currentName(), RRFRankBuilder.NAME);
+        assertEquals(parser.currentName(), RankRRFPlugin.NAME);
         RRFRankBuilder builder = RRFRankBuilder.fromXContent(parser);
         parser.nextToken();
         Assert.assertEquals(parser.currentToken(), XContentParser.Token.END_OBJECT);

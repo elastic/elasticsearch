@@ -342,7 +342,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.profile.query;
     exports org.elasticsearch.search.query;
     exports org.elasticsearch.search.rank;
-    exports org.elasticsearch.search.rank.rrf;
     exports org.elasticsearch.search.rescore;
     exports org.elasticsearch.search.runtime;
     exports org.elasticsearch.search.searchafter;

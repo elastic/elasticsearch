@@ -1,12 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
  * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.rank.rrf;
+package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
@@ -22,7 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.rank.rrf.RRFRankDoc.NO_RANK;
+import static org.elasticsearch.xpack.rank.rrf.RRFRankDoc.NO_RANK;
 
 /**
  * Ranks and decorates search hits for RRF results on the coordinator.

@@ -16,8 +16,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankShardContext;
-import org.elasticsearch.search.rank.rrf.RRFRankCoordinatorContext;
-import org.elasticsearch.search.rank.rrf.RRFRankShardContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,13 +33,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class RRFRankBuilder extends RankBuilder<RRFRankBuilder> {
 
-    public static final String NAME = "rrf";
-
     public static final int DEFAULT_RANK_CONSTANT = 60;
 
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
-    private static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>("rrf", args -> {
+    private static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>(RankRRFPlugin.NAME, args -> {
         RRFRankBuilder builder = new RRFRankBuilder();
         builder.windowSize(args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0]);
         builder.rankConstant(args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1]);
@@ -99,7 +95,7 @@ public class RRFRankBuilder extends RankBuilder<RRFRankBuilder> {
 
     @Override
     public String getWriteableName() {
-        return NAME;
+        return RankRRFPlugin.NAME;
     }
 
     @Override

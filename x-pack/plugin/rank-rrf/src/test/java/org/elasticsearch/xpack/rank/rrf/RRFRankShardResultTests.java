@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.search.rank.rrf.RRFRankDoc;
-import org.elasticsearch.search.rank.rrf.RRFRankShardResult;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 
 import java.io.IOException;
@@ -45,7 +43,7 @@ public class RRFRankShardResultTests extends AbstractNamedWriteableTestCase<RRFR
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            List.of(new NamedWriteableRegistry.Entry(RRFRankShardResult.class, "rrf", RRFRankShardResult::new))
+            List.of(new NamedWriteableRegistry.Entry(RRFRankShardResult.class, RankRRFPlugin.NAME, RRFRankShardResult::new))
         );
     }
 

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -17,9 +19,15 @@ import java.util.List;
 
 public class RankRRFPlugin extends Plugin {
 
+    public static final String NAME = "rrf";
+
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(new NamedWriteableRegistry.Entry(RankBuilder.class, RRFRankBuilder.NAME, RRFRankBuilder::new));
+        return List.of(
+            new NamedWriteableRegistry.Entry(RankBuilder.class, NAME, RRFRankBuilder::new),
+            new NamedWriteableRegistry.Entry(RankShardResult.class, NAME, RRFRankShardResult::new),
+            new NamedWriteableRegistry.Entry(RankDoc.class, NAME, RRFRankDoc::new)
+        );
     }
 
     @Override
@@ -27,7 +35,7 @@ public class RankRRFPlugin extends Plugin {
         return List.of(
             new NamedXContentRegistry.Entry(
                 RankBuilder.class,
-                new ParseField(RRFRankBuilder.NAME),
+                new ParseField(NAME),
                 RRFRankBuilder::fromXContent
             )
         );

@@ -91,11 +91,6 @@ public abstract class RankBuilder<RCB extends RankBuilder<RCB>> implements Versi
     }
 
     /**
-     * Generates the query used for aggregations and suggesters.
-     */
-    public abstract QueryBuilder searchQuery(List<QueryBuilder> queryBuilders);
-
-    /**
      * Generates a context used to execute required searches on the shard.
      */
     public abstract RankShardContext build(List<Query> queries, int size, int from);

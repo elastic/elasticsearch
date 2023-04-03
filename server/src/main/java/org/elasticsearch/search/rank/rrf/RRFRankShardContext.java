@@ -24,12 +24,10 @@ import java.util.Map;
  */
 public class RRFRankShardContext extends RankShardContext {
 
-    protected final int windowSize;
     protected final int rankConstant;
 
     public RRFRankShardContext(List<Query> queries, int size, int from, int windowSize, int rankConstant) {
-        super(queries, size, from);
-        this.windowSize = windowSize;
+        super(queries, size, from, windowSize);
         this.rankConstant = rankConstant;
     }
 

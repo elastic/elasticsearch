@@ -29,12 +29,10 @@ import static org.elasticsearch.search.rank.rrf.RRFRankDoc.NO_RANK;
  */
 public class RRFRankCoordinatorContext extends RankCoordinatorContext {
 
-    private final int windowSize;
     private final int rankConstant;
 
     public RRFRankCoordinatorContext(int size, int from, int windowSize, int rankConstant) {
-        super(size, from);
-        this.windowSize = windowSize;
+        super(size, from, windowSize);
         this.rankConstant = rankConstant;
     }
 

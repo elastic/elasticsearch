@@ -13,8 +13,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
@@ -115,20 +113,6 @@ public class RRFRankBuilder extends RankBuilder<RRFRankBuilder> {
 
     public int rankConstant() {
         return rankConstant;
-    }
-
-    /**
-     * RRF builds a simple boolean disjunction for all queries when
-     * building aggregations and suggesters.
-     */
-    @Override
-    public QueryBuilder searchQuery(List<QueryBuilder> queryBuilders) {
-        BoolQueryBuilder searchQuery = new BoolQueryBuilder();
-        for (QueryBuilder queryBuilder : queryBuilders) {
-            searchQuery.should(queryBuilder);
-        }
-
-        return searchQuery;
     }
 
     @Override

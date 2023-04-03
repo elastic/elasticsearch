@@ -22,25 +22,31 @@ import java.util.List;
 public abstract class RankShardContext {
 
     protected final List<Query> queries;
-    protected final int windowSize;
+    protected final int size;
     protected final int from;
+    protected final int windowSize;
 
-    public RankShardContext(List<Query> queries, int windowSize, int from) {
+    public RankShardContext(List<Query> queries, int size, int from, int windowSize) {
         this.queries = queries;
-        this.windowSize = windowSize;
+        this.size = size;
         this.from = from;
+        this.windowSize = windowSize;
     }
 
     public List<Query> queries() {
         return queries;
     }
 
-    public int windowSize() {
-        return windowSize;
+    public int size() {
+        return size;
     }
 
     public int from() {
         return from;
+    }
+
+    public int windowSize() {
+        return windowSize;
     }
 
     public abstract void sort(List<TopDocs> rrfRankResults, QuerySearchResult querySearchResult);

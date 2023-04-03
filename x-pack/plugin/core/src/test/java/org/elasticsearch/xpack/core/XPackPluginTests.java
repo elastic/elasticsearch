@@ -14,9 +14,13 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.PostStartBasicRequest;
 import org.elasticsearch.license.PostStartBasicResponse;
@@ -29,6 +33,7 @@ import org.elasticsearch.license.internal.StatusSupplier;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
@@ -38,8 +43,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class XPackPluginTests extends ESTestCase {
 
@@ -121,7 +128,6 @@ public class XPackPluginTests extends ESTestCase {
                 return (List<T>) extensions;
             }
         });
-
         assertEquals(mockLicense, XPackPlugin.getSharedLicenseService().getLicense());
         assertEquals(operationMode, XPackPlugin.getSharedLicenseState().getOperationMode());
     }
@@ -143,7 +149,6 @@ public class XPackPluginTests extends ESTestCase {
                 }
             })
         );
-
         assertThat(
             exception.getMessage(),
             is("interface org.elasticsearch.license.internal.MutableLicenseService " + "may not have multiple implementations")
@@ -164,11 +169,40 @@ public class XPackPluginTests extends ESTestCase {
                 }
             })
         );
-
         assertThat(
             exception2.getMessage(),
             is("interface org.elasticsearch.license.internal.StatusSupplier " + "may not have multiple implementations")
         );
+    }
+
+    public void testLoadNoExtensions() throws Exception {
+        XPackPlugin xpackPlugin = createXPackPlugin(Settings.builder().build());
+        xpackPlugin.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                return Collections.emptyList();
+            }
+        });
+        Environment mockEnvironment = mock(Environment.class);
+        when(mockEnvironment.settings()).thenReturn(Settings.builder().build());
+        when(mockEnvironment.configFile()).thenReturn(PathUtils.get(""));
+        xpackPlugin.createComponents(
+            null,
+            mock(ClusterService.class),
+            mock(ThreadPool.class),
+            null,
+            null,
+            null,
+            mockEnvironment,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        assertThat(XPackPlugin.getSharedLicenseService(), instanceOf(ClusterStateLicenseService.class));
+        assertEquals(License.OperationMode.TRIAL, XPackPlugin.getSharedLicenseState().getOperationMode());
     }
 
     private XPackPlugin createXPackPlugin(Settings settings) throws Exception {

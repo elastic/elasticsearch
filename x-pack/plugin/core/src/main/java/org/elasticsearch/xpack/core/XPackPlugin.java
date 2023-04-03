@@ -321,9 +321,8 @@ public class XPackPlugin extends XPackClientPlugin
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
 
         if (getLicenseState() == null) {
-            setLicenseState(
-                new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), () -> new Status(License.OperationMode.TRIAL, true, null))
-            );
+            // helps with testing frameworks that don't load extensions
+            setLicenseState(new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), getInitialStatus()));
         }
 
         LicenseService licenseService = getLicenseService();
@@ -510,6 +509,13 @@ public class XPackPlugin extends XPackClientPlugin
             setLicenseState(
                 new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), xPackLicenseStateInitialStatusSupplier.get(0))
             );
+        } else {
+            // ensure this is set as early as possible
+            setLicenseState(new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), getInitialStatus()));
         }
+    }
+
+    public StatusSupplier getInitialStatus() {
+        return () -> new Status(License.OperationMode.TRIAL, true, null);
     }
 }

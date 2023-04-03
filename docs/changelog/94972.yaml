@@ -1,0 +1,6 @@
+pr: 94972
+summary: Implement stats parameter in Count API
+area: Search
+type: enhancement
+issues:
+  - 67528

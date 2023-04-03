@@ -1,6 +1,7 @@
 {
   "cat.component_templates":{
     "documentation":{
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-component-template.html",
       "description":"Returns information about existing component_templates templates."
     },
     "stability":"stable",

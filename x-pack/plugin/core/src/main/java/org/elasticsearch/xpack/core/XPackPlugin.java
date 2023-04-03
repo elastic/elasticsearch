@@ -316,6 +316,13 @@ public class XPackPlugin extends XPackClientPlugin
         List<Object> components = new ArrayList<>();
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
+
+        if (getLicenseState() == null) {
+            setLicenseState(
+                new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), () -> new Status(License.OperationMode.TRIAL, true, null))
+            );
+        }
+
         LicenseService licenseService = getLicenseService();
         if (licenseService == null) {
             licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
@@ -499,10 +506,6 @@ public class XPackPlugin extends XPackClientPlugin
         } else if (licenseServiceFactories.size() == 1) {
             setLicenseState(
                 new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), xPackLicenseStateInitialStatusSupplier.get(0))
-            );
-        } else {
-            setLicenseState(
-                new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), () -> new Status(License.OperationMode.TRIAL, true, null))
             );
         }
     }

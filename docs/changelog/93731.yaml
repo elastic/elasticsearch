@@ -1,5 +1,0 @@
-pr: 93731
-summary: Use long inference timeout at ingest
-area: Machine Learning
-type: bug
-issues: []

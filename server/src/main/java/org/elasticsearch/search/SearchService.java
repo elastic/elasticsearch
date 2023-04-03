@@ -1001,8 +1001,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (context.size() == -1) {
                 context.size(DEFAULT_SIZE);
             }
-            if (request.rankContextInternal() != null) {
-                List<Query> rankQueries = request.rankContextInternal().queries(context.getSearchExecutionContext());
+            if (request.rankQueryBuilders().isEmpty() == false) {
+                List<Query> rankQueries = new ArrayList<>();
+                for (QueryBuilder queryBuilder : request.rankQueryBuilders()) {
+                    rankQueries.add(queryBuilder.toQuery(context.getSearchExecutionContext()));
+                }
                 context.rankShardContext(request.source().rankContextBuilder().build(rankQueries, context.size(), context.from()));
             }
             context.setTask(task);

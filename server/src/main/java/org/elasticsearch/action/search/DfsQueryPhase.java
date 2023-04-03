@@ -19,7 +19,6 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankContextInternal;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
@@ -139,6 +138,10 @@ final class DfsQueryPhase extends SearchPhase {
         }
 
         if (source.rankContextBuilder() == null) {
+            // this path will use linear combination if there are
+            // multiple knn queries to combine all knn queries into
+            // a single query per shard
+
             List<ScoreDoc> scoreDocs = new ArrayList<>();
             for (DfsKnnResults dfsKnnResults : knnResults) {
                 for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
@@ -173,9 +176,12 @@ final class DfsQueryPhase extends SearchPhase {
             }
             request.source(newSource);
         } else {
-            List<QueryBuilder> queryBuilders = new ArrayList<>();
+            // this path will keep knn queries separate for ranking per shard
+            // if there are multiple knn queries
+
+            List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
             if (source.query() != null) {
-                queryBuilders.add(source.query());
+                rankQueryBuilders.add(source.query());
             }
 
             for (DfsKnnResults dfsKnnResults : knnResults) {
@@ -187,14 +193,14 @@ final class DfsQueryPhase extends SearchPhase {
                 }
                 scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
                 KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
-                queryBuilders.add(knnQuery);
+                rankQueryBuilders.add(knnQuery);
             }
 
             SearchSourceBuilder newSource = source.shallowCopy()
-                .query(source.rankContextBuilder().searchQuery(queryBuilders))
+                .query(source.rankContextBuilder().searchQuery(rankQueryBuilders))
                 .knnSearch(List.of());
             request.source(newSource);
-            request.rankContextInternal(new RankContextInternal(queryBuilders));
+            request.rankQueryBuilders(rankQueryBuilders);
         }
 
         return request;

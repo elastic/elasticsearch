@@ -161,12 +161,10 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         boolean skipUnavailable
     ) throws Exception {
         // For configurable remote cluster security, this method assumes the cross cluster access API key is already configured in keystore
-        final int numberOfFcNodes = fulfillingCluster.getHttpAddresses().split(",").length;
-        final int fcNodeToConnectTo = randomIntBetween(0, numberOfFcNodes - 1);
         final Settings.Builder builder = Settings.builder();
         final String remoteClusterEndpoint = basicSecurity
-            ? targetFulfillingCluster.getTransportEndpoint(fcNodeToConnectTo)
-            : targetFulfillingCluster.getRemoteClusterServerEndpoint(fcNodeToConnectTo);
+            ? targetFulfillingCluster.getTransportEndpoint(0)
+            : targetFulfillingCluster.getRemoteClusterServerEndpoint(0);
         if (isProxyMode) {
             builder.put("cluster.remote." + clusterAlias + ".mode", "proxy")
                 .put("cluster.remote." + clusterAlias + ".proxy_address", remoteClusterEndpoint);
@@ -178,6 +176,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         updateClusterSettings(builder.build());
 
         // Ensure remote cluster is connected
+        final int numberOfFcNodes = targetFulfillingCluster.getHttpAddresses().split(",").length;
         final Request remoteInfoRequest = new Request("GET", "/_remote/info");
         assertBusy(() -> {
             final Response remoteInfoResponse = adminClient().performRequest(remoteInfoRequest);

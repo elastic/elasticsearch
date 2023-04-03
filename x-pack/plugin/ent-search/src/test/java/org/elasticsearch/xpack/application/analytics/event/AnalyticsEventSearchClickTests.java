@@ -76,6 +76,11 @@ public class AnalyticsEventSearchClickTests extends AbstractEventTestCase<Analyt
     }
 
     @Override
+    protected ContextParser<AnalyticsEvent.Context, AnalyticsEventSearchClick> parser() {
+        return AnalyticsEventSearchClick::fromXContent;
+    }
+
+    @Override
     protected Writeable.Reader<AnalyticsEventSearchClick> instanceReader() {
         return AnalyticsEventSearchClick::new;
     }
@@ -88,10 +93,5 @@ public class AnalyticsEventSearchClickTests extends AbstractEventTestCase<Analyt
     @Override
     protected AnalyticsEventSearchClick mutateInstance(AnalyticsEventSearchClick instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
-    }
-
-    @Override
-    protected ContextParser<AnalyticsEvent.Context, AnalyticsEventSearchClick> parser() {
-        return AnalyticsEventSearchClick::fromXContent;
     }
 }

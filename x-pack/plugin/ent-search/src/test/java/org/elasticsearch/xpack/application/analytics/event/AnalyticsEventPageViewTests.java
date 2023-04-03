@@ -60,7 +60,7 @@ public class AnalyticsEventPageViewTests extends AbstractEventTestCase<Analytics
         );
     }
 
-    public void testFromXContentFailsWhenDocumentDataAreMissing() throws IOException {
+    public void testFromXContentWhenDocumentDataAreMissing() throws IOException {
         AnalyticsEvent randomEvent = createTestInstance();
         BytesReference payload = createPayloadFromEvent(randomEvent, DOCUMENT_FIELD.getPreferredName());
         AnalyticsEvent.Context context = createAnalyticsContextMockFromEvent(randomEvent);
@@ -77,6 +77,11 @@ public class AnalyticsEventPageViewTests extends AbstractEventTestCase<Analytics
     }
 
     @Override
+    protected ContextParser<AnalyticsEvent.Context, AnalyticsEventPageView> parser() {
+        return AnalyticsEventPageView::fromXContent;
+    }
+
+    @Override
     protected Writeable.Reader<AnalyticsEventPageView> instanceReader() {
         return AnalyticsEventPageView::new;
     }
@@ -89,10 +94,5 @@ public class AnalyticsEventPageViewTests extends AbstractEventTestCase<Analytics
     @Override
     protected AnalyticsEventPageView mutateInstance(AnalyticsEventPageView instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
-    }
-
-    @Override
-    protected ContextParser<AnalyticsEvent.Context, AnalyticsEventPageView> parser() {
-        return AnalyticsEventPageView::fromXContent;
     }
 }

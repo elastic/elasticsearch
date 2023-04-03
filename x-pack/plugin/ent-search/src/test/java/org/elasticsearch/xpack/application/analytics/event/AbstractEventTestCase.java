@@ -111,5 +111,4 @@ public abstract class AbstractEventTestCase<T extends AnalyticsEvent> extends Ab
             return parser().parse(contentParser, context);
         }
     }
-
 }

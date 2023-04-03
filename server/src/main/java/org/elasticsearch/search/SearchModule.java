@@ -807,15 +807,9 @@ public class SearchModule {
     }
 
     private void registerRanks() {
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(RankBuilder.class, RRFRankBuilder.NAME, RRFRankBuilder::new)
-        );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankBuilder.class, RRFRankBuilder.NAME, RRFRankBuilder::new));
         namedXContents.add(
-            new NamedXContentRegistry.Entry(
-                RankBuilder.class,
-                new ParseField(RRFRankBuilder.NAME),
-                RRFRankBuilder::fromXContent
-            )
+            new NamedXContentRegistry.Entry(RankBuilder.class, new ParseField(RRFRankBuilder.NAME), RRFRankBuilder::fromXContent)
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(RankShardResult.class, RRFRankBuilder.NAME, RRFRankShardResult::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(RankDoc.class, RRFRankBuilder.NAME, RRFRankDoc::new));

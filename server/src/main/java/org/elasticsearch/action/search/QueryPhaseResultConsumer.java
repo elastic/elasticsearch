@@ -95,7 +95,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         SearchSourceBuilder source = request.source();
         int size = source == null || source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
         int from = source == null || source.from() == -1 ? SearchService.DEFAULT_FROM : source.from();
-        this.rankCoordinatorContext = source == null || source.rankContextBuilder() == null ? null : source.rankContextBuilder().build(size, from);
+        this.rankCoordinatorContext = source == null || source.rankContextBuilder() == null
+            ? null
+            : source.rankContextBuilder().build(size, from);
         this.hasTopDocs = (source == null || size != 0) && rankCoordinatorContext == null;
         this.hasAggs = source != null && source.aggregations() != null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
@@ -141,7 +143,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             pendingMerges.numReducePhases,
             false,
             aggReduceContextBuilder,
-                rankCoordinatorContext,
+            rankCoordinatorContext,
             performFinalReduce
         );
         if (hasAggs

@@ -34,15 +34,20 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
+import org.elasticsearch.search.rank.RankSearchContext;
+import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 import static org.elasticsearch.search.query.QueryCollectorContext.createAggsCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
@@ -60,13 +65,70 @@ public class QueryPhase {
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.rankShardContext() != null) {
-            searchContext.rankShardContext().executeQueries(searchContext);
+            executeRank(searchContext);
         } else {
             executeInternal(searchContext);
         }
     }
 
-    public static void executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
+    static void executeRank(SearchContext searchContext) throws QueryPhaseExecutionException {
+        try {
+            RankShardContext rankShardContext = searchContext.rankShardContext();
+            QuerySearchResult querySearchResult = searchContext.queryResult();
+            RankSearchContext rankSearchContext = new RankSearchContext(searchContext);
+
+            // run the combined boolean query total hits or aggregations
+            // otherwise mark top docs as empty
+            if (searchContext.suggest() != null
+                || searchContext.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED
+                || searchContext.aggregations() != null) {
+                QueryPhase.executeInternal(rankSearchContext);
+            } else {
+                searchContext.queryResult()
+                    .topDocs(
+                        new TopDocsAndMaxScore(
+                            new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS),
+                            Float.NaN
+                        ),
+                        new DocValueFormat[0]
+                    );
+            }
+
+            List<TopDocs> rrfRankResults = new ArrayList<>();
+            rankSearchContext.windowSize(rankShardContext.windowSize());
+            boolean searchTimedOut = querySearchResult.searchTimedOut();
+            long serviceTimeEWMA = querySearchResult.serviceTimeEWMA();
+            int nodeQueueSize = querySearchResult.nodeQueueSize();
+
+            // run each of the rrf queries
+            for (Query query : rankShardContext.queries()) {
+                // if a search timeout occurs, exit with partial results
+                if (searchTimedOut) {
+                    break;
+                }
+                rankSearchContext.rankQuery(query);
+                QueryPhase.executeInternal(rankSearchContext);
+                QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
+                rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
+                serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
+                nodeQueueSize = Math.max(nodeQueueSize, rrfQuerySearchResult.nodeQueueSize());
+                searchTimedOut = rrfQuerySearchResult.searchTimedOut();
+            }
+
+            rankShardContext.sort(rrfRankResults, querySearchResult);
+
+            // record values relevant to all queries
+            querySearchResult.searchTimedOut(searchTimedOut);
+            querySearchResult.serviceTimeEWMA(serviceTimeEWMA);
+            querySearchResult.nodeQueueSize(nodeQueueSize);
+        } catch (QueryPhaseExecutionException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
+        }
+    }
+
+    static void executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             SuggestPhase.execute(searchContext);
             searchContext.queryResult()

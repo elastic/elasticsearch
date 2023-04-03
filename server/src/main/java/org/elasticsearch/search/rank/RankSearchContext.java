@@ -6,13 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.rank.rrf;
+package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.internal.FilteredSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.Profilers;
+import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
@@ -20,29 +21,28 @@ import java.io.IOException;
 
 /**
  * Manages the appropriate values when executing multiple queries
- * on behalf of RRF.
+ * on behalf of ranking.
  *
- * If the rrf query is not set, this will behave like a default search
- * context for aggregations, suggesters, and hit tracking with the
- * important exception that size is set to [0]. This allows that query
- * to be run without scoring.
+ * If the rank query is not set, this will behave like a default search
+ * context for aggregations and hit tracking with the important exception
+ * that size is set to [0]. This allows that query to be run without scoring.
  *
- * The rrf query needs to be set for each query executed for ranking by
- * the {@link RRFRankSearchContext} while the results are consumed
- * immediately after each query.
+ * The rank query is set for each query in the {@link QueryPhase} and executed
+ * a single time with new results. The results must be collected out of
+ * {@link QuerySearchResult} after each execution.
  */
-public class RRFRankSearchContext extends FilteredSearchContext {
+public class RankSearchContext extends FilteredSearchContext {
 
-    private Query rrfRankQuery;
+    private Query rankQuery;
     private int windowSize;
     private QuerySearchResult querySearchResult;
 
-    public RRFRankSearchContext(SearchContext in) {
+    public RankSearchContext(SearchContext in) {
         super(in);
     }
 
-    public void rrfRankQuery(Query rrfRankQuery) throws IOException {
-        this.rrfRankQuery = searcher().rewrite(buildFilteredQuery(rrfRankQuery));
+    public void rankQuery(Query rankQuery) throws IOException {
+        this.rankQuery = searcher().rewrite(buildFilteredQuery(rankQuery));
         querySearchResult = new QuerySearchResult();
     }
 
@@ -52,42 +52,42 @@ public class RRFRankSearchContext extends FilteredSearchContext {
 
     @Override
     public Query rewrittenQuery() {
-        return rrfRankQuery == null ? super.rewrittenQuery() : rrfRankQuery;
+        return rankQuery == null ? super.rewrittenQuery() : rankQuery;
     }
 
     @Override
     public SearchContextAggregations aggregations() {
-        return rrfRankQuery == null ? super.aggregations() : null;
+        return rankQuery == null ? super.aggregations() : null;
     }
 
     @Override
     public SuggestionSearchContext suggest() {
-        return rrfRankQuery == null ? super.suggest() : null;
+        return rankQuery == null ? super.suggest() : null;
     }
 
     @Override
     public int trackTotalHitsUpTo() {
-        return rrfRankQuery == null ? super.trackTotalHitsUpTo() : 0;
+        return rankQuery == null ? super.trackTotalHitsUpTo() : 0;
     }
 
     @Override
     public Query query() {
-        return rrfRankQuery == null ? super.query() : rrfRankQuery;
+        return rankQuery == null ? super.query() : rankQuery;
     }
 
     @Override
     public int size() {
-        return rrfRankQuery == null ? 0 : windowSize;
+        return rankQuery == null ? 0 : windowSize;
     }
 
     @Override
     public boolean explain() {
-        return rrfRankQuery == null && super.explain();
+        return rankQuery == null && super.explain();
     }
 
     @Override
     public Profilers getProfilers() {
-        return rrfRankQuery == null ? super.getProfilers() : null;
+        return rankQuery == null ? super.getProfilers() : null;
     }
 
     @Override

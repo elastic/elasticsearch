@@ -165,7 +165,7 @@ public final class DissectParser {
     }
 
     /**
-     * <p>Entry point to dissect a string into its parts.</p>
+     * Entry point to dissect a string into its parts.
      *
      * @param inputString The string to dissect
      * @return the key/value Map of the results
@@ -283,7 +283,7 @@ public final class DissectParser {
     }
 
     /**
-     * <p>Entry point to dissect a string into its parts.</p>
+     * Entry point to dissect a string into its parts.
      *
      * @param inputString The string to dissect
      * @return the key/value Map of the results
@@ -298,10 +298,13 @@ public final class DissectParser {
     }
 
     /**
-     * <p>Returns the output keys produced by the instance (excluding named skip keys),
-     * Eg. for the pattern <pre>"%{a} %{b} %{?c}"</pre> the result is [a, b].
-     * <p>The result is an ordered set, where the entries are in the same order as they appear in the pattern.
-     * <p>The reference keys are returned with the name they have in the pattern, eg. for <pre>"%{*x} %{&amp;x}"</pre> the result is [x]
+     * Returns the output keys produced by the instance (excluding named skip keys),
+     * e.g. for the pattern <code>"%{a} %{b} %{?c}"</code> the result is <code>[a, b]</code>.
+     * <p>
+     * The result is an ordered set, where the entries are in the same order as they appear in the pattern.
+     * <p>
+     * The reference keys are returned with the name they have in the pattern, e.g. for <code>"%{*x} %{&amp;x}"</code>
+     * the result is <code>[x]</code>.
      *
      * @return the output keys produced by the instance.
      */
@@ -316,10 +319,10 @@ public final class DissectParser {
     }
 
     /**
-     *
-     * <p>Returns the reference keys present in the pattern.
-     * Eg. for the pattern <pre>"%{a} %{b} %{*c} %{&amp;c} %{*d} %{&amp;d}"</pre> it returns [c, d].
-     * <p>The result is an ordered set, where the entries are in the same order as they appear in the pattern.
+     * Returns the reference keys present in the pattern,
+     * e.g. for the pattern <code>"%{a} %{b} %{*c} %{&amp;c} %{*d} %{&amp;d}"</code> it returns <code>[c, d]</code>.
+     * <p>
+     * The result is an ordered set, where the entries are in the same order as they appear in the pattern.
      *
      * @return the reference keys included in the pattern.
      */

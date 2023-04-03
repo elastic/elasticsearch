@@ -260,7 +260,12 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                 @Override
                 public void onFailure(Exception e) {
                     if (countDown.countDown()) {
-                        openConnections(finished, attemptNumber + 1);
+                        if (attemptNumber >= MAX_CONNECT_ATTEMPTS_PER_RUN && connectionManager.size() == 0) {
+                            logger.warn(() -> "failed to open any proxy connections to cluster [" + clusterAlias + "]", e);
+                            finished.onFailure(e);
+                        } else {
+                            openConnections(finished, attemptNumber + 1);
+                        }
                     }
                 }
             };

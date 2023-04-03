@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -142,6 +143,7 @@ public class SecurityTests extends ESTestCase {
     }
 
     private Collection<Object> createComponentsUtil(Settings settings, SecurityExtension... extensions) throws Exception {
+        FieldPermissionsCache.clearInstanceForTesting();
         Environment env = TestEnvironment.newEnvironment(settings);
         NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), Version.CURRENT, Version.CURRENT);
         licenseState = new TestUtils.UpdatableLicenseState(settings);

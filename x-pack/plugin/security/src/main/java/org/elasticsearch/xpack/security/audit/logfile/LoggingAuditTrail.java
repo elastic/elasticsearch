@@ -41,6 +41,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
@@ -95,6 +96,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
@@ -121,6 +123,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_NAME_FIELD;
 import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_SOURCE_FIELD;
@@ -366,6 +369,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     private final Logger logger;
     private final ThreadContext threadContext;
+    private final SecurityContext securityContext;
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     // package for testing
     volatile EnumSet<AuditLevel> events;
@@ -387,6 +391,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
         this.threadContext = threadContext;
+        this.securityContext = new SecurityContext(settings, threadContext);
         this.entryCommonFields = new EntryCommonFields(settings, null, clusterService);
         this.eventFilterPolicyRegistry = new EventFilterPolicyRegistry(settings);
         clusterService.addListener(this);
@@ -444,7 +449,24 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {
+    public void authenticationSuccess(RestRequest request) {
+        final String requestId = AuditUtil.extractRequestId(securityContext.getThreadContext());
+        if (requestId == null) {
+            // should never happen
+            throw new ElasticsearchSecurityException("Authenticated context must include request id");
+        }
+        final Authentication authentication;
+        try {
+            authentication = securityContext.getAuthentication();
+        } catch (Exception e) {
+            logger.error(() -> format("caught exception while trying to read authentication from request [%s]", request), e);
+            tamperedRequest(requestId, request);
+            throw new ElasticsearchSecurityException("rest request attempted to inject a user", e);
+        }
+        if (authentication == null) {
+            // should never happen
+            throw new ElasticsearchSecurityException("Context is not authenticated");
+        }
         if (events.contains(AUTHENTICATION_SUCCESS)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -468,7 +490,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withAuthentication(authentication)
                 .withRestOrigin(threadContext)
                 .withRequestBody(request)
-                .withThreadContext(threadContext)
+                .withThreadContext(securityContext.getThreadContext())
                 .build();
         }
     }

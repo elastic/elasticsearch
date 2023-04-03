@@ -80,7 +80,7 @@ public class AuditTrailService {
         }
 
         @Override
-        public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {}
+        public void authenticationSuccess(RestRequest request) {}
 
         @Override
         public void authenticationSuccess(

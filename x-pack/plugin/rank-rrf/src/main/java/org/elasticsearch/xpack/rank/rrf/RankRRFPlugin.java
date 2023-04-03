@@ -32,12 +32,6 @@ public class RankRRFPlugin extends Plugin {
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return List.of(
-            new NamedXContentRegistry.Entry(
-                RankBuilder.class,
-                new ParseField(NAME),
-                RRFRankBuilder::fromXContent
-            )
-        );
+        return List.of(new NamedXContentRegistry.Entry(RankBuilder.class, new ParseField(NAME), RRFRankBuilder::fromXContent));
     }
 }

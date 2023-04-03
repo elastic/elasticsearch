@@ -383,6 +383,24 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         );
         long epoch = 1622060077L; // May 25th 2021, evening
         expectThrows(IllegalArgumentException.class, () -> InternalComposite.formatObject(epoch, weekYearMonth));
+
+        CompositeKey compositeKey = new CompositeKey(epoch);
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new InternalComposite(
+                "name",
+                1,
+                List.of("date"),
+                List.of(weekYearMonth),
+                List.of(),
+                compositeKey,
+                new int[0],
+                new MissingOrder[0],
+                false,
+                null
+            )
+        );
+        assertThat(e.getMessage(), containsString("created output it couldn't parse"));
     }
 
     public void testFormatDateEpochTimezone() {

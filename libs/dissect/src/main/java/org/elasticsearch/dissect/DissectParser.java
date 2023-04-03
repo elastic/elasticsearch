@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  * match a string of the form: <pre>foo bar,baz</pre> and will result a key/value pairing of <pre>a=foo, b=bar, and c=baz.</pre>
  * <p>Matches are all or nothing. For example, the same pattern will NOT match <pre>foo bar baz</pre> since all of the delimiters did not
  * match. (the comma did not match)
- * <p>Dissect patterns can optionally have modifiers. These modifiers instruct the parser to change it's behavior. For example the
+ * <p>Dissect patterns can optionally have modifiers. These modifiers instruct the parser to change its behavior. For example the
  * dissect pattern of <pre>%{a},%{b}:%{c}</pre> would not match <pre>foo,bar,baz</pre> since there the colon never matches.
  * <p>Modifiers appear to the left or the right of the key name. The supported modifiers are:
  * <ul>
@@ -165,11 +165,11 @@ public final class DissectParser {
     }
 
     /**
-     * <p>Entry point to dissect a string into it's parts.</p>
+     * <p>Entry point to dissect a string into its parts.</p>
      *
      * @param inputString The string to dissect
      * @return the key/value Map of the results
-     * @throws DissectException if unable to dissect a pair into it's parts.
+     * @throws DissectException if unable to dissect a pair into its parts.
      */
     public Map<String, String> parse(String inputString) {
         /**
@@ -283,11 +283,11 @@ public final class DissectParser {
     }
 
     /**
-     * <p>Entry point to dissect a string into it's parts.</p>
+     * <p>Entry point to dissect a string into its parts.</p>
      *
      * @param inputString The string to dissect
      * @return the key/value Map of the results
-     * @throws DissectException if unable to dissect a pair into it's parts.
+     * @throws DissectException if unable to dissect a pair into its parts.
      */
     public Map<String, String> forceParse(String inputString) {
         Map<String, String> results = parse(inputString);

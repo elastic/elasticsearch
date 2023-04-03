@@ -160,17 +160,20 @@ public class XPackPlugin extends XPackClientPlugin
     // private final Environment env;
     protected final Licensing licensing;
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
-    private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
-    private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
     private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
-    private static final SetOnce<StatusSupplier> xPackLicenseStateInitialStatusSupplier = new SetOnce<>();
+    // non-final to allow for testing
+    private static SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
+    private static SetOnce<LicenseService> licenseService = new SetOnce<>();
 
     public XPackPlugin(final Settings settings) {
         super();
         // FIXME: The settings might be changed after this (e.g. from "additionalSettings" method in other plugins)
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
+        licenseState = new SetOnce<>();
+        licenseService = new SetOnce<>();
+
         this.licensing = new Licensing(settings);
     }
 

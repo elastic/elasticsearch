@@ -388,7 +388,7 @@ Will become (note the nested objects instead of the "keywords" array):
     "keywords": {
       "field": {
           "id": [ "1", "2", "3" ],
-          "name": [ "foo", "bar", "baz" ]
+          "name": [ "bar", "baz", "foo" ]
       }
     }
 }

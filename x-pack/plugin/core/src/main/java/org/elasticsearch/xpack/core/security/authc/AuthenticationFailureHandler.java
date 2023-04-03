@@ -39,7 +39,11 @@ public interface AuthenticationFailureHandler {
      * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException failedAuthentication(HttpRequestLineAndHeaders request, AuthenticationToken token, ThreadContext context);
+    ElasticsearchSecurityException failedAuthentication(
+        HttpRequestLineAndHeaders request,
+        AuthenticationToken token,
+        ThreadContext context
+    );
 
     /**
      * This method is called when there has been an authentication failure for the given message and token

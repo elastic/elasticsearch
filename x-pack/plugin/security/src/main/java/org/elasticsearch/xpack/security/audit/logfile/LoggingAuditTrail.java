@@ -1050,7 +1050,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void runAsDenied(String requestId, Authentication authentication, HttpRequestLineAndHeaders request, AuthorizationInfo authorizationInfo) {
+    public void runAsDenied(
+        String requestId,
+        Authentication authentication,
+        HttpRequestLineAndHeaders request,
+        AuthorizationInfo authorizationInfo
+    ) {
         if (events.contains(RUN_AS_DENIED)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(

@@ -91,7 +91,12 @@ public interface AuditTrail {
         AuthorizationInfo authorizationInfo
     );
 
-    void runAsDenied(String requestId, Authentication authentication, HttpRequestLineAndHeaders request, AuthorizationInfo authorizationInfo);
+    void runAsDenied(
+        String requestId,
+        Authentication authentication,
+        HttpRequestLineAndHeaders request,
+        AuthorizationInfo authorizationInfo
+    );
 
     /**
      * This is a "workaround" method to log index "access_granted" and "access_denied" events for actions not tied to a

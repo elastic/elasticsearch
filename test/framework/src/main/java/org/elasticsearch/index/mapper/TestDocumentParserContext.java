@@ -9,16 +9,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.xcontent.XContentParser;
-
-import java.util.Collections;
-import java.util.Map;
-
-import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
 
 /**
  * Simplified version of {@link DocumentParserContext} to be used in tests.
@@ -29,7 +22,7 @@ import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER
  */
 public class TestDocumentParserContext extends DocumentParserContext {
     private final LuceneDocument document = new LuceneDocument();
-    private final ContentPath contentPath = new ContentPath(0);
+    private final ContentPath contentPath = new ContentPath();
     private final XContentParser parser;
 
     /**
@@ -62,11 +55,7 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 Version.CURRENT,
                 () -> null,
                 null,
-                new IndexAnalyzers(
-                    Map.of(DEFAULT_ANALYZER_NAME, new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
-                    Collections.emptyMap(),
-                    Collections.emptyMap()
-                ),
+                (type, name) -> Lucene.STANDARD_ANALYZER,
                 MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY),
                 null
             ),

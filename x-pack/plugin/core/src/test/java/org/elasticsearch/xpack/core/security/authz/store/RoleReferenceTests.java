@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.store;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.authc.RemoteAccessAuthentication;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 
 import java.util.Set;
 
@@ -66,13 +66,13 @@ public class RoleReferenceTests extends ESTestCase {
         assertThat(roleKey.getSource(), equalTo("apikey_" + apiKeyRoleType));
     }
 
-    public void testRemoteAccessRoleReference() {
-        final var roleDescriptorsBytes = new RemoteAccessAuthentication.RoleDescriptorsBytes(new BytesArray(randomAlphaOfLength(50)));
-        final var remoteAccessRoleReference = new RoleReference.RemoteAccessRoleReference(roleDescriptorsBytes);
+    public void testCrossClusterAccessRoleReference() {
+        final var roleDescriptorsBytes = new CrossClusterAccessSubjectInfo.RoleDescriptorsBytes(new BytesArray(randomAlphaOfLength(50)));
+        final var crossClusterAccessRoleReference = new RoleReference.CrossClusterAccessRoleReference(roleDescriptorsBytes);
 
-        final RoleKey roleKey = remoteAccessRoleReference.id();
-        assertThat(roleKey.getNames(), hasItem("remote_access:" + roleDescriptorsBytes.digest()));
-        assertThat(roleKey.getSource(), equalTo("remote_access"));
+        final RoleKey roleKey = crossClusterAccessRoleReference.id();
+        assertThat(roleKey.getNames(), hasItem("cross_cluster_access:" + roleDescriptorsBytes.digest()));
+        assertThat(roleKey.getSource(), equalTo("cross_cluster_access"));
     }
 
     public void testServiceAccountRoleReference() {

@@ -92,20 +92,22 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
@@ -166,6 +168,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -1551,6 +1554,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
+        RemoteHostHeader.process(request, threadContext);
 
         final String requestId = randomRequestId();
         auditTrail.anonymousAccessDenied(requestId, request);
@@ -1653,6 +1657,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
         final AuthenticationToken authToken = createAuthenticationToken();
+        RemoteHostHeader.process(request, threadContext);
 
         final String requestId = randomRequestId();
         auditTrail.authenticationFailed(requestId, authToken, request);
@@ -1700,6 +1705,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
+        RemoteHostHeader.process(request, threadContext);
 
         final String requestId = randomRequestId();
         auditTrail.authenticationFailed(requestId, request);
@@ -1775,6 +1781,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final RestRequest request = tuple.v2();
         final AuthenticationToken authToken = mockToken();
         final String realm = randomAlphaOfLengthBetween(1, 6);
+        RemoteHostHeader.process(request, threadContext);
         final String requestId = randomRequestId();
         auditTrail.authenticationFailed(requestId, realm, authToken, request);
         assertEmptyLog(logger);
@@ -2100,7 +2107,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action/bar")
             .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        if (authentication.isAuthenticatedWithServiceAccount()) {
+        if (authentication.isServiceAccount()) {
             checkedFields.put(
                 LoggingAuditTrail.SERVICE_TOKEN_NAME_FIELD_NAME,
                 (String) authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD)
@@ -2161,6 +2168,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
+        RemoteHostHeader.process(request, threadContext);
         final String requestId = randomRequestId();
         auditTrail.tamperedRequest(requestId, request);
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
@@ -2441,18 +2449,20 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
-        final String requestId = randomRequestId();
+        String requestId = AuditUtil.generateRequestId(threadContext);
         MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         Authentication authentication = createAuthentication();
+        authentication.writeToContext(threadContext);
+        RemoteHostHeader.process(request, threadContext);
 
         // event by default disabled
-        auditTrail.authenticationSuccess(requestId, authentication, request);
+        auditTrail.authenticationSuccess(request);
         assertEmptyLog(logger);
 
         updateLoggerSettings(
             Settings.builder().put(this.settings).put("xpack.security.audit.logfile.events.include", "authentication_success").build()
         );
-        auditTrail.authenticationSuccess(requestId, authentication, request);
+        auditTrail.authenticationSuccess(request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
             .put(LoggingAuditTrail.REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName())
@@ -2473,11 +2483,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields.map());
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        threadContext.stashContext();
 
         // audit for authn with API Key
+        requestId = AuditUtil.generateRequestId(threadContext);
         authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
+        authentication.writeToContext(threadContext);
         checkedFields = new MapBuilder<>(commonFields);
-        auditTrail.authenticationSuccess(requestId, authentication, request);
+        RemoteHostHeader.process(request, threadContext);
+        auditTrail.authenticationSuccess(request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
             .put(LoggingAuditTrail.REALM_FIELD_NAME, "_es_api_key")
@@ -2498,11 +2512,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields.map());
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        threadContext.stashContext();
 
         // authentication success but run-as user does not exist
+        requestId = AuditUtil.generateRequestId(threadContext);
         authentication = AuthenticationTestHelper.builder().realm().build(false).runAs(new User(randomAlphaOfLengthBetween(3, 8)), null);
+        authentication.writeToContext(threadContext);
         checkedFields = new MapBuilder<>(commonFields);
-        auditTrail.authenticationSuccess(requestId, authentication, request);
+        RemoteHostHeader.process(request, threadContext);
+        auditTrail.authenticationSuccess(request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
             .put(LoggingAuditTrail.REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName())
@@ -2523,6 +2541,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields.map());
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        threadContext.stashContext();
     }
 
     public void testAuthenticationSuccessTransport() throws Exception {
@@ -2572,6 +2591,43 @@ public class LoggingAuditTrailTests extends ESTestCase {
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
+    }
+
+    public void testCrossClusterAccessAuthenticationSuccessTransport() throws Exception {
+        final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
+        final String requestId = randomRequestId();
+        final Authentication remoteAuthentication = randomFrom(
+            AuthenticationTestHelper.builder().realm(false),
+            AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE),
+            AuthenticationTestHelper.builder().apiKey().metadata(Map.of(AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLength(42)))
+        ).build(false);
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .crossClusterAccess(
+                randomAlphaOfLength(42),
+                new CrossClusterAccessSubjectInfo(remoteAuthentication, RoleDescriptorsIntersection.EMPTY)
+            )
+            .build();
+        final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
+        final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        final MapBuilder<String, String> checkedLiteralFields = new MapBuilder<>();
+
+        updateLoggerSettings(
+            Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "authentication_success").build()
+        );
+        auditTrail.authenticationSuccess(requestId, authentication, "_action", request);
+
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
+            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
+            .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
+            .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
+            .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        crossClusterAccessAuthentication(authentication, remoteAuthentication, checkedFields, checkedLiteralFields);
+        restOrTransportOrigin(request, threadContext, checkedFields);
+        indicesRequest(request, checkedFields, checkedArrayFields);
+        opaqueId(threadContext, checkedFields);
+        traceId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedFields);
+        assertMsg(singleLogLine(logger), checkedFields.map(), checkedArrayFields.map(), checkedLiteralFields.map());
     }
 
     public void testRequestsWithoutIndices() throws Exception {
@@ -2679,17 +2735,30 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private void assertMsg(Logger logger, Map<String, String> checkFields, Map<String, String[]> checkArrayFields) {
-        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
-        assertThat("Exactly one logEntry expected. Found: " + output.size(), output.size(), is(1));
+        String logLine = singleLogLine(logger);
         if (checkFields == null) {
             // only check msg existence
             return;
         }
-        String logLine = output.get(0);
         assertMsg(logLine, checkFields, checkArrayFields);
     }
 
+    private static String singleLogLine(Logger logger) {
+        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat("Exactly one logEntry expected. Found: " + output.size(), output.size(), is(1));
+        return output.get(0);
+    }
+
     private void assertMsg(String logLine, Map<String, String> checkFields, Map<String, String[]> checkArrayFields) {
+        assertMsg(logLine, checkFields, checkArrayFields, Collections.emptyMap());
+    }
+
+    private void assertMsg(
+        String logLine,
+        Map<String, String> checkFields,
+        Map<String, String[]> checkArrayFields,
+        Map<String, String> checkLiteralFields
+    ) {
         // check each string-valued field
         for (final Map.Entry<String, String> checkField : checkFields.entrySet()) {
             if (null == checkField.getValue()) {
@@ -2738,6 +2807,18 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 // remove checked field
                 logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
             }
+        }
+        // check each string-valued literal field
+        for (final Map.Entry<String, String> checkField : checkLiteralFields.entrySet()) {
+            assertThat("Use checkFields to mark missing fields", checkField.getValue(), notNullValue());
+            final Pattern logEntryFieldPattern = Pattern.compile(Pattern.quote("\"" + checkField.getKey() + "\":" + checkField.getValue()));
+            assertThat(
+                "Field " + checkField.getKey() + " value mismatch. Expected " + checkField.getValue(),
+                logEntryFieldPattern.matcher(logLine).find(),
+                is(true)
+            );
+            // remove checked field
+            logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
         }
         logLine = logLine.replaceFirst("\"" + LoggingAuditTrail.LOG_TYPE + "\":\"audit\", ", "")
             .replaceFirst("\"" + LoggingAuditTrail.TIMESTAMP + "\":\"[^\"]*\"", "")
@@ -2829,7 +2910,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     private Authentication createApiKeyAuthenticationAndMaybeWithRunAs(Authentication authentication) throws Exception {
         authentication = createApiKeyAuthentication(apiKeyService, authentication);
         if (randomBoolean()) {
-            authentication = authentication.runAs(AuthenticationTests.randomUser(), AuthenticationTests.randomRealmRef(false));
+            authentication = authentication.runAs(AuthenticationTestHelper.randomUser(), AuthenticationTestHelper.randomRealmRef(false));
         }
         return authentication;
     }
@@ -2900,9 +2981,47 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private static void authentication(Authentication authentication, MapBuilder<String, String> checkedFields) {
+        assertThat("use crossClusterAccessAuthentication instead", authentication.isCrossClusterAccess(), is(false));
+        putCheckedFieldsForAuthentication(authentication, checkedFields);
+    }
+
+    private static void crossClusterAccessAuthentication(
+        Authentication authentication,
+        Authentication remoteAuthentication,
+        MapBuilder<String, String> checkedFields,
+        MapBuilder<String, String> checkedLiteralFields
+    ) {
+        assertThat("authentication must be cross cluster access", authentication.isCrossClusterAccess(), is(true));
+        assertThat("remote authentication cannot be run-as", remoteAuthentication.isRunAs(), is(false));
+        putCheckedFieldsForAuthentication(authentication, checkedFields);
+        final String expectedCrossClusterAccessLiteralField = switch (remoteAuthentication.getEffectiveSubject().getType()) {
+            case USER -> {
+                assertThat(remoteAuthentication.getAuthenticationType(), oneOf(AuthenticationType.INTERNAL, AuthenticationType.REALM));
+                yield Strings.format(
+                    """
+                        {"authentication.type":"%s","user.name":"%s","user.realm":"%s"}""",
+                    remoteAuthentication.getAuthenticationType(),
+                    remoteAuthentication.getEffectiveSubject().getUser().principal(),
+                    remoteAuthentication.getEffectiveSubject().getRealm().getName()
+                );
+            }
+            case API_KEY -> Strings.format(
+                """
+                    {"apikey.id":"%s","apikey.name":"%s","authentication.type":"API_KEY","user.name":"%s","user.realm":"%s"}""",
+                remoteAuthentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY),
+                remoteAuthentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY),
+                remoteAuthentication.getEffectiveSubject().getUser().principal(),
+                remoteAuthentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME)
+            );
+            default -> throw new IllegalArgumentException("unsupported type " + remoteAuthentication.getEffectiveSubject().getType());
+        };
+        checkedLiteralFields.put(LoggingAuditTrail.CROSS_CLUSTER_ACCESS_FIELD_NAME, expectedCrossClusterAccessLiteralField);
+    }
+
+    private static void putCheckedFieldsForAuthentication(Authentication authentication, MapBuilder<String, String> checkedFields) {
         checkedFields.put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
         checkedFields.put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-        if (authentication.isApiKey()) {
+        if (authentication.isApiKey() || authentication.isCrossClusterAccess()) {
             assert false == authentication.isRunAs();
             checkedFields.put(
                 LoggingAuditTrail.API_KEY_ID_FIELD_NAME,
@@ -2942,7 +3061,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 }
             }
         }
-        if (authentication.isAuthenticatedWithServiceAccount()) {
+        if (authentication.isServiceAccount()) {
             checkedFields.put(
                 LoggingAuditTrail.SERVICE_TOKEN_NAME_FIELD_NAME,
                 (String) authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD)

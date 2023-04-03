@@ -360,7 +360,7 @@ public class XPackLicenseState {
      * @param active True if the current license exists and is within its allowed usage period; false if it is expired or missing.
      * @param expiryWarning Warning to emit on license checks about the license expiring soon.
      */
-    protected void update(OperationMode mode, boolean active, String expiryWarning) {
+    void update(OperationMode mode, boolean active, String expiryWarning) {
         status = new Status(mode, active, expiryWarning);
         listeners.forEach(LicenseStateListener::licenseStateChanged);
     }

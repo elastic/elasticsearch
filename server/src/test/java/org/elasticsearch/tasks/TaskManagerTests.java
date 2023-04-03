@@ -297,7 +297,7 @@ public class TaskManagerTests extends ESTestCase {
             }
         });
 
-        verify(mockTracer).startTrace(any(), eq("task-" + task.getId()), eq("testAction"), anyMap());
+        verify(mockTracer).startTrace(any(), eq(task), eq("testAction"), anyMap());
     }
 
     /**
@@ -323,7 +323,7 @@ public class TaskManagerTests extends ESTestCase {
 
         taskManager.unregister(task);
 
-        verify(mockTracer).stopTrace("task-" + task.getId());
+        verify(mockTracer).stopTrace(task);
     }
 
     /**
@@ -359,7 +359,7 @@ public class TaskManagerTests extends ESTestCase {
             ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
-        verify(mockTracer).startTrace(any(), eq("task-" + task.getId()), eq("actionName"), anyMap());
+        verify(mockTracer).startTrace(any(), eq(task), eq("actionName"), anyMap());
     }
 
     public void testRegisterWithEnabledDisabledTracing() {

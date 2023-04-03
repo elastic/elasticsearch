@@ -162,6 +162,19 @@ PUT /_cluster/settings
 }
 ----
 
+To reset a logger's verbosity to its default level, set the logger setting to
+`null`:
+
+[source,console]
+----
+PUT /_cluster/settings
+{
+  "persistent": {
+    "logger.org.elasticsearch.discovery": null
+  }
+}
+----
+
 Other ways to change log levels include:
 
 1. `elasticsearch.yml`:

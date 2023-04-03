@@ -109,29 +109,8 @@ public class TransportVersionUtils {
         return ALL_VERSIONS.get(place);
     }
 
-    public static TransportVersion minimumCompatibilityVersion(TransportVersion version) {
-        return VersionUtils.findVersion(version).minimumCompatibilityVersion().transportVersion;
-    }
-
     /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#CURRENT} */
     public static TransportVersion randomCompatibleVersion(Random random) {
         return randomVersionBetween(random, TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.CURRENT);
-    }
-
-    public static TransportVersion randomPreviousCompatibleVersion(Random random, TransportVersion version) {
-        return randomVersionBetween(random, minimumCompatibilityVersion(version), getPreviousVersion(version));
-    }
-
-    private static final int MINIMUM_COMPAT_INDEX = Collections.binarySearch(ALL_VERSIONS, TransportVersion.MINIMUM_COMPATIBLE);
-
-    /** returns the first compatible future version */
-    public static TransportVersion compatibleFutureVersion(TransportVersion version) {
-        int versionIdx = Collections.binarySearch(ALL_VERSIONS, version);
-        if (versionIdx < 0) {
-            versionIdx = -(versionIdx + 1);
-        } else {
-            versionIdx++;
-        }
-        return ALL_VERSIONS.get(Math.max(versionIdx, MINIMUM_COMPAT_INDEX));
     }
 }

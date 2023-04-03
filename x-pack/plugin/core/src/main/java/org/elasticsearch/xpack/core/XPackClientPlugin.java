@@ -17,7 +17,7 @@ import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.GetBasicStatusAction;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.license.GetTrialStatusAction;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.PostStartBasicAction;
 import org.elasticsearch.license.PostStartTrialAction;
@@ -247,8 +247,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
         // TODO split these settings up
         settings.addAll(XPackSettings.getAllSettings());
 
-        settings.add(LicenseService.SELF_GENERATED_LICENSE_TYPE);
-        settings.add(LicenseService.ALLOWED_LICENSE_TYPES_SETTING);
+        settings.add(LicenseSettings.SELF_GENERATED_LICENSE_TYPE);
+        settings.add(LicenseSettings.ALLOWED_LICENSE_TYPES_SETTING);
 
         // we add the `xpack.version` setting to all internal indices
         settings.add(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
@@ -555,7 +555,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             // TSDB Downsampling
             new NamedWriteableRegistry.Entry(LifecycleAction.class, DownsampleAction.NAME, DownsampleAction::new),
             // Health API usage
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.HEALTH_API, HealthApiFeatureSetUsage::new)
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.HEALTH_API, HealthApiFeatureSetUsage::new),
+            // Remote cluster usage
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.REMOTE_CLUSTERS, RemoteClusterFeatureSetUsage::new)
         );
     }
 

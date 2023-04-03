@@ -38,6 +38,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -176,7 +177,8 @@ public class MasterServiceTests extends ESTestCase {
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
             clusterStateRef.set(clusterStatePublicationEvent.getNewState());
             ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
-            publishListener.onResponse(null);
+            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC))
+                .execute(() -> publishListener.onResponse(null));
         });
         masterService.setClusterStateSupplier(clusterStateRef::get);
         masterService.start();
@@ -644,7 +646,7 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
-    public void testClusterStateBatchedUpdates() throws BrokenBarrierException, InterruptedException {
+    public void testClusterStateBatchedUpdates() throws InterruptedException {
 
         AtomicInteger executedTasks = new AtomicInteger();
         AtomicInteger submittedTasks = new AtomicInteger();
@@ -796,30 +798,26 @@ public class MasterServiceTests extends ESTestCase {
                 final int index = i;
                 Thread thread = new Thread(() -> {
                     final String threadName = Thread.currentThread().getName();
-                    try {
-                        barrier.await();
-                        for (int j = 0; j < taskSubmissionsPerThread; j++) {
-                            var assignment = assignments.get(index * taskSubmissionsPerThread + j);
-                            var task = assignment.v2();
-                            var executor = assignment.v1();
-                            submittedTasks.incrementAndGet();
-                            executor.submitTask(threadName, task, null);
-                        }
-                        barrier.await();
-                    } catch (BrokenBarrierException | InterruptedException e) {
-                        throw new AssertionError(e);
+                    safeAwait(barrier);
+                    for (int j = 0; j < taskSubmissionsPerThread; j++) {
+                        var assignment = assignments.get(index * taskSubmissionsPerThread + j);
+                        var task = assignment.v2();
+                        var executor = assignment.v1();
+                        submittedTasks.incrementAndGet();
+                        executor.submitTask(threadName, task, null);
                     }
+                    safeAwait(barrier);
                 });
                 thread.start();
             }
 
             // wait for all threads to be ready
-            barrier.await();
+            safeAwait(barrier);
             // wait for all threads to finish
-            barrier.await();
+            safeAwait(barrier);
 
             // wait until all the cluster state updates have been processed
-            assertTrue(processedStatesLatch.get().await(10, TimeUnit.SECONDS));
+            safeAwait(processedStatesLatch.get());
             // and until all the publication callbacks have completed
             assertTrue(semaphore.tryAcquire(10, TimeUnit.SECONDS));
 
@@ -2102,7 +2100,7 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
-    public void testRejectionBehaviour() {
+    public void testRejectionBehaviourAtSubmission() {
 
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool();
@@ -2167,6 +2165,81 @@ public class MasterServiceTests extends ESTestCase {
             assertFalse(deterministicTaskQueue.hasRunnableTasks());
             assertFalse(deterministicTaskQueue.hasDeferredTasks());
             assertEquals(2, actionCount.get());
+        }
+    }
+
+    @TestLogging(reason = "verifying DEBUG logs", value = "org.elasticsearch.cluster.service.MasterService:DEBUG")
+    public void testRejectionBehaviourAtCompletion() {
+
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var threadPoolExecutor = new StoppableExecutorServiceWrapper(threadPool.generic()) {
+
+            boolean executedTask = false;
+
+            @Override
+            public void execute(Runnable command) {
+                if (command instanceof AbstractRunnable abstractRunnable) {
+                    if (executedTask) {
+                        abstractRunnable.onRejection(new EsRejectedExecutionException("simulated", true));
+                    } else {
+                        executedTask = true;
+                        super.execute(command);
+                    }
+                } else {
+                    fail("not an AbstractRunnable: " + command);
+                }
+            }
+        };
+
+        final var appender = new MockLogAppender();
+        appender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("warning", MasterService.class.getCanonicalName(), Level.WARN, "*")
+        );
+        appender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "debug",
+                MasterService.class.getCanonicalName(),
+                Level.DEBUG,
+                "shut down during publication of cluster state version*"
+            )
+        );
+
+        try (
+            var ignored = appender.capturing(MasterService.class);
+            var masterService = createMasterService(true, null, threadPool, threadPoolExecutor)
+        ) {
+
+            final var testHeader = "test-header";
+
+            class TestTask implements ClusterStateTaskListener {
+                private final String expectedHeader = threadPool.getThreadContext().getHeader(testHeader);
+
+                @Override
+                public void onFailure(Exception e) {
+                    // post-publication rejections are currently just dropped, see https://github.com/elastic/elasticsearch/issues/94930
+                    throw new AssertionError("unexpected exception", e);
+                }
+            }
+
+            final var queue = masterService.createTaskQueue("queue", randomFrom(Priority.values()), batchExecutionContext -> {
+                for (var taskContext : batchExecutionContext.taskContexts()) {
+                    taskContext.success(() -> fail("should not succeed"));
+                }
+                return ClusterState.builder(batchExecutionContext.initialState()).build();
+            });
+
+            try (var ignoredContext = threadPool.getThreadContext().stashContext()) {
+                threadPool.getThreadContext().putHeader(testHeader, randomAlphaOfLength(10));
+                queue.submitTask("batched", new TestTask(), null);
+            }
+
+            threadPool.getThreadContext().markAsSystemContext();
+            deterministicTaskQueue.runAllTasks();
+            assertFalse(deterministicTaskQueue.hasRunnableTasks());
+            assertFalse(deterministicTaskQueue.hasDeferredTasks());
+
+            appender.assertAllExpectationsMatched();
         }
     }
 
@@ -2369,7 +2442,7 @@ public class MasterServiceTests extends ESTestCase {
                     public ClusterState execute(ClusterState currentState) {
                         assertEquals(priority, prioritiesQueue.poll());
                         assertEquals(priority, priority());
-                        return currentState;
+                        return randomBoolean() ? currentState : ClusterState.builder(currentState).build();
                     }
 
                     @Override

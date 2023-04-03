@@ -22,6 +22,7 @@ import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
@@ -38,6 +39,7 @@ public class SecurityRestFilter implements RestHandler {
     private final RestHandler restHandler;
     private final AuthenticationService authenticationService;
     private final SecondaryAuthenticator secondaryAuthenticator;
+    private final AuditTrailService auditTrailService;
     private final boolean enabled;
     private final ThreadContext threadContext;
     private final boolean extractClientCertificate;
@@ -64,6 +66,7 @@ public class SecurityRestFilter implements RestHandler {
         ThreadContext threadContext,
         AuthenticationService authenticationService,
         SecondaryAuthenticator secondaryAuthenticator,
+        AuditTrailService auditTrailService,
         RestHandler restHandler,
         boolean extractClientCertificate
     ) {
@@ -71,6 +74,7 @@ public class SecurityRestFilter implements RestHandler {
         this.threadContext = threadContext;
         this.authenticationService = authenticationService;
         this.secondaryAuthenticator = secondaryAuthenticator;
+        this.auditTrailService = auditTrailService;
         this.restHandler = restHandler;
         this.extractClientCertificate = extractClientCertificate;
     }
@@ -102,15 +106,16 @@ public class SecurityRestFilter implements RestHandler {
             SSLEngineUtils.extractClientCertificates(logger, threadContext, httpChannel);
         }
 
+        final RestRequest wrappedRequest = maybeWrapRestRequest(request);
         RemoteHostHeader.process(request, threadContext);
-
-        authenticationService.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(authentication -> {
+        authenticationService.authenticate(wrappedRequest, ActionListener.wrap(authentication -> {
             if (authentication == null) {
                 logger.trace("No authentication available for REST request [{}]", request.uri());
             } else {
                 logger.trace("Authenticated REST request [{}] as {}", request.uri(), authentication);
             }
-            secondaryAuthenticator.authenticateAndAttachToContext(request, ActionListener.wrap(secondaryAuthentication -> {
+            auditTrailService.get().authenticationSuccess(wrappedRequest);
+            secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
                 if (secondaryAuthentication != null) {
                     logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, request.uri());
                 }

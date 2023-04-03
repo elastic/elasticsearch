@@ -59,14 +59,14 @@ public final class FieldPermissionsCache {
         INSTANCE.set(null);
     }
 
-    public static FieldPermissionsCache getCache() {
-        return INSTANCE.get();
-    }
-
     public Cache.CacheStats getCacheStats() {
         return cache.stats();
     }
 
+    /**
+     * @deprecated Use {@link #init(Settings)} instead
+     */
+    @Deprecated
     public FieldPermissionsCache(Settings settings) {
         this.cache = CacheBuilder.<FieldPermissionsDefinition, FieldPermissions>builder()
             .setMaximumWeight(CACHE_SIZE_SETTING.get(settings))

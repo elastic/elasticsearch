@@ -452,7 +452,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationSuccess(RestRequest request) {
         final String requestId = AuditUtil.extractRequestId(securityContext.getThreadContext());
         if (requestId == null) {
-            // show never happen
+            // should never happen
             throw new ElasticsearchSecurityException("Authenticated context must include request id");
         }
         final Authentication authentication;
@@ -464,7 +464,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             throw new ElasticsearchSecurityException("rest request attempted to inject a user", e);
         }
         if (authentication == null) {
-            // show never happen
+            // should never happen
             throw new ElasticsearchSecurityException("Context is not authenticated");
         }
         if (events.contains(AUTHENTICATION_SUCCESS)

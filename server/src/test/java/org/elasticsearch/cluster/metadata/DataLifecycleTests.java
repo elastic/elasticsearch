@@ -71,8 +71,10 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
                 .keySet()) {
                 assertThat(serialized, containsString(label));
             }
-            // Verify that automatic max_age is marked:
-            assertThat(serialized, containsString("d [automatic]"));
+            // Verify that max_age is marked as automatic, if it's set on auto
+            if (rolloverConfiguration.getAutomaticConditions().isEmpty() == false) {
+                assertThat(serialized, containsString("[automatic]"));
+            }
         }
     }
 

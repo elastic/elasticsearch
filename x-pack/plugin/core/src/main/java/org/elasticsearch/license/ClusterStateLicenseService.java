@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -53,7 +54,11 @@ import java.util.stream.Collectors;
  * It also listens on all nodes for cluster state updates, and updates {@link XPackLicenseState} when
  * the license changes are detected in the cluster state.
  */
-public class ClusterStateLicenseService extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
+public class ClusterStateLicenseService extends AbstractLifecycleComponent
+    implements
+        LicenseService.MutableLicenseService,
+        ClusterStateListener,
+        SchedulerEngine.Listener {
     private static final Logger logger = LogManager.getLogger(ClusterStateLicenseService.class);
 
     private final Settings settings;
@@ -63,7 +68,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent imple
     /**
      * The xpack feature state to update when license changes are made.
      */
-    private final XPackLicenseState licenseState;
+    private final XPackLicenseState xPacklicenseState;
 
     /**
      * Currently active license
@@ -98,7 +103,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent imple
         ThreadPool threadPool,
         ClusterService clusterService,
         Clock clock,
-        XPackLicenseState licenseState
+        XPackLicenseState xPacklicenseState
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -114,12 +119,12 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent imple
         );
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
-        this.licenseState = licenseState;
+        this.xPacklicenseState = xPacklicenseState;
         this.allowedLicenseTypes = LicenseSettings.ALLOWED_LICENSE_TYPES_SETTING.get(settings);
         this.scheduler.register(this);
         populateExpirationCallbacks();
 
-        threadPool.scheduleWithFixedDelay(licenseState::cleanupUsageTracking, TimeValue.timeValueHours(1), ThreadPool.Names.GENERIC);
+        threadPool.scheduleWithFixedDelay(xPacklicenseState::cleanupUsageTracking, TimeValue.timeValueHours(1), ThreadPool.Names.GENERIC);
     }
 
     private void logExpirationWarning(long expirationMillis, boolean expired) {
@@ -177,7 +182,8 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent imple
      * Registers new license in the cluster
      * Master only operation. Installs a new license on the master provided it is VALID
      */
-    public void registerLicense(final PutLicenseRequest request, final ActionListener<PutLicenseResponse> listener) {
+    @Override
+    public void registerLicense(PutLicenseRequest request, ActionListener<PutLicenseResponse> listener) {
         final License newLicense = request.license();
         final long now = clock.millis();
         if (LicenseVerifier.verifyLicense(newLicense) == false || newLicense.issueDate() > now || newLicense.startDate() > now) {
@@ -281,7 +287,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent imple
         if (licensesMetadata != null) {
             final License license = licensesMetadata.getLicense();
             if (event.getJobName().equals(LICENSE_JOB)) {
-                updateLicenseState(license);
+                updateXPackLicenseState(license);
             } else if (event.getJobName().startsWith(ExpirationCallback.EXPIRATION_JOB_PREFIX)) {
                 expirationCallbacks.stream()
                     .filter(expirationCallback -> expirationCallback.getId().equals(event.getJobName()))
@@ -293,19 +299,22 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent imple
     /**
      * Remove license from the cluster state metadata
      */
-    public void removeLicense(final ActionListener<PostStartBasicResponse> listener) {
+    @Override
+    public void removeLicense(ActionListener<? extends AcknowledgedResponse> listener) {
         final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
+        @SuppressWarnings("unchecked")
         final StartBasicClusterTask task = new StartBasicClusterTask(
             logger,
             clusterService.getClusterName().value(),
             clock,
             startBasicRequest,
             "delete license",
-            listener
+            (ActionListener<PostStartBasicResponse>) listener
         );
         startBasicTaskQueue.submitTask(task.getDescription(), task, null); // TODO should pass in request.masterNodeTimeout() here
     }
 
+    @Override
     public License getLicense() {
         final License license = getLicense(clusterService.state().metadata());
         return license == LicensesMetadata.LICENSE_TOMBSTONE ? null : license;
@@ -315,7 +324,8 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent imple
         return this.clusterService.state().metadata().custom(LicensesMetadata.TYPE);
     }
 
-    void startTrialLicense(PostStartTrialRequest request, final ActionListener<PostStartTrialResponse> listener) {
+    @Override
+    public void startTrialLicense(PostStartTrialRequest request, final ActionListener<PostStartTrialResponse> listener) {
         License.LicenseType requestedType = License.LicenseType.parse(request.getType());
         if (LicenseSettings.VALID_TRIAL_TYPES.contains(requestedType) == false) {
             throw new IllegalArgumentException(
@@ -336,7 +346,8 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent imple
         );
     }
 
-    void startBasicLicense(PostStartBasicRequest request, final ActionListener<PostStartBasicResponse> listener) {
+    @Override
+    public void startBasicLicense(PostStartBasicRequest request, final ActionListener<PostStartBasicResponse> listener) {
         StartBasicClusterTask task = new StartBasicClusterTask(
             logger,
             clusterService.getClusterName().value(),
@@ -474,13 +485,18 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent imple
         return null;
     }
 
-    protected void updateLicenseState(final License license) {
+    private void updateXPackLicenseState(License license) {
         long time = clock.millis();
         if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
-            licenseState.update(License.OperationMode.MISSING, false, getExpiryWarning(LicenseUtils.getExpiryDate(license), time));
+            xPacklicenseState.update(License.OperationMode.MISSING, false, getExpiryWarning(LicenseUtils.getExpiryDate(license), time));
             return;
         }
+        checkForExpiredLicense(license);
+    }
+
+    private boolean checkForExpiredLicense(License license) {
+        long time = clock.millis();
         if (license != null) {
             final boolean active;
             if (LicenseUtils.getExpiryDate(license) == LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
@@ -488,14 +504,17 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent imple
             } else {
                 active = time >= license.issueDate() && time < LicenseUtils.getExpiryDate(license);
             }
-            licenseState.update(license.operationMode(), active, getExpiryWarning(LicenseUtils.getExpiryDate(license), time));
+            xPacklicenseState.update(license.operationMode(), active, getExpiryWarning(LicenseUtils.getExpiryDate(license), time));
 
             if (active) {
                 logger.debug("license [{}] - valid", license.uid());
+                return false;
             } else {
                 logger.warn("license [{}] - expired", license.uid());
+                return true;
             }
         }
+        return false;
     }
 
     /**
@@ -505,7 +524,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent imple
      * relative to the current license's expiry
      */
     private void onUpdate(final LicensesMetadata currentLicensesMetadata) {
-        final License license = getLicense(currentLicensesMetadata);
+        final License license = getLicenseFromLicensesMetadata(currentLicensesMetadata);
         // license can be null if the trial license is yet to be auto-generated
         // in this case, it is a no-op
         if (license != null) {
@@ -527,7 +546,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent imple
                 }
                 logger.info("license [{}] mode [{}] - valid", license.uid(), license.operationMode().name().toLowerCase(Locale.ROOT));
             }
-            updateLicenseState(license);
+            updateXPackLicenseState(license);
         }
     }
 
@@ -554,12 +573,13 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent imple
         };
     }
 
-    public static License getLicense(final Metadata metadata) {
+    public License getLicense(final Metadata metadata) {
         final LicensesMetadata licensesMetadata = metadata.custom(LicensesMetadata.TYPE);
-        return getLicense(licensesMetadata);
+        return getLicenseFromLicensesMetadata(licensesMetadata);
     }
 
-    static License getLicense(@Nullable final LicensesMetadata metadata) {
+    // visible for tests
+    License getLicenseFromLicensesMetadata(@Nullable final LicensesMetadata metadata) {
         if (metadata != null) {
             License license = metadata.getLicense();
             if (license == LicensesMetadata.LICENSE_TOMBSTONE) {

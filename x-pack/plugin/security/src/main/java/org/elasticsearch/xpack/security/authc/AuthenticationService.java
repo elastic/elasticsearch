@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.http.HttpRequestLineAndHeaders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -138,7 +139,7 @@ public class AuthenticationService {
     public void authenticate(RestRequest request, boolean allowAnonymous, ActionListener<Authentication> authenticationListener) {
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
-            new AuditableRestRequest(auditTrailService.get(), failureHandler, threadContext, request),
+            new AuditableHttpRequest(auditTrailService.get(), failureHandler, threadContext, request.getHttpRequest()),
             null,
             allowAnonymous,
             realms
@@ -361,16 +362,16 @@ public class AuthenticationService {
 
     }
 
-    static class AuditableRestRequest extends AuditableRequest {
+    static class AuditableHttpRequest extends AuditableRequest {
 
-        private final RestRequest request;
+        private final HttpRequestLineAndHeaders request;
         private final String requestId;
 
-        AuditableRestRequest(
+        AuditableHttpRequest(
             AuditTrail auditTrail,
             AuthenticationFailureHandler failureHandler,
             ThreadContext threadContext,
-            RestRequest request
+            HttpRequestLineAndHeaders request
         ) {
             super(auditTrail, failureHandler, threadContext);
             this.request = request;

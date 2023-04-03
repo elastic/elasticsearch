@@ -65,7 +65,9 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         PARSER.declareLong(ValueParser::addMinPrimaryShardDocsCondition, MIN_PRIMARY_SHARD_DOCS_FIELD);
     }
 
+    // The conditions that have concrete values
     private final RolloverConditions concreteConditions;
+    // The conditions that have the value `auto`, currently only max_age is supported
     private final Set<String> automaticConditions;
 
     public RolloverConfiguration(RolloverConditions concreteConditions, Set<String> automaticConditions) {
@@ -117,9 +119,9 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     }
 
     /**
-     * Evaluates all the automatic conditions, currently only max age based on the input data
+     * Evaluates all the automatic conditions based on the provided arguments.
      */
-    public RolloverConditions resolveRolloverConditions(TimeValue dataRetention) {
+    public RolloverConditions resolveRolloverConditions(@Nullable TimeValue dataRetention) {
         if (automaticConditions.isEmpty()) {
             return concreteConditions;
         }
@@ -186,8 +188,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     }
 
     /**
-     * When max_age is auto we’ll use the following retention dependent heuristics to compute the value
-     * we’ll use for the rollover operation:
+     * When max_age is auto we’ll use the following retention dependent heuristics to compute the value of max_age:
      * - If retention is null aka infinite (default) max_age will be 30 days
      * - If retention is configured to anything lower than 3 months max_age will be 7 days
      * - If retention is configured to anything greater than 3 months max_age will be 30 days

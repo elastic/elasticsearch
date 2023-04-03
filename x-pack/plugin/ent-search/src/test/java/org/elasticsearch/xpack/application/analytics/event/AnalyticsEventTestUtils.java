@@ -16,8 +16,12 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
+import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomLong;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.DATA_STREAM_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.EVENT_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.TIMESTAMP_FIELD;
@@ -65,8 +69,34 @@ public class AnalyticsEventTestUtils {
         return new AnalyticsEventPageData(randomIdentifier(), randomIdentifier(), randomIdentifier());
     }
 
+    public static AnalyticsEventSortOrderData randomEventSortOrderData() {
+        return new AnalyticsEventSortOrderData(randomIdentifier(), randomFrom("asc", "desc"));
+    }
+
+    public static AnalyticsEventDocumentData randomEventDocumentData() {
+        return new AnalyticsEventDocumentData(randomIdentifier(), randomIdentifier());
+    }
+
+    public static AnalyticsEventPaginationData randomEventPaginationData() {
+        return new AnalyticsEventPaginationData(randomNonNegativeInt(), randomNonNegativeInt());
+    }
+
+    public static AnalyticsEventSearchResultItemData randomEventSearchResultItem() {
+        return new AnalyticsEventSearchResultItemData(randomEventDocumentData(), randomEventPageData());
+    }
+
+    public static AnalyticsEventSearchResultData randomEventSearchResults() {
+        return new AnalyticsEventSearchResultData(randomList(10, AnalyticsEventTestUtils::randomEventSearchResultItem), randomInt());
+    }
+
     public static AnalyticsEventSearchData randomEventSearchData() {
-        return new AnalyticsEventSearchData(randomIdentifier());
+        return new AnalyticsEventSearchData(
+            randomIdentifier(),
+            randomIdentifier(),
+            randomEventSortOrderData(),
+            randomEventPaginationData(),
+            randomEventSearchResults()
+        );
     }
 
     public static AnalyticsEventSessionData randomEventSessionData() {
@@ -83,7 +113,8 @@ public class AnalyticsEventTestUtils {
             randomLong(),
             randomEventSessionData(),
             randomEventUserData(),
-            randomEventPageData()
+            randomEventPageData(),
+            randomEventDocumentData()
         );
     }
 
@@ -103,8 +134,9 @@ public class AnalyticsEventTestUtils {
             randomLong(),
             randomEventSessionData(),
             randomEventUserData(),
+            randomEventSearchData(),
             randomEventPageData(),
-            randomEventSearchData()
+            randomEventDocumentData()
         );
     }
 }

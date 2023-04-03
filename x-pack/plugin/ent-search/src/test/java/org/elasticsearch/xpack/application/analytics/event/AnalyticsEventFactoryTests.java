@@ -98,7 +98,6 @@ public class AnalyticsEventFactoryTests extends ESTestCase {
 
     private PostAnalyticsEventAction.Request toRequest(AnalyticsEvent event) throws IOException {
         BytesReference payload = createPayloadFromEvent(event);
-
         return new PostAnalyticsEventAction.Request(
             event.eventCollectionName(),
             event.eventType().toString(),

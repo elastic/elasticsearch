@@ -9,12 +9,18 @@ package org.elasticsearch.xpack.application.analytics.event;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventDocumentData.DOCUMENT_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageData.PAGE_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSessionData.SESSION_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventUserData.USER_FIELD;
 
 public class AnalyticsEventPageView extends AnalyticsEvent {
     private static final ConstructingObjectParser<AnalyticsEventPageView, Context> PARSER = new ConstructingObjectParser<>(
@@ -25,44 +31,39 @@ public class AnalyticsEventPageView extends AnalyticsEvent {
             c.eventTime(),
             (AnalyticsEventSessionData) p[0],
             (AnalyticsEventUserData) p[1],
-            (AnalyticsEventPageData) p[2]
+            (AnalyticsEventPageData) p[2],
+            (AnalyticsEventDocumentData) p[3]
         )
     );
 
     static {
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            AnalyticsEventSessionData::fromXContent,
-            AnalyticsEventSessionData.SESSION_FIELD
-        );
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            AnalyticsEventUserData::fromXContent,
-            AnalyticsEventUserData.USER_FIELD
-        );
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            AnalyticsEventPageData::fromXContent,
-            AnalyticsEventPageData.PAGE_FIELD
-        );
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), AnalyticsEventSessionData::fromXContent, SESSION_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), AnalyticsEventUserData::fromXContent, USER_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), AnalyticsEventPageData::fromXContent, PAGE_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), AnalyticsEventDocumentData::fromXContent, DOCUMENT_FIELD);
     }
 
     private final AnalyticsEventPageData page;
+
+    private final AnalyticsEventDocumentData document;
 
     public AnalyticsEventPageView(
         String eventCollectionName,
         long eventTime,
         AnalyticsEventSessionData session,
         AnalyticsEventUserData user,
-        AnalyticsEventPageData page
+        AnalyticsEventPageData page,
+        @Nullable AnalyticsEventDocumentData document
     ) {
         super(eventCollectionName, eventTime, session, user);
         this.page = page;
+        this.document = document;
     }
 
     public AnalyticsEventPageView(StreamInput in) throws IOException {
         super(in);
         this.page = new AnalyticsEventPageData(in);
+        this.document = in.readOptionalWriteable(AnalyticsEventDocumentData::new);
     }
 
     @Override
@@ -78,15 +79,24 @@ public class AnalyticsEventPageView extends AnalyticsEvent {
         return page;
     }
 
+    public AnalyticsEventDocumentData document() {
+        return document;
+    }
+
     @Override
     protected void addCustomFieldToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(AnalyticsEventPageData.PAGE_FIELD.getPreferredName(), page());
+        builder.field(PAGE_FIELD.getPreferredName(), page());
+
+        if (Objects.nonNull(document)) {
+            builder.field(DOCUMENT_FIELD.getPreferredName(), document());
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         page.writeTo(out);
+        out.writeOptionalWriteable(document);
     }
 
     @Override
@@ -94,12 +104,12 @@ public class AnalyticsEventPageView extends AnalyticsEvent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AnalyticsEventPageView that = (AnalyticsEventPageView) o;
-        return super.equals(that) && Objects.equals(page, that.page);
+        return super.equals(that) && Objects.equals(page, that.page) && Objects.equals(document, that.document);
     }
 
     @Override
     public int hashCode() {
         int parentHash = super.hashCode();
-        return 31 * parentHash + Objects.hash(page);
+        return 31 * parentHash + Objects.hash(page, document);
     }
 }

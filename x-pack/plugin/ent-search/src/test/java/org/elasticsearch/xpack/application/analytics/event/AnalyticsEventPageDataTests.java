@@ -57,7 +57,7 @@ public class AnalyticsEventPageDataTests extends AbstractWireSerializingTestCase
     }
 
     public void testToXContentWithOnlyRequiredFields() throws IOException {
-        AnalyticsEventPageData page = new AnalyticsEventPageData(randomIdentifier(), null, null);
+        AnalyticsEventPageData page = new AnalyticsEventPageData(randomIdentifier());
 
         // Serialize the page.
         BytesReference json = XContentHelper.toXContent(page, XContentType.JSON, false);

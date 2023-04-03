@@ -15,6 +15,9 @@ import org.elasticsearch.xcontent.ContextParser;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventDocumentData.DOCUMENT_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventDocumentData.DOCUMENT_ID_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventDocumentData.DOCUMENT_INDEX_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageData.PAGE_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageData.PAGE_REFERRER_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventPageData.PAGE_TITLE_FIELD;
@@ -36,21 +39,26 @@ public class AnalyticsEventSearchClickTests extends AbstractEventTestCase<Analyt
         assertEquals(event.page().title(), pageDataMap.get(PAGE_TITLE_FIELD.getPreferredName()));
         assertEquals(event.page().referrer(), pageDataMap.get(PAGE_REFERRER_FIELD.getPreferredName()));
 
+        // Check document field content.
+        assertTrue(eventMap.containsKey(DOCUMENT_FIELD.getPreferredName()));
+        Map<String, String> documentDataMap = (Map<String, String>) eventMap.get(DOCUMENT_FIELD.getPreferredName());
+        assertEquals(event.document().id(), documentDataMap.get(DOCUMENT_ID_FIELD.getPreferredName()));
+        assertEquals(event.document().index(), documentDataMap.get(DOCUMENT_INDEX_FIELD.getPreferredName()));
+
         // Check search field content.
         assertTrue(eventMap.containsKey(SEARCH_FIELD.getPreferredName()));
         Map<String, String> searchDataMap = (Map<String, String>) eventMap.get(SEARCH_FIELD.getPreferredName());
         assertEquals(event.search().query(), searchDataMap.get(SEARCH_QUERY_FIELD.getPreferredName()));
     }
 
-    public void testFromXContentFailsWhenPageDataAreMissing() throws IOException {
+    public void testFromXContentFailsWhenPageAndDocumentDataAreMissing() throws IOException {
         AnalyticsEvent event = createTestInstance();
-        BytesReference payload = createPayloadFromEvent(event, PAGE_FIELD.getPreferredName());
-
+        BytesReference payload = createPayloadFromEvent(event, DOCUMENT_FIELD.getPreferredName(), PAGE_FIELD.getPreferredName());
         AnalyticsEvent.Context context = createAnalyticsContextMockFromEvent(event);
 
         expectThrows(
             IllegalArgumentException.class,
-            LoggerMessageFormat.format("Required [{}]", PAGE_FIELD.getPreferredName()),
+            LoggerMessageFormat.format("Either [{}] or [{}] is required", PAGE_FIELD.getPreferredName(), DOCUMENT_FIELD.getPreferredName()),
             () -> parsePageEventData(context, payload)
         );
     }
@@ -58,7 +66,6 @@ public class AnalyticsEventSearchClickTests extends AbstractEventTestCase<Analyt
     public void testFromXContentFailsWhenSearchDataAreMissing() throws IOException {
         AnalyticsEvent event = createTestInstance();
         BytesReference payload = createPayloadFromEvent(event, SEARCH_FIELD.getPreferredName());
-
         AnalyticsEvent.Context context = createAnalyticsContextMockFromEvent(event);
 
         expectThrows(

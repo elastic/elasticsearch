@@ -235,8 +235,12 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
             equalTo(TimeValue.timeValueDays(7))
         );
         assertThat(
+            rolloverConfiguration.resolveRolloverConditions(TimeValue.timeValueDays(14)).getMaxAge(),
+            equalTo(TimeValue.timeValueDays(1))
+        );
+        assertThat(
             rolloverConfiguration.resolveRolloverConditions(TimeValue.timeValueDays(1)).getMaxAge(),
-            equalTo(TimeValue.timeValueDays(7))
+            equalTo(TimeValue.timeValueDays(1))
         );
     }
 

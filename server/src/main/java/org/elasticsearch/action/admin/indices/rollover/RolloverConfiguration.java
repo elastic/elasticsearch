@@ -197,6 +197,9 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         if (retention == null) {
             return TimeValue.timeValueDays(30);
         }
+        if (retention.compareTo(TimeValue.timeValueDays(14)) <= 0) {
+            return TimeValue.timeValueDays(1);
+        }
         if (retention.compareTo(TimeValue.timeValueDays(90)) <= 0) {
             return TimeValue.timeValueDays(7);
         }

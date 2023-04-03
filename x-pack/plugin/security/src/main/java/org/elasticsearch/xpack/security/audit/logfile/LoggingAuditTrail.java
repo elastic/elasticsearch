@@ -453,7 +453,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestUriAndMethod(request)
                 .withRequestId(requestId)
                 .withAuthentication(authentication)
-                .withRestOrigin(request)
+                .withRestOrigin(threadContext)
                 .withRequestBody(request)
                 .withThreadContext(securityContext.getThreadContext())
                 .build();
@@ -515,7 +515,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
+                .withRestOrigin(threadContext)
                 .withRequestBody(request)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
@@ -552,7 +552,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
+                .withRestOrigin(threadContext)
                 .withRequestBody(request)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
@@ -588,7 +588,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                 .with(PRINCIPAL_FIELD_NAME, token.principal())
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
+                .withRestOrigin(threadContext)
                 .withRequestBody(request)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext);
@@ -636,7 +636,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(REALM_FIELD_NAME, realm)
                 .with(PRINCIPAL_FIELD_NAME, token.principal())
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
+                .withRestOrigin(threadContext)
                 .withRequestBody(request)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
@@ -839,7 +839,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
+                .withRestOrigin(threadContext)
                 .withRequestBody(request)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
@@ -1020,7 +1020,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(authorizationInfo.asMap())
                 .withRestUriAndMethod(request)
                 .withRunAsSubject(authentication)
-                .withRestOrigin(request)
+                .withRestOrigin(threadContext)
                 .withRequestBody(request)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
@@ -1405,12 +1405,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withRestOrigin(RestRequest request) {
+        LogEntryBuilder withRestOrigin(ThreadContext threadContext) {
             assert LOCAL_ORIGIN_FIELD_VALUE.equals(logEntry.get(ORIGIN_TYPE_FIELD_NAME)); // this is the default
-            final InetSocketAddress socketAddress = request.getHttpChannel().getRemoteAddress();
-            if (socketAddress != null) {
+            final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
+            if (restAddress != null) {
                 logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                    .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(socketAddress));
+                    .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
             }
             // fall through to local_node default
             return this;

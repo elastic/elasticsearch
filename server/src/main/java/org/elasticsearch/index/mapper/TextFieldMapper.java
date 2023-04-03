@@ -285,10 +285,7 @@ public class TextFieldMapper extends FieldMapper {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexAnalyzers = indexAnalyzers;
-            this.analyzers = new TextParams.AnalyzerParameters(
-                m -> ((TextFieldMapper) m).analyzerConfiguration,
-                indexCreatedVersion
-            );
+            this.analyzers = new TextParams.AnalyzerParameters(m -> ((TextFieldMapper) m).analyzerConfiguration, indexCreatedVersion);
         }
 
         public Builder index(boolean index) {
@@ -384,7 +381,12 @@ public class TextFieldMapper extends FieldMapper {
             return null;
         }
 
-        private SubFieldInfo buildPrefixInfo(MapperBuilderContext context, TextParams.Analyzers analyzers, FieldType fieldType, TextFieldType tft) {
+        private SubFieldInfo buildPrefixInfo(
+            MapperBuilderContext context,
+            TextParams.Analyzers analyzers,
+            FieldType fieldType,
+            TextFieldType tft
+        ) {
             if (indexPrefixes.get() == null) {
                 return null;
             }
@@ -444,7 +446,12 @@ public class TextFieldMapper extends FieldMapper {
             return new SubFieldInfo(parent.name() + FAST_PHRASE_SUFFIX, phraseFieldType, a);
         }
 
-        private Map<String, NamedAnalyzer> indexAnalyzers(String name, NamedAnalyzer main, SubFieldInfo phraseFieldInfo, SubFieldInfo prefixFieldInfo) {
+        private Map<String, NamedAnalyzer> indexAnalyzers(
+            String name,
+            NamedAnalyzer main,
+            SubFieldInfo phraseFieldInfo,
+            SubFieldInfo prefixFieldInfo
+        ) {
             Map<String, NamedAnalyzer> analyzers = new HashMap<>();
             analyzers.put(name, main);
             if (phraseFieldInfo != null) {

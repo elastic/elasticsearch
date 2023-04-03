@@ -131,18 +131,16 @@ public final class TextParams {
 
         private final Version indexCreatedVersion;
 
-        public AnalyzerParameters(
-            Function<FieldMapper, AnalyzerConfiguration> analyzerInitFunction,
-            Version indexCreatedVersion
-        ) {
+        public AnalyzerParameters(Function<FieldMapper, AnalyzerConfiguration> analyzerInitFunction, Version indexCreatedVersion) {
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexAnalyzer = Parameter.stringParam(
                 "analyzer",
                 false,  // sort of - see merge validator!
                 mapper -> analyzerInitFunction.apply(mapper).indexAnalyzer,
-                null
+                null,
+                // serializer check means that if value is null then we're being asked for defaults
+                (builder, name, value) -> builder.field(name, value == null ? "default" : value)
             )
-                .acceptsNull()
                 .setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || value != null)
                 .setMergeValidator(
                     // special cases
@@ -156,18 +154,18 @@ public final class TextParams {
                 "search_analyzer",
                 true,
                 mapper -> analyzerInitFunction.apply(mapper).searchAnalyzer,
-                null
-            )
-                .acceptsNull()
-                .setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || value != null);
+                null,
+                // serializer check means that if value is null then we're being asked for defaults
+                (builder, name, value) -> builder.field(name, value == null ? "default" : value)
+            ).setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || value != null);
             this.searchQuoteAnalyzer = Parameter.stringParam(
                 "search_quote_analyzer",
                 true,
                 mapper -> analyzerInitFunction.apply(mapper).searchQuoteAnalyzer,
-                null
-            )
-                .acceptsNull()
-                .setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || value != null);
+                null,
+                // serializer check means that if value is null then we're being asked for defaults
+                (builder, name, value) -> builder.field(name, value == null ? "default" : value)
+            ).setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || value != null);
             this.positionIncrementGap = Parameter.intParam(
                 "position_increment_gap",
                 false,

@@ -531,7 +531,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         mapping.endObject();
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getRootCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e.getRootCause().getMessage(), equalTo("analyzer [foobar] has not been configured in mappings"));
+        assertThat(e.getRootCause().getMessage(), equalTo("Unknown analyzer [foobar]"));
     }
 
     public void testIllegalDynamicTemplateNoMappingType() throws Exception {

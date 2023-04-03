@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
@@ -475,7 +476,9 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static MapperService createMapperService(IndexSettings indexSettings, MappingLookup mappingLookup) {
-        IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)));
+        IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(
+            singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()))
+        );
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         Supplier<SearchExecutionContext> searchExecutionContextSupplier = () -> { throw new UnsupportedOperationException(); };

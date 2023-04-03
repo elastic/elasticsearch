@@ -834,7 +834,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 .numberOfReplicas(1)
                 .creationDate(creationTimeMillis);
 
-            assertThat(DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build()).millis(), is(creationTimeMillis));
+            assertThat(
+                DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build(), true).millis(),
+                is(creationTimeMillis)
+            );
         }
 
         {
@@ -848,7 +851,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMills));
             indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
 
-            assertThat(DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build()).millis(), is(rolloverTimeMills));
+            assertThat(
+                DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build(), false).millis(),
+                is(rolloverTimeMills)
+            );
         }
 
         {
@@ -862,7 +868,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMills));
             indexMetaBuilder.putRolloverInfo(new RolloverInfo("some-alias-name", List.of(rolloverCondition), now - 2000L));
 
-            assertThat(DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build()).millis(), is(creationTimeMillis));
+            assertThat(
+                DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build(), false).millis(),
+                is(creationTimeMillis)
+            );
         }
         {
             long originTimeMillis = creationTimeMillis - 3000L;
@@ -872,7 +881,23 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 .numberOfReplicas(1)
                 .creationDate(creationTimeMillis);
 
-            assertThat(DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build()).millis(), is(originTimeMillis));
+            assertThat(
+                DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build(), true).millis(),
+                is(creationTimeMillis)
+            );
+        }
+        {
+            long originTimeMillis = creationTimeMillis - 3000L;
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+                .settings(settings(Version.CURRENT).put(LIFECYCLE_ORIGINATION_DATE, originTimeMillis))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .creationDate(creationTimeMillis);
+
+            assertThat(
+                DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build(), false).millis(),
+                is(originTimeMillis)
+            );
         }
         {
             long originTimeMillis = creationTimeMillis - 3000L;
@@ -885,7 +910,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMills));
             indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
 
-            assertThat(DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build()).millis(), is(rolloverTimeMills));
+            assertThat(
+                DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build(), false).millis(),
+                is(originTimeMillis)
+            );
         }
         {
             // for rolled indices on other targets than the data stream name we get the origin date if origin date is set
@@ -899,7 +927,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMills));
             indexMetaBuilder.putRolloverInfo(new RolloverInfo("some-alias-name", List.of(rolloverCondition), now - 2000L));
 
-            assertThat(DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build()).millis(), is(originTimeMillis));
+            assertThat(
+                DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build(), false).millis(),
+                is(originTimeMillis)
+            );
         }
     }
 

@@ -1,12 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.painless.rank;
+package org.elasticsearch.xpack.rank.rrf;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.painless.PainlessPlugin;
@@ -22,11 +21,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 3)
 @ESIntegTestCase.SuiteScopeTestCase
-public class RRFRankScriptTests extends ESIntegTestCase {
+public class RRFRankScriptIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(PainlessPlugin.class);
+        return List.of(PainlessPlugin.class, RankRRFPlugin.class);
     }
 
     @Override

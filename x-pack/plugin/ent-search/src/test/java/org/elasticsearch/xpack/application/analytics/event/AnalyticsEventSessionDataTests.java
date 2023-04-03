@@ -7,20 +7,15 @@
 
 package org.elasticsearch.xpack.application.analytics.event;
 
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSessionData.SESSION_FIELD;
@@ -28,39 +23,7 @@ import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.convertMapToJson;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomEventSessionData;
 
-public class AnalyticsEventSessionDataTests extends AbstractWireSerializingTestCase<AnalyticsEventSessionData> {
-
-    public void testToXContent() throws IOException {
-        AnalyticsEventSessionData session = randomEventSessionData();
-
-        // Serialize the session data
-        BytesReference json = XContentHelper.toXContent(session, XContentType.JSON, false);
-
-        // Check the content that have been processed.
-        Map<String, Object> contentAsMap = XContentHelper.convertToMap(json, false, JsonXContent.jsonXContent.type()).v2();
-        assertEquals(1, contentAsMap.size());
-        assertTrue(contentAsMap.containsKey(SESSION_ID_FIELD.getPreferredName()));
-        assertEquals(session.id(), contentAsMap.get(SESSION_ID_FIELD.getPreferredName()));
-
-        // Check we can serialize again with fromXContent and object are equals
-        assertEquals(session, parseSessionData(json));
-    }
-
-    public void testFromXContent() throws IOException {
-        String sessionId = randomIdentifier();
-        Map<String, Object> jsonMap = MapBuilder.<String, Object>newMapBuilder().put(SESSION_ID_FIELD.getPreferredName(), sessionId).map();
-
-        AnalyticsEventSessionData session = parseSessionData(convertMapToJson(jsonMap));
-        assertEquals(sessionId, session.id());
-    }
-
-    public void testFromXContentWhenIdFieldIsMissing() {
-        expectThrows(
-            IllegalArgumentException.class,
-            LoggerMessageFormat.format("Required [{}]", SESSION_ID_FIELD),
-            () -> parseSessionData(new BytesArray("{}"))
-        );
-    }
+public class AnalyticsEventSessionDataTests extends AbstractEventDataTestCase<AnalyticsEventSessionData> {
 
     public void testFromXContentWhenSessionIdIsBlank() {
         Map<String, Object> jsonMap = MapBuilder.<String, Object>newMapBuilder().put(SESSION_ID_FIELD.getPreferredName(), "").map();
@@ -68,25 +31,28 @@ public class AnalyticsEventSessionDataTests extends AbstractWireSerializingTestC
         Exception e = expectThrows(
             XContentParseException.class,
             LoggerMessageFormat.format("[{}] failed to parse field [{}]", SESSION_FIELD, SESSION_ID_FIELD),
-            () -> parseSessionData(convertMapToJson(jsonMap))
+            () -> parseJson(convertMapToJson(jsonMap))
         );
 
         assertEquals(IllegalArgumentException.class, e.getCause().getClass());
         assertEquals(LoggerMessageFormat.format("field [{}] can't be blank", SESSION_ID_FIELD), e.getCause().getMessage());
     }
 
-    public void testFromXContentWithAnInvalidField() {
-        String invalidFieldName = randomIdentifier();
-        Map<String, Object> jsonMap = MapBuilder.<String, Object>newMapBuilder()
-            .put(SESSION_ID_FIELD.getPreferredName(), randomIdentifier())
-            .put(invalidFieldName, "")
-            .map();
+    @Override
+    protected ContextParser<AnalyticsEvent.Context, AnalyticsEventSessionData> parser() {
+        return AnalyticsEventSessionData::fromXContent;
+    }
 
-        expectThrows(
-            XContentParseException.class,
-            LoggerMessageFormat.format("[{}}] failed to parse field [{}]", SESSION_FIELD, invalidFieldName),
-            () -> parseSessionData(convertMapToJson(jsonMap))
-        );
+    @Override
+    protected void assertXContentData(AnalyticsEventSessionData session, Map<String, Object> objectAsMap) {
+        assertEquals(1, objectAsMap.size());
+        assertTrue(objectAsMap.containsKey(SESSION_ID_FIELD.getPreferredName()));
+        assertEquals(session.id(), objectAsMap.get(SESSION_ID_FIELD.getPreferredName()));
+    }
+
+    @Override
+    protected List<String> requiredFields() {
+        return Collections.singletonList(SESSION_ID_FIELD.getPreferredName());
     }
 
     @Override
@@ -102,11 +68,5 @@ public class AnalyticsEventSessionDataTests extends AbstractWireSerializingTestC
     @Override
     protected AnalyticsEventSessionData mutateInstance(AnalyticsEventSessionData instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
-    }
-
-    private static AnalyticsEventSessionData parseSessionData(BytesReference json) throws IOException {
-        try (XContentParser contentParser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json.array())) {
-            return AnalyticsEventSessionData.fromXContent(contentParser, null);
-        }
     }
 }

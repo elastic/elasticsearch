@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -86,7 +87,10 @@ public class AnalyticsEventTestUtils {
     }
 
     public static AnalyticsEventSearchResultData randomEventSearchResults() {
-        return new AnalyticsEventSearchResultData(randomList(10, AnalyticsEventTestUtils::randomEventSearchResultItem), randomInt());
+        return new AnalyticsEventSearchResultData(
+            randomList(between(1, 10), AnalyticsEventTestUtils::randomEventSearchResultItem),
+            randomInt()
+        );
     }
 
     public static AnalyticsEventSearchData randomEventSearchData() {

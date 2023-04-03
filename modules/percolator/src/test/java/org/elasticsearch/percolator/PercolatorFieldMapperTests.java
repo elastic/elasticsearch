@@ -563,14 +563,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 )
             );
         BytesRef qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name()).get(0).binaryValue();
-        SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
-            randomInt(20),
-            0,
-            null,
-            () -> { throw new UnsupportedOperationException(); },
-            null,
-            emptyMap()
-        );
+        SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
+            throw new UnsupportedOperationException();
+        }, null, emptyMap());
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(queryBuilder, searchExecutionContext, future);
         assertQueryBuilder(qbSource, future.get());

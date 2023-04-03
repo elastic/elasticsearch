@@ -158,9 +158,9 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoFiltersWithSubAggs() throws IOException {
-        testCase(
-            iw -> { iw.addDocument(List.of(new SortedNumericDocValuesField("i", 1))); },
-            (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); },
+        testCase(iw -> { iw.addDocument(List.of(new SortedNumericDocValuesField("i", 1))); }, (InternalFilters result) -> {
+            assertThat(result.getBuckets(), hasSize(0));
+        },
             new AggTestConfig(
                 new FiltersAggregationBuilder("test", new KeyedFilter[0]).subAggregation(new MaxAggregationBuilder("m").field("i")),
                 new NumberFieldMapper.NumberFieldType("m", NumberType.INTEGER)

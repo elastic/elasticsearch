@@ -1525,7 +1525,7 @@ public class MasterService extends AbstractLifecycleComponent {
             return "BatchingTaskQueue[" + name + "]";
         }
 
-        private record Entry<T extends ClusterStateTaskListener> (
+        private record Entry<T extends ClusterStateTaskListener>(
             String source,
             T task,
             long insertionIndex,

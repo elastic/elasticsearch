@@ -103,9 +103,9 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
                 return;
             }
 
-            if (response.getInferenceResults().get(0)instanceof TextEmbeddingResults textEmbeddingResults) {
+            if (response.getInferenceResults().get(0) instanceof TextEmbeddingResults textEmbeddingResults) {
                 listener.onResponse(textEmbeddingResults.getInferenceAsFloat());
-            } else if (response.getInferenceResults().get(0)instanceof WarningInferenceResults warning) {
+            } else if (response.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
                 listener.onFailure(new IllegalStateException(warning.getWarning()));
             } else {
                 throw new IllegalStateException(

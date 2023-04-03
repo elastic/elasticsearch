@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.remotecluster;
 
 import org.apache.http.client.methods.HttpPost;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -20,6 +19,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -41,11 +42,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94939")
 public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
-    private static final AtomicReference<Boolean> SSL_ENABLED_REF = new AtomicReference<>();
+    private static final AtomicBoolean SSL_ENABLED_REF = new AtomicBoolean();
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -54,7 +54,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             .apply(commonClusterConfig)
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
-            .setting("xpack.security.remote_cluster_server.ssl.enabled", () -> atomicallyRandomizeSslEnabled(SSL_ENABLED_REF))
+            .setting("xpack.security.remote_cluster_server.ssl.enabled", String.valueOf(SSL_ENABLED_REF.getPlain()))
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
             .setting("xpack.security.authc.token.enabled", "true")
@@ -64,7 +64,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
         queryCluster = ElasticsearchCluster.local()
             .name("query-cluster")
             .apply(commonClusterConfig)
-            .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> atomicallyRandomizeSslEnabled(SSL_ENABLED_REF))
+            .setting("xpack.security.remote_cluster_client.ssl.enabled", String.valueOf(SSL_ENABLED_REF.getPlain()))
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .setting("xpack.security.authc.token.enabled", "true")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
@@ -87,20 +87,13 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             .build();
     }
 
-    /**
-     * This is needed because `randomBoolean` is not available inside the outer `static {}` scope,
-     * where the initial cluster settings are set
-     */
-    private static String atomicallyRandomizeSslEnabled(AtomicReference<Boolean> sslEnabledRef) {
-        if (sslEnabledRef.get() == null) {
-            sslEnabledRef.set(randomBoolean());
-        }
-        return String.valueOf(sslEnabledRef.get());
-    }
-
     @ClassRule
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
-    public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
+    // `SSL_ENABLED_REF` is used to control the SSL-enabled setting on the test clusters
+    // We set it here, since randomization methods are not available in the static initialize context above
+    public static TestRule clusterRule = RuleChain.outerRule(new RunnableTestRuleAdapter(() -> SSL_ENABLED_REF.setPlain(usually())))
+        .around(fulfillingCluster)
+        .around(queryCluster);
 
     public void testCrossClusterSearch() throws Exception {
         configureRemoteClusters();

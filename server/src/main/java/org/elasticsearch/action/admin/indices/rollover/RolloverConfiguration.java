@@ -190,6 +190,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     /**
      * When max_age is auto we’ll use the following retention dependent heuristics to compute the value of max_age:
      * - If retention is null aka infinite (default) max_age will be 30 days
+     * - If retention is configured to anything lower than 14 days max_age will be 1 day
      * - If retention is configured to anything lower than 3 months max_age will be 7 days
      * - If retention is configured to anything greater than 3 months max_age will be 30 days
      */

@@ -6,14 +6,12 @@
  * Side Public License, v 1.
  */
 
-import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.elasticsearch.gradle.transform.UnzipTransform
-import org.gradle.api.internal.artifacts.ArtifactAttributes
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
@@ -93,12 +91,12 @@ jdks {
   }
 }
 
-if (Os.isFamily(Os.FAMILY_MAC) && Architecture.current() == Architecture.AARCH64) {
+if (OS.current() == OS.MAC && Architecture.current() == Architecture.AARCH64) {
   jdks.legacy.vendor = 'zulu'
   jdks.legacy.distributionVersion = '8.56.0.23'
 }
 
-if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+if (OS.current() == OS.WINDOWS) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
   tasks.named("javaRestTest").configure {
     systemProperty "tests.fromOld", "false"
@@ -121,7 +119,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   });
 
   def versions = ['2', '1', '090']
-  if (Os.isFamily(Os.FAMILY_MAC)) {
+  if (OS.current() == OS.MAC) {
     // 0.90 fails sometimes on mac, given that it is so old, let us disable it
     // see: https://github.com/elastic/elasticsearch/issues/51202
     versions = ['2', '1']

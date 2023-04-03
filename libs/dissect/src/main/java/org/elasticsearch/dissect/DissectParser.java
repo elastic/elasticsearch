@@ -297,6 +297,14 @@ public final class DissectParser {
         return results;
     }
 
+    /**
+     * <p>Returns the output keys produced by the instance (excluding named skip keys),
+     * Eg. for the pattern <pre>"%{a} %{b} %{?c}"</pre> the result is [a, b].
+     * <p>The result is an ordered set, where the entries are in the same order as they appear in the pattern.
+     * <p>The reference keys are returned with the name they have in the pattern, eg. for <pre>"%{*x} %{&amp;x}"</pre> the result is [x]
+     *
+     * @return the output keys produced by the instance.
+     */
     public Set<String> outputKeys() {
         Set<String> result = new LinkedHashSet<>(matchPairs.size());
         for (DissectPair matchPair : matchPairs) {
@@ -307,6 +315,14 @@ public final class DissectParser {
         return result;
     }
 
+    /**
+     *
+     * <p>Returns the reference keys present in the pattern.
+     * Eg. for the pattern <pre>"%{a} %{b} %{*c} %{&amp;c} %{*d} %{&amp;d}"</pre> it returns [c, d].
+     * <p>The result is an ordered set, where the entries are in the same order as they appear in the pattern.
+     *
+     * @return the reference keys included in the pattern.
+     */
     public Set<String> referenceKeys() {
         Set<String> result = new LinkedHashSet<>(matchPairs.size());
         for (DissectPair matchPair : matchPairs) {

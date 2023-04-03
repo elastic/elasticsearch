@@ -138,7 +138,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     }
 
     // Visible for testing
-    Set<String> getAutomaticConditions() {
+    public Set<String> getAutomaticConditions() {
         return automaticConditions;
     }
 

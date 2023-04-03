@@ -19,6 +19,7 @@ import java.util.List;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTestCase {
 
@@ -73,7 +74,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> { b.field("scripted", "foo"); })));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> { b.field("scripted", "foo"); })));
         assertThat(e.getMessage(), containsString("failed to parse field [scripted]"));
         assertEquals("Cannot index data directly into a field with a [script] parameter", e.getCause().getMessage());
     }
@@ -152,8 +153,9 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("message", "foo"))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("message", "foo"))));
         assertThat(e.getMessage(), equalTo("Error executing script on field [message_error]"));
+        assertThat(e.getCause(), instanceOf(UnsupportedOperationException.class));
     }
 
     public final void testMultipleValues() throws IOException {

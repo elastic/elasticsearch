@@ -71,8 +71,10 @@ import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -244,8 +246,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.field("field");
             value.accept(b);
         });
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             "didn't throw while parsing " + source.source().utf8ToString(),
             () -> mapperService.documentMapper().parse(source)
         );
@@ -277,9 +279,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 b.field("field");
                 example.value.accept(b);
             }));
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertThat(fields, equalTo(new IndexableField[0]));
-            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), equalTo(new String[] { "field" }));
+            List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertThat(fields, empty());
+            assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")), contains("field"));
         }
     }
 
@@ -318,7 +320,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected static void assertHasNorms(LuceneDocument doc, String field) {
-        IndexableField[] fields = doc.getFields(field);
+        List<IndexableField> fields = doc.getFields(field);
         for (IndexableField indexableField : fields) {
             IndexableFieldType indexableFieldType = indexableField.fieldType();
             if (indexableFieldType.indexOptions() != IndexOptions.NONE) {
@@ -330,7 +332,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected static void assertNoDocValuesField(LuceneDocument doc, String field) {
-        IndexableField[] fields = doc.getFields(field);
+        List<IndexableField> fields = doc.getFields(field);
         for (IndexableField indexableField : fields) {
             assertEquals(DocValuesType.NONE, indexableField.fieldType().docValuesType());
         }
@@ -949,10 +951,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         if (allowsNullValues()) {
             ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
-            assertThat(doc.docs().get(0).getFields("field").length, equalTo(0));
-            assertThat(doc.docs().get(0).getFields("_field_names").length, equalTo(0));
+            assertThat(doc.docs().get(0).getFields("field"), empty());
+            assertThat(doc.docs().get(0).getFields("_field_names"), empty());
         } else {
-            expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
+            expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
         }
 
         assertWarnings(getParseMinimalWarnings());

@@ -19,6 +19,11 @@ import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 
+/**
+ * Collector that wraps another collector and collects only documents that match the provided filter.
+ * Given that this collector filters documents out, it must not propagate the {@link Weight} to its
+ * inner collector, as that may lead to exposing total hit count that does not reflect the filtering.
+ */
 public class FilteredCollector implements Collector {
 
     private final Collector collector;
@@ -27,6 +32,12 @@ public class FilteredCollector implements Collector {
     public FilteredCollector(Collector collector, Weight filter) {
         this.collector = collector;
         this.filter = filter;
+    }
+
+    @Override
+    public final void setWeight(Weight weight) {
+        // no-op: this collector filters documents out hence it must not propagate the weight to its inner collector,
+        // otherwise the total hit count may not reflect the filtering
     }
 
     @Override

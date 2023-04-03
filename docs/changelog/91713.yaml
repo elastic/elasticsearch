@@ -1,6 +1,0 @@
-pr: 91713
-summary: Fix NPE when method was called on an array type
-area: Infra/Scripting
-type: bug
-issues:
- - 87562

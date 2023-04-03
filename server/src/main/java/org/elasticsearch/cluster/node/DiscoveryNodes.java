@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -185,11 +186,15 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         return filteredNodes(nodes, n -> n.canContainData() == false && n.isMasterNode() == false && n.isIngestNode() == false);
     }
 
+    private static final Comparator<DiscoveryNode> MASTERS_FIRST_COMPARATOR
+    // Ugly hack: when https://github.com/elastic/elasticsearch/issues/94946 is fixed, remove the sorting by ephemeral ID here
+        = Comparator.<DiscoveryNode>comparingInt(n -> n.isMasterNode() ? 0 : 1).thenComparing(DiscoveryNode::getEphemeralId);
+
     /**
      * Returns a stream of all nodes, with master nodes at the front
      */
     public Stream<DiscoveryNode> mastersFirstStream() {
-        return Stream.concat(masterNodes.values().stream(), stream().filter(n -> n.isMasterNode() == false));
+        return nodes.values().stream().sorted(MASTERS_FIRST_COMPARATOR);
     }
 
     /**

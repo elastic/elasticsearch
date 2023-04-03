@@ -86,7 +86,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     // these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
     private SearchSourceBuilder source;
-    private List<QueryBuilder> rankQueryBuilders = List.of();
+    private List<QueryBuilder> rankQueryBuilders;
     private final ShardSearchContextId readerId;
     private final TimeValue keepAlive;
 
@@ -230,7 +230,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source(source);
-        this.rankQueryBuilders = rankQueryBuilders;
+        this.rankQueryBuilders = rankQueryBuilders == null ? List.of() : rankQueryBuilders;
         this.requestCache = requestCache;
         this.aliasFilter = aliasFilter;
         this.indexBoost = indexBoost;
@@ -283,6 +283,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             rankQueryBuilders = in.readNamedWriteableList(QueryBuilder.class);
+        } else {
+            rankQueryBuilders = List.of();
         }
         if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types no longer relevant so ignore

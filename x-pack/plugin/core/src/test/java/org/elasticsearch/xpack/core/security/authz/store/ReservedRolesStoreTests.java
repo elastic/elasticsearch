@@ -1073,7 +1073,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             );
         });
 
-        // Test allow permissions on Threat Intel (ti*) source indices required by latest transform : "read", "view_index_metadata"
+        // Test allow permissions on Threat Intel (ti*) source indices required by latest transform : "read", "view_index_metadata",
+        // IndicesAliasesAction.NAME, PutMappingAction.NAME, UpdateSettingsAction.NAME, "delete_index"
         Arrays.asList(
             ".ds-logs-ti_recordedfuture.threat-default",
             ".ds-logs-ti_anomali.threatstream-default",

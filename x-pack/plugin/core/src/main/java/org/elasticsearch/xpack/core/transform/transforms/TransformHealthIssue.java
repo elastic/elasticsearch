@@ -29,6 +29,8 @@ public class TransformHealthIssue implements Writeable, ToXContentObject {
     private static final String FIRST_OCCURRENCE = "first_occurrence";
     private static final String FIRST_OCCURRENCE_HUMAN_READABLE = FIRST_OCCURRENCE + "_string";
 
+    private static final String DEFAULT_TYPE_PRE_8_8 = "unknown";
+
     private final String type;
     private final String issue;
     private final String details;
@@ -50,7 +52,7 @@ public class TransformHealthIssue implements Writeable, ToXContentObject {
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             this.type = in.readString();
         } else {
-            this.type = null;
+            this.type = DEFAULT_TYPE_PRE_8_8;
         }
         this.issue = in.readString();
         this.details = in.readOptionalString();
@@ -81,9 +83,7 @@ public class TransformHealthIssue implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (Strings.isNullOrEmpty(type) == false) {
-            builder.field(TYPE, type);
-        }
+        builder.field(TYPE, type);
         builder.field(ISSUE, issue);
         if (Strings.isNullOrEmpty(details) == false) {
             builder.field(DETAILS, details);

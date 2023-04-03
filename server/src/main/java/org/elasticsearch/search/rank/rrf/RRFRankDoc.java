@@ -72,7 +72,7 @@ public class RRFRankDoc extends RankDoc {
 
     @Override
     public String getWriteableName() {
-        return RRFRankContextBuilder.NAME;
+        return RRFRankBuilder.NAME;
     }
 
     @Override

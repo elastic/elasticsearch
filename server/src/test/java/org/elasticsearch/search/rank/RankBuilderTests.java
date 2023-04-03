@@ -13,9 +13,9 @@ import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 
 import java.io.IOException;
 
-public abstract class RankContextBuilderTests<RCB extends RankContextBuilder<RCB>> extends AbstractXContentSerializingTestCase<RCB> {
+public abstract class RankBuilderTests<RCB extends RankBuilder<RCB>> extends AbstractXContentSerializingTestCase<RCB> {
 
-    protected static void randomRankContextBuilder(RankContextBuilder<?> builder) {
+    protected static void randomRankContextBuilder(RankBuilder<?> builder) {
         if (frequently()) {
             builder.windowSize(randomIntBetween(0, 10000));
         }

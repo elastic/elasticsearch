@@ -9,30 +9,30 @@
 package org.elasticsearch.search.rank.rrf;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.rank.RankContextBuilderTests;
+import org.elasticsearch.search.rank.RankBuilderTests;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class RRFRankContextBuilderTests extends RankContextBuilderTests<RRFRankContextBuilder> {
+public class RRFRankBuilderTests extends RankBuilderTests<RRFRankBuilder> {
 
-    public static RRFRankContextBuilder randomRankContextBuilder() {
-        RRFRankContextBuilder builder = new RRFRankContextBuilder();
+    public static RRFRankBuilder randomRankContextBuilder() {
+        RRFRankBuilder builder = new RRFRankBuilder();
         builder.rankConstant(randomIntBetween(1, Integer.MAX_VALUE));
-        RankContextBuilderTests.randomRankContextBuilder(builder);
+        RankBuilderTests.randomRankContextBuilder(builder);
         return builder;
     }
 
     @Override
-    protected RRFRankContextBuilder doCreateTestInstance() {
-        RRFRankContextBuilder builder = new RRFRankContextBuilder();
+    protected RRFRankBuilder doCreateTestInstance() {
+        RRFRankBuilder builder = new RRFRankBuilder();
         builder.rankConstant(randomIntBetween(1, Integer.MAX_VALUE));
         return builder;
     }
 
     @Override
-    protected RRFRankContextBuilder doMutateInstance(RRFRankContextBuilder instance) throws IOException {
-        RRFRankContextBuilder builder = new RRFRankContextBuilder();
+    protected RRFRankBuilder doMutateInstance(RRFRankBuilder instance) throws IOException {
+        RRFRankBuilder builder = new RRFRankBuilder();
         if (randomBoolean()) {
             builder.rankConstant(instance.rankConstant() == 1 ? 2 : instance.rankConstant() - 1);
         }
@@ -40,18 +40,18 @@ public class RRFRankContextBuilderTests extends RankContextBuilderTests<RRFRankC
     }
 
     @Override
-    protected Writeable.Reader<RRFRankContextBuilder> instanceReader() {
-        return RRFRankContextBuilder::new;
+    protected Writeable.Reader<RRFRankBuilder> instanceReader() {
+        return RRFRankBuilder::new;
     }
 
     @Override
-    protected RRFRankContextBuilder doParseInstance(XContentParser parser) throws IOException {
+    protected RRFRankBuilder doParseInstance(XContentParser parser) throws IOException {
         parser.nextToken();
         assertEquals(parser.currentToken(), XContentParser.Token.START_OBJECT);
         parser.nextToken();
         assertEquals(parser.currentToken(), XContentParser.Token.FIELD_NAME);
-        assertEquals(parser.currentName(), RRFRankContextBuilder.NAME);
-        RRFRankContextBuilder builder = RRFRankContextBuilder.fromXContent(parser);
+        assertEquals(parser.currentName(), RRFRankBuilder.NAME);
+        RRFRankBuilder builder = RRFRankBuilder.fromXContent(parser);
         parser.nextToken();
         assertEquals(parser.currentToken(), XContentParser.Token.END_OBJECT);
         parser.nextToken();

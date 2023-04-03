@@ -2490,6 +2490,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
         authentication.writeToContext(threadContext);
         checkedFields = new MapBuilder<>(commonFields);
+        RemoteHostHeader.process(request, threadContext);
         auditTrail.authenticationSuccess(request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
@@ -2518,6 +2519,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         authentication = AuthenticationTestHelper.builder().realm().build(false).runAs(new User(randomAlphaOfLengthBetween(3, 8)), null);
         authentication.writeToContext(threadContext);
         checkedFields = new MapBuilder<>(commonFields);
+        RemoteHostHeader.process(request, threadContext);
         auditTrail.authenticationSuccess(request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")

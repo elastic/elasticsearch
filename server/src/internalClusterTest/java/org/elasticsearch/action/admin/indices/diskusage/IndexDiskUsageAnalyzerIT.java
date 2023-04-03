@@ -161,15 +161,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
     public void testFailOnFlush() throws Exception {
         final String indexName = "test-index";
         int numberOfShards = between(1, 5);
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
-            )
-            .get();
+        createIndex(indexName, numberOfShards, between(0, 1));
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {
             int value = randomIntBetween(1, 10);

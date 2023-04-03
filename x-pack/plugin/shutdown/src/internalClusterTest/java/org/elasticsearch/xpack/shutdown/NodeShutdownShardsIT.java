@@ -11,7 +11,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
@@ -136,7 +135,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
     public void testNodeReplacementOnlyAllowsShardsFromReplacedNode() throws Exception {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
-        createIndex("myindex", Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build());
+        createIndex("myindex", 3, 1);
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
 
@@ -156,7 +155,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         final String nodeC = internalCluster().startNode();
 
-        createIndex("other", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+        createIndex("other", 1, 1);
 
         ensureYellow("other");
 
@@ -226,7 +225,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
         assertIndexSetting("myindex", "index.routing.allocation.require._name", nodeA);
 
-        createIndex("other", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+        createIndex("other", 1, 1);
 
         ensureYellow("other");
 
@@ -301,7 +300,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         String nodeA = internalCluster().startNode(
             Settings.builder().put("node.name", "node-a").put("cluster.routing.rebalance.enable", "none")
         );
-        createIndex("myindex", Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0).build());
+        createIndex("myindex", 4, 0);
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
         final String nodeC = "node_t2"; // TODO: fix this to so it's actually overrideable
@@ -326,7 +325,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     public void testReallocationForReplicaDuringNodeReplace() throws Exception {
         final String nodeA = internalCluster().startNode();
         final String nodeAId = getNodeId(nodeA);
-        createIndex("myindex", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+        createIndex("myindex", 1, 1);
         ensureYellow("myindex");
 
         // Start a second node, so the replica will be on nodeB
@@ -417,7 +416,11 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         createIndex(
             "index",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.routing.allocation.include._name", nodeA)
+                .build()
         );
 
         ensureYellow("index");
@@ -427,21 +430,9 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         final String nodeBId = getNodeId(nodeB);
         ensureGreen("index");
 
-        client().admin()
-            .cluster()
-            .updateSettings(
-                new ClusterUpdateSettingsRequest().persistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"))
-            );
-
-        assertThat(client().admin().indices().prepareFlush("index").get().getSuccessfulShards(), equalTo(2));
-        assertThat(client().admin().indices().prepareRefresh("index").get().getSuccessfulShards(), equalTo(2));
-
-        internalCluster().restartNode(nodeA);
-        internalCluster().restartNode(nodeB);
-
-        assertThat(client().admin().cluster().prepareHealth("index").get().getUnassignedShards(), equalTo(1));
-
         putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REMOVE, null);
+
+        internalCluster().stopNode(nodeA);
 
         assertBusy(() -> assertNodeShutdownStatus(nodeAId, STALLED));
     }

@@ -43,7 +43,7 @@ public class IgnoredFieldMapperTests extends MetadataMapperTestCase {
     public void testIncludeInObjectNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source(b -> b.field("_ignored", 1))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> docMapper.parse(source(b -> b.field("_ignored", 1))));
 
         assertThat(e.getCause().getMessage(), containsString("Field [_ignored] is a metadata field and cannot be added inside a document"));
     }
@@ -53,10 +53,10 @@ public class IgnoredFieldMapperTests extends MetadataMapperTestCase {
             mapping(b -> b.startObject("field").field("type", "keyword").field("ignore_above", 3).endObject())
         );
         ParsedDocument document = mapper.parse(source(b -> b.field("field", "value")));
-        IndexableField[] fields = document.rootDoc().getFields(IgnoredFieldMapper.NAME);
-        assertEquals(1, fields.length);
-        assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());
-        assertTrue(fields[0].fieldType().stored());
+        List<IndexableField> fields = document.rootDoc().getFields(IgnoredFieldMapper.NAME);
+        assertEquals(1, fields.size());
+        assertEquals(IndexOptions.DOCS, fields.get(0).fieldType().indexOptions());
+        assertTrue(fields.get(0).fieldType().stored());
     }
 
     public void testFetchIgnoredFieldValue() throws IOException {

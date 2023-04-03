@@ -61,24 +61,16 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
 
     @Before
     public void putSettings() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 100).put("logger.org.elasticsearch.xpack.ml", "DEBUG")
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 100).put("logger.org.elasticsearch.xpack.ml", "DEBUG")
+        );
     }
 
     @After
     public void removeSettings() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder().putNull(MachineLearning.MAX_LAZY_ML_NODES.getKey()).putNull("logger.org.elasticsearch.xpack.ml")
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().putNull(MachineLearning.MAX_LAZY_ML_NODES.getKey()).putNull("logger.org.elasticsearch.xpack.ml")
+        );
         cleanUp();
     }
 

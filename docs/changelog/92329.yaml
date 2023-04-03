@@ -1,5 +1,0 @@
-pr: 92329
-summary: Fix tokenization bug when handling normalization in BERT and MPNet
-area: Machine Learning
-type: bug
-issues: []

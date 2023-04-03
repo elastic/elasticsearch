@@ -12,6 +12,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -24,14 +26,18 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.AfterClass;
-import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCase {
 
@@ -67,12 +73,29 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected static ElasticsearchCluster queryCluster;
     protected static RestClient fulfillingClusterClient;
 
-    @Before
-    public void initFulfillingClusterClient() throws IOException {
-        if (fulfillingClusterClient == null) {
-            assert fulfillingCluster != null;
-            fulfillingClusterClient = buildClient(fulfillingCluster.getHttpAddress(0));
+    @BeforeClass
+    public static void initFulfillingClusterClient() {
+        if (fulfillingClusterClient != null) {
+            return;
         }
+        fulfillingClusterClient = buildRestClient(fulfillingCluster);
+    }
+
+    static RestClient buildRestClient(ElasticsearchCluster targetCluster) {
+        assert targetCluster != null;
+        final int numberOfFcNodes = targetCluster.getHttpAddresses().split(",").length;
+        final String url = targetCluster.getHttpAddress(randomIntBetween(0, numberOfFcNodes - 1));
+
+        final int portSeparator = url.lastIndexOf(':');
+        final var httpHost = new HttpHost(url.substring(0, portSeparator), Integer.parseInt(url.substring(portSeparator + 1)), "http");
+        RestClientBuilder builder = RestClient.builder(httpHost);
+        try {
+            configureClient(builder, Settings.EMPTY);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        builder.setStrictDeprecationMode(true);
+        return builder.build();
     }
 
     @AfterClass
@@ -91,54 +114,17 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    protected String configureRemoteClustersWithApiKey(String indicesPrivilegesJson) throws Exception {
-        return configureRemoteClustersWithApiKey(indicesPrivilegesJson, randomBoolean());
+    protected static Map<String, Object> createCrossClusterAccessApiKey(String indicesPrivilegesJson) {
+        initFulfillingClusterClient();
+        return createCrossClusterAccessApiKey(fulfillingClusterClient, indicesPrivilegesJson);
     }
 
-    /**
-     * Returns API key ID of remote access API key.
-     */
-    protected String configureRemoteClustersWithApiKey(String indicesPrivilegesJson, boolean isProxyMode) throws Exception {
-        // Create API key on FC
-        final Map<String, Object> apiKeyMap = createRemoteAccessApiKey(indicesPrivilegesJson);
-        final String encodedRemoteAccessApiKey = (String) apiKeyMap.get("encoded");
-
-        // Update remote cluster settings on QC with the API key
-        final Settings.Builder builder = Settings.builder()
-            .put("cluster.remote.my_remote_cluster.authorization", encodedRemoteAccessApiKey);
-        ;
-        if (isProxyMode) {
-            builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
-                .put("cluster.remote.my_remote_cluster.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));
-        } else {
-            builder.put("cluster.remote.my_remote_cluster.mode", "sniff")
-                .putList("cluster.remote.my_remote_cluster.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0));
-        }
-        updateClusterSettings(builder.build());
-
-        // Ensure remote cluster is connected
-        final int numberOfFcNodes = fulfillingCluster.getHttpAddresses().split(",").length;
-        final Request remoteInfoRequest = new Request("GET", "/_remote/info");
-        assertBusy(() -> {
-            final Response remoteInfoResponse = adminClient().performRequest(remoteInfoRequest);
-            assertOK(remoteInfoResponse);
-            final Map<String, Object> remoteInfoMap = responseAsMap(remoteInfoResponse);
-            assertThat(remoteInfoMap, hasKey("my_remote_cluster"));
-            assertThat(ObjectPath.eval("my_remote_cluster.connected", remoteInfoMap), is(true));
-            if (false == isProxyMode) {
-                assertThat(ObjectPath.eval("my_remote_cluster.num_nodes_connected", remoteInfoMap), equalTo(numberOfFcNodes));
-            }
-        });
-
-        return (String) apiKeyMap.get("id");
-    }
-
-    protected Map<String, Object> createRemoteAccessApiKey(String indicesPrivilegesJson) throws IOException {
+    static Map<String, Object> createCrossClusterAccessApiKey(RestClient targetClusterClient, String indicesPrivilegesJson) {
         // Create API key on FC
         final var createApiKeyRequest = new Request("POST", "/_security/api_key");
         createApiKeyRequest.setJsonEntity(Strings.format("""
             {
-              "name": "remote_access_key",
+              "name": "cross_cluster_access_key",
               "role_descriptors": {
                 "role": {
                   "cluster": ["cross_cluster_access"],
@@ -146,24 +132,81 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
                 }
               }
             }""", indicesPrivilegesJson));
-        final Response createApiKeyResponse = performRequestAgainstFulfillingCluster(createApiKeyRequest);
-        assertOK(createApiKeyResponse);
-        final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
-        return apiKeyMap;
+        try {
+            final Response createApiKeyResponse = performRequestWithAdminUser(targetClusterClient, createApiKeyRequest);
+            assertOK(createApiKeyResponse);
+            return responseAsMap(createApiKeyResponse);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
-    protected Response performRequestAgainstFulfillingCluster(Request request) throws IOException {
+    protected void configureRemoteClusters() throws Exception {
+        configureRemoteCluster(fulfillingCluster, randomBoolean());
+    }
+
+    protected void configureRemoteClusters(boolean isProxyMode) throws Exception {
+        configureRemoteCluster(fulfillingCluster, isProxyMode);
+    }
+
+    protected void configureRemoteCluster(ElasticsearchCluster targetFulfillingCluster, boolean isProxyMode) throws Exception {
+        configureRemoteCluster("my_remote_cluster", targetFulfillingCluster, false, isProxyMode, false);
+    }
+
+    protected void configureRemoteCluster(
+        String clusterAlias,
+        ElasticsearchCluster targetFulfillingCluster,
+        boolean basicSecurity,
+        boolean isProxyMode,
+        boolean skipUnavailable
+    ) throws Exception {
+        // For configurable remote cluster security, this method assumes the cross cluster access API key is already configured in keystore
+        final Settings.Builder builder = Settings.builder();
+        final String remoteClusterEndpoint = basicSecurity
+            ? targetFulfillingCluster.getTransportEndpoint(0)
+            : targetFulfillingCluster.getRemoteClusterServerEndpoint(0);
+        if (isProxyMode) {
+            builder.put("cluster.remote." + clusterAlias + ".mode", "proxy")
+                .put("cluster.remote." + clusterAlias + ".proxy_address", remoteClusterEndpoint);
+        } else {
+            builder.put("cluster.remote." + clusterAlias + ".mode", "sniff")
+                .putList("cluster.remote." + clusterAlias + ".seeds", remoteClusterEndpoint);
+        }
+        builder.put("cluster.remote." + clusterAlias + ".skip_unavailable", skipUnavailable);
+        updateClusterSettings(builder.build());
+
+        // Ensure remote cluster is connected
+        final int numberOfFcNodes = targetFulfillingCluster.getHttpAddresses().split(",").length;
+        final Request remoteInfoRequest = new Request("GET", "/_remote/info");
+        assertBusy(() -> {
+            final Response remoteInfoResponse = adminClient().performRequest(remoteInfoRequest);
+            assertOK(remoteInfoResponse);
+            final Map<String, Object> remoteInfoMap = responseAsMap(remoteInfoResponse);
+            assertThat(remoteInfoMap, hasKey(clusterAlias));
+            assertThat(ObjectPath.eval(clusterAlias + ".connected", remoteInfoMap), is(true));
+            if (false == isProxyMode) {
+                assertThat(ObjectPath.eval(clusterAlias + ".num_nodes_connected", remoteInfoMap), equalTo(numberOfFcNodes));
+            }
+            final String credentialsValue = ObjectPath.eval(clusterAlias + ".cluster_credentials", remoteInfoMap);
+            if (basicSecurity) {
+                assertThat(credentialsValue, nullValue());
+            } else {
+                assertThat(credentialsValue, equalTo("::es_redacted::"));
+            }
+        });
+    }
+
+    protected static Response performRequestAgainstFulfillingCluster(Request request) throws IOException {
+        return performRequestWithAdminUser(fulfillingClusterClient, request);
+    }
+
+    protected static Response performRequestWithAdminUser(RestClient targetFulfillingClusterClient, Request request) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
-        return fulfillingClusterClient.performRequest(request);
+        return targetFulfillingClusterClient.performRequest(request);
     }
 
-    private RestClient buildClient(final String url) throws IOException {
-        final int portSeparator = url.lastIndexOf(':');
-        final var httpHost = new HttpHost(
-            url.substring(0, portSeparator),
-            Integer.parseInt(url.substring(portSeparator + 1)),
-            getProtocol()
-        );
-        return buildClient(Settings.EMPTY, new HttpHost[] { httpHost });
+    // TODO centralize common usage of this across all tests
+    protected static String randomEncodedApiKey() {
+        return Base64.getEncoder().encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
     }
 }

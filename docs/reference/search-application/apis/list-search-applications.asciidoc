@@ -2,6 +2,8 @@
 [[list-search-applications]]
 === List Search Applications
 
+beta::[]
+
 ++++
 <titleabbrev>List Search Applications</titleabbrev>
 ++++
@@ -44,7 +46,7 @@ GET _application/search_application/
 ----
 // TEST[skip:TBD]
 
-The following example lists the first three Search Applications whose names match the query String `app`:
+The following example lists the first three Search Applications whose names match the query string `app`:
 
 [source,console]
 ----

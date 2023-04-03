@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A helper class that reconstructs the field including keys and values
@@ -56,6 +57,179 @@ import java.util.List;
  *
  */
 class FlattenedFieldSyntheticWriterHelper {
+
+    private static class Prefix {
+        final List<String> prefix;
+
+        Prefix() {
+            this.prefix = Collections.emptyList();
+        }
+
+        Prefix(final String key) {
+            final String[] keyAsArray = key.split("\\.");
+            this.prefix = new ArrayList<>(Arrays.asList(keyAsArray).subList(0, keyAsArray.length - 1));
+        }
+
+        private Prefix(final List<String> prefix) {
+            this.prefix = prefix;
+        }
+
+        private Prefix shared(final Prefix other) {
+            return shared(this.prefix, other.prefix);
+        }
+
+        private static Prefix shared(final List<String> curr, final List<String> next) {
+            final List<String> shared = new ArrayList<>();
+            for (int i = 0; i < Math.min(curr.size(), next.size()); i++) {
+                if (curr.get(i).equals(next.get(i))) {
+                    shared.add(curr.get(i));
+                }
+            }
+
+            return new Prefix(shared);
+        }
+
+        private Prefix diff(final Prefix other) {
+            return diff(this.prefix, other.prefix);
+        }
+
+        private static Prefix diff(final List<String> a, final List<String> b) {
+            if (a.size() > b.size()) {
+                return diff(b, a);
+            }
+            final List<String> diff = new ArrayList<>();
+            if (a.isEmpty()) {
+                diff.addAll(b);
+                return new Prefix(diff);
+            }
+            int i = 0;
+            for (; i < a.size(); i++) {
+                if (a.get(i).equals(b.get(i)) == false) {
+                    break;
+                }
+            }
+            for (; i < b.size(); i++) {
+                diff.add(b.get(i));
+            }
+            return new Prefix(diff);
+        }
+
+        private Prefix reverse() {
+            final Prefix p = new Prefix(this.prefix);
+            Collections.reverse(p.prefix);
+            return p;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(this.prefix);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            Prefix other = (Prefix) obj;
+            return Objects.equals(this.prefix, other.prefix);
+        }
+    }
+
+    private static class Suffix {
+        final List<String> suffix;
+
+        Suffix() {
+            this.suffix = Collections.emptyList();
+        }
+
+        Suffix(final String key) {
+            final String[] keyAsArray = key.split("\\.");
+            this.suffix = new ArrayList<>(Arrays.asList(keyAsArray).subList(keyAsArray.length - 1, keyAsArray.length));
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(this.suffix);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            Suffix other = (Suffix) obj;
+            return Objects.equals(this.suffix, other.suffix);
+        }
+    }
+
+    private static class KeyValue {
+
+        public static final KeyValue EMPTY = new KeyValue(null, new Prefix(), new Suffix());
+        private final String value;
+        private final Prefix prefix;
+        private final Suffix suffix;
+
+        private KeyValue(final String value, final Prefix prefix, final Suffix suffix) {
+            this.value = value;
+            this.prefix = prefix;
+            this.suffix = suffix;
+        }
+
+        KeyValue(final BytesRef keyValue) {
+            this(FlattenedFieldParser.extractKey(keyValue).utf8ToString(), FlattenedFieldParser.extractValue(keyValue).utf8ToString());
+        }
+
+        private KeyValue(final String key, final String value) {
+            this(value, new Prefix(key), new Suffix(key));
+        }
+
+        public Prefix prefix() {
+            return this.prefix;
+        }
+
+        public Suffix suffix() {
+            return this.suffix;
+        }
+
+        public Prefix start(final KeyValue other) {
+            return this.prefix.diff(this.prefix.shared(other.prefix));
+        }
+
+        public Prefix end(final KeyValue other) {
+            return this.prefix.diff(this.prefix.shared(other.prefix)).reverse();
+        }
+
+        public String value() {
+            assert this.value != null;
+            return this.value;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(this.value, this.prefix, this.suffix);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            KeyValue other = (KeyValue) obj;
+            return Objects.equals(this.value, other.value)
+                && Objects.equals(this.prefix, other.prefix)
+                && Objects.equals(this.suffix, other.suffix);
+        }
+    }
+
     private final SortedSetDocValues dv;
 
     FlattenedFieldSyntheticWriterHelper(final SortedSetDocValues dv) {
@@ -63,64 +237,39 @@ class FlattenedFieldSyntheticWriterHelper {
     }
 
     void write(final XContentBuilder b) throws IOException {
-        BytesRef currKeyValue = dv.lookupOrd(dv.nextOrd());
-        String currKey = FlattenedFieldParser.extractKey(currKeyValue).utf8ToString();
-        String currValue = FlattenedFieldParser.extractValue(currKeyValue).utf8ToString();
-        List<String> currPrefix = prefix(currKey);
-        List<String> prevPrefix = Collections.emptyList();
+        KeyValue curr = new KeyValue(dv.lookupOrd(dv.nextOrd()));
+        KeyValue prev = KeyValue.EMPTY;
         final List<String> values = new ArrayList<>();
-        values.add(currValue);
+        values.add(curr.value());
         for (int i = 1; i < dv.docValueCount(); i++) {
-            BytesRef nextKeyValue = dv.lookupOrd(dv.nextOrd());
-            String nextKey = FlattenedFieldParser.extractKey(nextKeyValue).utf8ToString();
-            List<String> nextPrefix = prefix(nextKey);
-            List<String> startPrefix = prefixDiff(currPrefix, commonPrefix(currPrefix, prevPrefix));
-            List<String> endPrefix = prefixDiff(currPrefix, commonPrefix(currPrefix, nextPrefix));
-            Collections.reverse(endPrefix);
-            List<String> currSuffix = suffix(currKey);
-            List<String> nextSuffix = suffix(nextKey);
-            startObject(b, startPrefix);
-            if (currSuffix.equals(nextSuffix) == false) {
-                writeObject(b, values, currSuffix);
-            }
-            endObject(b, endPrefix);
-            values.add(FlattenedFieldParser.extractValue(nextKeyValue).utf8ToString());
-            currKey = nextKey;
-            prevPrefix = currPrefix;
-            currPrefix = nextPrefix;
+            KeyValue next = new KeyValue(dv.lookupOrd(dv.nextOrd()));
+            writeObject(b, curr, next, curr.start(prev), curr.end(next), values);
+            values.add(next.value());
+            prev = curr;
+            curr = next;
         }
         if (values.isEmpty() == false) {
-            List<String> startPrefix = prefixDiff(currPrefix, commonPrefix(currPrefix, prevPrefix));
-            Collections.reverse(currPrefix);
-            List<String> currSuffix = suffix(currKey);
-            startObject(b, startPrefix);
-            writeObject(b, values, currSuffix);
-            endObject(b, currPrefix);
+            writeObject(b, curr, KeyValue.EMPTY, curr.start(prev), curr.end(KeyValue.EMPTY), values);
         }
     }
 
-    private static List<String> prefix(final String key) {
-        final String[] keyAsArray = key.split("\\.");
-        return new ArrayList<>(Arrays.asList(keyAsArray).subList(0, keyAsArray.length - 1));
-    }
-
-    private static List<String> suffix(final String key) {
-        final String[] keyAsArray = key.split("\\.");
-        return new ArrayList<>(Arrays.asList(keyAsArray).subList(keyAsArray.length - 1, keyAsArray.length));
-    }
-
-    private static List<String> commonPrefix(final List<String> curr, final List<String> next) {
-        List<String> common = new ArrayList<>();
-        for (int i = 0; i < Math.min(curr.size(), next.size()); i++) {
-            if (curr.get(i).equals(next.get(i))) {
-                common.add(curr.get(i));
-            }
+    private void writeObject(
+        final XContentBuilder b,
+        final KeyValue currKeyValue,
+        final KeyValue nextKeyValue,
+        final Prefix startPrefix,
+        final Prefix endPrefix,
+        final List<String> values
+    ) throws IOException {
+        startObject(b, startPrefix.prefix);
+        if (currKeyValue.suffix.equals(nextKeyValue.suffix) == false) {
+            writeNestedObject(b, values, currKeyValue.suffix().suffix);
         }
-
-        return common;
+        endObject(b, endPrefix.prefix);
     }
 
-    private static void writeObject(final XContentBuilder b, final List<String> values, final List<String> currSuffix) throws IOException {
+    private static void writeNestedObject(final XContentBuilder b, final List<String> values, final List<String> currSuffix)
+        throws IOException {
         for (int i = 0; i < currSuffix.size() - 1; i++) {
             b.startObject(currSuffix.get(i));
         }
@@ -129,27 +278,6 @@ class FlattenedFieldSyntheticWriterHelper {
             b.endObject();
         }
         values.clear();
-    }
-
-    private static List<String> prefixDiff(final List<String> a, final List<String> b) {
-        if (a.size() > b.size()) {
-            return prefixDiff(b, a);
-        }
-        final List<String> diff = new ArrayList<>();
-        if (a.isEmpty()) {
-            diff.addAll(b);
-            return diff;
-        }
-        int i = 0;
-        for (; i < a.size(); i++) {
-            if (a.get(i).equals(b.get(i)) == false) {
-                break;
-            }
-        }
-        for (; i < b.size(); i++) {
-            diff.add(b.get(i));
-        }
-        return diff;
     }
 
     private static void endObject(final XContentBuilder b, final List<String> objects) throws IOException {

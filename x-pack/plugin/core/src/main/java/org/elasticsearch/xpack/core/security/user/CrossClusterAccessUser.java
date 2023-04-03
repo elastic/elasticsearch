@@ -20,7 +20,7 @@ import java.io.UncheckedIOException;
 public class CrossClusterAccessUser extends User {
     public static final String NAME = UsernamesField.CROSS_CLUSTER_ACCESS_NAME;
 
-    private static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
+    public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
         new String[] { "cross_cluster_access" },
         null,

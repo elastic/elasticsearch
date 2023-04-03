@@ -134,7 +134,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
 
     @Override
     public void resolveCrossClusterAccessRoleReference(
-        RoleReference.CrossClusterAccessRoleReference crossClusterAccessRoleReference,
+        RoleReference.BaseCrossClusterAccessRoleReference crossClusterAccessRoleReference,
         ActionListener<RolesRetrievalResult> listener
     ) {
         final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsWithValidation();

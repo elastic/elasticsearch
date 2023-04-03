@@ -64,10 +64,10 @@ public class QueryPhase {
     public QueryPhase() {}
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
-        if (searchContext.rankShardContext() != null) {
-            executeRank(searchContext);
+        if (searchContext.rankShardContext() == null) {
+            executeQuery(searchContext);
         } else {
-            executeInternal(searchContext);
+            executeRank(searchContext);
         }
     }
 
@@ -82,7 +82,7 @@ public class QueryPhase {
             if (searchContext.suggest() != null
                 || searchContext.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED
                 || searchContext.aggregations() != null) {
-                QueryPhase.executeInternal(rankSearchContext);
+                QueryPhase.executeQuery(rankSearchContext);
             } else {
                 searchContext.queryResult()
                     .topDocs(
@@ -107,7 +107,7 @@ public class QueryPhase {
                     break;
                 }
                 rankSearchContext.rankQuery(query);
-                QueryPhase.executeInternal(rankSearchContext);
+                QueryPhase.executeQuery(rankSearchContext);
                 QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
                 rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
                 serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
@@ -128,7 +128,7 @@ public class QueryPhase {
         }
     }
 
-    static void executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
+    static void executeQuery(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             SuggestPhase.execute(searchContext);
             searchContext.queryResult()

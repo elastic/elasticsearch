@@ -45,7 +45,6 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
@@ -383,16 +382,12 @@ public class CancellableTasksIT extends ESIntegTestCase {
         ActionFuture<TestResponse> rootTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         allowEntireRequest(rootRequest);
         waitForRootTask(rootTaskFuture, true);
-        assertBusy(() -> {
-            for (DiscoveryNode node : nodes) {
-                TransportService transportService = internalCluster().getInstance(TransportService.class, node.getName());
-                for (ThreadPoolStats.Stats stat : transportService.getThreadPool().stats()) {
-                    assertEquals(0, stat.getActive());
-                    assertEquals(0, stat.getQueue());
-                }
-            }
-        }, 60L, TimeUnit.SECONDS);
         ensureBansAndCancellationsConsistency();
+
+        // Make sure all descendent requests have completed
+        for (TestRequest subRequest : rootRequest.descendants()) {
+            assertTrue(completedLatches.get(subRequest).await(60, TimeUnit.SECONDS));
+        }
     }
 
     static TaskId getRootTaskId(TestRequest request) throws Exception {

@@ -101,7 +101,6 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         request.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
     }
 
-
     /**
      * Sets the minimum time that the request should wait before returning a partial result (defaults to 1 second).
      */

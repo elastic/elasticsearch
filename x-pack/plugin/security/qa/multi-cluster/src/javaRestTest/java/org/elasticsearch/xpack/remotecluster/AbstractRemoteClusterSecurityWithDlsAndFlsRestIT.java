@@ -65,7 +65,22 @@ public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends A
                         "minimum_should_match" : 1
                       }
                   },
-                  "field_security": {"grant": [ "field1", "field2" ]}
+                  "field_security": {"grant": [ "field2" ]}
+                },
+                {
+                  "names": ["remote_index1", "remote_index2", "remote_index3"],
+                  "privileges": ["read", "read_cross_cluster"],
+                  "clusters": ["my_remote_cluster*"],
+                  "query": {
+                     "bool": {
+                        "should" : [
+                           { "term" : { "field2" : "value1" } },
+                           { "term" : { "field1" : "value2" } }
+                        ],
+                        "minimum_should_match" : 1
+                      }
+                  },
+                  "field_security": {"grant": [ "field1" ]}
                 }
               ]
             }""");
@@ -79,6 +94,12 @@ public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends A
                   "privileges": ["read", "read_cross_cluster"],
                   "clusters": ["my_*_cluster*"],
                   "query": {"bool": { "must_not": { "term" : {"field1" : "value1"}}}}
+                },
+                {
+                  "names": ["remote_index*"],
+                  "privileges": ["read", "read_cross_cluster"],
+                  "clusters": ["my_*_cluster*"],
+                  "query": {"bool": { "must_not": { "term" : {"field2" : "value1"}}}}
                 }
               ]
             }""");
@@ -91,7 +112,13 @@ public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends A
                   "names": ["remote_index*"],
                   "privileges": ["read", "read_cross_cluster"],
                   "clusters": ["my_*_cluster*"],
-                  "field_security": {"grant": [ "field1", "field2", "field3" ], "except": ["field2"]}
+                  "field_security": {"grant": [ "field1", "field2" ], "except": ["field2"]}
+                },
+                {
+                  "names": ["remote_index*"],
+                  "privileges": ["read", "read_cross_cluster"],
+                  "clusters": ["my_*_cluster*"],
+                  "field_security": {"grant": [ "field3" ]}
                 }
               ]
             }""");

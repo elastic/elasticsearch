@@ -33,7 +33,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     public void testIncludeInObjectNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source(b -> b.field("_id", 1))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> docMapper.parse(source(b -> b.field("_id", 1))));
 
         assertThat(e.getCause().getMessage(), containsString("Field [_id] is a metadata field and cannot be added inside a document"));
     }
@@ -41,11 +41,11 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     public void testDefaults() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         ParsedDocument document = mapper.parse(source(b -> {}));
-        IndexableField[] fields = document.rootDoc().getFields(IdFieldMapper.NAME);
-        assertEquals(1, fields.length);
-        assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());
-        assertTrue(fields[0].fieldType().stored());
-        assertEquals(Uid.encodeId("1"), fields[0].binaryValue());
+        List<IndexableField> fields = document.rootDoc().getFields(IdFieldMapper.NAME);
+        assertEquals(1, fields.size());
+        assertEquals(IndexOptions.DOCS, fields.get(0).fieldType().indexOptions());
+        assertTrue(fields.get(0).fieldType().stored());
+        assertEquals(Uid.encodeId("1"), fields.get(0).binaryValue());
     }
 
     public void testEnableFieldData() throws IOException {

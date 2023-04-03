@@ -207,6 +207,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             randomInt(Integer.MAX_VALUE),
             randomInt(Integer.MAX_VALUE),
             randomInt(Integer.MAX_VALUE),
+            randomInt(Integer.MAX_VALUE),
             randomInt(Integer.MAX_VALUE)
         );
         when(desiredBalanceShardsAllocator.getStats()).thenReturn(desiredBalanceStats);

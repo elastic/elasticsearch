@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector;
 
-
 import org.elasticsearch.xcontent.ParseField;
 
 /**
@@ -30,8 +29,6 @@ public class Connector {
     public static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
     public static final ParseField STATUS_FIELD = new ParseField("status");
     public static final ParseField SYNC_NOW_FIELD = new ParseField("status");
-
-
 
     /**
      * Default public constructor.

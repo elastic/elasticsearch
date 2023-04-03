@@ -7,11 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector;
 
-import org.elasticsearch.action.ingest.GetPipelineResponse;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -23,16 +18,21 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.ingest.GetPipelineResponse;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -116,12 +116,8 @@ public class ConnectorIndexService implements ClusterStateListener {
     }
 
     private static void createPipeline(Client client) {
-        BytesArray bytes = new BytesArray(EntSearchPipeline.pipelineDefinition.getBytes());
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest(
-            ENT_SEARCH_INGESTION_PIPELINE_NAME,
-            bytes,
-            XContentType.JSON
-        );
+        BytesArray bytes = new BytesArray(EntSearchPipeline.getPipelineDefinition().getBytes());
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest(ENT_SEARCH_INGESTION_PIPELINE_NAME, bytes, XContentType.JSON);
         client.admin().cluster().putPipeline(putPipelineRequest);
         logger.info("Created pipeline" + ENT_SEARCH_INGESTION_PIPELINE_NAME);
     }

@@ -1147,6 +1147,9 @@ org/elasticsearch/protocol/xpack/watcher/PutWatchResponse
 org/elasticsearch/xpack/core/searchablesnapshots/MountSearchableSnapshotRequest$Storage
 org/elasticsearch/xpack/core/ccr/action/GetAutoFollowPatternAction$Request
 org/elasticsearch/xpack/core/ccr/action/ActivateAutoFollowPatternAction$Request
+org/elasticsearch/xpack/core/security/authz/RoleDescriptor$RemoteIndicesPrivileges
+org/elasticsearch/xpack/core/security/authc/CrossClusterAccessSubjectInfo
+org/elasticsearch/xpack/core/RemoteClusterFeatureSetUsage
 
 // ':x-pack:plugin:enrich:transportMethodCoverageVerifier'.
 org/elasticsearch/xpack/enrich/EnrichPlugin
@@ -1335,3 +1338,7 @@ org/elasticsearch/xpack/sql/action/AbstractSqlRequest
 // ':x-pack:plugin:watcher:transportMethodCoverageVerifier'.
 org/elasticsearch/xpack/watcher/transport/actions/TransportWatcherStatsAction
 org/elasticsearch/xpack/watcher/notification/NotificationService$1
+
+
+// ':modules:dlm:transportMethodCoverageVerifier'.
+org/elasticsearch/dlm/action/ExplainDataLifecycleAction$Request

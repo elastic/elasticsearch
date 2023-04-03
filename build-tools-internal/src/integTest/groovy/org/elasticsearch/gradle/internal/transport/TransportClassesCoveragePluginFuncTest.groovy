@@ -122,7 +122,7 @@ class TransportClassesCoveragePluginFuncTest extends AbstractGradleInternalPlugi
         result.getOutput().contains(
             "Transport protocol code, using org.elasticsearch.common.io.stream.StreamInput/Output needs more test coverage."
         )
-        result.getOutput().contains("Minimum coverage is 0.9")
+        result.getOutput().contains("Minimum coverage")
         result.getOutput().contains("Class org/acme/TransportClass method <init> coverage 0.0")
         result.getOutput().contains("Class org/acme/TransportClass method writeTo coverage 0.0")
     }

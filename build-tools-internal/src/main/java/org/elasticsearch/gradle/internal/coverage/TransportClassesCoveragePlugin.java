@@ -23,13 +23,10 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().withPlugin("elasticsearch.build", plugin -> {
-            // TODO a workaround until 0.8.9 jacoco with jdk20 support is released
-            project.getRepositories().maven(maven -> { maven.setUrl("https://oss.sonatype.org/content/repositories/snapshots/"); });
-
             project.getPluginManager().apply(JacocoPlugin.class);
 
             // support for java 20
-            project.getExtensions().getByType(JacocoPluginExtension.class).setToolVersion("0.8.9-20230327.073737-36");
+            project.getExtensions().getByType(JacocoPluginExtension.class).setToolVersion("0.8.9");
 
             // this is suggested by gradle jacoco doc https://docs.gradle.org/current/userguide/jacoco_plugin.html
             project.getTasks().named("test").configure(task -> { task.finalizedBy(project.getTasks().named("jacocoTestReport")); });

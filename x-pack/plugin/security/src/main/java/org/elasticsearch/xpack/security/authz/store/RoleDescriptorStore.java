@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceResolver;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
@@ -134,10 +135,10 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
 
     @Override
     public void resolveCrossClusterAccessRoleReference(
-        RoleReference.BaseCrossClusterAccessRoleReference crossClusterAccessRoleReference,
+        RoleReference.CrossClusterAccessRoleReference crossClusterAccessRoleReference,
         ActionListener<RolesRetrievalResult> listener
     ) {
-        final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsWithValidation();
+        final Set<RoleDescriptor> roleDescriptors = getRoleDescriptorsWithValidation(crossClusterAccessRoleReference);
         if (roleDescriptors.isEmpty()) {
             logger.debug(
                 () -> "Cross cluster access role reference ["
@@ -147,6 +148,20 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             listener.onResponse(RolesRetrievalResult.EMPTY);
             return;
         }
+        final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
+        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        listener.onResponse(rolesRetrievalResult);
+    }
+
+    @Override
+    public void resolveCrossClusterAccessInternalRoleReference(
+        RoleReference.CrossClusterAccessInternalRoleReference crossClusterAccessRoleReference,
+        ActionListener<RolesRetrievalResult> listener
+    ) {
+        final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
+        // We set this value internally, independent of user input, so asserting is sufficient
+        assert Set.of(CrossClusterAccessUser.ROLE_DESCRIPTOR).equals(roleDescriptors)
+            : "unexpected role descriptors for internal cross cluster access user [" + roleDescriptors + "]";
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
         listener.onResponse(rolesRetrievalResult);
@@ -267,4 +282,25 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         }, asyncRoleProviders, threadContext, Function.identity(), iterationPredicate).run();
     }
 
+    private Set<RoleDescriptor> getRoleDescriptorsWithValidation(
+        RoleReference.CrossClusterAccessRoleReference crossClusterAccessRoleReference
+    ) {
+        final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
+        for (RoleDescriptor roleDescriptor : roleDescriptors) {
+            final boolean hasPrivilegesOtherThanIndex = roleDescriptor.hasClusterPrivileges()
+                || roleDescriptor.hasConfigurableClusterPrivileges()
+                || roleDescriptor.hasApplicationPrivileges()
+                || roleDescriptor.hasRunAs()
+                || roleDescriptor.hasRemoteIndicesPrivileges();
+            if (hasPrivilegesOtherThanIndex) {
+                throw new IllegalArgumentException(
+                    "role descriptor for cross cluster access can only contain index privileges "
+                        + "but other privileges found for subject ["
+                        + crossClusterAccessRoleReference.getUserPrincipal()
+                        + "]"
+                );
+            }
+        }
+        return roleDescriptors;
+    }
 }

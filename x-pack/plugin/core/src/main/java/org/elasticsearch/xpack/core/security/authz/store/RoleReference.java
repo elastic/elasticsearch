@@ -11,8 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 
 import java.util.HashSet;
 import java.util.List;
@@ -138,20 +136,6 @@ public interface RoleReference {
             return id;
         }
 
-        @Override
-        public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
-            resolver.resolveCrossClusterAccessRoleReference(this, listener);
-        }
-
-        public Set<RoleDescriptor> getRoleDescriptorsWithValidation() {
-            final Set<RoleDescriptor> roleDescriptors = getRoleDescriptorsBytes().toRoleDescriptors();
-            validateRoleDescriptors(roleDescriptors);
-            return roleDescriptors;
-        }
-
-        abstract protected void validateRoleDescriptors(Set<RoleDescriptor> roleDescriptors);
-
-        // TODO can be private
         public CrossClusterAccessSubjectInfo.RoleDescriptorsBytes getRoleDescriptorsBytes() {
             return roleDescriptorsBytes;
         }
@@ -170,22 +154,12 @@ public interface RoleReference {
         }
 
         @Override
-        protected void validateRoleDescriptors(Set<RoleDescriptor> roleDescriptors) {
-            for (RoleDescriptor roleDescriptor : roleDescriptors) {
-                final boolean hasPrivilegesOtherThanIndex = roleDescriptor.hasClusterPrivileges()
-                    || roleDescriptor.hasConfigurableClusterPrivileges()
-                    || roleDescriptor.hasApplicationPrivileges()
-                    || roleDescriptor.hasRunAs()
-                    || roleDescriptor.hasRemoteIndicesPrivileges();
-                if (hasPrivilegesOtherThanIndex) {
-                    throw new IllegalArgumentException(
-                        "role descriptor for cross cluster access can only contain index privileges "
-                            + "but other privileges found for subject ["
-                            + userPrincipal
-                            + "]"
-                    );
-                }
-            }
+        public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
+            resolver.resolveCrossClusterAccessRoleReference(this, listener);
+        }
+
+        public String getUserPrincipal() {
+            return userPrincipal;
         }
     }
 
@@ -196,10 +170,8 @@ public interface RoleReference {
         }
 
         @Override
-        protected void validateRoleDescriptors(Set<RoleDescriptor> roleDescriptors) {
-            // We set this value internally, independent of user input, so asserting is sufficient
-            assert Set.of(CrossClusterAccessUser.ROLE_DESCRIPTOR).equals(roleDescriptors)
-                : "unexpected role descriptors for internal cross cluster access user [" + roleDescriptors + "]";
+        public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
+            resolver.resolveCrossClusterAccessInternalRoleReference(this, listener);
         }
     }
 

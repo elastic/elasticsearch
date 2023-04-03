@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
+import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsInfoTransportAction;
@@ -209,6 +210,13 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
             indexModule.setIndexCommitListener(createIndexCommitListener());
+            indexModule.setDirectoryWrapper((in, shardRouting) -> {
+                if (shardRouting.isPromotableToPrimary()) {
+                    return new IndexDirectory(in);
+                } else {
+                    return in;
+                }
+            });
         }
         if (hasSearchRole) {
             indexModule.setDirectoryWrapper((in, shardRouting) -> {

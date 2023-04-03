@@ -44,11 +44,11 @@ GET _application/search_application/
 ----
 // TEST[skip:TBD]
 
-The following example lists the first three Search Applications matching `foo`:
+The following example lists the first three Search Applications whose names match the query String `app`:
 
 [source,console]
 ----
-GET _application/search_application/?from=0&size=3&q=foo
+GET _application/search_application/?from=0&size=3&q=app
 ----
 // TEST[skip:TBD]
 

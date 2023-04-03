@@ -1554,6 +1554,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
+        RemoteHostHeader.process(request, threadContext);
 
         final String requestId = randomRequestId();
         auditTrail.anonymousAccessDenied(requestId, request);
@@ -1656,6 +1657,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
         final AuthenticationToken authToken = createAuthenticationToken();
+        RemoteHostHeader.process(request, threadContext);
 
         final String requestId = randomRequestId();
         auditTrail.authenticationFailed(requestId, authToken, request);
@@ -1703,6 +1705,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
+        RemoteHostHeader.process(request, threadContext);
 
         final String requestId = randomRequestId();
         auditTrail.authenticationFailed(requestId, request);
@@ -1778,6 +1781,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final RestRequest request = tuple.v2();
         final AuthenticationToken authToken = mockToken();
         final String realm = randomAlphaOfLengthBetween(1, 6);
+        RemoteHostHeader.process(request, threadContext);
         final String requestId = randomRequestId();
         auditTrail.authenticationFailed(requestId, realm, authToken, request);
         assertEmptyLog(logger);
@@ -2164,6 +2168,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
+        RemoteHostHeader.process(request, threadContext);
         final String requestId = randomRequestId();
         auditTrail.tamperedRequest(requestId, request);
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
@@ -2444,18 +2449,20 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
-        final String requestId = randomRequestId();
+        String requestId = AuditUtil.generateRequestId(threadContext);
         MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         Authentication authentication = createAuthentication();
+        authentication.writeToContext(threadContext);
+        RemoteHostHeader.process(request, threadContext);
 
         // event by default disabled
-        auditTrail.authenticationSuccess(requestId, authentication, request);
+        auditTrail.authenticationSuccess(request);
         assertEmptyLog(logger);
 
         updateLoggerSettings(
             Settings.builder().put(this.settings).put("xpack.security.audit.logfile.events.include", "authentication_success").build()
         );
-        auditTrail.authenticationSuccess(requestId, authentication, request);
+        auditTrail.authenticationSuccess(request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
             .put(LoggingAuditTrail.REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName())
@@ -2476,11 +2483,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields.map());
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        threadContext.stashContext();
 
         // audit for authn with API Key
+        requestId = AuditUtil.generateRequestId(threadContext);
         authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
+        authentication.writeToContext(threadContext);
         checkedFields = new MapBuilder<>(commonFields);
-        auditTrail.authenticationSuccess(requestId, authentication, request);
+        RemoteHostHeader.process(request, threadContext);
+        auditTrail.authenticationSuccess(request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
             .put(LoggingAuditTrail.REALM_FIELD_NAME, "_es_api_key")
@@ -2501,11 +2512,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields.map());
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        threadContext.stashContext();
 
         // authentication success but run-as user does not exist
+        requestId = AuditUtil.generateRequestId(threadContext);
         authentication = AuthenticationTestHelper.builder().realm().build(false).runAs(new User(randomAlphaOfLengthBetween(3, 8)), null);
+        authentication.writeToContext(threadContext);
         checkedFields = new MapBuilder<>(commonFields);
-        auditTrail.authenticationSuccess(requestId, authentication, request);
+        RemoteHostHeader.process(request, threadContext);
+        auditTrail.authenticationSuccess(request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
             .put(LoggingAuditTrail.REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName())
@@ -2526,6 +2541,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields.map());
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        threadContext.stashContext();
     }
 
     public void testAuthenticationSuccessTransport() throws Exception {

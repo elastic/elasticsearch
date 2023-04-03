@@ -51,10 +51,18 @@ public final class ContentPath {
 
     public String pathAsText(String name) {
         sb.setLength(0);
-        for (int i = 0; i < index; i++) {
+        if (index == 0) {
+            return name;
+        }
+        if (index == 1 && path[0].equals(name)) {
+            return name;
+        }
+        for (int i = 0; i < index - 1; i++) {
             sb.append(path[i]).append(DELIMITER);
         }
-        sb.append(name);
+        if (!path[index - 1].equals(name)) {
+            sb.append(name);
+        }
         return sb.toString();
     }
 

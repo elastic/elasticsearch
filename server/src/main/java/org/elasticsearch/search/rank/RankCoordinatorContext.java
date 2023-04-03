@@ -21,14 +21,16 @@ import java.util.List;
  * results on the coordinator and then set the rank for any
  * search hits that are found.
  */
-public abstract class RankContext {
+public abstract class RankCoordinatorContext {
 
     protected final int size;
     protected final int from;
+    protected final int windowSize;
 
-    public RankContext(int size, int from) {
+    public RankCoordinatorContext(int size, int from, int windowSize) {
         this.size = size;
         this.from = from;
+        this.windowSize = windowSize;
     }
 
     /**

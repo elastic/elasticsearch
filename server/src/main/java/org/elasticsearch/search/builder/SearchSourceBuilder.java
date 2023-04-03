@@ -35,7 +35,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rank.RankContextBuilder;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -135,7 +135,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private List<KnnSearchBuilder> knnSearch = new ArrayList<>();
 
-    private RankContextBuilder<?> rankContextBuilder = null;
+    private RankBuilder<?> rankBuilder = null;
 
     private int from = -1;
 
@@ -262,7 +262,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            rankContextBuilder = in.readOptionalNamedWriteable(RankContextBuilder.class);
+            rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         }
     }
 
@@ -346,7 +346,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            out.writeOptionalNamedWriteable(rankContextBuilder);
+            out.writeOptionalNamedWriteable(rankBuilder);
         }
     }
 
@@ -400,13 +400,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return Collections.unmodifiableList(knnSearch);
     }
 
-    public SearchSourceBuilder rankContextBuilder(RankContextBuilder<?> rankContextBuilder) {
-        this.rankContextBuilder = rankContextBuilder;
+    public SearchSourceBuilder rankContextBuilder(RankBuilder<?> rankBuilder) {
+        this.rankBuilder = rankBuilder;
         return this;
     }
 
-    public RankContextBuilder<?> rankContextBuilder() {
-        return rankContextBuilder;
+    public RankBuilder<?> rankContextBuilder() {
+        return rankBuilder;
     }
 
     /**
@@ -1146,7 +1146,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.minScore = minScore;
         rewrittenBuilder.postQueryBuilder = postQueryBuilder;
         rewrittenBuilder.knnSearch = knnSearch;
-        rewrittenBuilder.rankContextBuilder = rankContextBuilder;
+        rewrittenBuilder.rankBuilder = rankBuilder;
         rewrittenBuilder.profile = profile;
         rewrittenBuilder.queryBuilder = queryBuilder;
         rewrittenBuilder.rescoreBuilders = rescoreBuilders;
@@ -1286,7 +1286,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                             "unexpected start token [" + token + "] for [" + RANK_FIELD.getPreferredName() + "]"
                         );
                     }
-                    rankContextBuilder = parser.namedObject(RankContextBuilder.class, parser.currentName(), null);
+                    rankBuilder = parser.namedObject(RankBuilder.class, parser.currentName(), null);
                     if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -1541,8 +1541,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.endArray();
         }
 
-        if (rankContextBuilder != null) {
-            builder.field(RANK_FIELD.getPreferredName(), rankContextBuilder);
+        if (rankBuilder != null) {
+            builder.field(RANK_FIELD.getPreferredName(), rankBuilder);
         }
 
         if (minScore != null) {
@@ -1921,7 +1921,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             postQueryBuilder,
             queryBuilder,
             knnSearch,
-            rankContextBuilder,
+            rankBuilder,
             rescoreBuilders,
             scriptFields,
             size,
@@ -1966,7 +1966,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(postQueryBuilder, other.postQueryBuilder)
             && Objects.equals(queryBuilder, other.queryBuilder)
             && Objects.equals(knnSearch, other.knnSearch)
-            && Objects.equals(rankContextBuilder, other.rankContextBuilder)
+            && Objects.equals(rankBuilder, other.rankBuilder)
             && Objects.equals(rescoreBuilders, other.rescoreBuilders)
             && Objects.equals(scriptFields, other.scriptFields)
             && Objects.equals(size, other.size)

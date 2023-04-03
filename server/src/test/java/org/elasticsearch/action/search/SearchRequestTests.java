@@ -260,7 +260,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         /*{
             SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankBuilder())
                     .query(QueryBuilders.termQuery("field", "term"))
                     .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
             ).scroll(new TimeValue(1000));
@@ -271,7 +271,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankBuilder())
                     .query(QueryBuilders.termQuery("field", "term"))
                     .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
                     .size(0)
@@ -283,7 +283,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankBuilder())
                     .query(QueryBuilders.termQuery("field", "term"))
                     .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
                     .addRescorer(new QueryRescorerBuilder(QueryBuilders.termQuery("rescore", "another term")))
@@ -295,7 +295,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankBuilder())
                     .query(QueryBuilders.termQuery("field", "term"))
                     .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
                     .sort("test")
@@ -307,7 +307,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankBuilder())
                     .query(QueryBuilders.termQuery("field", "term"))
                     .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
                     .collapse(new CollapseBuilder("field"))
@@ -319,7 +319,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankBuilder())
                     .query(QueryBuilders.termQuery("field", "term"))
                     .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
                     .suggest(new SuggestBuilder().setGlobalText("test").addSuggestion("suggestion", new TermSuggestionBuilder("term")))
@@ -331,7 +331,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankBuilder())
                     .query(QueryBuilders.termQuery("field", "term"))
                     .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
                     .highlighter(new HighlightBuilder().field("field"))
@@ -343,7 +343,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankBuilder())
                     .query(QueryBuilders.termQuery("field", "term"))
                     .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
                     .pointInTimeBuilder(new PointInTimeBuilder("test"))
@@ -355,7 +355,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankBuilder())
                     .query(QueryBuilders.termQuery("field", "term"))
                     .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
                     .profile(true)
@@ -367,7 +367,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankContextBuilder(new RRFRankContextBuilder())
+                new SearchSourceBuilder().rankContextBuilder(new RRFRankBuilder())
                     .query(QueryBuilders.termQuery("field", "term"))
                     .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
                     .explain(true)

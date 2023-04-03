@@ -38,7 +38,7 @@ import java.util.Objects;
  * of ranking input, but instead generated from their respective values within a search
  * query. We cannot generate the list of queries until after any kNN queries are executed.
  */
-public abstract class RankContextBuilder<RCB extends RankContextBuilder<RCB>> implements VersionedNamedWriteable, ToXContentObject {
+public abstract class RankBuilder<RCB extends RankBuilder<RCB>> implements VersionedNamedWriteable, ToXContentObject {
 
     public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
 
@@ -46,9 +46,9 @@ public abstract class RankContextBuilder<RCB extends RankContextBuilder<RCB>> im
 
     protected int windowSize = DEFAULT_WINDOW_SIZE;
 
-    public RankContextBuilder() {}
+    public RankBuilder() {}
 
-    public RankContextBuilder(StreamInput in) throws IOException {
+    public RankBuilder(StreamInput in) throws IOException {
         windowSize = in.readVInt();
     }
 
@@ -91,11 +91,6 @@ public abstract class RankContextBuilder<RCB extends RankContextBuilder<RCB>> im
     }
 
     /**
-     * Generates the query used for aggregations and suggesters.
-     */
-    public abstract QueryBuilder searchQuery(List<QueryBuilder> queryBuilders);
-
-    /**
      * Generates a context used to execute required searches on the shard.
      */
     public abstract RankShardContext build(List<Query> queries, int size, int from);
@@ -103,7 +98,7 @@ public abstract class RankContextBuilder<RCB extends RankContextBuilder<RCB>> im
     /**
      * Generates a context used to perform global ranking on the coordinator.
      */
-    public abstract RankContext build(int size, int from);
+    public abstract RankCoordinatorContext build(int size, int from);
 
     @Override
     public final boolean equals(Object obj) {

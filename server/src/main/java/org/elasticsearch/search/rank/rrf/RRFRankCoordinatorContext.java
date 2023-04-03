@@ -15,7 +15,7 @@ import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankContext;
+import org.elasticsearch.search.rank.RankCoordinatorContext;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,14 +27,12 @@ import static org.elasticsearch.search.rank.rrf.RRFRankDoc.NO_RANK;
 /**
  * Ranks and decorates search hits for RRF results on the coordinator.
  */
-public class RRFRankContext extends RankContext {
+public class RRFRankCoordinatorContext extends RankCoordinatorContext {
 
-    private final int windowSize;
     private final int rankConstant;
 
-    public RRFRankContext(int size, int from, int windowSize, int rankConstant) {
-        super(size, from);
-        this.windowSize = windowSize;
+    public RRFRankCoordinatorContext(int size, int from, int windowSize, int rankConstant) {
+        super(size, from, windowSize);
         this.rankConstant = rankConstant;
     }
 

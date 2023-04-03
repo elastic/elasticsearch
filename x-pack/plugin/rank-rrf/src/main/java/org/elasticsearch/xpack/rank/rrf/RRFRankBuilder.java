@@ -12,13 +12,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.rank.RankContext;
-import org.elasticsearch.search.rank.RankContextBuilder;
+import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankShardContext;
-import org.elasticsearch.search.rank.rrf.RRFRankContext;
+import org.elasticsearch.search.rank.rrf.RRFRankCoordinatorContext;
 import org.elasticsearch.search.rank.rrf.RRFRankShardContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -35,7 +33,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * The builder to support RRF. Adds user-defined parameters for window size and rank constant.
  */
-public class RRFRankContextBuilder extends RankContextBuilder<RRFRankContextBuilder> {
+public class RRFRankBuilder extends RankBuilder<RRFRankBuilder> {
 
     public static final String NAME = "rrf";
 
@@ -43,8 +41,8 @@ public class RRFRankContextBuilder extends RankContextBuilder<RRFRankContextBuil
 
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
-    private static final ConstructingObjectParser<RRFRankContextBuilder, Void> PARSER = new ConstructingObjectParser<>("rrf", args -> {
-        RRFRankContextBuilder builder = new RRFRankContextBuilder();
+    private static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>("rrf", args -> {
+        RRFRankBuilder builder = new RRFRankBuilder();
         builder.windowSize(args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0]);
         builder.rankConstant(args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1]);
         return builder;
@@ -55,7 +53,7 @@ public class RRFRankContextBuilder extends RankContextBuilder<RRFRankContextBuil
         PARSER.declareInt(optionalConstructorArg(), RANK_CONSTANT_FIELD);
     }
 
-    public static RRFRankContextBuilder fromXContent(XContentParser parser) throws IOException {
+    public static RRFRankBuilder fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -66,9 +64,9 @@ public class RRFRankContextBuilder extends RankContextBuilder<RRFRankContextBuil
 
     protected int rankConstant = DEFAULT_RANK_CONSTANT;
 
-    public RRFRankContextBuilder() {}
+    public RRFRankBuilder() {}
 
-    public RRFRankContextBuilder(StreamInput in) throws IOException {
+    public RRFRankBuilder(StreamInput in) throws IOException {
         super(in);
         rankConstant = in.readVInt();
     }
@@ -109,7 +107,7 @@ public class RRFRankContextBuilder extends RankContextBuilder<RRFRankContextBuil
         return TransportVersion.V_8_8_0;
     }
 
-    public RRFRankContextBuilder rankConstant(int rankConstant) {
+    public RRFRankBuilder rankConstant(int rankConstant) {
         this.rankConstant = rankConstant;
         return this;
     }
@@ -118,32 +116,18 @@ public class RRFRankContextBuilder extends RankContextBuilder<RRFRankContextBuil
         return rankConstant;
     }
 
-    /**
-     * RRF builds a simple boolean disjunction for all queries when
-     * building aggregations and suggesters.
-     */
-    @Override
-    public QueryBuilder searchQuery(List<QueryBuilder> queryBuilders) {
-        BoolQueryBuilder searchQuery = new BoolQueryBuilder();
-        for (QueryBuilder queryBuilder : queryBuilders) {
-            searchQuery.should(queryBuilder);
-        }
-
-        return searchQuery;
-    }
-
     @Override
     public RankShardContext build(List<Query> queries, int size, int from) {
         return new RRFRankShardContext(queries, size, from, windowSize, rankConstant);
     }
 
     @Override
-    public RankContext build(int size, int from) {
-        return new RRFRankContext(size, from, windowSize, rankConstant);
+    public RankCoordinatorContext build(int size, int from) {
+        return new RRFRankCoordinatorContext(size, from, windowSize, rankConstant);
     }
 
     @Override
-    protected boolean doEquals(RRFRankContextBuilder other) {
+    protected boolean doEquals(RRFRankBuilder other) {
         return Objects.equals(rankConstant, other.rankConstant);
     }
 

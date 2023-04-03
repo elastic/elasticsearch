@@ -45,6 +45,8 @@ plugins {
   id 'elasticsearch.run-ccs'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
+  id 'jacoco-report-aggregation'
+
 }
 
 /**
@@ -157,6 +159,19 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
 subprojects { proj ->
   apply plugin: 'elasticsearch.base'
 }
+
+dependencies {
+  jacocoAggregation project(':server')
+}
+
+reporting {
+  reports {
+    testCodeCoverageReport(JacocoCoverageReport) {
+      testType = TestSuiteType.UNIT_TEST
+    }
+  }
+}
+
 
 allprojects {
   // We disable this plugin for now till we shaked out the issues we see

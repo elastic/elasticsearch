@@ -13,6 +13,9 @@ import org.elasticsearch.rest.RestRequest;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A slim interface for HTTP requests, which doesn't expose access to the request's body.
+ */
 public interface HttpRequestLineAndHeaders {
 
     /**

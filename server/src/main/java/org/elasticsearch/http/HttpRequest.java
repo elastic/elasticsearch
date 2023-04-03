@@ -17,7 +17,8 @@ import java.util.List;
 
 /**
  * A basic http request abstraction. Http modules needs to implement this interface to integrate with the
- * server package's rest handling.
+ * server package's rest handling. This interface exposes the request's content as well as methods to be used
+ * to generate a response.
  */
 public interface HttpRequest extends HttpRequestLineAndHeaders {
 

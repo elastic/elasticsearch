@@ -69,6 +69,7 @@ PUT _ilm/policy/my_policy
 }
 --------------------------------------------------
 // TESTSETUP
+
 [source,console]
 --------------------------------------------------
 DELETE _ilm/policy/my_policy
@@ -80,8 +81,6 @@ DELETE _ilm/policy/my_policy
 --------------------------------------------------
 GET _ilm/policy/my_policy
 --------------------------------------------------
-// TEST[continued]
-
 
 If the request succeeds, the body of the response contains the policy definition:
 

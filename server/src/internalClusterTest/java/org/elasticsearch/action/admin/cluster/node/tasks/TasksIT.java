@@ -488,14 +488,12 @@ public class TasksIT extends ESIntegTestCase {
             if (index != null) {
                 index.join();
             }
-            assertBusy(
-                () -> {
-                    assertEquals(
-                        emptyList(),
-                        client().admin().cluster().prepareListTasks().setActions("indices:data/write/index*").get().getTasks()
-                    );
-                }
-            );
+            assertBusy(() -> {
+                assertEquals(
+                    emptyList(),
+                    client().admin().cluster().prepareListTasks().setActions("indices:data/write/index*").get().getTasks()
+                );
+            });
         }
     }
 

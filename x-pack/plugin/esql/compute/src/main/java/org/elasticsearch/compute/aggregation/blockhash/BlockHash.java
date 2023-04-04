@@ -28,8 +28,8 @@ import java.util.List;
  * @see BytesRefHash
  */
 public abstract sealed class BlockHash implements Releasable //
-permits BooleanBlockHash,BytesRefBlockHash,DoubleBlockHash,IntBlockHash,LongBlockHash,//
-PackedValuesBlockHash,BytesRefLongBlockHash,LongLongBlockHash {
+permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash,//
+PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash {
     /**
      * Add all values for the "group by" columns in the page to the hash and return
      * their ordinal in a LongBlock.

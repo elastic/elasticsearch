@@ -268,7 +268,7 @@ public class StatementParserTests extends ESTestCase {
                 assertThat(filter.children().size(), equalTo(1));
                 assertThat(filter.condition(), instanceOf(expectedOperators[i]));
                 BinaryComparison comparison;
-                if (filter.condition()instanceof Not not) {
+                if (filter.condition() instanceof Not not) {
                     assertThat(not.children().get(0), instanceOf(Equals.class));
                     comparison = (BinaryComparison) (not.children().get(0));
                 } else {

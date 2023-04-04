@@ -161,7 +161,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             var groupNames = Expressions.names(groupings);
 
             for (NamedExpression aggregate : aggregates) {
-                if (aggregate instanceof Alias a && a.child()instanceof UnresolvedAttribute ua && groupNames.contains(ua.name())) {
+                if (aggregate instanceof Alias a && a.child() instanceof UnresolvedAttribute ua && groupNames.contains(ua.name())) {
                     throw new ParsingException(ua.source(), "Cannot specify grouping expression [{}] as an aggregate", ua.name());
                 }
             }

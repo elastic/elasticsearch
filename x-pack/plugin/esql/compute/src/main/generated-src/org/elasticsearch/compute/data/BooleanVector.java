@@ -11,7 +11,7 @@ package org.elasticsearch.compute.data;
  * Vector that stores boolean values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BooleanVector extends Vector permits ConstantBooleanVector,FilterBooleanVector,BooleanArrayVector {
+public sealed interface BooleanVector extends Vector permits ConstantBooleanVector, FilterBooleanVector, BooleanArrayVector {
 
     boolean getBoolean(int position);
 

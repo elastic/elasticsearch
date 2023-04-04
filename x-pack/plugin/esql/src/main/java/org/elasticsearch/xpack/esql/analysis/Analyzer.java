@@ -327,7 +327,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             rename.renamings().forEach(alias -> {
                 // skip NOPs: `| rename a = a`
-                if (alias.child()instanceof UnresolvedAttribute ua && alias.name().equals(ua.name()) == false) {
+                if (alias.child() instanceof UnresolvedAttribute ua && alias.name().equals(ua.name()) == false) {
                     // remove attributes overwritten by a renaming: `| project a, b, c | rename b = a`
                     projections.removeIf(x -> x.name().equals(alias.name()));
 
@@ -343,7 +343,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         if (reverseAliasing.containsValue(resolved.name())) {
                             for (var li = projections.listIterator(); li.hasNext();) {
                                 // does alias still exist? i.e. it hasn't been renamed again (`| rename b=a, c=b, d=b`)
-                                if (li.next()instanceof Alias a && a.name().equals(resolved.name())) {
+                                if (li.next() instanceof Alias a && a.name().equals(resolved.name())) {
                                     reverseAliasing.put(resolved.name(), alias.name());
                                     // update aliased projection in place
                                     li.set((NamedExpression) alias.replaceChildren(a.children()));

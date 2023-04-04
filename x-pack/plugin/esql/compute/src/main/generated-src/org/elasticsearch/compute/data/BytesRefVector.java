@@ -13,7 +13,7 @@ import org.apache.lucene.util.BytesRef;
  * Vector that stores BytesRef values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector,FilterBytesRefVector,BytesRefArrayVector {
+public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, FilterBytesRefVector, BytesRefArrayVector {
 
     BytesRef getBytesRef(int position, BytesRef dest);
 

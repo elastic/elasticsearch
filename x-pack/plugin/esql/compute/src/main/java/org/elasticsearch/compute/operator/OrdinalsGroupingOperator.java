@@ -114,7 +114,7 @@ public class OrdinalsGroupingOperator implements Operator {
         }
         final int shardIndex = docVector.shards().getInt(0);
         final var source = sources.get(shardIndex);
-        if (docVector.singleSegmentNonDecreasing() && source.source()instanceof ValuesSource.Bytes.WithOrdinals withOrdinals) {
+        if (docVector.singleSegmentNonDecreasing() && source.source() instanceof ValuesSource.Bytes.WithOrdinals withOrdinals) {
             final IntVector segmentIndexVector = docVector.segments();
             assert segmentIndexVector.isConstant();
             final OrdinalSegmentAggregator ordinalAggregator = this.ordinalAggregators.computeIfAbsent(

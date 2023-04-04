@@ -15,7 +15,7 @@ $endif$
  * Vector that stores $type$ values.
  * This class is generated. Do not edit it.
  */
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector,Filter$Type$Vector,$Type$ArrayVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector {
 
 $if(BytesRef)$
     BytesRef getBytesRef(int position, BytesRef dest);

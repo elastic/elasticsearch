@@ -276,7 +276,7 @@ public class LocalExecutionPlanner {
 
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
             int sortByChannel;
-            if (order.child()instanceof Attribute a) {
+            if (order.child() instanceof Attribute a) {
                 sortByChannel = source.layout.getChannel(a.id());
             } else {
                 throw new UnsupportedOperationException();
@@ -290,7 +290,7 @@ public class LocalExecutionPlanner {
         }).toList();
 
         int limit;
-        if (topNExec.limit()instanceof Literal literal) {
+        if (topNExec.limit() instanceof Literal literal) {
             limit = Integer.parseInt(literal.value().toString());
         } else {
             throw new UnsupportedOperationException();

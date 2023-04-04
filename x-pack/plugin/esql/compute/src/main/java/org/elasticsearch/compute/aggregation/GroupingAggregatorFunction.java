@@ -79,36 +79,36 @@ public interface GroupingAggregatorFunction extends Releasable {
     static Factory of(AggregationName name, AggregationType type) {
         return switch (type) {
             case agnostic -> switch (name) {
-                    case count -> COUNT;
-                    default -> throw new IllegalArgumentException("unknown " + name + ", type:" + type);
-                };
+                case count -> COUNT;
+                default -> throw new IllegalArgumentException("unknown " + name + ", type:" + type);
+            };
             case ints -> switch (name) {
-                    case avg -> AVG_INTS;
-                    case count -> COUNT;
-                    case max -> MAX_INTS;
-                    case median -> MEDIAN_INTS;
-                    case median_absolute_deviation -> MEDIAN_ABSOLUTE_DEVIATION_INTS;
-                    case min -> MIN_INTS;
-                    case sum -> SUM_INTS;
-                };
+                case avg -> AVG_INTS;
+                case count -> COUNT;
+                case max -> MAX_INTS;
+                case median -> MEDIAN_INTS;
+                case median_absolute_deviation -> MEDIAN_ABSOLUTE_DEVIATION_INTS;
+                case min -> MIN_INTS;
+                case sum -> SUM_INTS;
+            };
             case longs -> switch (name) {
-                    case avg -> AVG_LONGS;
-                    case count -> COUNT;
-                    case max -> MAX_LONGS;
-                    case median -> MEDIAN_LONGS;
-                    case median_absolute_deviation -> MEDIAN_ABSOLUTE_DEVIATION_LONGS;
-                    case min -> MIN_LONGS;
-                    case sum -> SUM_LONGS;
-                };
+                case avg -> AVG_LONGS;
+                case count -> COUNT;
+                case max -> MAX_LONGS;
+                case median -> MEDIAN_LONGS;
+                case median_absolute_deviation -> MEDIAN_ABSOLUTE_DEVIATION_LONGS;
+                case min -> MIN_LONGS;
+                case sum -> SUM_LONGS;
+            };
             case doubles -> switch (name) {
-                    case avg -> AVG_DOUBLES;
-                    case count -> COUNT;
-                    case max -> MAX_DOUBLES;
-                    case median -> MEDIAN_DOUBLES;
-                    case median_absolute_deviation -> MEDIAN_ABSOLUTE_DEVIATION_DOUBLES;
-                    case min -> MIN_DOUBLES;
-                    case sum -> SUM_DOUBLES;
-                };
+                case avg -> AVG_DOUBLES;
+                case count -> COUNT;
+                case max -> MAX_DOUBLES;
+                case median -> MEDIAN_DOUBLES;
+                case median_absolute_deviation -> MEDIAN_ABSOLUTE_DEVIATION_DOUBLES;
+                case min -> MIN_DOUBLES;
+                case sum -> SUM_DOUBLES;
+            };
         };
     }
 

@@ -463,7 +463,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         @Override
         protected PhysicalPlan rule(FilterExec filterExec) {
             PhysicalPlan plan = filterExec;
-            if (filterExec.child()instanceof EsQueryExec queryExec) {
+            if (filterExec.child() instanceof EsQueryExec queryExec) {
                 List<Expression> pushable = new ArrayList<>();
                 List<Expression> nonPushable = new ArrayList<>();
                 for (Expression exp : splitAnd(filterExec.condition())) {
@@ -512,7 +512,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
             PhysicalPlan child = limitExec.child();
             if (child instanceof EsQueryExec queryExec) { // add_task_parallelism_above_query: false
                 plan = queryExec.withLimit(limitExec.limit());
-            } else if (child instanceof ExchangeExec exchangeExec && exchangeExec.child()instanceof EsQueryExec queryExec) {
+            } else if (child instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec queryExec) {
                 plan = exchangeExec.replaceChild(queryExec.withLimit(limitExec.limit()));
             }
             return plan;
@@ -531,7 +531,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                 var sorts = buildFieldSorts(topNExec.order());
                 var limit = topNExec.limit();
 
-                if (child instanceof ExchangeExec exchangeExec && exchangeExec.child()instanceof EsQueryExec queryExec) {
+                if (child instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec queryExec) {
                     plan = exchangeExec.replaceChild(queryExec.withSorts(sorts).withLimit(limit));
                 } else {
                     plan = ((EsQueryExec) child).withSorts(sorts).withLimit(limit);

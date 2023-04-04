@@ -28,8 +28,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -94,9 +92,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.singletonList(
-            new ActionHandler<>(GrokProcessorGetAction.INSTANCE, GrokProcessorGetAction.TransportAction.class)
-        );
+        return List.of(new ActionHandler<>(GrokProcessorGetAction.INSTANCE, GrokProcessorGetAction.TransportAction.class));
     }
 
     @Override
@@ -109,12 +105,12 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return Collections.singletonList(new GrokProcessorGetAction.RestAction());
+        return List.of(new GrokProcessorGetAction.RestAction());
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(WATCHDOG_INTERVAL, WATCHDOG_MAX_EXECUTION_TIME);
+        return List.of(WATCHDOG_INTERVAL, WATCHDOG_MAX_EXECUTION_TIME);
     }
 
     private static MatcherWatchdog createGrokThreadWatchdog(Processor.Parameters parameters) {

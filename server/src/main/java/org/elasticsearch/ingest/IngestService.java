@@ -363,7 +363,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     static List<PipelineConfiguration> innerGetPipelines(IngestMetadata ingestMetadata, String... ids) {
         if (ingestMetadata == null) {
-            return Collections.emptyList();
+            return List.of();
         }
 
         // if we didn't ask for _any_ ID, then we get them all (this is the same as if they ask for '*')

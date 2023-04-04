@@ -22,11 +22,16 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleOriginationDateParser;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
@@ -35,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -44,6 +50,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.Closeable;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -81,6 +88,22 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private volatile RolloverConditions rolloverConditions;
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
+    private final MasterServiceTaskQueue<DataLifecycleClusterStateUpdateTask> taskQueue;
+
+    private static final SimpleBatchedExecutor<DataLifecycleClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR =
+        new SimpleBatchedExecutor<>() {
+            @Override
+            public Tuple<ClusterState, Void> executeTask(DataLifecycleClusterStateUpdateTask task, ClusterState clusterState)
+                throws Exception {
+                return Tuple.tuple(task.execute(clusterState), null);
+            }
+
+            @Override
+            public void taskSucceeded(DataLifecycleClusterStateUpdateTask task, Void unused) {
+                logger.info("Updated cluster state");
+                task.listener.onResponse(null);
+            }
+        };
 
     public DataLifecycleService(
         Settings settings,
@@ -101,6 +124,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.scheduledJob = null;
         this.pollInterval = DLM_POLL_INTERVAL_SETTING.get(settings);
         this.rolloverConditions = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
+        this.taskQueue = clusterService.createTaskQueue("DataLifecycleService-clusterstate", Priority.HIGH, STATE_UPDATE_TASK_EXECUTOR);
     }
 
     /**
@@ -150,9 +174,24 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         if (event.getJobName().equals(DATA_LIFECYCLE_JOB_NAME)) {
             if (this.isMaster) {
                 logger.trace("DLM job triggered: {}, {}, {}", event.getJobName(), event.getScheduledTime(), event.getTriggeredTime());
-                run(clusterService.state());
+                maybeParseOriginationDatesAndRun(clusterService.state());
             }
         }
+    }
+
+    void maybeParseOriginationDatesAndRun(ClusterState state) {
+        maybeParseOriginationDates(state, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                run(clusterService.state());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("Error updating origination dates on indices, running DLM on other indices");
+                run(clusterService.state());
+            }
+        });
     }
 
     /**
@@ -193,6 +232,56 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 );
             }
         }
+    }
+
+    private void maybeParseOriginationDates(ClusterState state, ActionListener<Void> listener) {
+        Metadata metadata = state.metadata();
+        taskQueue.submitTask(
+            Strings.format("Parsing origination dates from index names"),
+            new DataLifecycleClusterStateUpdateTask(listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    List<IndexMetadata.Builder> updatedIndexMetadata = new ArrayList<>();
+                    for (DataStream dataStream : state.metadata().dataStreams().values()) {
+                        if (dataStream.getLifecycle() == null) {
+                            continue;
+                        }
+                        for (Index index : dataStream.getIndices()) {
+                            if (dataStream.isIndexManagedByDLM(index, state.metadata()::index)) {
+                                IndexMetadata indexMetadata = metadata.index(index.getName());
+                                if (LifecycleOriginationDateParser.shouldParseIndexName(indexMetadata.getSettings())) {
+                                    try {
+                                        long parsedDate = LifecycleOriginationDateParser.parseIndexNameAndExtractDate(index.getName());
+                                        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
+                                        indexMetadataBuilder.settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                                            .settings(
+                                                Settings.builder()
+                                                    .put(indexMetadata.getSettings())
+                                                    .put(DataStream.LIFECYCLE_ORIGINATION_DATE, parsedDate)
+                                                    .build()
+                                            );
+                                        updatedIndexMetadata.add(indexMetadataBuilder);
+                                    } catch (IllegalArgumentException e) {
+                                        logger.warn("Unable to parse date from index name [{}]", index.getName());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (updatedIndexMetadata.isEmpty()) {
+                        return currentState;
+                    } else {
+                        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
+                        for (IndexMetadata.Builder indexMetadataBuilder : updatedIndexMetadata) {
+                            metadataBuilder.put(indexMetadataBuilder);
+                        }
+                        return ClusterState.builder(state).metadata(metadataBuilder).build();
+                    }
+                }
+            },
+            null
+        );
+
     }
 
     /**
@@ -411,5 +500,20 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     // package visibility for testing
     DataLifecycleErrorStore getErrorStore() {
         return errorStore;
+    }
+
+    private abstract static class DataLifecycleClusterStateUpdateTask implements ClusterStateTaskListener {
+        final ActionListener<Void> listener;
+
+        DataLifecycleClusterStateUpdateTask(ActionListener<Void> listener) {
+            this.listener = listener;
+        }
+
+        public abstract ClusterState execute(ClusterState currentState) throws Exception;
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
     }
 }

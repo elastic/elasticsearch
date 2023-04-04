@@ -241,7 +241,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             null,
             null,
-            () -> { throw new AssertionError(); },
+            () -> {
+                throw new AssertionError();
+            },
             null,
             null,
             null,
@@ -288,7 +290,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             null,
             null,
-            () -> { throw new AssertionError(); },
+            () -> {
+                throw new AssertionError();
+            },
             null,
             null,
             null,

@@ -14,25 +14,27 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A slim interface for HTTP requests, which doesn't expose access to the request's body.
+ * A slim interface for precursors to HTTP requests, which doesn't expose access to the request's body,
+ * because it's not available yet.
  */
 public interface HttpPreRequest {
 
     /**
      * Returns the HTTP method used in the HTTP request.
      *
-     * @return the {@link RestRequest.Method} used in the REST request
+     * @return the {@link RestRequest.Method} used in the request
      * @throws IllegalArgumentException if the HTTP method is invalid
      */
     RestRequest.Method method();
 
     /**
-     * The uri of the rest request, with the query string.
+     * The uri with the query string.
      */
     String uri();
 
     /**
-     * Get all of the headers and values associated with the headers. Modifications of this map are not supported.
+     * Get all of the headers and values associated with the HTTP headers.
+     * Modifications of this map are not supported.
      */
     Map<String, List<String>> getHeaders();
 

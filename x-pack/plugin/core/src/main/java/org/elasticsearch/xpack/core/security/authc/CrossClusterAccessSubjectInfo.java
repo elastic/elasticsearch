@@ -90,7 +90,7 @@ public final class CrossClusterAccessSubjectInfo {
     public CrossClusterAccessSubjectInfo cleanWithValidation() {
         // Need to do this first, since otherwise `copyWithFilteredMetadataFields` may fail with a confusing error message for unsupported
         // types
-        ensureSupportedSubjectType(getAuthentication().getEffectiveSubject());
+        ensureSupportedSubjectType();
         final var cleanCopy = new CrossClusterAccessSubjectInfo(
             getAuthentication().copyWithFilteredMetadataFields(AUTHENTICATION_METADATA_FIELDS_TO_KEEP),
             roleDescriptorsBytesList
@@ -181,7 +181,8 @@ public final class CrossClusterAccessSubjectInfo {
         return Collections.unmodifiableMap(copy);
     }
 
-    private void ensureSupportedSubjectType(Subject effectiveSubject) {
+    private void ensureSupportedSubjectType() {
+        final Subject effectiveSubject = authentication.getEffectiveSubject();
         if (false == effectiveSubject.getType().equals(Subject.Type.USER)
             && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)
             && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)) {
@@ -196,11 +197,10 @@ public final class CrossClusterAccessSubjectInfo {
     }
 
     private void validate() {
+        ensureSupportedSubjectType();
         final Authentication authentication = getAuthentication();
-        final Subject effectiveSubject = authentication.getEffectiveSubject();
-        ensureSupportedSubjectType(effectiveSubject);
         authentication.checkConsistency();
-        final User user = effectiveSubject.getUser();
+        final User user = authentication.getEffectiveSubject().getUser();
         if (CrossClusterAccessUser.is(user)) {
             if (false == getRoleDescriptorsBytesList().isEmpty()) {
                 logger.warn(

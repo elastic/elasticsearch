@@ -492,9 +492,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
-            SourceProvider sourceProvider = isSourceSynthetic()
-                ? (ctx, doc) -> { throw new IllegalArgumentException("Cannot access source from scripts in synthetic mode"); }
-                : SourceProvider.fromStoredFields();
+            SourceProvider sourceProvider = isSourceSynthetic() ? (ctx, doc) -> {
+                throw new IllegalArgumentException("Cannot access source from scripts in synthetic mode");
+            } : SourceProvider.fromStoredFields();
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }
         return this.lookup;

@@ -208,14 +208,12 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("not_a_number");
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> testCase(
-                iw -> { iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo")))); },
-                (Consumer<InternalBoxplot>) boxplot -> { fail("Should have thrown exception"); },
-                new AggTestConfig(aggregationBuilder, fieldType)
-            )
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
+            iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
+        },
+            (Consumer<InternalBoxplot>) boxplot -> { fail("Should have thrown exception"); },
+            new AggTestConfig(aggregationBuilder, fieldType)
+        ));
         assertEquals(e.getMessage(), "Field [not_a_number] of type [keyword] " + "is not supported for aggregation [boxplot]");
     }
 

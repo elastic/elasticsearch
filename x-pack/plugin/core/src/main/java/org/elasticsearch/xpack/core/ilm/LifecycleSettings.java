@@ -52,7 +52,6 @@ public class LifecycleSettings {
         Setting.Property.Dynamic,
         Setting.Property.IndexScope
     );
-
     public static final Setting<Boolean> LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING = Setting.boolSetting(
         LIFECYCLE_HISTORY_INDEX_ENABLED,
         true,

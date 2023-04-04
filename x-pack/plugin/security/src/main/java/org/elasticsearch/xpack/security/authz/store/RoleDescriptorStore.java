@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceResolver;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
@@ -145,7 +144,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                     + "but other privileges found for subject ["
                     + crossClusterAccessRoleReference.getUserPrincipal()
                     + "]";
-                logger.debug("{}. The invalid role descriptor is [{}]", message, roleDescriptor);
+                logger.debug("{}. Invalid role descriptor: [{}]", message, roleDescriptor);
                 listener.onFailure(new IllegalArgumentException(message));
                 return;
             }
@@ -170,20 +169,6 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             || roleDescriptor.hasApplicationPrivileges()
             || roleDescriptor.hasRunAs()
             || roleDescriptor.hasRemoteIndicesPrivileges();
-    }
-
-    @Override
-    public void resolveCrossClusterAccessInternalRoleReference(
-        RoleReference.CrossClusterAccessInternalRoleReference crossClusterAccessRoleReference,
-        ActionListener<RolesRetrievalResult> listener
-    ) {
-        final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
-        // We set this value internally, independent of user input, so asserting is sufficient
-        assert Set.of(CrossClusterAccessUser.ROLE_DESCRIPTOR).equals(roleDescriptors)
-            : "unexpected role descriptors for internal cross cluster access user [" + roleDescriptors + "]";
-        final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
-        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
-        listener.onResponse(rolesRetrievalResult);
     }
 
     private void resolveRoleNames(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {

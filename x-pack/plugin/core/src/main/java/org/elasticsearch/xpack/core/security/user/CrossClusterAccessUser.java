@@ -56,23 +56,11 @@ public class CrossClusterAccessUser extends User {
         return INSTANCE.equals(user);
     }
 
-    public static CrossClusterAccessSubjectInfo subjectInfoWithRoleDescriptors(TransportVersion transportVersion, String nodeName) {
-        return subjectInfo(transportVersion, nodeName, new RoleDescriptorsIntersection(ROLE_DESCRIPTOR));
-    }
-
-    public static CrossClusterAccessSubjectInfo subjectInfoWithEmptyRoleDescriptors(TransportVersion transportVersion, String nodeName) {
-        return subjectInfo(transportVersion, nodeName, RoleDescriptorsIntersection.EMPTY);
-    }
-
-    private static CrossClusterAccessSubjectInfo subjectInfo(
-        TransportVersion transportVersion,
-        String nodeName,
-        RoleDescriptorsIntersection roleDescriptorsIntersection
-    ) {
+    public static CrossClusterAccessSubjectInfo subjectInfo(TransportVersion transportVersion, String nodeName) {
         try {
             return new CrossClusterAccessSubjectInfo(
                 Authentication.newInternalAuthentication(INSTANCE, transportVersion, nodeName),
-                roleDescriptorsIntersection
+                RoleDescriptorsIntersection.EMPTY
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);

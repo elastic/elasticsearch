@@ -112,7 +112,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
             CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
             randomBoolean()
-                ? AuthenticationTestHelper.crossClusterAccessSubjectInfoForInternalUser(true)
+                ? AuthenticationTestHelper.crossClusterAccessSubjectInfoForInternalUser()
                 : AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(false)
         );
         crossClusterAccessHeaders.writeToContext(threadContext);
@@ -142,7 +142,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         final Authentication expectedAuthentication;
         if (CrossClusterAccessUser.is(remoteAuthentication.getEffectiveSubject().getUser())) {
             expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(
-                CrossClusterAccessUser.subjectInfoWithRoleDescriptors(
+                CrossClusterAccessUser.subjectInfo(
                     remoteAuthentication.getEffectiveSubject().getTransportVersion(),
                     remoteAuthentication.getEffectiveSubject().getRealm().getNodeName()
                 )

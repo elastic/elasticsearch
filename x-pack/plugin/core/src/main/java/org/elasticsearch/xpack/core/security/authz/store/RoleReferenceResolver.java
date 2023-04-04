@@ -31,8 +31,4 @@ public interface RoleReferenceResolver {
         ActionListener<RolesRetrievalResult> listener
     );
 
-    void resolveCrossClusterAccessInternalRoleReference(
-        RoleReference.CrossClusterAccessInternalRoleReference crossClusterAccessRoleReference,
-        ActionListener<RolesRetrievalResult> listener
-    );
 }

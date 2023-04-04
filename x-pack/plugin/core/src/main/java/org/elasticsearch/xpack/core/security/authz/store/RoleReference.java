@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.util.HashSet;
 import java.util.List;
@@ -117,12 +118,17 @@ public interface RoleReference {
         }
     }
 
-    abstract class BaseCrossClusterAccessRoleReference implements RoleReference {
+    final class CrossClusterAccessRoleReference implements RoleReference {
 
         private final CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes;
         private RoleKey id = null;
+        private final String userPrincipal;
 
-        public BaseCrossClusterAccessRoleReference(CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes) {
+        public CrossClusterAccessRoleReference(
+            String userPrincipal,
+            CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes
+        ) {
+            this.userPrincipal = userPrincipal;
             this.roleDescriptorsBytes = roleDescriptorsBytes;
         }
 
@@ -136,23 +142,6 @@ public interface RoleReference {
             return id;
         }
 
-        public CrossClusterAccessSubjectInfo.RoleDescriptorsBytes getRoleDescriptorsBytes() {
-            return roleDescriptorsBytes;
-        }
-    }
-
-    final class CrossClusterAccessRoleReference extends BaseCrossClusterAccessRoleReference {
-
-        private final String userPrincipal;
-
-        public CrossClusterAccessRoleReference(
-            CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes,
-            String userPrincipal
-        ) {
-            super(roleDescriptorsBytes);
-            this.userPrincipal = userPrincipal;
-        }
-
         @Override
         public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
             resolver.resolveCrossClusterAccessRoleReference(this, listener);
@@ -161,17 +150,32 @@ public interface RoleReference {
         public String getUserPrincipal() {
             return userPrincipal;
         }
+
+        public CrossClusterAccessSubjectInfo.RoleDescriptorsBytes getRoleDescriptorsBytes() {
+            return roleDescriptorsBytes;
+        }
     }
 
-    final class CrossClusterAccessInternalRoleReference extends BaseCrossClusterAccessRoleReference {
+    final class FixedRoleReference implements RoleReference {
 
-        public CrossClusterAccessInternalRoleReference(CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes) {
-            super(roleDescriptorsBytes);
+        private final RoleDescriptor roleDescriptor;
+        private final String source;
+
+        public FixedRoleReference(RoleDescriptor roleDescriptor, String source) {
+            this.roleDescriptor = roleDescriptor;
+            this.source = source;
+        }
+
+        @Override
+        public RoleKey id() {
+            return new RoleKey(Set.of(roleDescriptor.getName()), source);
         }
 
         @Override
         public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
-            resolver.resolveCrossClusterAccessInternalRoleReference(this, listener);
+            final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
+            rolesRetrievalResult.addDescriptors(Set.of(roleDescriptor));
+            listener.onResponse(rolesRetrievalResult);
         }
     }
 

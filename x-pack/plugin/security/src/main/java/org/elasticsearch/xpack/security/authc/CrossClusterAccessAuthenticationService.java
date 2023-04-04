@@ -100,13 +100,7 @@ public class CrossClusterAccessAuthenticationService {
                     try {
                         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = crossClusterAccessHeaders.subjectInfo();
                         validate(crossClusterAccessSubjectInfo);
-                        writeAuthToContext(
-                            authcContext,
-                            authentication.toCrossClusterAccess(
-                                maybeRewriteForCrossClusterAccessUser(authcContext.getRequest(), crossClusterAccessSubjectInfo)
-                            ),
-                            listener
-                        );
+                        writeAuthToContext(authcContext, authentication.toCrossClusterAccess(crossClusterAccessSubjectInfo), listener);
                     } catch (Exception ex) {
                         withRequestProcessingFailure(authcContext, ex, listener);
                     }
@@ -117,24 +111,6 @@ public class CrossClusterAccessAuthenticationService {
 
     public AuthenticationService getAuthenticationService() {
         return authenticationService;
-    }
-
-    private CrossClusterAccessSubjectInfo maybeRewriteForCrossClusterAccessUser(
-        AuthenticationService.AuditableRequest request,
-        CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo
-    ) {
-        final Authentication authentication = crossClusterAccessSubjectInfo.getAuthentication();
-        final Subject effectiveSubject = authentication.getEffectiveSubject();
-        final User user = effectiveSubject.getUser();
-        if (CrossClusterAccessUser.is(user)) {
-            logger.debug("Request [{}] performed by internal user [{}]. Will use pre-defined role descriptors", request, user.principal());
-            return CrossClusterAccessUser.subjectInfoWithRoleDescriptors(
-                effectiveSubject.getTransportVersion(),
-                effectiveSubject.getRealm().getNodeName()
-            );
-        } else {
-            return crossClusterAccessSubjectInfo;
-        }
     }
 
     private void validate(final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo) {

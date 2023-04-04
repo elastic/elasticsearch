@@ -50,9 +50,7 @@ public final class CrossClusterAccessSubjectInfo {
         AuthenticationField.API_KEY_NAME_KEY,
         AuthenticationField.API_KEY_CREATOR_REALM_NAME,
         ServiceAccountSettings.TOKEN_NAME_FIELD,
-        ServiceAccountSettings.TOKEN_SOURCE_FIELD,
-        AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
-        AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY
+        ServiceAccountSettings.TOKEN_SOURCE_FIELD
     );
 
     private final Authentication authentication;

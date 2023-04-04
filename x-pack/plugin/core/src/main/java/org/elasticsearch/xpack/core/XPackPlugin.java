@@ -490,11 +490,11 @@ public class XPackPlugin extends XPackClientPlugin
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        List<MutableLicenseService> licenseServiceFactories = loader.loadExtensions(MutableLicenseService.class);
-        if (licenseServiceFactories.size() > 1) {
+        List<MutableLicenseService> licenseServices = loader.loadExtensions(MutableLicenseService.class);
+        if (licenseServices.size() > 1) {
             throw new IllegalStateException(MutableLicenseService.class + " may not have multiple implementations");
-        } else if (licenseServiceFactories.size() == 1) {
-            setLicenseService(licenseServiceFactories.get(0));
+        } else if (licenseServices.size() == 1) {
+            setLicenseService(licenseServices.get(0));
         }
 
         List<StatusSupplier> xPackLicenseStateInitialStatusSupplier = loader.loadExtensions(StatusSupplier.class);

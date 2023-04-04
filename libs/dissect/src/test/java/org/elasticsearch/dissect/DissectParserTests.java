@@ -12,7 +12,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.mockito.internal.util.collections.Sets;
 
@@ -23,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiAlphanumOfLengthBetween;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 
 public class DissectParserTests extends ESTestCase {
 
@@ -444,22 +445,22 @@ public class DissectParserTests extends ESTestCase {
         }
     }
 
-    public void testGetOutputKeyNames() {
-        assertOutputKeys("%{a} %{b}", List.of("a", "b"));
-        assertOutputKeys("%{a->} %{b}", List.of("a", "b"));
-        assertOutputKeys("%{?a} %{b}", List.of("b"));
-        assertOutputKeys("%{+a} %{b} %{+a}", List.of("a", "b"));
-        assertOutputKeys("%{a} %{b} %{*c} %{&c}", List.of("a", "b", "c"));
+    public void testOutputKeys() {
+        assertThat(new DissectParser("%{a} %{b}", "").outputKeys(), contains("a", "b"));
+        assertThat(new DissectParser("%{a->} %{b}", "").outputKeys(), contains("a", "b"));
+        assertThat(new DissectParser("%{?a} %{b}", "").outputKeys(), contains("b"));
+        assertThat(new DissectParser("%{+a} %{b} %{+a}", "").outputKeys(), contains("a", "b"));
+        assertThat(new DissectParser("%{a} %{b} %{*c} %{&c}", "").outputKeys(), contains("a", "b", "c"));
     }
 
-    public void testGetReferenceKeyNames() {
-        assertReferenceKeys("%{a} %{b}", List.of());
-        assertReferenceKeys("%{a->} %{b}", List.of());
-        assertReferenceKeys("%{?a} %{b}", List.of());
-        assertReferenceKeys("%{+a} %{b} %{+a}", List.of());
-        assertReferenceKeys("%{*a} %{&a}", List.of("a"));
-        assertReferenceKeys("%{a} %{b} %{*c} %{&c}", List.of("c"));
-        assertReferenceKeys("%{a} %{b} %{*c} %{&c} %{*d} %{&d}", List.of("c", "d"));
+    public void testReferenceKeys() {
+        assertThat(new DissectParser("%{a} %{b}", "").referenceKeys(), empty());
+        assertThat(new DissectParser("%{a->} %{b}", "").referenceKeys(), empty());
+        assertThat(new DissectParser("%{?a} %{b}", "").referenceKeys(), empty());
+        assertThat(new DissectParser("%{+a} %{b} %{+a}", "").referenceKeys(), empty());
+        assertThat(new DissectParser("%{*a} %{&a}", "").referenceKeys(), contains("a"));
+        assertThat(new DissectParser("%{a} %{b} %{*c} %{&c}", "").referenceKeys(), contains("c"));
+        assertThat(new DissectParser("%{a} %{b} %{*c} %{&c} %{*d} %{&d}", "").referenceKeys(), contains("c", "d"));
     }
 
     private DissectException assertFail(String pattern, String input) {
@@ -469,21 +470,21 @@ public class DissectParserTests extends ESTestCase {
     private void assertMiss(String pattern, String input) {
         assertNull(new DissectParser(pattern, null).parse(input));
         DissectException e = assertFail(pattern, input);
-        assertThat(e.getMessage(), CoreMatchers.containsString("Unable to find match for dissect pattern"));
-        assertThat(e.getMessage(), CoreMatchers.containsString(pattern));
-        assertThat(e.getMessage(), input == null ? CoreMatchers.containsString("null") : CoreMatchers.containsString(input));
+        assertThat(e.getMessage(), Matchers.containsString("Unable to find match for dissect pattern"));
+        assertThat(e.getMessage(), Matchers.containsString(pattern));
+        assertThat(e.getMessage(), input == null ? Matchers.containsString("null") : Matchers.containsString(input));
     }
 
     private void assertBadPattern(String pattern) {
         DissectException e = assertFail(pattern, null);
-        assertThat(e.getMessage(), CoreMatchers.containsString("Unable to parse pattern"));
-        assertThat(e.getMessage(), CoreMatchers.containsString(pattern));
+        assertThat(e.getMessage(), Matchers.containsString("Unable to parse pattern"));
+        assertThat(e.getMessage(), Matchers.containsString(pattern));
     }
 
     private void assertBadKey(String pattern, String key) {
         DissectException e = assertFail(pattern, null);
-        assertThat(e.getMessage(), CoreMatchers.containsString("Unable to parse key"));
-        assertThat(e.getMessage(), CoreMatchers.containsString(key));
+        assertThat(e.getMessage(), Matchers.containsString("Unable to parse key"));
+        assertThat(e.getMessage(), Matchers.containsString(key));
     }
 
     private void assertBadKey(String pattern) {
@@ -502,15 +503,5 @@ public class DissectParserTests extends ESTestCase {
             final String key = expectedKeys.get(i);
             assertThat(results.get(key), Matchers.equalTo(expectedValues.get(i)));
         }
-    }
-
-    private void assertOutputKeys(String pattern, List<String> expectedKeys) {
-        DissectParser parser = new DissectParser(pattern, "");
-        assertEquals(expectedKeys, parser.outputKeyNames());
-    }
-
-    private void assertReferenceKeys(String pattern, List<String> expectedKeys) {
-        DissectParser parser = new DissectParser(pattern, "");
-        assertEquals(expectedKeys, parser.referenceKeyNames());
     }
 }

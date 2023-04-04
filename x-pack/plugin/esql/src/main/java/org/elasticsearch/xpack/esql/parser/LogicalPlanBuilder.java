@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
@@ -102,11 +103,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             try {
                 DissectParser parser = new DissectParser(pattern, appendSeparator);
-                List<String> referenceKeys = parser.referenceKeyNames();
+                Set<String> referenceKeys = parser.referenceKeys();
                 if (referenceKeys.size() > 0) {
-                    throw new ParsingException(src, "Reference keys not supported in dissect patterns: [%{*{}}]", referenceKeys.get(0));
+                    throw new ParsingException(
+                        src,
+                        "Reference keys not supported in dissect patterns: [%{*{}}]",
+                        referenceKeys.iterator().next()
+                    );
                 }
-                List<Attribute> keys = parser.outputKeyNames()
+                List<Attribute> keys = parser.outputKeys()
                     .stream()
                     .map(x -> new ReferenceAttribute(src, x, DataTypes.KEYWORD))
                     .map(Attribute.class::cast)

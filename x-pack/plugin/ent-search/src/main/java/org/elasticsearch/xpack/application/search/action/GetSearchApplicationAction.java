@@ -97,9 +97,9 @@ public class GetSearchApplicationAction extends ActionType<GetSearchApplicationA
             String[] indices,
             String analyticsCollectionName,
             long updatedAtMillis,
-            SearchApplicationTemplate searchApplicationTemplate
+            SearchApplicationTemplate template
         ) {
-            this.searchApp = new SearchApplication(name, indices, analyticsCollectionName, updatedAtMillis, searchApplicationTemplate);
+            this.searchApp = new SearchApplication(name, indices, analyticsCollectionName, updatedAtMillis, template);
         }
 
         @Override

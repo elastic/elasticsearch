@@ -69,7 +69,7 @@ public class QuerySearchApplicationAction extends ActionType<SearchResponse> {
             Objects.requireNonNull(name, "Application name must be specified");
             this.name = name;
 
-            Objects.requireNonNull(name, "Query parameters must be specified");
+            Objects.requireNonNull(queryParams, "Query parameters must be specified");
             this.queryParams = queryParams;
         }
 

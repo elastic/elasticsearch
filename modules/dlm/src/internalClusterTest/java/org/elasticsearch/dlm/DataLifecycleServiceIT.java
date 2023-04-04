@@ -130,6 +130,49 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         });
     }
 
+    public void testUpdatingLifecycleAppliesToAllBackingIndices() throws Exception {
+        DataLifecycle lifecycle = new DataLifecycle();
+
+        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+
+        String dataStreamName = "metrics-foo";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        int finalGeneration = randomIntBetween(2, 20);
+        for (int currentGeneration = 1; currentGeneration < finalGeneration; currentGeneration++) {
+            indexDocs(dataStreamName, 1);
+            int currentBackingIndexCount = currentGeneration;
+            assertBusy(() -> {
+                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+                GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                    .actionGet();
+                assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+                DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
+                assertThat(dataStream.getName(), equalTo(dataStreamName));
+                List<Index> backingIndices = dataStream.getIndices();
+                assertThat(backingIndices.size(), equalTo(currentBackingIndexCount + 1));
+                String writeIndex = dataStream.getWriteIndex().getName();
+                assertThat(writeIndex, backingIndexEqualTo(dataStreamName, currentBackingIndexCount + 1));
+            });
+        }
+        // Update the lifecycle of the data stream
+        updateLifecycle(dataStreamName, new DataLifecycle(TimeValue.timeValueMillis(1)));
+        // Verify that the retention has changed for all backing indices
+        assertBusy(() -> {
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
+            assertThat(dataStream.getName(), equalTo(dataStreamName));
+            List<Index> backingIndices = dataStream.getIndices();
+            assertThat(backingIndices.size(), equalTo(1));
+            String writeIndex = dataStream.getWriteIndex().getName();
+            assertThat(writeIndex, backingIndexEqualTo(dataStreamName, finalGeneration));
+        });
+    }
+
     public void testErrorRecordingOnRollover() throws Exception {
         // empty lifecycle contains the default rollover
         DataLifecycle lifecycle = new DataLifecycle();
@@ -238,13 +281,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         // mark the first generation index as read-only so deletion fails when we enable the retention configuration
         updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), true), firstGenerationIndex);
         try {
-            PutDataLifecycleAction.Request putDataLifecycleRequest = new PutDataLifecycleAction.Request(
-                new String[] { dataStreamName },
-                new DataLifecycle(TimeValue.timeValueSeconds(1))
-            );
-            AcknowledgedResponse putDataLifecycleResponse = client().execute(PutDataLifecycleAction.INSTANCE, putDataLifecycleRequest)
-                .actionGet();
-            assertThat(putDataLifecycleResponse.isAcknowledged(), equalTo(true));
+            updateLifecycle(dataStreamName, new DataLifecycle(TimeValue.timeValueSeconds(1)));
 
             assertBusy(() -> {
                 GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
@@ -345,4 +382,13 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }
 
+    static void updateLifecycle(String dataStreamName, DataLifecycle dataLifecycle) {
+        PutDataLifecycleAction.Request putDataLifecycleRequest = new PutDataLifecycleAction.Request(
+            new String[] { dataStreamName },
+            dataLifecycle
+        );
+        AcknowledgedResponse putDataLifecycleResponse = client().execute(PutDataLifecycleAction.INSTANCE, putDataLifecycleRequest)
+            .actionGet();
+        assertThat(putDataLifecycleResponse.isAcknowledged(), equalTo(true));
+    }
 }

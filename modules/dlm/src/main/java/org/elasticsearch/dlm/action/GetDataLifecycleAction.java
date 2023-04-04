@@ -162,7 +162,7 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
             /**
              * Converts the response to XContent and passes the RolloverConditions, when provided, to the data lifecycle.
              */
-            public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConditions rolloverConditions)
+            private XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConditions rolloverConditions)
                 throws IOException {
                 builder.startObject();
                 builder.field(NAME_FIELD.getPreferredName(), dataStreamName);

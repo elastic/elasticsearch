@@ -277,6 +277,8 @@ public class InboundHandler {
                     }
                     try {
                         request.remoteAddress(channel.getRemoteAddress());
+                        assert requestId > 0;
+                        request.setRequestId(requestId);
                         // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
                         final int nextByte = stream.read();
                         // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker

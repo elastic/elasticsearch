@@ -48,7 +48,11 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
 
     @AfterClass
     public static void closeOtherFulfillingClusterClient() throws IOException {
-        IOUtils.close(otherFulfillingClusterClient);
+        try {
+            IOUtils.close(otherFulfillingClusterClient);
+        } finally {
+            otherFulfillingClusterClient = null;
+        }
     }
 
     public void testCrossClusterSearch() throws Exception {

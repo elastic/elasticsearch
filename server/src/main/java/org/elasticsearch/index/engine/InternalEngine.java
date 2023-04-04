@@ -55,14 +55,17 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -108,6 +111,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -167,6 +171,7 @@ public class InternalEngine extends Engine {
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
     private final FlushListeners flushListener;
+    private final AsyncIOProcessor<Translog.Location> translogSyncProcessor;
 
     private final CompletionStatsCache completionStatsCache;
 
@@ -294,6 +299,7 @@ public class InternalEngine extends Engine {
             completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.externalReaderManager.addListener(completionStatsCache);
             this.flushListener = new FlushListeners(logger, engineConfig.getThreadPool().getThreadContext());
+            this.translogSyncProcessor = createTranslogSyncProcessor(logger, engineConfig.getThreadPool().getThreadContext());
             success = true;
         } finally {
             if (success == false) {
@@ -592,13 +598,29 @@ public class InternalEngine extends Engine {
         return getTranslog().syncNeeded();
     }
 
+    private AsyncIOProcessor<Translog.Location> createTranslogSyncProcessor(Logger logger, ThreadContext threadContext) {
+        return new AsyncIOProcessor<>(logger, 1024, threadContext) {
+            @Override
+            protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
+                try {
+                    final boolean synced = translog.ensureSynced(candidates.stream().map(Tuple::v1));
+                    if (synced) {
+                        revisitIndexDeletionPolicyOnTranslogSynced();
+                    }
+                } catch (AlreadyClosedException ex) {
+                    // that's fine since we already synced everything on engine close - this also is conform with the methods
+                    // documentation
+                } catch (IOException ex) { // if this fails we are in deep shit - fail the request
+                    logger.debug("failed to sync translog", ex);
+                    throw ex;
+                }
+            }
+        };
+    }
+
     @Override
-    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
-        final boolean synced = translog.ensureSynced(locations);
-        if (synced) {
-            revisitIndexDeletionPolicyOnTranslogSynced();
-        }
-        return synced;
+    public void asyncEnsureTranslogSynced(Translog.Location location, Consumer<Exception> listener) {
+        translogSyncProcessor.put(location, listener);
     }
 
     @Override

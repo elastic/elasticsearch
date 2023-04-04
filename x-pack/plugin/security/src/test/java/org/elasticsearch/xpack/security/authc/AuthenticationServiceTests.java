@@ -960,6 +960,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         // this call does not actually go async
         final AtomicBoolean completed = new AtomicBoolean(false);
         service.authenticate(restRequest, ActionListener.wrap(authentication -> {
+            auditTrailService.get().authenticationSuccess(restRequest);
             assertThat(authentication, notNullValue());
             assertThat(authentication.getEffectiveSubject().getUser(), sameInstance(user1));
             assertThat(authentication.getAuthenticationType(), is(AuthenticationType.REALM));
@@ -967,7 +968,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(authentication.getAuthenticatingSubject().getRealm().getDomain(), is(firstDomain)); // TODO implement equals
             assertThreadContextContainsAuthentication(authentication);
             String reqId = expectAuditRequestId(threadContext);
-            verify(auditTrail).authenticationSuccess(reqId, authentication, restRequest);
+            verify(auditTrail).authenticationSuccess(restRequest);
             setCompletedToTrue(completed);
             verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), eq(threadContext));
         }, this::logAndFail));
@@ -1279,7 +1280,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result.v1().getEffectiveSubject().getRealm().getDomain(), nullValue());
             assertThreadContextContainsAuthentication(result.v1());
             assertThat(expectAuditRequestId(threadContext), is(result.v2()));
-            verify(auditTrail).authenticationSuccess(result.v2(), result.v1(), request);
+            verify(auditTrail).authenticationSuccess(request);
             verifyNoMoreInteractions(auditTrail);
             verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result.v1()), eq(threadContext));
         });
@@ -2344,6 +2345,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         PlainActionFuture<Authentication> future = new PlainActionFuture<>() {
             @Override
             public void onResponse(Authentication result) {
+                auditTrailService.get().authenticationSuccess(restRequest);
                 reqId.set(expectAuditRequestId(threadContext));
                 assertThat(new AuthenticationContextSerializer().getAuthentication(threadContext), is(result));
                 if (verifier != null) {

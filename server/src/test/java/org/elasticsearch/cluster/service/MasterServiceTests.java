@@ -38,6 +38,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -2099,7 +2100,7 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
-    public void testRejectionBehaviour() {
+    public void testRejectionBehaviourAtSubmission() {
 
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool();
@@ -2164,6 +2165,81 @@ public class MasterServiceTests extends ESTestCase {
             assertFalse(deterministicTaskQueue.hasRunnableTasks());
             assertFalse(deterministicTaskQueue.hasDeferredTasks());
             assertEquals(2, actionCount.get());
+        }
+    }
+
+    @TestLogging(reason = "verifying DEBUG logs", value = "org.elasticsearch.cluster.service.MasterService:DEBUG")
+    public void testRejectionBehaviourAtCompletion() {
+
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var threadPoolExecutor = new StoppableExecutorServiceWrapper(threadPool.generic()) {
+
+            boolean executedTask = false;
+
+            @Override
+            public void execute(Runnable command) {
+                if (command instanceof AbstractRunnable abstractRunnable) {
+                    if (executedTask) {
+                        abstractRunnable.onRejection(new EsRejectedExecutionException("simulated", true));
+                    } else {
+                        executedTask = true;
+                        super.execute(command);
+                    }
+                } else {
+                    fail("not an AbstractRunnable: " + command);
+                }
+            }
+        };
+
+        final var appender = new MockLogAppender();
+        appender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("warning", MasterService.class.getCanonicalName(), Level.WARN, "*")
+        );
+        appender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "debug",
+                MasterService.class.getCanonicalName(),
+                Level.DEBUG,
+                "shut down during publication of cluster state version*"
+            )
+        );
+
+        try (
+            var ignored = appender.capturing(MasterService.class);
+            var masterService = createMasterService(true, null, threadPool, threadPoolExecutor)
+        ) {
+
+            final var testHeader = "test-header";
+
+            class TestTask implements ClusterStateTaskListener {
+                private final String expectedHeader = threadPool.getThreadContext().getHeader(testHeader);
+
+                @Override
+                public void onFailure(Exception e) {
+                    // post-publication rejections are currently just dropped, see https://github.com/elastic/elasticsearch/issues/94930
+                    throw new AssertionError("unexpected exception", e);
+                }
+            }
+
+            final var queue = masterService.createTaskQueue("queue", randomFrom(Priority.values()), batchExecutionContext -> {
+                for (var taskContext : batchExecutionContext.taskContexts()) {
+                    taskContext.success(() -> fail("should not succeed"));
+                }
+                return ClusterState.builder(batchExecutionContext.initialState()).build();
+            });
+
+            try (var ignoredContext = threadPool.getThreadContext().stashContext()) {
+                threadPool.getThreadContext().putHeader(testHeader, randomAlphaOfLength(10));
+                queue.submitTask("batched", new TestTask(), null);
+            }
+
+            threadPool.getThreadContext().markAsSystemContext();
+            deterministicTaskQueue.runAllTasks();
+            assertFalse(deterministicTaskQueue.hasRunnableTasks());
+            assertFalse(deterministicTaskQueue.hasDeferredTasks());
+
+            appender.assertAllExpectationsMatched();
         }
     }
 

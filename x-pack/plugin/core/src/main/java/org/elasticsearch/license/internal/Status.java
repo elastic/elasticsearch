@@ -11,6 +11,9 @@ import org.elasticsearch.license.License;
 
 /**
  * A wrapper for the license mode, state, and expiration date, to allow atomically swapping.
+ * @param mode The current "mode" of the license (ie license type).
+ * @param active True if the license is active, or false if it is expired.
+ * @param expiryWarning A warning to be emitted on license checks about the license expiring soon.
  */
 public record Status(License.OperationMode mode, boolean active, String expiryWarning) {
 

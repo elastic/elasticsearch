@@ -33,12 +33,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -253,10 +255,15 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
+                    final NoSeedNodeLeftException exception = (NoSeedNodeLeftException) expectThrows(
+                        ExecutionException.class,
+                        connectFuture::get
+                    ).getCause();
                     assertThat(
-                        expectThrows(NoSeedNodeLeftException.class, connectFuture::actionGet).getMessage(),
+                        exception.getMessage(),
                         allOf(containsString("Unable to open any proxy connections"), containsString('[' + clusterAlias + ']'))
                     );
+                    assertThat(exception.getCause(), instanceOf(ConnectTransportException.class));
 
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertEquals(0, connectionManager.size());

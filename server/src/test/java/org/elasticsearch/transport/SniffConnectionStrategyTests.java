@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
@@ -51,8 +52,10 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.oneOf;
 
 public class SniffConnectionStrategyTests extends ESTestCase {
@@ -467,7 +470,16 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
 
-                    expectThrows(Exception.class, connectFuture::actionGet);
+                    final NoSeedNodeLeftException exception = (NoSeedNodeLeftException) expectThrows(
+                        ExecutionException.class,
+                        connectFuture::get
+                    ).getCause();
+                    assertThat(
+                        exception.getMessage(),
+                        allOf(containsString("no seed node left for cluster"), containsString('[' + clusterAlias + ']'))
+                    );
+                    assertThat(exception.getCause(), instanceOf(ConnectTransportException.class));
+
                     assertFalse(connectionManager.nodeConnected(incompatibleSeedNode));
                     assertTrue(strategy.assertNoRunningConnections());
                 }

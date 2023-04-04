@@ -262,7 +262,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     if (countDown.countDown()) {
                         if (attemptNumber >= MAX_CONNECT_ATTEMPTS_PER_RUN && connectionManager.size() == 0) {
                             logger.warn(() -> "failed to open any proxy connections to cluster [" + clusterAlias + "]", e);
-                            finished.onFailure(e);
+                            finished.onFailure(new NoSeedNodeLeftException(strategyType(), clusterAlias, e));
                         } else {
                             openConnections(finished, attemptNumber + 1);
                         }

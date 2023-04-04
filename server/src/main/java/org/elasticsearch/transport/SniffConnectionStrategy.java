@@ -242,7 +242,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     }
                 }
                 logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
-                listener.onFailure(e);
+                listener.onFailure(new NoSeedNodeLeftException(strategyType(), clusterAlias, e));
             };
 
             final DiscoveryNode seedNode = seedNodesSuppliers.next().get();

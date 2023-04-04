@@ -12,9 +12,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomPageViewEvent;
-import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomSearchClickEvent;
-import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomSearchEvent;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomAnalyticsEvent;
 
 public class PostAnalyticsEventDebugResponseSerializingTests extends AbstractWireSerializingTestCase<PostAnalyticsEventAction.Response> {
 
@@ -25,10 +23,7 @@ public class PostAnalyticsEventDebugResponseSerializingTests extends AbstractWir
 
     @Override
     protected PostAnalyticsEventAction.Response createTestInstance() {
-        return new PostAnalyticsEventAction.DebugResponse(
-            randomBoolean(),
-            randomFrom(randomPageViewEvent(), randomSearchEvent(), randomSearchClickEvent())
-        );
+        return new PostAnalyticsEventAction.DebugResponse(randomBoolean(), randomAnalyticsEvent());
     }
 
     @Override

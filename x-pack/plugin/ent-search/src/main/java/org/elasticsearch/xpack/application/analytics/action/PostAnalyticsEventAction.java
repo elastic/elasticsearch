@@ -15,14 +15,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
-import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventFactory;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -125,10 +123,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
                 AnalyticsEvent.Type.valueOf(eventType.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                validationException = addValidationError(
-                    LoggerMessageFormat.format(null, "invalid event type: [{}]", eventType),
-                    validationException
-                );
+                validationException = addValidationError(Strings.format("invalid event type: [%s]", eventType), validationException);
             }
 
             return validationException;
@@ -172,8 +167,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             boolean isDebug = in.readBoolean();
 
             if (isDebug) {
-                AnalyticsEvent.Type eventType = in.readEnum(AnalyticsEvent.Type.class);
-                return new DebugResponse(accepted, AnalyticsEventFactory.INSTANCE.fromStreamInput(eventType, in));
+                return new DebugResponse(accepted, new AnalyticsEvent(in));
             }
 
             return new Response(accepted);
@@ -237,7 +231,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         public DebugResponse(boolean accepted, AnalyticsEvent analyticsEvent) {
             super(accepted);
-            this.analyticsEvent = analyticsEvent;
+            this.analyticsEvent = Objects.requireNonNull(analyticsEvent);
         }
 
         @Override
@@ -256,7 +250,6 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeEnum(analyticsEvent.eventType());
             analyticsEvent.writeTo(out);
         }
 
@@ -265,7 +258,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DebugResponse that = (DebugResponse) o;
-            return super.equals(o) && Objects.equals(analyticsEvent, that.analyticsEvent);
+            return super.equals(o) && analyticsEvent.equals(that.analyticsEvent);
         }
 
         @Override

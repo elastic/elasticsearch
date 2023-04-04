@@ -8,26 +8,29 @@
 package org.elasticsearch.xpack.application.analytics.event;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventSessionData.SESSION_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventUserData.USER_FIELD;
 
 /**
  * This class represents Analytics events object meant to be emitted to the event queue.
  * Subclasses are implementing the different event types.
  */
-public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
+public class AnalyticsEvent implements Writeable, ToXContentObject {
 
     public static final ParseField TIMESTAMP_FIELD = new ParseField("@timestamp");
     public static final ParseField EVENT_FIELD = new ParseField("event");
@@ -70,24 +73,35 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
 
     private final String eventCollectionName;
 
+    private final Type eventType;
+
     private final long eventTime;
 
-    private final AnalyticsEventSessionData session;
+    private final BytesReference payload;
 
-    private final AnalyticsEventUserData user;
+    private final XContentType xContentType;
 
-    protected AnalyticsEvent(String eventCollectionName, long eventTime, AnalyticsEventSessionData session, AnalyticsEventUserData user) {
-        this.eventCollectionName = Strings.requireNonBlank(eventCollectionName, "eventCollectionName");
+    protected AnalyticsEvent(
+        String eventCollectionName,
+        long eventTime,
+        Type eventType,
+        XContentType xContentType,
+        BytesReference payload
+    ) {
+        this.eventCollectionName = Strings.requireNonBlank(eventCollectionName, "eventCollectionName can't be null");
         this.eventTime = eventTime;
-        this.session = Objects.requireNonNull(session, SESSION_FIELD.getPreferredName());
-        this.user = Objects.requireNonNull(user, USER_FIELD.getPreferredName());
+        this.eventType = eventType;
+        this.xContentType = Objects.requireNonNull(xContentType, "xContentType can't be null");
+        this.payload = Objects.requireNonNull(payload, "payload can't be null");
     }
 
-    protected AnalyticsEvent(StreamInput in) throws IOException {
-        this(in.readString(), in.readLong(), new AnalyticsEventSessionData(in), new AnalyticsEventUserData(in));
+    public AnalyticsEvent(StreamInput in) throws IOException {
+        this(in.readString(), in.readLong(), in.readEnum(Type.class), in.readEnum(XContentType.class), in.readBytesReference());
     }
 
-    public abstract Type eventType();
+    public static Builder builder(AnalyticsEvent.Context context) {
+        return new AnalyticsEvent.Builder(context);
+    }
 
     public String eventCollectionName() {
         return eventCollectionName;
@@ -97,20 +111,29 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
         return eventTime;
     }
 
-    public AnalyticsEventSessionData session() {
-        return session;
+    public Type eventType() {
+        return eventType;
     }
 
-    public AnalyticsEventUserData user() {
-        return user;
+    public XContentType xContentType() {
+        return xContentType;
+    }
+
+    public BytesReference payload() {
+        return payload;
+    }
+
+    public Map<String, Object> payloadAsMap() {
+        return XContentHelper.convertToMap(payload(), true, xContentType()).v2();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(eventCollectionName);
         out.writeLong(eventTime);
-        session.writeTo(out);
-        user.writeTo(out);
+        out.writeEnum(eventType);
+        XContentHelper.writeTo(out, xContentType);
+        out.writeBytesReference(payload);
     }
 
     @Override
@@ -134,12 +157,7 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
             }
             builder.endObject();
 
-            builder.field(SESSION_FIELD.getPreferredName(), session());
-            builder.field(USER_FIELD.getPreferredName(), user());
-
-            // Render additional fields from the event payload (session, user, page, ...)
-            addCustomFieldToXContent(builder, params);
-
+            builder.mapContents(payloadAsMap());
         }
         builder.endObject();
 
@@ -151,8 +169,6 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
         return false;
     }
 
-    protected abstract void addCustomFieldToXContent(XContentBuilder builder, Params params) throws IOException;
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -160,12 +176,58 @@ public abstract class AnalyticsEvent implements Writeable, ToXContentObject {
         AnalyticsEvent that = (AnalyticsEvent) o;
         return eventCollectionName.equals(that.eventCollectionName)
             && eventTime == that.eventTime
-            && Objects.equals(session, that.session)
-            && Objects.equals(user, that.user);
+            && eventType == that.eventType
+            && xContentType.equals(that.xContentType)
+            && payloadAsMap().equals(that.payloadAsMap());
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(eventCollectionName, eventTime, session, user);
+        return Objects.hash(eventCollectionName, eventTime, xContentType, payloadAsMap());
+    }
+
+    public static class Builder {
+        private final MapBuilder<String, Object> payloadBuilder = new MapBuilder<>();
+
+        private final Context context;
+
+        private Builder(Context context) {
+            this.context = context;
+        }
+
+        public AnalyticsEvent build() throws IOException {
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                BytesReference payload = BytesReference.bytes(builder.map(payloadBuilder.map()));
+                return new AnalyticsEvent(
+                    context.eventCollectionName(),
+                    context.eventTime(),
+                    context.eventType(),
+                    builder.contentType(),
+                    payload
+                );
+            }
+        }
+
+        public Builder withField(String fieldName, Object fieldValue) {
+            if (Objects.nonNull(fieldValue)) {
+                payloadBuilder.put(fieldName, fieldValue);
+            }
+
+            return this;
+        }
+
+        public Builder withField(ParseField field, Object fieldValue) {
+            return this.withField(field.getPreferredName(), fieldValue);
+        }
+
+        public Builder with(Map<String, Object> values) {
+            payloadBuilder.putAll(values);
+            return this;
+        }
     }
 }

@@ -7,16 +7,17 @@
 
 package org.elasticsearch.xpack.application.analytics.event;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
+import org.elasticsearch.xpack.application.analytics.event.parser.event.AnalyticsEventPageView;
+import org.elasticsearch.xpack.application.analytics.event.parser.event.AnalyticsEventSearch;
+import org.elasticsearch.xpack.application.analytics.event.parser.event.AnalyticsEventSearchClick;
 
 import java.io.IOException;
 import java.util.Map;
@@ -40,14 +41,6 @@ public class AnalyticsEventFactory {
         .put(SEARCH_CLICK, AnalyticsEventSearchClick::fromXContent)
         .immutableMap();
 
-    private static final Map<AnalyticsEvent.Type, Writeable.Reader<AnalyticsEvent>> EVENT_READERS = MapBuilder.<
-        AnalyticsEvent.Type,
-        Writeable.Reader<AnalyticsEvent>>newMapBuilder()
-        .put(PAGEVIEW, AnalyticsEventPageView::new)
-        .put(SEARCH, AnalyticsEventSearch::new)
-        .put(SEARCH_CLICK, AnalyticsEventSearchClick::new)
-        .immutableMap();
-
     private AnalyticsEventFactory() {
 
     }
@@ -63,25 +56,6 @@ public class AnalyticsEventFactory {
      */
     public AnalyticsEvent fromRequest(PostAnalyticsEventAction.Request request) throws IOException {
         return fromPayload(request, request.xContentType(), request.payload());
-    }
-
-    /**
-     * Creates an {@link AnalyticsEvent} object from an input stream.
-     *
-     * @param eventType the type of the analytics event to create
-     * @param in the input stream
-     *
-     * @return the parsed {@link AnalyticsEvent} object
-     *
-     * @throws IOException if an I/O error occurs while parsing the event
-     * @throws IllegalArgumentException if the specified event type is not supported
-     */
-    public AnalyticsEvent fromStreamInput(AnalyticsEvent.Type eventType, StreamInput in) throws IOException {
-        if (EVENT_READERS.containsKey(eventType)) {
-            return EVENT_READERS.get(eventType).read(in);
-        }
-
-        throw new IllegalArgumentException(LoggerMessageFormat.format("{} is not a supported event type", eventType));
     }
 
     /**
@@ -102,7 +76,7 @@ public class AnalyticsEventFactory {
                 return EVENT_PARSERS.get(eventType).parse(parser, context);
             }
 
-            throw new IllegalArgumentException(LoggerMessageFormat.format("{} is not a supported event type", eventType));
+            throw new IllegalArgumentException(Strings.format("[%s] is not a supported event type", eventType));
         }
     }
 }

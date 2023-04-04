@@ -156,11 +156,17 @@ public class TransportVersion implements Comparable<TransportVersion> {
     // TODO: can we programmatically calculate or check this? Don't want to introduce circular ref between Version/TransportVersion
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 
+    /**
+     * Reference to the minimum transport version that can be used with CCS.
+     * This should be the transport version used by the previous minor release.
+     */
+    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_7_0;
+
     static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
         NavigableMap<Integer, TransportVersion> builder = new TreeMap<>();
         Map<String, TransportVersion> uniqueIds = new HashMap<>();
 
-        Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE");
+        Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE", "MINIMUM_CCS_VERSION");
         for (Field declaredField : cls.getFields()) {
             if (declaredField.getType().equals(TransportVersion.class)) {
                 String fieldName = declaredField.getName();

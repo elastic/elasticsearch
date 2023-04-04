@@ -1076,10 +1076,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // Test allow permissions on Threat Intel (ti*) source indices required by latest transform : "read", "view_index_metadata",
         // IndicesAliasesAction.NAME, PutMappingAction.NAME, UpdateSettingsAction.NAME, "delete_index"
         Arrays.asList(
-            ".ds-logs-ti_recordedfuture.threat-default",
-            ".ds-logs-ti_anomali.threatstream-default",
-            ".ds-logs-ti_recordedfuture.threat-default" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            ".ds-logs-ti_anomali.threatstream-default" + randomAlphaOfLength(randomIntBetween(0, 13))
+            "logs-ti_recordedfuture.threat-default",
+            "logs-ti_anomali.threatstream-default",
+            "logs-ti_recordedfuture.threat-default" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-ti_anomali.threatstream-default" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             // Allow read-only

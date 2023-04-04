@@ -858,10 +858,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     )
                     .privileges("create_index", "delete_index", "read", "index", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
                     .build(),
-                // For destination indices of the Threat Intel (ti*) packages that ships a transform for supporting IOC expiration
+                // For destination indices of the Threat Intel (ti_*) packages that ships a transform for supporting IOC expiration
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".logs-ti_*latest*")
+                    .indices(".logs-ti_*_latest.*")
                     .privileges(
+                        // Require "create_index", "delete_index", "read", "index", "delete", IndicesAliasesAction.NAME, and
+                        // UpdateSettingsAction.NAME for transform
                         "create_index",
                         "delete_index",
                         "read",
@@ -871,14 +873,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         UpdateSettingsAction.NAME
                     )
                     .build(),
-                // For source indices of the Threat Intel (ti*) packages that ships a transform for supporting IOC expiration
+                // For source indices of the Threat Intel (ti_*) packages that ships a transform for supporting IOC expiration
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".ds-logs-ti*")
+                    .indices("logs-ti_*.*-*")
                     .privileges(
-                        UpdateSettingsAction.NAME,
-                        PutMappingAction.NAME,
-                        RolloverAction.NAME,
+                        // Require "delete_index" to perform ILM policy actions
                         DeleteIndexAction.NAME,
+                        // Require "read" and "view_index_metadata" for transform
                         "read",
                         "view_index_metadata"
                     )

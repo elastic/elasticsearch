@@ -328,14 +328,25 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
                 final User user = authentication.getEffectiveSubject().getUser();
                 if (SystemUser.is(user) || action.equals(ClusterStateAction.NAME)) {
-                    // Use system user for cluster state requests (CCR has many calls of cluster state with end-user context)
-                    logger.trace(
-                        "Request [{}] for action [{}] towards [{}] initiated by the system user. "
-                            + "Sending request with internal cross cluster access user headers",
-                        request.getClass(),
-                        action,
-                        remoteClusterAlias
-                    );
+                    if (SystemUser.is(user)) {
+                        logger.trace(
+                            "Request [{}] for action [{}] towards [{}] initiated by the system user. "
+                                + "Sending request with internal cross cluster access user headers",
+                            request.getClass(),
+                            action,
+                            remoteClusterAlias
+                        );
+                    } else {
+                        // Use system user for cluster state requests (CCR has many calls of cluster state with end-user context)
+                        logger.trace(
+                            () -> format(
+                                "Switching to internal cross cluster access user for cluster state action towards [{}]. "
+                                    + "Original user is [%s]",
+                                remoteClusterAlias,
+                                user
+                            )
+                        );
+                    }
                     final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
                         remoteClusterCredentials.credentials(),
                         CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(

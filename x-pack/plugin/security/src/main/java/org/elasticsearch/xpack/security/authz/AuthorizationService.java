@@ -226,7 +226,7 @@ public class AuthorizationService {
         final AuthorizationInfo authorizationInfo = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
         // It can be null for persistent tasks
         if (authorizationInfo == null) {
-            logger.info("authorization info not available in thread context, resolving it for subject [{}]", subject);
+            logger.debug("authorization info not available in thread context, resolving it for subject [{}]", subject);
         }
         authorizationEngine.resolveAuthorizationInfo(
             subject,

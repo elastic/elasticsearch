@@ -11,22 +11,30 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTestCase {
@@ -54,20 +62,48 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
-                if (API_KEY_MAP_REF.get() == null) {
-                    final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
-                        [
-                          {
-                             "names": ["leader-index", "metrics-*"],
-                             "privileges": ["manage", "read"]
-                          }
-                        ]""");
-                    API_KEY_MAP_REF.set(apiKeyMap);
-                }
+                API_KEY_MAP_REF.compareAndSet(null, createCrossClusterAccessCcrApiKey());
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })
             .user("ccr_user", PASS.toString(), "ccr_user_role")
             .build();
+    }
+
+    // Create an API Key specifically for CCR access
+    private static Map<String, Object> createCrossClusterAccessCcrApiKey() {
+        initFulfillingClusterClient();
+        final var createApiKeyRequest = new Request("POST", "/_security/api_key");
+        createApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+              "name": "cross_cluster_access_key",
+              "role_descriptors": {
+                "role": {
+                  "cluster": [
+                    "cross_cluster_access",
+                    "cluster:monitor/state",
+                    "cluster:monitor/xpack/info",
+                    "internal:admin/ccr/restore/session/clear",
+                    "internal:admin/ccr/restore/file_chunk/get",
+                    "internal:admin/ccr/restore/session/put",
+                    "internal:transport/proxy/internal:admin/ccr/restore/session/clear",
+                    "internal:transport/proxy/internal:admin/ccr/restore/file_chunk/get"
+                  ],
+                  "index": [
+                    {
+                       "names": ["leader-index", "metrics-*"],
+                       "privileges": ["manage", "read"]
+                    }
+                  ]
+                }
+              }
+            }"""));
+        try {
+            final Response createApiKeyResponse = performRequestWithAdminUser(fulfillingClusterClient, createApiKeyRequest);
+            assertOK(createApiKeyResponse);
+            return responseAsMap(createApiKeyResponse);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @ClassRule
@@ -94,7 +130,8 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
 
         // query cluster
         {
-            final Request putCcrRequest = new Request("PUT", "/follower-index/_ccr/follow?wait_for_active_shards=1");
+            final String followIndexName = "follower-index";
+            final Request putCcrRequest = new Request("PUT", "/" + followIndexName + "/_ccr/follow?wait_for_active_shards=1");
             putCcrRequest.setJsonEntity("""
                 {
                   "remote_cluster": "my_remote_cluster",
@@ -108,13 +145,30 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
             responseMap.forEach((k, v) -> assertThat(k, v, is(true)));
 
             // Ensure data is replicated
-            final Request searchRequest = new Request("GET", "/follower-index/_search");
-            assertBusy(() -> {
-                final Response response = performRequestWithCcrUser(searchRequest);
-                assertOK(response);
-                final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(4L));
-            });
+            verifyReplicatedDocuments(4L, followIndexName);
+
+            assertFollowerInfo(followIndexName, "leader-index", "active");
+            assertFollowerStats(followIndexName);
+
+            // unfollow and then follow and then index a few docs in leader index:
+            pauseFollow(followIndexName);
+            assertFollowerInfo(followIndexName, "leader-index", "paused");
+            resumeFollow(followIndexName);
+            final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+            bulkRequest.setJsonEntity(Strings.format("""
+                { "index": { "_index": "leader-index" } }
+                { "name": "doc-5" }
+                { "index": { "_index": "leader-index" } }
+                { "name": "doc-6" }\n"""));
+            assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+            verifyReplicatedDocuments(6L, followIndexName);
+
+            pauseFollow(followIndexName);
+            closeIndex(followIndexName);
+            unfollow(followIndexName);
+            assertNoFollowerInfo(followIndexName);
+            final var e = expectThrows(ResponseException.class, () -> resumeFollow(followIndexName));
+            assertThat(e.getMessage(), containsString("follow index [" + followIndexName + "] does not have ccr metadata"));
         }
     }
 
@@ -152,7 +206,6 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
 
         // follow cluster
         {
-            final Request searchRequest = new Request("GET", "/metrics-*/_search");
             assertBusy(() -> {
                 ensureHealth("", request -> {
                     request.addParameter("wait_for_status", "yellow");
@@ -162,21 +215,112 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
                     request.addParameter("timeout", "5s");
                     request.addParameter("level", "shards");
                 });
-
-                final Response response = performRequestWithCcrUser(searchRequest);
-                assertOK(response);
-                final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
-                assertThat(
-                    Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toUnmodifiableSet()),
-                    equalTo(Set.of("metrics-000", "metrics-002"))
-                );
             });
+            verifyReplicatedDocuments(3L, "metrics-000", "metrics-002");
+
+            final Response statsResponse = performRequestWithCcrUser(new Request("GET", "/_ccr/stats"));
+            assertOK(statsResponse);
+            assertThat(
+                ObjectPath.createFromResponse(statsResponse).evaluate("auto_follow_stats.number_of_successful_follow_indices"),
+                equalTo(2)
+            );
+            assertFollowerInfo("metrics-000", "metrics-000", "active");
+            assertFollowerInfo("metrics-002", "metrics-002", "active");
+
+            // Pause and resume
+            pauseAutoFollow("my_auto_follow_pattern");
+            resumeAutoFollow("my_auto_follow_pattern");
+            final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+            bulkRequest.setJsonEntity(Strings.format("""
+                { "index": { "_index": "metrics-000" } }
+                { "name": "doc-5" }
+                { "index": { "_index": "metrics-002" } }
+                { "name": "doc-6" }\n"""));
+            assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+            verifyReplicatedDocuments(5L, "metrics-000", "metrics-002");
+
+            // Delete
+            deleteAutoFollow("my_auto_follow_pattern");
+            final ResponseException e = expectThrows(
+                ResponseException.class,
+                () -> performRequestWithCcrUser(new Request("GET", "/_ccr/auto_follow/my_auto_follow_pattern"))
+            );
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         }
     }
 
     private Response performRequestWithCcrUser(final Request request) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue("ccr_user", PASS)));
         return client().performRequest(request);
+    }
+
+    private void verifyReplicatedDocuments(long numberOfDocs, String... indices) throws Exception {
+        final Request searchRequest = new Request("GET", "/" + arrayToCommaDelimitedString(indices) + "/_search");
+        assertBusy(() -> {
+            final Response response = performRequestWithCcrUser(searchRequest);
+            assertOK(response);
+            final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numberOfDocs));
+            assertThat(
+                Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of(indices))
+            );
+        });
+    }
+
+    private void assertFollowerInfo(String followIndexName, String leadIndexName, String status) throws IOException {
+        final Response response = performRequestWithCcrUser(new Request("GET", "/" + followIndexName + "/_ccr/info"));
+        assertOK(response);
+        final List<Map<String, Object>> followerIndices = ObjectPath.createFromResponse(response).evaluate("follower_indices");
+        assertThat(followerIndices, hasSize(1));
+
+        final Map<String, Object> follower = followerIndices.get(0);
+        assertThat(ObjectPath.evaluate(follower, "follower_index"), equalTo(followIndexName));
+        assertThat(ObjectPath.evaluate(follower, "leader_index"), equalTo(leadIndexName));
+        assertThat(ObjectPath.evaluate(follower, "remote_cluster"), equalTo("my_remote_cluster"));
+        assertThat(ObjectPath.evaluate(follower, "status"), equalTo(status));
+    }
+
+    private void assertNoFollowerInfo(String followIndexName) throws IOException {
+        final Response response = performRequestWithCcrUser(new Request("GET", "/" + followIndexName + "/_ccr/info"));
+        assertOK(response);
+        final List<Map<String, Object>> followerIndices = ObjectPath.createFromResponse(response).evaluate("follower_indices");
+        assertThat(followerIndices, empty());
+    }
+
+    private void assertFollowerStats(String followIndexName) throws IOException {
+        final Response response = performRequestWithCcrUser(new Request("GET", "/" + followIndexName + "/_ccr/stats"));
+        assertOK(response);
+        final List<Map<String, Object>> followerIndices = ObjectPath.createFromResponse(response).evaluate("indices");
+        assertThat(followerIndices, hasSize(1));
+
+        final Map<String, Object> follower = followerIndices.get(0);
+        assertThat(ObjectPath.evaluate(follower, "index"), equalTo(followIndexName));
+    }
+
+    private void pauseFollow(String followIndexName) throws IOException {
+        assertOK(performRequestWithCcrUser(new Request("POST", "/" + followIndexName + "/_ccr/pause_follow")));
+    }
+
+    private void resumeFollow(String followIndexName) throws IOException {
+        final Request resumeFollowRequest = new Request("POST", "/" + followIndexName + "/_ccr/resume_follow");
+        resumeFollowRequest.setJsonEntity("{\"read_poll_timeout\": \"10ms\"}");
+        assertOK(performRequestWithCcrUser(resumeFollowRequest));
+    }
+
+    private void unfollow(String followIndexName) throws IOException {
+        assertOK(performRequestWithCcrUser(new Request("POST", "/" + followIndexName + "/_ccr/unfollow")));
+    }
+
+    private void pauseAutoFollow(String name) throws IOException {
+        assertOK(performRequestWithCcrUser(new Request("POST", "/_ccr/auto_follow/" + name + "/pause")));
+    }
+
+    private void resumeAutoFollow(String name) throws IOException {
+        assertOK(performRequestWithCcrUser(new Request("POST", "/_ccr/auto_follow/" + name + "/resume")));
+    }
+
+    private void deleteAutoFollow(String name) throws IOException {
+        assertOK(performRequestWithCcrUser(new Request("DELETE", "/_ccr/auto_follow/" + name)));
     }
 }

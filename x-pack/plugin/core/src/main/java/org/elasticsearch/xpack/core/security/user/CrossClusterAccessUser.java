@@ -27,6 +27,7 @@ public class CrossClusterAccessUser extends User {
         UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
         new String[] {
             "cross_cluster_access",
+            // TODO: add a named cluster privilege to cover following CCR actions
             ClusterStateAction.NAME,
             XPackInfoAction.NAME,
             "internal:admin/ccr/restore/session/clear",

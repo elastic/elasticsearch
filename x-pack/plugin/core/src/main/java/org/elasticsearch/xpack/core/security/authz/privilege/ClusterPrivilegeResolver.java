@@ -101,10 +101,10 @@ public class ClusterPrivilegeResolver {
         "indices:admin/template/*",
         "indices:admin/index_template/*",
         "internal:admin/ccr/restore/session/clear*",
-        "internal:transport/proxy/internal:admin/ccr/restore/session/clear*",
         "internal:admin/ccr/restore/file_chunk/get*",
-        "internal:transport/proxy/internal:admin/ccr/restore/file_chunk/get*",
-        "internal:admin/ccr/restore/session/put*"
+        "internal:admin/ccr/restore/session/put*",
+        "internal:transport/proxy/internal:admin/ccr/restore/session/clear*",
+        "internal:transport/proxy/internal:admin/ccr/restore/file_chunk/get*"
     );
     private static final Predicate<String> ACTION_MATCHER = Automatons.predicate(ALL_CLUSTER_PATTERN);
     private static final Set<String> MANAGE_ML_PATTERN = Set.of("cluster:admin/xpack/ml/*", "cluster:monitor/xpack/ml/*");
@@ -156,7 +156,6 @@ public class ClusterPrivilegeResolver {
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
         RemoteClusterNodesAction.NAME
     );
-
     private static final Set<String> MANAGE_ENRICH_AUTOMATON = Set.of("cluster:admin/xpack/enrich/*");
 
     public static final NamedClusterPrivilege NONE = new ActionClusterPrivilege("none", Set.of(), Set.of());

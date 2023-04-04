@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -203,11 +204,15 @@ public class RBACEngine implements AuthorizationEngine {
                     return false;
                 }
                 final String username = usernames[0];
-                final boolean sameUsername = authentication.getEffectiveSubject().getUser().principal().equals(username)
-                    || (authentication.isCrossClusterAccess()
-                        && ((Authentication) authentication.getAuthenticatingSubject()
-                            .getMetadata()
-                            .get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)).getEffectiveSubject().getUser().principal().equals(username));
+                // Cross cluster access user can perform has privilege check
+                if (authentication.isCrossClusterAccess() && HasPrivilegesAction.NAME.equals(action)) {
+                    assert request instanceof HasPrivilegesRequest;
+                    return ((Authentication) authentication.getAuthenticatingSubject()
+                        .getMetadata()
+                        .get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)).getEffectiveSubject().getUser().principal().equals(username);
+                }
+
+                final boolean sameUsername = authentication.getEffectiveSubject().getUser().principal().equals(username);
                 if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
                     return checkChangePasswordAction(authentication);
                 }

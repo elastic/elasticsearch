@@ -107,10 +107,9 @@ public class TypeParsersTests extends ESTestCase {
             ProvidedIdFieldMapper.NO_FIELD_DATA
         );
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { TextFieldMapper.PARSER.parse("textField", fieldNodeCopy, context); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            TextFieldMapper.PARSER.parse("textField", fieldNodeCopy, context);
+        });
         assertThat(
             e.getMessage(),
             equalTo(

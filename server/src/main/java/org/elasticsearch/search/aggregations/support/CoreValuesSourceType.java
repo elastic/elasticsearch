@@ -161,7 +161,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
-            if (fieldContext.indexFieldData()instanceof IndexGeoPointFieldData pointFieldData) {
+            if (fieldContext.indexFieldData() instanceof IndexGeoPointFieldData pointFieldData) {
                 return new ValuesSource.GeoPoint.Fielddata(pointFieldData);
             }
             throw new IllegalArgumentException(

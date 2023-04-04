@@ -549,14 +549,9 @@ public class NodeJoinTests extends ESTestCase {
             )
         );
 
-        assertTrue(
-            MasterServiceTests.discoveryState(masterService)
-                .getVotingConfigExclusions()
-                .stream()
-                .anyMatch(
-                    exclusion -> { return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId()); }
-                )
-        );
+        assertTrue(MasterServiceTests.discoveryState(masterService).getVotingConfigExclusions().stream().anyMatch(exclusion -> {
+            return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId());
+        }));
     }
 
     private ClusterState buildStateWithVotingConfigExclusion(

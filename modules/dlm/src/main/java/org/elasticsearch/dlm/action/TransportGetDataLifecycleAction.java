@@ -78,6 +78,7 @@ public class TransportGetDataLifecycleAction extends TransportMasterNodeReadActi
             new GetDataLifecycleAction.Response(
                 results.stream()
                     .map(dataStreams::get)
+                    .filter(Objects::nonNull)
                     .filter(dataStream -> dataStream.getLifecycle() != null)
                     .map(
                         dataStream -> new GetDataLifecycleAction.Response.DataStreamLifecycle(

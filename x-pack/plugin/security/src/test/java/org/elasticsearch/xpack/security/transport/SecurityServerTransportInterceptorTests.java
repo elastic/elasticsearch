@@ -614,9 +614,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             ignored -> Optional.of(remoteClusterAlias)
         );
 
-        final AsyncSender sender = interceptor.interceptSender(
-            mock(AsyncSender.class, ignored -> { throw new AssertionError("sender should not be called"); })
-        );
+        final AsyncSender sender = interceptor.interceptSender(mock(AsyncSender.class, ignored -> {
+            throw new AssertionError("sender should not be called");
+        }));
         final Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
         final AtomicBoolean calledHandleException = new AtomicBoolean(false);

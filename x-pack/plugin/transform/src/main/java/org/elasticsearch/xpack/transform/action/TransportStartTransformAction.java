@@ -178,29 +178,18 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         }, listener::onFailure);
 
         // <3> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
-        ActionListener<ValidateTransformAction.Response> validationListener = ActionListener.wrap(
-            validationResponse -> {
-                createDestinationIndex(
-                    state,
-                    transformConfigHolder.get(),
-                    validationResponse.getDestIndexMappings(),
-                    createOrGetIndexListener
+        ActionListener<ValidateTransformAction.Response> validationListener = ActionListener.wrap(validationResponse -> {
+            createDestinationIndex(state, transformConfigHolder.get(), validationResponse.getDestIndexMappings(), createOrGetIndexListener);
+        }, e -> {
+            if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
+                logger.debug(
+                    () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
                 );
-            },
-            e -> {
-                if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
-                    logger.debug(
-                        () -> format(
-                            "[%s] Skip dest index creation as this is an unattended transform",
-                            transformConfigHolder.get().getId()
-                        )
-                    );
-                    createOrGetIndexListener.onResponse(true);
-                    return;
-                }
-                listener.onFailure(e);
+                createOrGetIndexListener.onResponse(true);
+                return;
             }
-        );
+            listener.onFailure(e);
+        });
 
         // <2> run transform validations
         ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(config -> {

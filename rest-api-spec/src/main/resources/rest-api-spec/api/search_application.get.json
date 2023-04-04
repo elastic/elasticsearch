@@ -1,0 +1,35 @@
+{
+  "search_application.get": {
+    "documentation": {
+      "url": "http://todo.com/tbd",
+      "description": "Returns the details about a search application."
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "xpack.ent-search.enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_application/search_application/{name}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the search application"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

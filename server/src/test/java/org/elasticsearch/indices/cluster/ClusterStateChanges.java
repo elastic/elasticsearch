@@ -347,9 +347,9 @@ public class ClusterStateChanges {
     private void resetMasterService() {
         final var masterService = clusterService.getMasterService();
         masterService.setClusterStateSupplier(() -> { throw new AssertionError("should not be called"); });
-        masterService.setClusterStatePublisher(
-            (clusterStatePublicationEvent, publishListener, ackListener) -> { throw new AssertionError("should not be called"); }
-        );
+        masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+            throw new AssertionError("should not be called");
+        });
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
@@ -396,15 +396,9 @@ public class ClusterStateChanges {
         return runTasks(
             new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
-            List.of(
-                JoinTask.singleNode(
-                    discoveryNode,
-                    transportVersion,
-                    DUMMY_REASON,
-                    ActionListener.running(() -> { throw new AssertionError("should not complete publication"); }),
-                    clusterState.term()
-                )
-            )
+            List.of(JoinTask.singleNode(discoveryNode, transportVersion, DUMMY_REASON, ActionListener.running(() -> {
+                throw new AssertionError("should not complete publication");
+            }), clusterState.term()))
         );
     }
 
@@ -415,14 +409,9 @@ public class ClusterStateChanges {
             List.of(
                 JoinTask.completingElection(
                     nodes.stream()
-                        .map(
-                            node -> new JoinTask.NodeJoinTask(
-                                node,
-                                transportVersion,
-                                DUMMY_REASON,
-                                ActionListener.running(() -> { throw new AssertionError("should not complete publication"); })
-                            )
-                        ),
+                        .map(node -> new JoinTask.NodeJoinTask(node, transportVersion, DUMMY_REASON, ActionListener.running(() -> {
+                            throw new AssertionError("should not complete publication");
+                        }))),
                     clusterState.term() + between(1, 10)
                 )
             )

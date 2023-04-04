@@ -1005,21 +1005,18 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     ) {
                         final TransportRequestOptions.Type chanType = options.type();
                         switch (action) {
-                            // tag::noformat
                             case JoinHelper.JOIN_ACTION_NAME, FollowersChecker.FOLLOWER_CHECK_ACTION_NAME,
-                                 LeaderChecker.LEADER_CHECK_ACTION_NAME -> assertThat(
-                                action,
-                                chanType,
-                                equalTo(TransportRequestOptions.Type.PING)
-                            );
-                            case JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
-                                 PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
-                                 Coordinator.COMMIT_STATE_ACTION_NAME -> assertThat(
-                                action,
-                                chanType,
-                                equalTo(TransportRequestOptions.Type.STATE)
-                            );
-                            // end::noformat
+                                LeaderChecker.LEADER_CHECK_ACTION_NAME -> assertThat(
+                                    action,
+                                    chanType,
+                                    equalTo(TransportRequestOptions.Type.PING)
+                                );
+                            case JoinValidationService.JOIN_VALIDATE_ACTION_NAME, PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
+                                Coordinator.COMMIT_STATE_ACTION_NAME -> assertThat(
+                                    action,
+                                    chanType,
+                                    equalTo(TransportRequestOptions.Type.STATE)
+                                );
                             case JoinHelper.JOIN_PING_ACTION_NAME -> assertThat(
                                 action,
                                 chanType,

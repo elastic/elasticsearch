@@ -82,10 +82,9 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         ClusterState clusterState = createInitialClusterState(allocationService);
 
         var responseRef = new AtomicReference<ClusterRerouteResponse>();
-        var responseActionListener = ActionListener.<ClusterRerouteResponse>wrap(
-            responseRef::set,
-            exception -> { throw new AssertionError("Should not fail in test", exception); }
-        );
+        var responseActionListener = ActionListener.<ClusterRerouteResponse>wrap(responseRef::set, exception -> {
+            throw new AssertionError("Should not fail in test", exception);
+        });
 
         var request = new ClusterRerouteRequest().dryRun(true);
         var task = new TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask(

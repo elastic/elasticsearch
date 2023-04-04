@@ -6,10 +6,12 @@
  */
 
 module org.elasticsearch.application {
+    requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
 
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
+    requires org.elasticsearch.mustache;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;

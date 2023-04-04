@@ -43,9 +43,8 @@ import java.util.Set;
 
 public final class CrossClusterAccessSubjectInfo {
 
-    private static final Logger logger = LogManager.getLogger(CrossClusterAccessSubjectInfo.class);
-
     public static final String CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY = "_cross_cluster_access_subject_info";
+    private static final Logger logger = LogManager.getLogger(CrossClusterAccessSubjectInfo.class);
     private static final Set<String> AUTHENTICATION_METADATA_FIELDS_TO_KEEP = Set.of(
         AuthenticationField.API_KEY_ID_KEY,
         AuthenticationField.API_KEY_NAME_KEY,
@@ -92,7 +91,7 @@ public final class CrossClusterAccessSubjectInfo {
         // types
         ensureSupportedSubjectType();
         final var cleanCopy = new CrossClusterAccessSubjectInfo(
-            getAuthentication().copyWithFilteredMetadataFields(AUTHENTICATION_METADATA_FIELDS_TO_KEEP),
+            authentication.copyWithFilteredMetadataFields(AUTHENTICATION_METADATA_FIELDS_TO_KEEP),
             roleDescriptorsBytesList
         );
         cleanCopy.validate();
@@ -198,7 +197,6 @@ public final class CrossClusterAccessSubjectInfo {
 
     private void validate() {
         ensureSupportedSubjectType();
-        final Authentication authentication = getAuthentication();
         authentication.checkConsistency();
         final User user = authentication.getEffectiveSubject().getUser();
         if (CrossClusterAccessUser.is(user)) {

@@ -79,11 +79,9 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             Tracer tracer,
             AllocationService allocationService
         ) {
-            clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(
-                    UPDATE_TEMPLATE_DUMMY_SETTING,
-                    integer -> { logger.debug("the template dummy setting was updated to {}", integer); }
-                );
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
+                logger.debug("the template dummy setting was updated to {}", integer);
+            });
             return super.createComponents(
                 client,
                 clusterService,

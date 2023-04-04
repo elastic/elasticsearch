@@ -1949,11 +1949,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             EMPTY_TRANSLOG_BUFFER_SIZE,
             minTranslogGeneration,
             initialGlobalCheckpoint,
-            () -> { throw new UnsupportedOperationException(); },
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             () -> { throw new UnsupportedOperationException(); },
             primaryTerm,
             new TragicExceptionHolder(),
-            seqNo -> { throw new UnsupportedOperationException(); },
+            seqNo -> {
+                throw new UnsupportedOperationException();
+            },
             BigArrays.NON_RECYCLING_INSTANCE,
             DiskIoBufferPool.INSTANCE,
             (d, s, l) -> {}

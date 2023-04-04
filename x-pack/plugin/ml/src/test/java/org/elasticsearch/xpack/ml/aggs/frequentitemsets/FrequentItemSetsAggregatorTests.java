@@ -724,16 +724,9 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                 )
             )
             .filter(fi -> fi.getSupport() >= minSupport)
-            .filter(
-                fi -> {
-                    return fi.getFields()
-                        .values()
-                        .stream()
-                        .map(v -> v.stream().count())
-                        .mapToLong(e -> e.longValue())
-                        .sum() >= minimumSetSize;
-                }
-            )
+            .filter(fi -> {
+                return fi.getFields().values().stream().map(v -> v.stream().count()).mapToLong(e -> e.longValue()).sum() >= minimumSetSize;
+            })
             .sorted((a, b) -> {
                 if (a.getDocCount() == b.getDocCount()) {
                     if (b.getFields().size() == a.getFields().size()) {

@@ -1,0 +1,126 @@
+setup:
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: test-index3
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: test-index4
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+---
+teardown:
+  - do:
+      search_application.delete:
+        name: test-search-application
+        ignore: 404
+
+  - do:
+      search_application.delete:
+        name: test-updated-search-application
+        ignore: 404
+
+  - do:
+      search_application.delete:
+        name: test-re-creating-search-application
+        ignore: 404
+
+---
+"Create Search Application":
+  - do:
+      search_application.put:
+        name: test-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
+
+  - match: { result: "created" }
+
+  - do:
+      indices.exists_alias:
+        name: test-search-application
+
+  - is_true: ''
+---
+"Update Search Application":
+  - do:
+      search_application.put:
+        name: test-updated-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
+
+  - do:
+      search_application.put:
+        name: test-updated-search-application
+        body:
+          indices: [ "test-index3", "test-index4" ]
+
+  - match: { result: "updated" }
+
+---
+"Create Search Application - Index does not exist":
+  - do:
+      catch: bad_request
+      search_application.put:
+        name: test-error-search-application
+        body:
+          indices: [ "test-index1", "test-index-does-not-exist" ]
+
+---
+"Create Search Application - Resource already exists":
+  - do:
+      search_application.put:
+        name: test-re-creating-search-application
+        create: true
+        body:
+          indices: [ "test-index1" ]
+
+  - match: { result: "created" }
+
+  - do:
+      catch: conflict
+      search_application.put:
+        name: test-re-creating-search-application
+        create: true
+        body:
+          indices: [ "test-index1" ]
+
+  - match: { error.type: "version_conflict_engine_exception" }
+
+---
+"Create Search Application - Insufficient privilege":
+  - do:
+      catch: forbidden
+      search_application.put:
+        name: another-search-application
+        create: true
+        body:
+          indices: [ "another-index" ]
+
+  - match: { error.type: "security_exception" }

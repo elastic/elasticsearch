@@ -2989,7 +2989,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             this.initialState = batchExecutionContext.initialState();
             this.updatesByRepo = new HashMap<>();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
-                if (taskContext.getTask()instanceof ShardSnapshotUpdate task) {
+                if (taskContext.getTask() instanceof ShardSnapshotUpdate task) {
                     updatesByRepo.computeIfAbsent(task.snapshot.getRepository(), r -> new ArrayList<>()).add(task);
                 }
             }
@@ -3026,7 +3026,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             if (updatesByRepo.isEmpty() == false) {
                 final var result = new ShardSnapshotUpdateResult(initialState.metadata(), snapshotsInProgress);
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
-                    if (taskContext.getTask()instanceof ShardSnapshotUpdate task) {
+                    if (taskContext.getTask() instanceof ShardSnapshotUpdate task) {
                         taskContext.success(() -> task.listener.onResponse(result));
                     }
                 }
@@ -3637,7 +3637,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             final SnapshotsInProgress initialSnapshots = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
             SnapshotsInProgress snapshotsInProgress = shardsUpdateContext.computeUpdatedState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
-                if (taskContext.getTask()instanceof CreateSnapshotTask task) {
+                if (taskContext.getTask() instanceof CreateSnapshotTask task) {
                     try {
                         final var repoMeta = state.metadata()
                             .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)

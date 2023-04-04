@@ -742,10 +742,9 @@ public final class IndexSettings {
         mode = scopedSettings.get(MODE);
         this.timestampBounds = mode.getTimestampBound(indexMetadata);
         if (timestampBounds != null) {
-            scopedSettings.addSettingsUpdateConsumer(
-                IndexSettings.TIME_SERIES_END_TIME,
-                endTime -> { this.timestampBounds = TimestampBounds.updateEndTime(this.timestampBounds, endTime); }
-            );
+            scopedSettings.addSettingsUpdateConsumer(IndexSettings.TIME_SERIES_END_TIME, endTime -> {
+                this.timestampBounds = TimestampBounds.updateEndTime(this.timestampBounds, endTime);
+            });
         }
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);

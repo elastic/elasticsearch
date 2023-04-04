@@ -166,7 +166,7 @@ public class DeploymentManager {
             TrainedModelConfig modelConfig = getModelResponse.getResources().results().get(0);
             processContext.modelInput.set(modelConfig.getInput());
 
-            if (modelConfig.getInferenceConfig()instanceof NlpConfig nlpConfig) {
+            if (modelConfig.getInferenceConfig() instanceof NlpConfig nlpConfig) {
                 task.init(nlpConfig);
 
                 SearchRequest searchRequest = vocabSearchRequest(nlpConfig.getVocabularyConfig(), modelConfig.getModelId());

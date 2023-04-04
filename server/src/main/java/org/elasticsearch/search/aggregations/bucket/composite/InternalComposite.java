@@ -41,6 +41,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     private final int size;
     private final List<InternalBucket> buckets;
     private final CompositeKey afterKey;
+    private final Map<String, Object> formattedAfterKey;
     private final int[] reverseMuls;
     private final MissingOrder[] missingOrders;
     private final List<String> sourceNames;
@@ -69,6 +70,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         this.reverseMuls = reverseMuls;
         this.missingOrders = missingOrders;
         this.earlyTerminated = earlyTerminated;
+        this.formattedAfterKey = afterKey == null ? null : new ArrayMap(sourceNames, formats, afterKey.values());
     }
 
     public InternalComposite(StreamInput in) throws IOException {
@@ -89,6 +91,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls, missingOrders));
         this.afterKey = in.readOptionalWriteable(CompositeKey::new);
         this.earlyTerminated = in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0) ? in.readBoolean() : false;
+        this.formattedAfterKey = afterKey == null ? null : new ArrayMap(sourceNames, formats, afterKey.values());
     }
 
     @Override
@@ -171,10 +174,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
     @Override
     public Map<String, Object> afterKey() {
-        if (afterKey != null) {
-            return new ArrayMap(sourceNames, formats, afterKey.values());
-        }
-        return null;
+        return formattedAfterKey;
     }
 
     // Visible for tests
@@ -584,13 +584,16 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
         final List<String> keys;
         final Comparable<?>[] values;
-        final List<DocValueFormat> formats;
+        final List<Object> formattedValues;
 
         ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable<?>[] values) {
             assert keys.size() == values.length && keys.size() == formats.size();
             this.keys = keys;
-            this.formats = formats;
             this.values = values;
+            this.formattedValues = new ArrayList<>();
+            for (int i = 0; i < values.length; i++) {
+                this.formattedValues.add(formatObject(values[i], formats.get(i)));
+            }
         }
 
         @Override
@@ -602,7 +605,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         public Object get(Object key) {
             for (int i = 0; i < keys.size(); i++) {
                 if (key.equals(keys.get(i))) {
-                    return formatObject(values[i], formats.get(i));
+                    return formattedValues.get(i);
                 }
             }
             return null;
@@ -610,10 +613,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
         @Override
         public Set<Entry<String, Object>> entrySet() {
-            return new AbstractSet<Entry<String, Object>>() {
+            return new AbstractSet<>() {
                 @Override
                 public Iterator<Entry<String, Object>> iterator() {
-                    return new Iterator<Entry<String, Object>>() {
+                    return new Iterator<>() {
                         int pos = 0;
 
                         @Override
@@ -623,10 +626,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
                         @Override
                         public Entry<String, Object> next() {
-                            SimpleEntry<String, Object> entry = new SimpleEntry<>(
-                                keys.get(pos),
-                                formatObject(values[pos], formats.get(pos))
-                            );
+                            SimpleEntry<String, Object> entry = new SimpleEntry<>(keys.get(pos), formattedValues.get(pos));
                             ++pos;
                             return entry;
                         }

@@ -44,8 +44,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.cluster.metadata.DataStream.LIFECYCLE_ORIGINATION_DATE;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 
 class IndexLifecycleRunner {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleRunner.class);

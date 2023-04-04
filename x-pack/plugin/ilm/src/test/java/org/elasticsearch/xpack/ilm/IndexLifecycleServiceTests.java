@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -503,7 +503,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     }
 
     public void testParsingOriginationDateBeforeIndexCreation() {
-        Settings indexSettings = Settings.builder().put(DataStream.LIFECYCLE_PARSE_ORIGINATION_DATE, true).build();
+        Settings indexSettings = Settings.builder().put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true).build();
         Index index = new Index("invalid_index_name", UUID.randomUUID().toString());
         expectThrows(
             IllegalArgumentException.class,

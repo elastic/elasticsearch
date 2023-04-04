@@ -105,12 +105,9 @@ public interface NamedGroupExtractor {
                             throw new IllegalArgumentException("emitted warnings: " + warnings);
                         }
 
-                        return new Grok(
-                            GrokBuiltinPatterns.legacyPatterns(),
-                            pattern,
-                            watchdog,
-                            w -> { throw new IllegalArgumentException("grok [" + pattern + "] emitted a warning: " + w); }
-                        );
+                        return new Grok(GrokBuiltinPatterns.legacyPatterns(), pattern, watchdog, w -> {
+                            throw new IllegalArgumentException("grok [" + pattern + "] emitted a warning: " + w);
+                        });
                     } catch (RuntimeException e) {
                         throw new IllegalArgumentException("error compiling grok pattern [" + pattern + "]: " + e.getMessage(), e);
                     }

@@ -51,9 +51,9 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
         var listener = new AllocationActionMultiListener<AcknowledgedResponse>(createEmptyThreadContext());
 
         var completed = new AtomicBoolean(false);
-        var delegate = listener.delay(
-            ActionListener.wrap(ignore -> completed.set(true), exception -> { throw new AssertionError("Should not fail in test"); })
-        );
+        var delegate = listener.delay(ActionListener.wrap(ignore -> completed.set(true), exception -> {
+            throw new AssertionError("Should not fail in test");
+        }));
 
         switch (randomInt(2)) {
             case 0 -> delegate.onResponse(AcknowledgedResponse.TRUE);

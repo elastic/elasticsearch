@@ -726,7 +726,8 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
 
             // Remote clusters with new configurable model
             switch (numberOfConfigurables) {
-                case 0 -> {}
+                case 0 -> {
+                }
                 case 1 -> setupClusterSettings(CLUSTER_A, remoteClusterServerPortAddress, useProxyModes.get(0));
                 case 2 -> {
                     setupClusterSettings(CLUSTER_A, remoteClusterServerPortAddress, useProxyModes.get(0));

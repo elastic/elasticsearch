@@ -182,10 +182,9 @@ public class ProfileConfigurationsTests extends ESTestCase {
 
     private static MockSecureSettings getKeystoreSecureSettings(String... sslContexts) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        Arrays.stream(sslContexts)
-            .forEach(
-                sslContext -> { secureSettings.setString("xpack.security." + sslContext + ".ssl.keystore.secure_password", "testnode"); }
-            );
+        Arrays.stream(sslContexts).forEach(sslContext -> {
+            secureSettings.setString("xpack.security." + sslContext + ".ssl.keystore.secure_password", "testnode");
+        });
         return secureSettings;
     }
 

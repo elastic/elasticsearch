@@ -247,7 +247,7 @@ public class SqlSearchIT extends ESRestTestCase {
             String query = "SELECT " + intervalYearMonth + intervalDayTime + fieldsList + " FROM " + index + " ORDER BY id";
 
             Request request = new Request("POST", "_sql");
-            request.setJsonEntity(SqlCompatIT.sqlQueryEntityWithOptionalMode(query, bwcVersion));
+            request.setJsonEntity(SqlCompatIT.sqlQueryEntityWithOptionalMode(query));
             assertBusy(() -> { assertResponse(expectedResponse, dropDisplaySizes(runSql(client, request))); });
         }
     }

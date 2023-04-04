@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -17,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -190,20 +188,6 @@ public class VersionUtils {
     /** Returns a random {@link Version} from all available versions. */
     public static Version randomVersion(Random random) {
         return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
-    }
-
-    /**
-     * Returns the highest Version that has this or a lesser TransportVersion.
-     */
-    static Version findVersion(TransportVersion transportVersion) {
-        // search backwards
-        for (int i = ALL_VERSIONS.size() - 1; i >= 0; i--) {
-            Version v = ALL_VERSIONS.get(i);
-            if (v.transportVersion.compareTo(transportVersion) <= 0) {
-                return v;
-            }
-        }
-        throw new NoSuchElementException("No valid Version found");
     }
 
     /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */

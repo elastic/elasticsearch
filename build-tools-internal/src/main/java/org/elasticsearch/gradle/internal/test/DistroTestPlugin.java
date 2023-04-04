@@ -199,13 +199,9 @@ public class DistroTestPlugin implements Plugin<Project> {
 
             // windows boxes get windows distributions, and linux boxes get linux distributions
             if (isWindows(vmProject)) {
-                configureVMWrapperTasks(
-                    vmProject,
-                    windowsTestTasks,
-                    depsTasks,
-                    wrapperTask -> { vmLifecyleTasks.get(ARCHIVE).configure(t -> t.dependsOn(wrapperTask)); },
-                    vmDependencies
-                );
+                configureVMWrapperTasks(vmProject, windowsTestTasks, depsTasks, wrapperTask -> {
+                    vmLifecyleTasks.get(ARCHIVE).configure(t -> t.dependsOn(wrapperTask));
+                }, vmDependencies);
             } else {
                 for (var entry : linuxTestTasks.entrySet()) {
                     ElasticsearchDistributionType type = entry.getKey();

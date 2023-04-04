@@ -216,13 +216,9 @@ public class TransformTaskTests extends ESTestCase {
 
         transformTask.init(mock(PersistentTasksService.class), taskManager, "task-id", 42);
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        transformTask.fail(
-            "because",
-            ActionListener.wrap(
-                r -> { listenerCalled.compareAndSet(false, true); },
-                e -> { fail("setting transform task to failed failed with: " + e); }
-            )
-        );
+        transformTask.fail("because", ActionListener.wrap(r -> { listenerCalled.compareAndSet(false, true); }, e -> {
+            fail("setting transform task to failed failed with: " + e);
+        }));
 
         TransformState state = transformTask.getState();
         assertEquals(TransformTaskState.FAILED, state.getTaskState());

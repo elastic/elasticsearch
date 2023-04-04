@@ -20,7 +20,7 @@ import java.util.List;
  * server package's rest handling. This interface exposes the request's content as well as methods to be used
  * to generate a response.
  */
-public interface HttpRequest extends HttpRequestLineAndHeaders {
+public interface HttpRequest extends HttpPreRequest {
 
     enum HttpVersion {
         HTTP_1_0,

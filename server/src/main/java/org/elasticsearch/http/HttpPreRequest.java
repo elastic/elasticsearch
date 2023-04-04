@@ -16,7 +16,7 @@ import java.util.Map;
 /**
  * A slim interface for HTTP requests, which doesn't expose access to the request's body.
  */
-public interface HttpRequestLineAndHeaders {
+public interface HttpPreRequest {
 
     /**
      * Returns the HTTP method used in the HTTP request.

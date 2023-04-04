@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.http.HttpRequestLineAndHeaders;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -120,7 +120,7 @@ public class AuthenticationService {
      *
      * @param request The request to be authenticated
      */
-    public void authenticate(HttpRequestLineAndHeaders request, ActionListener<Authentication> authenticationListener) {
+    public void authenticate(HttpPreRequest request, ActionListener<Authentication> authenticationListener) {
         authenticate(request, true, authenticationListener);
     }
 
@@ -135,11 +135,7 @@ public class AuthenticationService {
      *                               If {@code true}, then authentication <em>will</em> fallback to anonymous, if this service is
      *                               configured to allow anonymous access.
      */
-    public void authenticate(
-        HttpRequestLineAndHeaders request,
-        boolean allowAnonymous,
-        ActionListener<Authentication> authenticationListener
-    ) {
+    public void authenticate(HttpPreRequest request, boolean allowAnonymous, ActionListener<Authentication> authenticationListener) {
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             new AuditableHttpRequest(auditTrailService.get(), failureHandler, threadContext, request),
@@ -367,14 +363,14 @@ public class AuthenticationService {
 
     static class AuditableHttpRequest extends AuditableRequest {
 
-        private final HttpRequestLineAndHeaders request;
+        private final HttpPreRequest request;
         private final String requestId;
 
         AuditableHttpRequest(
             AuditTrail auditTrail,
             AuthenticationFailureHandler failureHandler,
             ThreadContext threadContext,
-            HttpRequestLineAndHeaders request
+            HttpPreRequest request
         ) {
             super(auditTrail, failureHandler, threadContext);
             this.request = request;

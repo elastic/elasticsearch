@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.elasticsearch.ElasticsearchAuthenticationProcessingError;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.HttpRequestLineAndHeaders;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackField;
@@ -92,11 +92,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     }
 
     @Override
-    public ElasticsearchSecurityException failedAuthentication(
-        HttpRequestLineAndHeaders request,
-        AuthenticationToken token,
-        ThreadContext context
-    ) {
+    public ElasticsearchSecurityException failedAuthentication(HttpPreRequest request, AuthenticationToken token, ThreadContext context) {
         return createAuthenticationError("unable to authenticate user [{}] for REST request [{}]", null, token.principal(), request.uri());
     }
 
@@ -111,11 +107,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     }
 
     @Override
-    public ElasticsearchSecurityException exceptionProcessingRequest(
-        HttpRequestLineAndHeaders request,
-        Exception e,
-        ThreadContext context
-    ) {
+    public ElasticsearchSecurityException exceptionProcessingRequest(HttpPreRequest request, Exception e, ThreadContext context) {
         // a couple of authn processing errors can also return {@link RestStatus#INTERNAL_SERVER_ERROR} or
         // {@link RestStatus#SERVICE_UNAVAILABLE}, besides the obvious {@link RestStatus#UNAUTHORIZED}
         if (e instanceof ElasticsearchAuthenticationProcessingError) {
@@ -140,7 +132,7 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
     }
 
     @Override
-    public ElasticsearchSecurityException missingToken(HttpRequestLineAndHeaders request, ThreadContext context) {
+    public ElasticsearchSecurityException missingToken(HttpPreRequest request, ThreadContext context) {
         return createAuthenticationError("missing authentication credentials for REST request [{}]", null, request.uri());
     }
 

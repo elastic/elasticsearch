@@ -16,8 +16,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpRequest;
-import org.elasticsearch.http.HttpRequestLineAndHeaders;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestChannel;
@@ -291,11 +291,11 @@ public class SecurityRestFilterTests extends ESTestCase {
                 return Collections.singleton("password");
             }
         };
-        SetOnce<HttpRequestLineAndHeaders> authcServiceRequest = new SetOnce<>();
+        SetOnce<HttpPreRequest> authcServiceRequest = new SetOnce<>();
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
-            authcServiceRequest.set((HttpRequestLineAndHeaders) i.getArguments()[0]);
+            authcServiceRequest.set((HttpPreRequest) i.getArguments()[0]);
             callback.onResponse(AuthenticationTestHelper.builder().realmRef(new RealmRef("test", "test", "t")).build(false));
             return Void.TYPE;
         }).when(authcService).authenticate(any(HttpRequest.class), anyActionListener());

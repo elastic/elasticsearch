@@ -116,7 +116,6 @@ public class CrossClusterAccessAuthenticationService {
 
     private void validate(final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo) {
         final Authentication authentication = crossClusterAccessSubjectInfo.getAuthentication();
-        authentication.checkConsistency();
         final Subject effectiveSubject = authentication.getEffectiveSubject();
         if (false == effectiveSubject.getType().equals(Subject.Type.USER)
             && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)
@@ -129,7 +128,7 @@ public class CrossClusterAccessAuthenticationService {
                     + "] which is not supported for cross cluster access"
             );
         }
-
+        authentication.checkConsistency();
         final User user = effectiveSubject.getUser();
         if (CrossClusterAccessUser.is(user)) {
             if (false == crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()) {

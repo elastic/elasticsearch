@@ -2604,7 +2604,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Authentication authentication = AuthenticationTestHelper.builder()
             .crossClusterAccess(
                 randomAlphaOfLength(42),
-                new CrossClusterAccessSubjectInfo(remoteAuthentication, RoleDescriptorsIntersection.EMPTY)
+                new CrossClusterAccessSubjectInfo(remoteAuthentication, RoleDescriptorsIntersection.EMPTY).copyWithSanitizedAuthentication()
             )
             .build();
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);

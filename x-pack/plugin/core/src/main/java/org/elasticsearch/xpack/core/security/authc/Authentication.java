@@ -284,7 +284,7 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
-     * Creates a copy of this Authentication instance, but only with metadata entries specified by `fieldToKeep`.
+     * Creates a copy of this Authentication instance, but only with metadata entries specified by `fieldsToKeep`.
      * All other entries are removed from the copy's metadata.
      *
      * If the instance's metadata already conforms to the specified field-set, no copy is performed.

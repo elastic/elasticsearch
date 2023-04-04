@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
@@ -39,9 +40,11 @@ import java.util.Set;
 public final class CrossClusterAccessSubjectInfo {
     public static final String CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY = "_cross_cluster_access_subject_info";
     private static final Set<String> AUTHENTICATION_METADATA_FIELDS_TO_KEEP = Set.of(
-        // TODO is this all?
         AuthenticationField.API_KEY_ID_KEY,
-        AuthenticationField.API_KEY_NAME_KEY
+        AuthenticationField.API_KEY_NAME_KEY,
+        AuthenticationField.API_KEY_CREATOR_REALM_NAME,
+        ServiceAccountSettings.TOKEN_NAME_FIELD,
+        ServiceAccountSettings.TOKEN_SOURCE_FIELD
     );
 
     private final Authentication authentication;

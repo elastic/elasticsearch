@@ -296,7 +296,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals("[rank] requires [window_size: 1] be greater than or equal to [size: 2]", validationErrors.validationErrors().get(0));
+            assertEquals(
+                "[rank] requires [window_size: 1] be greater than or equal to [size: 2]",
+                validationErrors.validationErrors().get(0)
+            );
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(

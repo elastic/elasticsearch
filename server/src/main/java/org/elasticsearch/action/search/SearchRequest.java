@@ -370,8 +370,12 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 }
                 if (source.size() > source.rankContextBuilder().windowSize()) {
                     validationException = addValidationError(
-                        "[rank] requires [window_size: " + source.rankContextBuilder().windowSize() + "]" +
-                            " be greater than or equal to [size: " + source.size() + "]",
+                        "[rank] requires [window_size: "
+                            + source.rankContextBuilder().windowSize()
+                            + "]"
+                            + " be greater than or equal to [size: "
+                            + source.size()
+                            + "]",
                         validationException
                     );
                 }

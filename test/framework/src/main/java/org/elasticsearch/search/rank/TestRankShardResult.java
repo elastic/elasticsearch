@@ -26,7 +26,7 @@ public class TestRankShardResult implements RankShardResult {
         int dc = in.readVInt();
         testRankDocs = new TestRankDoc[dc];
         for (int di = 0; di < dc; ++di) {
-            testRankDocs[di] = (TestRankDoc)in.readNamedWriteable(RankDoc.class);
+            testRankDocs[di] = (TestRankDoc) in.readNamedWriteable(RankDoc.class);
         }
     }
 

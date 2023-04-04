@@ -97,9 +97,9 @@ public class GatewayMetaStateTests extends ESTestCase {
 
     public void testIndexTemplateValidation() {
         Metadata metadata = randomMetadata();
-        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(
-            Collections.singletonList(customs -> { throw new IllegalStateException("template is incompatible"); })
-        );
+        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.singletonList(customs -> {
+            throw new IllegalStateException("template is incompatible");
+        }));
         String message = expectThrows(
             IllegalStateException.class,
             () -> GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader)

@@ -86,10 +86,9 @@ public class TimeSeriesCancellationTests extends ESTestCase {
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true
         );
-        TimeSeriesIndexSearcher timeSeriesIndexSearcher = new TimeSeriesIndexSearcher(
-            searcher,
-            List.of(() -> { throw new TaskCancelledException("Cancel"); })
-        );
+        TimeSeriesIndexSearcher timeSeriesIndexSearcher = new TimeSeriesIndexSearcher(searcher, List.of(() -> {
+            throw new TaskCancelledException("Cancel");
+        }));
         CountingBucketCollector bc = new CountingBucketCollector();
         expectThrows(TaskCancelledException.class, () -> timeSeriesIndexSearcher.search(new MatchAllDocsQuery(), bc));
         // We count every segment and every record as 1 and break on 2048th iteration counting from 0

@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -58,20 +57,18 @@ import java.util.Objects;
  */
 class FlattenedFieldSyntheticWriterHelper {
 
-    private static class Prefix {
-        final List<String> prefix;
+    private record Prefix(List<String> prefix) {
 
         Prefix() {
-            this.prefix = Collections.emptyList();
+            this(Collections.emptyList());
         }
 
         Prefix(final String key) {
-            final String[] keyAsArray = key.split("\\.");
-            this.prefix = new ArrayList<>(Arrays.asList(keyAsArray).subList(0, keyAsArray.length - 1));
+            this(key.split("\\."));
         }
 
-        private Prefix(final List<String> prefix) {
-            this.prefix = prefix;
+        Prefix(String[] keyAsArray) {
+            this(List.of(keyAsArray).subList(0, keyAsArray.length - 1));
         }
 
         private Prefix shared(final Prefix other) {
@@ -138,16 +135,18 @@ class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
-    private static class Suffix {
-        final List<String> suffix;
+    private record Suffix(List<String> suffix) {
 
         Suffix() {
-            this.suffix = Collections.emptyList();
+            this(Collections.emptyList());
         }
 
         Suffix(final String key) {
-            final String[] keyAsArray = key.split("\\.");
-            this.suffix = new ArrayList<>(Arrays.asList(keyAsArray).subList(keyAsArray.length - 1, keyAsArray.length));
+            this(key.split("\\."));
+        }
+
+        Suffix(final String[] keyAsArray) {
+            this(List.of(keyAsArray).subList(keyAsArray.length - 1, keyAsArray.length));
         }
 
         @Override

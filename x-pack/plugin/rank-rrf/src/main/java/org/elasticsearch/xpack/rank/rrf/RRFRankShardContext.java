@@ -11,7 +11,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankShardContext;
 
 import java.util.Arrays;
@@ -31,7 +30,7 @@ public class RRFRankShardContext extends RankShardContext {
     }
 
     @Override
-    public void sort(List<TopDocs> rrfRankResults, QuerySearchResult querySearchResult) {
+    public RRFRankShardResult sort(List<TopDocs> rrfRankResults) {
         // combine the disjointed sets of TopDocs into a single set or RRFRankDocs
         // each RRFRankDoc will have both the position and score for each query where
         // it was within the result set for that query
@@ -84,6 +83,6 @@ public class RRFRankShardContext extends RankShardContext {
             topResults[rank].rank = rank + 1;
             topResults[rank].score = Float.NaN;
         }
-        querySearchResult.setRankShardResult(new RRFRankShardResult(rrfRankResults.size(), topResults));
+        return new RRFRankShardResult(rrfRankResults.size(), topResults);
     }
 }

@@ -10,7 +10,6 @@ package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.util.List;
 
@@ -49,5 +48,5 @@ public abstract class RankShardContext {
         return windowSize;
     }
 
-    public abstract void sort(List<TopDocs> rrfRankResults, QuerySearchResult querySearchResult);
+    public abstract RankShardResult sort(List<TopDocs> rrfRankResults);
 }

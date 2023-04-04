@@ -291,7 +291,7 @@ public final class Authentication implements ToXContentObject {
      */
     public Authentication copyWithFilteredMetadataFields(final Set<String> fieldsToKeep) {
         Objects.requireNonNull(fieldsToKeep);
-        // Ensure that we don't attempt to remove necessary reserved fields
+        // Ensure that we don't attempt to remove required reserved fields
         assert false == isApiKey() || fieldsToKeep.contains(AuthenticationField.API_KEY_ID_KEY)
             : "API key authentication metadata requires this";
         assert false == isServiceAccount()

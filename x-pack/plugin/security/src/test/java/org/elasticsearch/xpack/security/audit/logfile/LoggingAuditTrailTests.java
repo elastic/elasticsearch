@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.layout.PatternLayout;
@@ -2595,7 +2593,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertMsg(logger, checkedFields.map(), checkedArrayFields.map());
     }
 
-    @Repeat(iterations = 100)
     public void testCrossClusterAccessAuthenticationSuccessTransport() throws Exception {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String requestId = randomRequestId();
@@ -2607,7 +2604,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Authentication authentication = AuthenticationTestHelper.builder()
             .crossClusterAccess(
                 randomAlphaOfLength(42),
-                new CrossClusterAccessSubjectInfo(remoteAuthentication, RoleDescriptorsIntersection.EMPTY).getSanitizedCopy()
+                new CrossClusterAccessSubjectInfo(remoteAuthentication, RoleDescriptorsIntersection.EMPTY).cleanWithValidation()
             )
             .build();
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);

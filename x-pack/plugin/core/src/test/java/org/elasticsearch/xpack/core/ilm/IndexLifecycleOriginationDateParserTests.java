@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
@@ -21,17 +22,17 @@ public class IndexLifecycleOriginationDateParserTests extends ESTestCase {
     private static final DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
 
     public void testShouldParseIndexNameReturnsFalseWhenOriginationDateIsSet() {
-        Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, 1L).build();
+        Settings settings = Settings.builder().put(DataStream.LIFECYCLE_ORIGINATION_DATE, 1L).build();
         assertThat(shouldParseIndexName(settings), is(false));
     }
 
     public void testShouldParseIndexNameReturnsFalseIfParseOriginationDateIsDisabled() {
-        Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false).build();
+        Settings settings = Settings.builder().put(DataStream.LIFECYCLE_PARSE_ORIGINATION_DATE, false).build();
         assertThat(shouldParseIndexName(settings), is(false));
     }
 
     public void testShouldParseIndexNameReturnsTrueIfParseOriginationDateIsTrueAndOriginationDateIsNotSet() {
-        Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true).build();
+        Settings settings = Settings.builder().put(DataStream.LIFECYCLE_PARSE_ORIGINATION_DATE, true).build();
         assertThat(shouldParseIndexName(settings), is(true));
     }
 

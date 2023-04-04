@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.Nullable;
@@ -67,6 +68,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final TimestampField TIMESTAMP_FIELD = new DataStream.TimestampField("@timestamp");
+    public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
+    public static final String LIFECYCLE_PARSE_ORIGINATION_DATE = "index.lifecycle.parse_origination_date";
+
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
     public static Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
         try {
@@ -88,6 +92,20 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
     }).reversed();
+
+    public static final Setting<Long> LIFECYCLE_ORIGINATION_DATE_SETTING = Setting.longSetting(
+        LIFECYCLE_ORIGINATION_DATE,
+        -1,
+        -1,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
+    );
+    public static final Setting<Boolean> LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING = Setting.boolSetting(
+        LIFECYCLE_PARSE_ORIGINATION_DATE,
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
+    );
 
     private final LongSupplier timeProvider;
     private final String name;

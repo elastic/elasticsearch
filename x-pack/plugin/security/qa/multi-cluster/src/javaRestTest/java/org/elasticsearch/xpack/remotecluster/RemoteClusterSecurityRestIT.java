@@ -54,7 +54,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             .apply(commonClusterConfig)
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
-            .setting("xpack.security.remote_cluster_server.ssl.enabled", String.valueOf(SSL_ENABLED_REF.getPlain()))
+            .setting("xpack.security.remote_cluster_server.ssl.enabled", String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
             .setting("xpack.security.authc.token.enabled", "true")
@@ -64,7 +64,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
         queryCluster = ElasticsearchCluster.local()
             .name("query-cluster")
             .apply(commonClusterConfig)
-            .setting("xpack.security.remote_cluster_client.ssl.enabled", String.valueOf(SSL_ENABLED_REF.getPlain()))
+            .setting("xpack.security.remote_cluster_client.ssl.enabled", String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .setting("xpack.security.authc.token.enabled", "true")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
@@ -91,7 +91,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
     // `SSL_ENABLED_REF` is used to control the SSL-enabled setting on the test clusters
     // We set it here, since randomization methods are not available in the static initialize context above
-    public static TestRule clusterRule = RuleChain.outerRule(new RunnableTestRuleAdapter(() -> SSL_ENABLED_REF.setPlain(usually())))
+    public static TestRule clusterRule = RuleChain.outerRule(new RunnableTestRuleAdapter(() -> SSL_ENABLED_REF.set(usually())))
         .around(fulfillingCluster)
         .around(queryCluster);
 

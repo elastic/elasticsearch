@@ -61,8 +61,8 @@ import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 /**
  * {@link Engine} implementation for search shards
@@ -345,8 +345,8 @@ public class SearchEngine extends Engine {
     }
 
     @Override
-    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
-        return false;
+    public void asyncEnsureTranslogSynced(Translog.Location location, Consumer<Exception> listener) {
+        listener.accept(null);
     }
 
     @Override

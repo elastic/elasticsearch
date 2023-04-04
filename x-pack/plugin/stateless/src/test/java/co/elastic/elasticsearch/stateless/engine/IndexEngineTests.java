@@ -17,17 +17,28 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.translog.Translog;
 import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
+
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class IndexEngineTests extends AbstractEngineTestCase {
 
@@ -98,6 +109,49 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             engine.onSettingsChanged(); // Refresh the reference on the scheduledFlush method
 
             assertTrue(latch.await(10, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testAsyncEnsureSync() throws Exception {
+        TranslogReplicator replicator = mock(TranslogReplicator.class);
+        try (var engine = newIndexEngine(indexConfig(), replicator)) {
+            Translog.Location location = new Translog.Location(0, 0, 0);
+            PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            doAnswer((Answer<Void>) invocation -> {
+                future.onResponse(null);
+                return null;
+            }).when(replicator).sync(eq(engine.config().getShardId()), eq(location), any());
+            engine.asyncEnsureTranslogSynced(location, e -> {
+                if (e == null) {
+                    future.onResponse(null);
+                } else {
+                    future.onFailure(e);
+                }
+            });
+            verify(replicator).sync(eq(engine.config().getShardId()), eq(location), any());
+            future.actionGet();
+        }
+    }
+
+    public void testSync() throws Exception {
+        TranslogReplicator replicator = mock(TranslogReplicator.class);
+        try (var engine = newIndexEngine(indexConfig(), replicator)) {
+            doAnswer((Answer<Void>) invocation -> {
+                ActionListener<Void> listener = invocation.getArgument(1);
+                listener.onResponse(null);
+                return null;
+            }).when(replicator).syncAll(eq(engine.config().getShardId()), any());
+            engine.syncTranslog();
+            verify(replicator).syncAll(eq(engine.config().getShardId()), any());
+        }
+    }
+
+    public void testSyncIsNeededIfTranslogReplicatorHasUnsyncedData() throws Exception {
+        TranslogReplicator replicator = mock(TranslogReplicator.class);
+        try (var engine = newIndexEngine(indexConfig(), replicator)) {
+            assertFalse(engine.isTranslogSyncNeeded());
+            when(replicator.isSyncNeeded(engine.config().getShardId())).thenReturn(true);
+            assertTrue(engine.isTranslogSyncNeeded());
         }
     }
 

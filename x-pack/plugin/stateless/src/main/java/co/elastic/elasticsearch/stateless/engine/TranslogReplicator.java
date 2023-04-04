@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -169,9 +170,18 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
     }
 
+    public boolean isSyncNeeded(final ShardId shardId) {
+        ShardSyncState shardSyncState = shardSyncStateByShardId.get(shardId);
+        return shardSyncState != null && (shardSyncState.currentBufferSize() > 0L || shardSyncState.ongoingSyncs.isEmpty() == false);
+    }
+
     public void sync(final ShardId shardId, Translog.Location location, ActionListener<Void> listener) {
         shardSyncStateByShardId.computeIfAbsent(shardId, (k) -> new ShardSyncState())
             .ensureSynced(new Translog.Location(location.generation, location.translogLocation + location.size, 0), listener);
+    }
+
+    public void syncAll(final ShardId shardId, ActionListener<Void> listener) {
+        shardSyncStateByShardId.computeIfAbsent(shardId, (k) -> new ShardSyncState()).waitForAllSynced(listener);
     }
 
     private void flush() throws IOException {
@@ -294,7 +304,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         private long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         private long totalOps = 0;
-        private Translog.Location location = null;
+        private Translog.Location location;
 
         private BufferState(ReleasableBytesStreamOutput data) {
             this.data = data;
@@ -328,12 +338,42 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             }
         }
 
+        private void waitForAllSynced(ActionListener<Void> listener) {
+            Translog.Location location = null;
+
+            // Check if there is a location from buffered data
+            synchronized (bufferLock) {
+                if (bufferState != null) {
+                    Translog.Location lastOpLocation = bufferState.location;
+                    location = new Translog.Location(lastOpLocation.generation, lastOpLocation.translogLocation + lastOpLocation.size, 0);
+                }
+            }
+            // If a location has not been found from buffered data, check if there is one from ongoing syncs
+            if (location == null) {
+                synchronized (ongoingSyncs) {
+                    Map.Entry<Translog.Location, Boolean> lastEntry = ongoingSyncs.lastEntry();
+                    if (lastEntry != null) {
+                        location = lastEntry.getKey();
+                    }
+                }
+            }
+
+            if (location != null) {
+                ensureSynced(location, listener);
+            } else {
+                // TODO: Error Handling
+                listener.onResponse(null);
+            }
+        }
+
         private void ensureSynced(Translog.Location location, ActionListener<Void> listener) {
             boolean completeListener = true;
             if (location.compareTo(syncedLocation) > 0) {
                 synchronized (listeners) {
                     if (location.compareTo(syncedLocation) > 0) {
-                        listeners.add(new SyncListener(location, listener));
+                        ContextPreservingActionListener<Void> contextPreservingActionListener = ContextPreservingActionListener
+                            .wrapPreservingContext(listener, threadPool.getThreadContext());
+                        listeners.add(new SyncListener(location, contextPreservingActionListener));
                         completeListener = false;
                     }
                 }

@@ -107,6 +107,50 @@ public class TranslogReplicatorTests extends ESTestCase {
         );
     }
 
+    public void testListenerThreadContextPreserved() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        String header = "header";
+        String preserved = "preserved";
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        translogReplicator.doStart();
+
+        BytesArray bytesArray = new BytesArray(new byte[16]);
+        Translog.Location location = new Translog.Location(0, 0, bytesArray.length());
+        translogReplicator.add(shardId, bytesArray, 0, location);
+
+        AtomicReference<String> value = new AtomicReference<>();
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+
+        threadPool.getThreadContext().putHeader(header, preserved);
+
+        ActionListener<Void> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                value.set(threadPool.getThreadContext().getHeader(header));
+                future.onResponse(unused);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                future.onFailure(e);
+            }
+        };
+        if (randomBoolean()) {
+            translogReplicator.sync(shardId, location, listener);
+        } else {
+            translogReplicator.syncAll(shardId, listener);
+        }
+        threadPool.getThreadContext().stashContext();
+        assertNull(threadPool.getThreadContext().getHeader(header));
+
+        future.actionGet();
+        assertThat(value.get(), equalTo(preserved));
+    }
+
     public void testTranslogBytesAreSyncedWhenReachingSizeThreshold() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
 
@@ -371,6 +415,35 @@ public class TranslogReplicatorTests extends ESTestCase {
         );
     }
 
+    public void testSyncAll() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        translogReplicator.doStart();
+
+        BytesArray bytesArray = new BytesArray(new byte[16]);
+        translogReplicator.add(shardId, bytesArray, 0, new Translog.Location(0, 0, bytesArray.length()));
+        translogReplicator.add(shardId, bytesArray, 1, new Translog.Location(0, bytesArray.length(), bytesArray.length()));
+        translogReplicator.add(shardId, bytesArray, 3, new Translog.Location(0, bytesArray.length() * 2L, bytesArray.length()));
+        Translog.Location finalLocation = new Translog.Location(0, bytesArray.length() * 3L, bytesArray.length());
+        translogReplicator.add(shardId, bytesArray, 2, finalLocation);
+
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        translogReplicator.syncAll(shardId, future);
+        future.actionGet();
+
+        assertThat(compoundFiles.size(), equalTo(1));
+
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService, shardId, 0),
+            new TranslogEntry(new TranslogMetadata(0, 64, 0, 3, 4), repeatBytes(bytesArray.array(), 4))
+        );
+    }
+
+    @SuppressWarnings("unchecked")
     public void testSchedulesFlushCheck() {
         var threadPool = mock(ThreadPool.class);
         try (var translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, mock(ObjectStoreService.class))) {

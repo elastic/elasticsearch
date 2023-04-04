@@ -80,6 +80,7 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting
 import static org.elasticsearch.index.engine.EngineTestCase.newUid;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public abstract class AbstractEngineTestCase extends ESTestCase {
 
@@ -124,7 +125,11 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected IndexEngine newIndexEngine(final EngineConfig indexConfig) {
-        var indexEngine = new IndexEngine(indexConfig) {
+        return newIndexEngine(indexConfig, mock(TranslogReplicator.class));
+    }
+
+    protected IndexEngine newIndexEngine(final EngineConfig indexConfig, final TranslogReplicator translogReplicator) {
+        var indexEngine = new IndexEngine(indexConfig, translogReplicator) {
             @Override
             public void close() throws IOException {
                 try {

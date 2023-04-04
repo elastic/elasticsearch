@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.engine.TranslogMetadata;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicatorReader;
 
@@ -29,8 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
@@ -51,6 +48,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -140,7 +138,51 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         assertObjectStoreConsistentWithIndexShards();
     }
 
-    public void testTranslogAccessibilityViaObjectStore() throws Exception {
+    public void testTranslogIsSyncedToObjectStoreDuringIndexing() throws Exception {
+        startMasterOnlyNode();
+        final int numberOfShards = 1;
+        startIndexNodes(numberOfShards);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        assertObjectStoreConsistentWithIndexShards();
+
+        final Map<Index, Integer> indices = resolveIndices();
+        Optional<Map.Entry<Index, Integer>> index = indices.entrySet()
+            .stream()
+            .filter(e -> indexName.equals(e.getKey().getName()))
+            .findFirst();
+        assertTrue(index.isPresent());
+
+        Map.Entry<Index, Integer> entry = index.get();
+        DiscoveryNode indexNode = findIndexNode(entry.getKey(), 0);
+        final ShardId shardId = new ShardId(entry.getKey(), 0);
+
+        indexDocs(indexName, 1);
+
+        // Check that the translog on the object store contains the correct sequence numbers and number of operations
+        var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode.getName());
+        var reader = new TranslogReplicatorReader(indexObjectStoreService, shardId, 0);
+        long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+        long totalOps = 0;
+        while (reader.hasNext()) {
+            var translogEntry = reader.next();
+            maxSeqNo = SequenceNumbers.max(maxSeqNo, translogEntry.metadata().maxSeqNo());
+            totalOps += translogEntry.metadata().totalOps();
+        }
+        assertThat(maxSeqNo, equalTo(0L));
+        assertThat(totalOps, equalTo(1L));
+    }
+
+    public void testAllTranslogOperationsAreWrittenToObjectStore() throws Exception {
         startMasterOnlyNode();
         final int numberOfShards = randomIntBetween(1, 5);
         startIndexNodes(numberOfShards);
@@ -157,7 +199,10 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
         assertObjectStoreConsistentWithIndexShards();
 
-        indexDocuments(indexName);
+        final int iters = randomIntBetween(1, 20);
+        for (int i = 0; i < iters; i++) {
+            indexDocs(indexName, randomIntBetween(1, 100));
+        }
 
         final Map<Index, Integer> indices = resolveIndices();
         assertThat(indices.isEmpty(), is(false));
@@ -167,28 +212,9 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             for (int shardId = 0; shardId < entry.getValue(); shardId++) {
                 DiscoveryNode indexNode = findIndexNode(entry.getKey(), shardId);
                 IndexShard indexShard = findIndexShard(entry.getKey(), shardId);
-                var blobContainer = internalCluster().getDataNodeInstance(ObjectStoreService.class).getTranslogBlobContainer(indexNode);
                 final ShardId objShardId = new ShardId(entry.getKey(), shardId);
 
-                // Check that the translog is correctly written to the object store
-                assertBusy(() -> {
-                    long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-                    long totalOps = 0;
-                    for (String file : blobContainer.listBlobs().keySet()) {
-                        try (StreamInput remote = new InputStreamStreamInput(blobContainer.readBlob(file))) {
-                            Map<ShardId, TranslogMetadata> map = remote.readMap(ShardId::new, TranslogMetadata::new);
-                            if (map.containsKey(objShardId)) {
-                                TranslogMetadata translogMetadata = map.get(objShardId);
-                                maxSeqNo = SequenceNumbers.max(maxSeqNo, translogMetadata.maxSeqNo());
-                                totalOps += translogMetadata.totalOps();
-                            }
-                        }
-                    }
-                    assertThat(maxSeqNo, equalTo(indexShard.seqNoStats().getMaxSeqNo()));
-                    assertThat(totalOps, equalTo(indexShard.seqNoStats().getMaxSeqNo() + 1));
-                });
-
-                // Check that the translog is correctly read from the object store
+                // Check that the translog on the object store contains the correct sequence numbers and number of operations
                 var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode.getName());
                 var reader = new TranslogReplicatorReader(indexObjectStoreService, objShardId, 0);
                 long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;

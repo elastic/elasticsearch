@@ -48,7 +48,9 @@ public class TransportDeleteAsyncResultAction extends HandledTransportAction<Del
             threadPool.getThreadContext(),
             client,
             ASYNC_SEARCH_ORIGIN,
-            (in) -> { throw new UnsupportedOperationException("Reading is not supported during deletion"); },
+            (in) -> {
+                throw new UnsupportedOperationException("Reading is not supported during deletion");
+            },
             registry,
             bigArrays
         );

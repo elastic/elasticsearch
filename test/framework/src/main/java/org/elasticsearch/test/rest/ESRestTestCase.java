@@ -631,7 +631,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             ".fleet-file-data-ilm-policy",
             ".fleet-files-ilm-policy",
             ".deprecation-indexing-ilm-policy",
-            ".monitoring-8-ilm-policy"
+            ".monitoring-8-ilm-policy",
+            "behavioral_analytics-events-default_policy"
         );
     }
 
@@ -1803,6 +1804,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             return true;
         }
         if (name.startsWith(".fleet-")) {
+            return true;
+        }
+        if (name.startsWith("behavioral_analytics-")) {
             return true;
         }
         switch (name) {

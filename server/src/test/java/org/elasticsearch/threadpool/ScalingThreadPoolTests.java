@@ -281,7 +281,9 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             if (rejectAfterShutdown) {
                 final EsRejectedExecutionException exception = expectThrows(
                     EsRejectedExecutionException.class,
-                    () -> scalingExecutor.execute(() -> { throw new AssertionError("should be rejected"); })
+                    () -> scalingExecutor.execute(() -> {
+                        throw new AssertionError("should be rejected");
+                    })
                 );
                 assertThat(exception.getLocalizedMessage(), allOf(containsString("rejected execution of "), containsString("(shutdown)")));
                 assertThat(exception.isExecutorShutdown(), equalTo(true));

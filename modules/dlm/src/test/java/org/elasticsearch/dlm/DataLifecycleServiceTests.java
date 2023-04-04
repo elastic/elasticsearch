@@ -14,6 +14,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -37,6 +39,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -54,6 +57,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -297,6 +301,65 @@ public class DataLifecycleServiceTests extends ESTestCase {
         }
     }
 
+    @TestLogging(value = "org.elasticsearch:trace", reason = "Logging information about locks useful for tracking down deadlock")
+    public void testForceMerge() throws Exception {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 3;
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            settings(Version.CURRENT),
+            new DataLifecycle(TimeValue.MAX_VALUE)
+        );
+        builder.put(dataStream);
+
+        // for (int i = 0; i < numBackingIndices; i++) {
+        // IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, i))
+        // .settings(settings(Version.CURRENT))
+        // .numberOfShards(1)
+        // .numberOfReplicas(1)
+        // .creationDate(now - 3000L);
+        // builder.put(indexMetaBuilder.build(), true);
+        // }
+        String nodeId = "localNode";
+        DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
+        // we are the master node
+        nodesBuilder.masterNodeId(nodeId);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).nodes(nodesBuilder).build();
+        setState(clusterService, state);
+        dataLifecycleService.run(clusterService.state());
+        assertBusy(() -> {
+            assertThat(clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData("dlm"), notNullValue());
+            assertThat(clusterService.state().metadata().index(dataStream.getIndices().get(1)).getCustomData("dlm"), notNullValue());
+        }, 30, TimeUnit.SECONDS);
+        assertBusy(() -> { assertThat(clientSeenRequests.size(), is(3)); }, 30, TimeUnit.SECONDS);
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        assertThat(((RolloverRequest) clientSeenRequests.get(0)).getRolloverTarget(), is(dataStreamName));
+        List<ForceMergeRequest> forceMergeRequests = clientSeenRequests.subList(1, 3)
+            .stream()
+            .map(transportRequest -> (ForceMergeRequest) transportRequest)
+            .toList();
+        assertThat(forceMergeRequests.get(0).indices()[0], is(dataStream.getIndices().get(0).getName()));
+        assertThat(forceMergeRequests.get(1).indices()[0], is(dataStream.getIndices().get(1).getName()));
+        dataLifecycleService.run(clusterService.state());
+        assertThat(clientSeenRequests.size(), is(3));
+
+        IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(
+            DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices)
+        ).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).creationDate(now - 3000L);
+        MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(now - 2000L));
+        indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
+        IndexMetadata newIndexMetadata = indexMetaBuilder.build();
+        builder = Metadata.builder(clusterService.state().metadata()).put(newIndexMetadata, true);
+        state = ClusterState.builder(clusterService.state()).metadata(builder).build();
+        setState(clusterService, state);
+        dataStream.addBackingIndex(clusterService.state().metadata(), newIndexMetadata.getIndex());
+        dataLifecycleService.run(clusterService.state());
+        assertBusy(() -> { assertThat(clientSeenRequests.size(), is(4)); });
+    }
+
     private static DiscoveryNodes.Builder buildNodes(String nodeId) {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         nodesBuilder.localNodeId(nodeId);
@@ -353,6 +416,9 @@ public class DataLifecycleServiceTests extends ESTestCase {
                 ActionListener<Response> listener
             ) {
                 clientSeenRequests.add(request);
+                if (action.name().equals("indices:admin/forcemerge")) {
+                    listener.onResponse((Response) new ForceMergeResponse(5, 1, 0, List.of()));
+                }
             }
         };
     }

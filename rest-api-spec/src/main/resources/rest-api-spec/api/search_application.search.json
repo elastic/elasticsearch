@@ -1,12 +1,11 @@
 {
   "search_application.search": {
     "documentation": {
-      "url": "http://todo.com/tbd",
-      "description": "Perform a search on a search application"
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/search-application-search.html",
+      "description": "Perform a search against a search application"
     },
-    "stability": "experimental",
-    "visibility": "feature_flag",
-    "feature_flag": "xpack.ent-search.enabled",
+    "stability": "beta",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"

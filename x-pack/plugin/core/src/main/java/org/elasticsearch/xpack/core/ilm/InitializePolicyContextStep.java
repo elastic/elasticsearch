@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -74,7 +75,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
                 .settings(
                     Settings.builder()
                         .put(indexMetadata.getSettings())
-                        .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
+                        .put(DataStream.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
                         .build()
                 );
             builder.putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.asMap());

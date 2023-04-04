@@ -887,10 +887,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false)
+                .put(DataStream.LIFECYCLE_PARSE_ORIGINATION_DATE, false)
         );
 
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true));
+        updateIndexSettings(index, Settings.builder().put(DataStream.LIFECYCLE_PARSE_ORIGINATION_DATE, true));
 
         assertOK(client().performRequest(startReq));
 
@@ -901,7 +901,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         );
 
         // Turn origination date parsing back off
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false));
+        updateIndexSettings(index, Settings.builder().put(DataStream.LIFECYCLE_PARSE_ORIGINATION_DATE, false));
 
         assertBusy(() -> {
             Map<String, Object> explainResp = explainIndex(client(), index);

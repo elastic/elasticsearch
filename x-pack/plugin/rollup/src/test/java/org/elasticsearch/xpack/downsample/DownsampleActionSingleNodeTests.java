@@ -28,6 +28,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -351,7 +352,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(LifecycleSettings.LIFECYCLE_NAME, randomAlphaOfLength(5))
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey(), randomAlphaOfLength(5))
-            .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean());
+            .put(DataStream.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean());
 
         final Integer totalFieldsLimit = randomBoolean() ? randomIntBetween(100, 10_000) : null;
         if (totalFieldsLimit != null) {

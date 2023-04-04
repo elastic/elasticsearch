@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -282,7 +283,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         }
 
         // set the origination date setting to an older value
-        updateIndexSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, 1000L), "test");
+        updateIndexSettings(Settings.builder().put(DataStream.LIFECYCLE_ORIGINATION_DATE, 1000L), "test");
 
         {
             assertBusy(() -> {
@@ -292,7 +293,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         }
 
         // set the origination date setting to null
-        updateIndexSettings(Settings.builder().putNull(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE), "test");
+        updateIndexSettings(Settings.builder().putNull(DataStream.LIFECYCLE_ORIGINATION_DATE), "test");
 
         {
             assertBusy(() -> {
@@ -343,7 +344,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
             .indices()
             .create(
                 new CreateIndexRequest(indexName).settings(
-                    Settings.builder().put(settings).put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                    Settings.builder().put(settings).put(DataStream.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
                 )
             )
             .actionGet();
@@ -357,7 +358,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         });
 
         // disabling the lifecycle parsing would maintain the parsed value as that was set as the origination date
-        updateIndexSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false), indexName);
+        updateIndexSettings(Settings.builder().put(DataStream.LIFECYCLE_PARSE_ORIGINATION_DATE, false), indexName);
 
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
@@ -365,7 +366,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         });
 
         // setting the lifecycle origination date setting to null should make the lifecyle date fallback on the index creation date
-        updateIndexSettings(Settings.builder().putNull(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE), indexName);
+        updateIndexSettings(Settings.builder().putNull(DataStream.LIFECYCLE_ORIGINATION_DATE), indexName);
 
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
@@ -376,8 +377,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         long originationDate = 42L;
         updateIndexSettings(
             Settings.builder()
-                .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
-                .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, originationDate),
+                .put(DataStream.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                .put(DataStream.LIFECYCLE_ORIGINATION_DATE, originationDate),
             indexName
         );
 

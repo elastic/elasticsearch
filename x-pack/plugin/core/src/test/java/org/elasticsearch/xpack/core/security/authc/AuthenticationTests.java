@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Strings;
@@ -921,6 +922,28 @@ public class AuthenticationTests extends ESTestCase {
             AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY
         );
         assertThat(innerRewritten, equalTo(innerAuthentication.maybeRewriteForOlderVersion(olderVersion)));
+    }
+
+    public void testCopyWithFilteredMetadataFields() {
+        final Map<String, Object> initialMetadata = Map.of(
+            AuthenticationField.API_KEY_ID_KEY,
+            ESTestCase.randomAlphaOfLength(20),
+            AuthenticationField.API_KEY_NAME_KEY,
+            ESTestCase.randomAlphaOfLength(10),
+            "field_to_keep",
+            ESTestCase.randomAlphaOfLength(10),
+            "field_to_remove",
+            ESTestCase.randomAlphaOfLength(10)
+        );
+        final Authentication authentication = AuthenticationTestHelper.builder().apiKey().metadata(initialMetadata).build();
+
+        final Set<String> fieldsToKeep = Set.of(AuthenticationField.API_KEY_ID_KEY, AuthenticationField.API_KEY_NAME_KEY, "field_to_keep");
+        final Map<String, Object> actualMetadata = authentication.copyWithFilteredMetadataFields(fieldsToKeep)
+            .getAuthenticatingSubject()
+            .getMetadata();
+
+        final var expectedMetadata = Maps.copyMapWithRemovedEntry(initialMetadata, "field_to_remove");
+        assertThat(actualMetadata, equalTo(expectedMetadata));
     }
 
     public void testMaybeRewriteForOlderVersionErasesDomainForVersionsBeforeDomains() {

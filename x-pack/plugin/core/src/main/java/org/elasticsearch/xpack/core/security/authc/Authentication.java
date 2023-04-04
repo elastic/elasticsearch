@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -280,6 +281,49 @@ public final class Authentication implements ToXContentObject {
         } else {
             return authentication.getAuthenticatingSubject().getMetadata();
         }
+    }
+
+    /**
+     * Creates a copy of this Authentication instance, but only with metadata entries specified by `fieldToKeep`.
+     * All other entries are removed from the copy's metadata.
+     *
+     * If the instance's metadata already conforms to the specified field-set, no copy is performed.
+     */
+    public Authentication copyWithFilteredMetadataFields(final Set<String> fieldsToKeep) {
+        Objects.requireNonNull(fieldsToKeep);
+        final Map<String, Object> metadataCopy = new HashMap<>(getAuthenticatingSubject().getMetadata());
+        final boolean isNoop = false == metadataCopy.keySet().retainAll(fieldsToKeep);
+        // If no keys were removed, no need to copy authentication instance
+        if (isNoop) {
+            return this;
+        }
+        logger.trace(
+            () -> Strings.format(
+                "Authentication metadata [%s] contained fields other than [%s]. These were removed.",
+                getAuthenticatingSubject().getMetadata(),
+                fieldsToKeep
+            )
+        );
+        return isRunAs()
+            ? new Authentication(
+                effectiveSubject,
+                new Subject(
+                    authenticatingSubject.getUser(),
+                    authenticatingSubject.getRealm(),
+                    authenticatingSubject.getTransportVersion(),
+                    metadataCopy
+                ),
+                type
+            )
+            : new Authentication(
+                new Subject(
+                    authenticatingSubject.getUser(),
+                    authenticatingSubject.getRealm(),
+                    authenticatingSubject.getTransportVersion(),
+                    metadataCopy
+                ),
+                type
+            );
     }
 
     /**

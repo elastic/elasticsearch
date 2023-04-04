@@ -146,12 +146,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testClusterUUIDLogging() {
-        // Stateless masters do not lock in to a cluster UUID in a way that persists across restarts so this test doesn't make sense here
-    }
-
-    @Override
     public void testJoiningNodeReceivesFullState() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             cluster.runRandomly();

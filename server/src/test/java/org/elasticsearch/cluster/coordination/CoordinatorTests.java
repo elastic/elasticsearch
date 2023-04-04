@@ -1181,43 +1181,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     @TestLogging(
-        reason = "test includes assertions about ClusterBootstrapService logging",
-        value = "org.elasticsearch.cluster.coordination.ClusterBootstrapService:INFO"
-    )
-    public void testClusterUUIDLogging() {
-        final var mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "fresh node message",
-                ClusterBootstrapService.class.getCanonicalName(),
-                Level.INFO,
-                "this node has not joined a bootstrapped cluster yet; [cluster.initial_master_nodes] is set to []"
-            )
-        );
-        try (var ignored = mockAppender.capturing(ClusterBootstrapService.class); var cluster = new Cluster(randomIntBetween(1, 3))) {
-            cluster.runRandomly();
-            cluster.stabilise();
-            mockAppender.assertAllExpectationsMatched();
-
-            final var restartingNode = cluster.getAnyNode();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "restarted node message",
-                    ClusterBootstrapService.class.getCanonicalName(),
-                    Level.INFO,
-                    "this node is locked into cluster UUID ["
-                        + restartingNode.getLastAppliedClusterState().metadata().clusterUUID()
-                        + "] and will not attempt further cluster bootstrapping"
-                )
-            );
-            restartingNode.close();
-            cluster.clusterNodes.replaceAll(cn -> cn == restartingNode ? cn.restartedNode() : cn);
-            cluster.stabilise();
-            mockAppender.assertAllExpectationsMatched();
-        }
-    }
-
-    @TestLogging(
         reason = "test includes assertions about Coordinator and JoinHelper logging",
         value = "org.elasticsearch.cluster.coordination.Coordinator:WARN,org.elasticsearch.cluster.coordination.JoinHelper:INFO"
     )

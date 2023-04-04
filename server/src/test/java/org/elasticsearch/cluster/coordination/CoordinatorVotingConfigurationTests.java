@@ -8,10 +8,12 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.HashSet;
@@ -447,6 +449,43 @@ public class CoordinatorVotingConfigurationTests extends AbstractCoordinatorTest
                     // Then allow time for all the other nodes to join, each of which might cause a reconfiguration
                     + (cluster.size() - 1) * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY
             );
+        }
+    }
+
+    @TestLogging(
+        reason = "test includes assertions about ClusterBootstrapService logging",
+        value = "org.elasticsearch.cluster.coordination.ClusterBootstrapService:INFO"
+    )
+    public void testClusterUUIDLogging() {
+        final var mockAppender = new MockLogAppender();
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "fresh node message",
+                ClusterBootstrapService.class.getCanonicalName(),
+                Level.INFO,
+                "this node has not joined a bootstrapped cluster yet; [cluster.initial_master_nodes] is set to []"
+            )
+        );
+        try (var ignored = mockAppender.capturing(ClusterBootstrapService.class); var cluster = new Cluster(randomIntBetween(1, 3))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            mockAppender.assertAllExpectationsMatched();
+
+            final var restartingNode = cluster.getAnyNode();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "restarted node message",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.INFO,
+                    "this node is locked into cluster UUID ["
+                        + restartingNode.getLastAppliedClusterState().metadata().clusterUUID()
+                        + "] and will not attempt further cluster bootstrapping"
+                )
+            );
+            restartingNode.close();
+            cluster.clusterNodes.replaceAll(cn -> cn == restartingNode ? cn.restartedNode() : cn);
+            cluster.stabilise();
+            mockAppender.assertAllExpectationsMatched();
         }
     }
 }

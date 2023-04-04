@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
 import org.elasticsearch.search.lookup.Source;
 
@@ -85,5 +86,10 @@ public class NestedValueFetcher implements ValueFetcher {
     @Override
     public void setNextReader(LeafReaderContext context) {
         this.nestedFieldFetcher.setNextReader(context);
+    }
+
+    @Override
+    public StoredFieldsSpec storedFieldsSpec() {
+        return StoredFieldsSpec.NEEDS_SOURCE;
     }
 }

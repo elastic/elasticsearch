@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 
@@ -46,7 +49,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
 
 public class StatementParserTests extends ESTestCase {
 
@@ -168,6 +170,38 @@ public class StatementParserTests extends ESTestCase {
         );
     }
 
+    public void testStatsWithoutAggs() throws Exception {
+        assertEquals(
+            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(attribute("a")), List.of(attribute("a"))),
+            processingCommand("stats by a")
+        );
+    }
+
+    public void testStatsWithoutAggsOrGroup() throws Exception {
+        expectError("from text | stats", "At least one aggregation or grouping expression required in [stats]");
+    }
+
+    public void testAggsWithGroupKeyAsAgg() throws Exception {
+        var queries = new String[] { """
+            row a = 1, b = 2
+            | stats a by a
+            """, """
+            row a = 1, b = 2
+            | stats a by a
+            | sort a
+            """, """
+            row a = 1, b = 2
+            | stats a = a by a
+            """, """
+            row a = 1, b = 2
+            | stats x = a by a
+            """ };
+
+        for (String query : queries) {
+            expectError(query, "Cannot specify grouping expression [a] as an aggregate");
+        }
+    }
+
     public void testInlineStatsWithGroups() {
         assertEquals(
             new InlineStats(
@@ -270,8 +304,7 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testLimitConstraints() {
-        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error", () -> statement("from text | limit -1"));
-        assertThat(e.getMessage(), startsWith("line 1:19: extraneous input '-' expecting INTEGER_LITERAL"));
+        expectError("from text | limit -1", "extraneous input '-' expecting INTEGER_LITERAL");
     }
 
     public void testBasicSortCommand() {
@@ -428,6 +461,37 @@ public class StatementParserTests extends ESTestCase {
         }
     }
 
+    public void testDissectPattern() {
+        LogicalPlan cmd = processingCommand("dissect a \"%{foo}\"");
+        assertEquals(Dissect.class, cmd.getClass());
+        Dissect dissect = (Dissect) cmd;
+        assertEquals("%{foo}", dissect.parser().pattern());
+        assertEquals("", dissect.parser().appendSeparator());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+
+        cmd = processingCommand("dissect a \"%{foo}\" append_separator=\",\"");
+        assertEquals(Dissect.class, cmd.getClass());
+        dissect = (Dissect) cmd;
+        assertEquals("%{foo}", dissect.parser().pattern());
+        assertEquals(",", dissect.parser().appendSeparator());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+
+        for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
+            Tuple.tuple("from a | dissect foo \"\"", "[]"),
+            Tuple.tuple("from a | dissect foo \" \"", "[ ]"),
+            Tuple.tuple("from a | dissect foo \"no fields\"", "[no fields]")
+        )) {
+            expectError(queryWithUnexpectedCmd.v1(), "Invalid pattern for dissect: " + queryWithUnexpectedCmd.v2());
+        }
+
+        expectError("from a | dissect foo \"%{*a}:%{&a}\"", "Reference keys not supported in dissect patterns: [%{*a}]");
+        expectError("from a | dissect foo \"%{bar}\" invalid_option=3", "Invalid option for dissect: [invalid_option]");
+        expectError(
+            "from a | dissect foo \"%{bar}\" append_separator=3",
+            "Invalid value for dissect append_separator: expected a string, but was [3]"
+        );
+    }
+
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {
         LogicalPlan from = statement(statement);
         assertThat(from, instanceOf(UnresolvedRelation.class));
@@ -449,7 +513,16 @@ public class StatementParserTests extends ESTestCase {
         return new UnresolvedAttribute(EMPTY, name);
     }
 
+    private static ReferenceAttribute referenceAttribute(String name, DataType type) {
+        return new ReferenceAttribute(EMPTY, name, type);
+    }
+
     private static Literal integer(int i) {
         return new Literal(EMPTY, i, INTEGER);
+    }
+
+    private void expectError(String query, String errorMessage) {
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
+        assertThat(e.getMessage(), containsString(errorMessage));
     }
 }

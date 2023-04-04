@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -48,7 +49,9 @@ import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.BeforeClass;
 
@@ -70,6 +73,7 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class LogicalPlanOptimizerTests extends ESTestCase {
@@ -122,9 +126,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testCombineProjectionWhilePreservingAlias() {
         var plan = plan("""
             from test
-            | project x = first_name, salary
+            | rename x = first_name
+            | project x, salary
             | where salary > 10
-            | project y = x
+            | rename y = x
+            | project y
             """);
 
         var project = as(plan, Project.class);
@@ -144,6 +150,43 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.aggregates()), contains("avg(salary)", "last_name", "first_name"));
         assertThat(Expressions.names(agg.groupings()), contains("last_name", "first_name"));
+    }
+
+    public void testQlComparisonOptimizationsApply() {
+        var plan = plan("""
+            from test
+            | where (1 + 4) < salary
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+
+        // The core QL optimizations rotate constants to the right.
+        var condition = as(filter.condition(), GreaterThan.class);
+        assertThat(Expressions.name(condition.left()), equalTo("salary"));
+        assertThat(Expressions.name(condition.right()), equalTo("1 + 4"));
+        var con = as(condition.right(), Literal.class);
+        assertThat(con.value(), equalTo(5));
+    }
+
+    public void testCombineProjectionWithPruning() {
+        var plan = plan("""
+            from test
+            | rename x = first_name
+            | project x, salary, last_name
+            | stats count(salary) by x
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("count(salary)", "x"));
+        assertThat(Expressions.names(agg.groupings()), contains("x"));
+        var alias = as(agg.aggregates().get(1), Alias.class);
+        var field = as(alias.child(), FieldAttribute.class);
+        assertThat(field.name(), is("first_name"));
+        var group = as(agg.groupings().get(0), Attribute.class);
+        assertThat(group, is(alias.toAttribute()));
+        var from = as(agg.child(), EsRelation.class);
     }
 
     public void testCombineLimits() {
@@ -361,7 +404,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testPushDownFilterPastProject() {
         LogicalPlan plan = optimizedPlan("""
             from test
-            | project x = emp_no
+            | rename x = emp_no
+            | project x
             | where x > 10""");
 
         var project = as(plan, Project.class);
@@ -374,7 +418,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testPushDownEvalPastProject() {
         LogicalPlan plan = optimizedPlan("""
             from test
-            | project x = emp_no
+            | rename x = emp_no
+            | project x
             | eval y = x * 2""");
 
         var project = as(plan, Project.class);
@@ -391,11 +436,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testPushDownDissectPastProject() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | rename x = first_name
+            | project x
+            | dissect x "%{y}"
+            """);
+
+        var project = as(plan, Project.class);
+        var dissect = as(project.child(), Dissect.class);
+        assertThat(dissect.extractedFields(), contains(new ReferenceAttribute(Source.EMPTY, "y", DataTypes.KEYWORD)));
+    }
+
     public void testPushDownFilterPastProjectUsingEval() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | eval y = emp_no + 1
-            | project x = y
+            | rename x = y
             | where x > 10""");
 
         var project = as(plan, Project.class);
@@ -405,6 +463,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(as(attr, ReferenceAttribute.class).name(), is("y"));
         var eval = as(filter.child(), Eval.class);
         as(eval.child(), EsRelation.class);
+    }
+
+    public void testPushDownFilterPastProjectUsingDissect() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | dissect first_name "%{y}"
+            | rename x = y
+            | project x
+            | where x == "foo"
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var attr = filter.condition().collect(Attribute.class::isInstance).stream().findFirst().get();
+        assertThat(as(attr, ReferenceAttribute.class).name(), is("y"));
+        var dissect = as(filter.child(), Dissect.class);
+        as(dissect.child(), EsRelation.class);
     }
 
     public void testPushDownLimitPastEval() {
@@ -417,10 +493,21 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(eval.child(), Limit.class);
     }
 
+    public void testPushDownLimitPastDissect() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | dissect first_name "%{y}"
+            | limit 10""");
+
+        var dissect = as(plan, Dissect.class);
+        as(dissect.child(), Limit.class);
+    }
+
     public void testPushDownLimitPastProject() {
         LogicalPlan plan = optimizedPlan("""
             from test
-            | project a = emp_no
+            | rename a = emp_no
+            | project a
             | limit 10""");
 
         var project = as(plan, Project.class);
@@ -546,6 +633,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(eval.child(), EsRelation.class);
     }
 
+    public void testCombineOrderByThroughDissect() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | dissect first_name "%{x}"
+            | sort x""");
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("x", "emp_no"));
+        var dissect = as(orderBy.child(), Dissect.class);
+        as(dissect.child(), EsRelation.class);
+    }
+
     public void testCombineOrderByThroughProject() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -564,7 +665,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
-            | project salary, en = emp_no
+            | rename en = emp_no
+            | project salary, en
             | eval e = en * 2
             | sort salary""");
 
@@ -579,7 +681,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
-            | project l = salary, emp_no
+            | rename l = salary
+            | project l, emp_no
             | sort l""");
 
         var project = as(plan, Project.class);
@@ -630,7 +733,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
-            | project l = salary, emp_no, first_name
+            | rename l = salary
+            | project l, emp_no, first_name
             | sort l
             | limit 100
             | sort first_name
@@ -692,8 +796,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testPruneRedundantSortClausesUsingAlias() {
         LogicalPlan plan = optimizedPlan("""
             from test
-            | project e = emp_no, emp_no
-            | sort emp_no, e desc""");
+            | sort emp_no desc
+            | rename e = emp_no
+            | project e
+            | sort e""");
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -716,7 +822,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query) {
-        return logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        var analyzed = analyzer.analyze(parser.createStatement(query));
+        // System.out.println(analyzed);
+        var optimized = logicalOptimizer.optimize(analyzed);
+        // System.out.println(optimized);
+        return optimized;
     }
 
     private void assertNullLiteral(Expression expression) {

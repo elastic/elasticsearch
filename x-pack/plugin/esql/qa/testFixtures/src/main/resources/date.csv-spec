@@ -31,18 +31,6 @@ emp_no:integer | hire_date:date
 ;
 
 
-projectRename
-from test | sort hire_date | project emp_no, x = hire_date | limit 5;
-
-emp_no:integer | x:date
-10009          | 1985-02-18T00:00:00.000Z            
-10048          | 1985-02-24T00:00:00.000Z                  
-10098          | 1985-05-13T00:00:00.000Z                  
-10076          | 1985-07-09T00:00:00.000Z                  
-10061          | 1985-09-17T00:00:00.000Z                  
-;
-
-
 evalAssign
 from test | sort hire_date | eval x = hire_date | project emp_no, x | limit 5;
 

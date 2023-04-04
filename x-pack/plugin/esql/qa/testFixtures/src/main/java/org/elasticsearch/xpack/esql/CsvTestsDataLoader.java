@@ -19,7 +19,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -42,7 +41,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 
 public class CsvTestsDataLoader {
     public static final String TEST_INDEX_SIMPLE = "test";
@@ -125,7 +126,7 @@ public class CsvTestsDataLoader {
             throw new IllegalArgumentException("Cannot find resource " + dataName);
         }
         createTestIndex(client, indexName, readMapping(mapping));
-        loadData(client, indexName, data, CsvTestsDataLoader::createParser, logger);
+        loadCsvData(client, indexName, data, CsvTestsDataLoader::createParser, logger);
     }
 
     private static void createTestIndex(RestClient client, String indexName, String mapping) throws IOException {
@@ -144,7 +145,7 @@ public class CsvTestsDataLoader {
     }
 
     @SuppressWarnings("unchecked")
-    private static void loadData(
+    private static void loadCsvData(
         RestClient client,
         String indexName,
         URL resource,
@@ -163,10 +164,7 @@ public class CsvTestsDataLoader {
                 line = line.trim();
                 // ignore comments
                 if (line.isEmpty() == false && line.startsWith("//") == false) {
-                    var entries = Strings.delimitedListToStringArray(line, ",");
-                    for (int i = 0; i < entries.length; i++) {
-                        entries[i] = entries[i].trim();
-                    }
+                    String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
                     // the schema row
                     if (columns == null) {
                         columns = new String[entries.length];
@@ -215,7 +213,22 @@ public class CsvTestsDataLoader {
                                 boolean isValueNull = "".equals(entries[i]);
                                 try {
                                     if (isValueNull == false) {
-                                        row.append("\"" + columns[i] + "\":\"" + entries[i] + "\"");
+                                        // add a comma after the previous value, only when there was actually a value before
+                                        if (i > 0 && row.length() > 0) {
+                                            row.append(",");
+                                        }
+                                        if (entries[i].contains(",")) {// multi-value
+                                            StringBuilder rowStringValue = new StringBuilder("[");
+                                            for (String s : delimitedListToStringArray(entries[i], ",")) {
+                                                rowStringValue.append("\"" + s + "\",");
+                                            }
+                                            // remove the last comma and put a closing bracket instead
+                                            rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
+                                            entries[i] = rowStringValue.toString();
+                                        } else {
+                                            entries[i] = "\"" + entries[i] + "\"";
+                                        }
+                                        row.append("\"" + columns[i] + "\":" + entries[i]);
                                     }
                                 } catch (Exception e) {
                                     throw new IllegalArgumentException(
@@ -228,9 +241,6 @@ public class CsvTestsDataLoader {
                                         ),
                                         e
                                     );
-                                }
-                                if (i < entries.length - 1 && isValueNull == false) {
-                                    row.append(",");
                                 }
                             }
                         }

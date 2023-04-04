@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
@@ -61,8 +62,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvValues;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPage;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.TEST_INDEX_SIMPLE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
@@ -84,8 +85,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
  * languages:integer,languages.long:long. The mapping has "long" as a sub-field of "languages". ES knows what to do with sub-field, but
  * employees.csv is specifically defining "languages.long" as "long" and also has duplicated columns for these two.
  *
- * ATM the first line from employees.csv file is not synchronized with the mapping itself, mainly because atm we do not support certain data
- * types (still_hired field should be “boolean”, birth_date and hire_date should be “date” fields).
+ * ATM the first line from employees.csv file is not synchronized with the mapping itself.
  *
  * When we add support for more field types, CsvTests should change to support the new Block types. Same goes for employees.csv file
  * (the schema needs adjustment) and the mapping-default.json file (to add or change an existing field).
@@ -96,6 +96,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
  *
  * To log the results logResults() should return "true".
  */
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
@@ -167,15 +168,16 @@ public class CsvTests extends ESTestCase {
     }
 
     public void doTest() throws Throwable {
-        Tuple<Page, List<String>> testData = loadPage(CsvTests.class.getResource("/" + CsvTestsDataLoader.DATA));
+        Tuple<Page, List<String>> testData = loadPageFromCsv(CsvTests.class.getResource("/" + CsvTestsDataLoader.DATA));
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             BigArrays.NON_RECYCLING_INSTANCE,
+            threadPool,
             configuration,
             new TestPhysicalOperationProviders(testData.v1(), testData.v2())
         );
 
         var actualResults = executePlan(planner);
-        var expected = loadCsvValues(testCase.expectedResults);
+        var expected = loadCsvSpecValues(testCase.expectedResults);
 
         var log = logResults() ? LOGGER : null;
         assertResults(expected, actualResults, log);
@@ -196,7 +198,9 @@ public class CsvTests extends ESTestCase {
         var analyzed = analyzer.analyze(parsed);
         var logicalOptimized = logicalPlanOptimizer.optimize(analyzed);
         var physicalPlan = mapper.map(logicalOptimized);
-        return physicalPlanOptimizer.optimize(physicalPlan);
+        var optimizedPlan = physicalPlanOptimizer.optimize(physicalPlan);
+        opportunisticallyAssertPlanSerialization(physicalPlan, optimizedPlan); // comment out to disable serialization
+        return optimizedPlan;
     }
 
     private ActualResults executePlan(LocalExecutionPlanner planner) {
@@ -229,5 +233,19 @@ public class CsvTests extends ESTestCase {
 
         th.setStackTrace(redone);
         return th;
+    }
+
+    // Asserts that the serialization and deserialization of the plan creates an equivalent plan.
+    private static void opportunisticallyAssertPlanSerialization(PhysicalPlan... plans) {
+        for (var plan : plans) {
+            var tmp = plan;
+            do {
+                if (tmp instanceof LocalSourceExec) {
+                    return; // skip plans with localSourceExec
+                }
+            } while (tmp.children().isEmpty() == false && (tmp = tmp.children().get(0)) != null);
+
+            SerializationTestUtils.assertSerialization(plan);
+        }
     }
 }

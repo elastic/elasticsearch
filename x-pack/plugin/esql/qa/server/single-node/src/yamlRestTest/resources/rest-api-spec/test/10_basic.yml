@@ -303,8 +303,8 @@ setup:
       values.1:
         - abs(arg1)
         - avg(arg1)
-        - case(arg1[])
-        - concat(arg1, arg2[])
+        - case(arg1...)
+        - concat(arg1, arg2...)
         - count(arg1)
         - date_format(arg1, arg2)
         - date_trunc(arg1, arg2)

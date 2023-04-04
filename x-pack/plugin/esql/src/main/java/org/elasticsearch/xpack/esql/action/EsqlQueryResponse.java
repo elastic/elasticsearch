@@ -204,7 +204,7 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
                     List<Object> thisResult = new ArrayList<>(count);
                     int end = count + start;
                     for (int i = start; i < end; i++) {
-                        thisResult.add(valueAt(dataTypes.get(b), block, start, scratch));
+                        thisResult.add(valueAt(dataTypes.get(b), block, i, scratch));
                     }
                     row.add(thisResult);
                 }

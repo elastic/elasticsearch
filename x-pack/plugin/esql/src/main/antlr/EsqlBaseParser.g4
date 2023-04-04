@@ -35,6 +35,8 @@ processingCommand
     | statsCommand
     | whereCommand
     | dropCommand
+    | renameCommand
+    | dissectCommand
     ;
 
 whereCommand
@@ -89,11 +91,15 @@ evalCommand
     ;
 
 statsCommand
-    : STATS fields (BY qualifiedNames)?
+    : STATS fields? (BY grouping)?
     ;
 
 inlinestatsCommand
-    : INLINESTATS fields (BY qualifiedNames)?
+    : INLINESTATS fields (BY grouping)?
+    ;
+
+grouping
+    : qualifiedName (COMMA qualifiedName)*
     ;
 
 sourceIdentifier
@@ -105,9 +111,6 @@ qualifiedName
     : identifier (DOT identifier)*
     ;
 
-qualifiedNames
-    : qualifiedName (COMMA qualifiedName)*
-    ;
 
 identifier
     : UNQUOTED_IDENTIFIER
@@ -136,16 +139,31 @@ orderExpression
     ;
 
 projectCommand
-    :  PROJECT projectClause (COMMA projectClause)*
-    ;
-
-projectClause
-    : sourceIdentifier
-    | newName=sourceIdentifier ASSIGN oldName=sourceIdentifier
+    :  PROJECT sourceIdentifier (COMMA sourceIdentifier)*
     ;
 
 dropCommand
     : DROP sourceIdentifier (COMMA sourceIdentifier)*
+    ;
+
+renameCommand
+    : RENAME renameClause (COMMA renameClause)*
+    ;
+
+renameClause:
+    newName=sourceIdentifier ASSIGN oldName=sourceIdentifier
+    ;
+
+dissectCommand
+    : DISSECT primaryExpression string commandOptions?
+    ;
+
+commandOptions
+    : commandOption (COMMA commandOption)*
+    ;
+
+commandOption
+    : identifier ASSIGN constant
     ;
 
 booleanValue

@@ -1,0 +1,35 @@
+{
+  "behavioral_analytics.put": {
+    "documentation": {
+      "url": "http://todo.com/tbd",
+      "description": "Creates a behavioral analytics collection."
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "xpack.ent-search.enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_application/analytics/{name}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the analytics collection to be created or updated"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

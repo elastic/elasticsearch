@@ -7,54 +7,34 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 
 import java.util.List;
 
-import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
-public class IdentifierBuilder extends EsqlBaseParserBaseVisitor<Object> {
+abstract class IdentifierBuilder extends AbstractBuilder {
+
     @Override
     public String visitIdentifier(EsqlBaseParser.IdentifierContext ctx) {
-        String identifier;
-        if (ctx.QUOTED_IDENTIFIER() != null) {
-            identifier = ctx.QUOTED_IDENTIFIER().getText();
-            identifier = identifier.substring(1, identifier.length() - 1);
-        } else {
-            identifier = ctx.UNQUOTED_IDENTIFIER().getText();
-        }
-        return identifier;
-    }
-
-    @Override
-    public UnresolvedAttribute visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx) {
-        if (ctx == null) {
-            return null;
-        }
-
-        return new UnresolvedAttribute(
-            source(ctx),
-            Strings.collectionToDelimitedString(visitList(this, ctx.identifier(), String.class), ".")
-        );
-    }
-
-    @Override
-    public List<NamedExpression> visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx) {
-        return ctx == null ? emptyList() : visitList(this, ctx.qualifiedName(), NamedExpression.class);
+        return unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.UNQUOTED_IDENTIFIER());
     }
 
     @Override
     public String visitSourceIdentifier(EsqlBaseParser.SourceIdentifierContext ctx) {
-        if (ctx.SRC_QUOTED_IDENTIFIER() != null) {
-            String identifier = ctx.SRC_QUOTED_IDENTIFIER().getText();
-            return identifier.substring(1, identifier.length() - 1);
+        return unquoteIdentifier(ctx.SRC_QUOTED_IDENTIFIER(), ctx.SRC_UNQUOTED_IDENTIFIER());
+    }
+
+    private static String unquoteIdentifier(TerminalNode quotedNode, TerminalNode unquotedNode) {
+        String result;
+        if (quotedNode != null) {
+            String identifier = quotedNode.getText();
+            result = identifier.substring(1, identifier.length() - 1);
         } else {
-            return ctx.SRC_UNQUOTED_IDENTIFIER().getText();
+            result = unquotedNode.getText();
         }
+        return result;
     }
 
     public String visitSourceIdentifiers(List<EsqlBaseParser.SourceIdentifierContext> ctx) {

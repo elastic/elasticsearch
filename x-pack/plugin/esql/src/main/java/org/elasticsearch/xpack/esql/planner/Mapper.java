@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.compute.ann.Experimental;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -70,6 +72,10 @@ public class Mapper {
 
         if (p instanceof Eval eval) {
             return new EvalExec(eval.source(), map(eval.child()), eval.fields());
+        }
+
+        if (p instanceof Dissect dissect) {
+            return new DissectExec(dissect.source(), map(dissect.child()), dissect.input(), dissect.parser(), dissect.extractedFields());
         }
 
         if (p instanceof Row row) {

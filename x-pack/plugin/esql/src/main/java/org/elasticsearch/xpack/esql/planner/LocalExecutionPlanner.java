@@ -32,14 +32,17 @@ import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
+import org.elasticsearch.compute.operator.StringExtractOperator;
 import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
-import org.elasticsearch.compute.operator.exchange.LocalExchanger;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -67,6 +70,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
@@ -94,7 +98,8 @@ public class LocalExecutionPlanner {
         "task_concurrency",
         ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY))
     );
-    private static final Setting<Integer> BUFFER_MAX_PAGES = Setting.intSetting("buffer_max_pages", 10);
+    private static final Setting<Integer> EXCHANGE_BUFFER_SIZE = Setting.intSetting("esql.exchange.buffer_size", 10);
+    private static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("esql.exchange.concurrent_clients", 3);
     private static final Setting<DataPartitioning> DATA_PARTITIONING = Setting.enumSetting(
         DataPartitioning.class,
         "data_partitioning",
@@ -102,21 +107,22 @@ public class LocalExecutionPlanner {
     );
 
     private final BigArrays bigArrays;
-    private final int taskConcurrency;
-    private final int bufferMaxPages;
+    private final ThreadPool threadPool;
+    private final EsqlConfiguration configuration;
     private final DataPartitioning dataPartitioning;
     private final PhysicalOperationProviders physicalOperationProviders;
 
     public LocalExecutionPlanner(
         BigArrays bigArrays,
+        ThreadPool threadPool,
         EsqlConfiguration configuration,
         PhysicalOperationProviders physicalOperationProviders
     ) {
         this.bigArrays = bigArrays;
+        this.threadPool = threadPool;
         this.physicalOperationProviders = physicalOperationProviders;
-        taskConcurrency = TASK_CONCURRENCY.get(configuration.pragmas());
-        bufferMaxPages = BUFFER_MAX_PAGES.get(configuration.pragmas());
-        dataPartitioning = DATA_PARTITIONING.get(configuration.pragmas());
+        this.configuration = configuration;
+        this.dataPartitioning = DATA_PARTITIONING.get(configuration.pragmas());
     }
 
     /**
@@ -127,8 +133,8 @@ public class LocalExecutionPlanner {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
-            taskConcurrency,
-            bufferMaxPages,
+            TASK_CONCURRENCY.get(configuration.pragmas()),
+            EXCHANGE_BUFFER_SIZE.get(configuration.pragmas()),
             dataPartitioning,
             bigArrays
         );
@@ -153,6 +159,8 @@ public class LocalExecutionPlanner {
             return planTopN(topNExec, context);
         } else if (node instanceof EvalExec eval) {
             return planEval(eval, context);
+        } else if (node instanceof DissectExec dissect) {
+            return planDissect(dissect, context);
         } else if (node instanceof ProjectExec project) {
             return planProject(project, context);
         } else if (node instanceof FilterExec filter) {
@@ -249,13 +257,18 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {
         DriverParallelism parallelism = DriverParallelism.SINGLE;
         context.driverParallelism(parallelism);
-        LocalExchanger exchanger = new LocalExchanger(bufferMaxPages);
         LocalExecutionPlannerContext subContext = context.createSubContext();
         PhysicalOperation source = plan(exchangeExec.child(), subContext);
         Layout layout = source.layout;
-        PhysicalOperation sink = source.withSink(new ExchangeSinkOperatorFactory(exchanger::createExchangeSink), source.layout);
-        context.addDriverFactory(new DriverFactory(new DriverSupplier(context.bigArrays, sink), subContext.driverParallelism().get()));
-        return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(exchanger::createExchangeSource), layout);
+
+        var sinkHandler = new ExchangeSinkHandler(context.bufferMaxPages);
+        var executor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
+        var sourceHandler = new ExchangeSourceHandler(context.bufferMaxPages, executor);
+        sourceHandler.addRemoteSink(sinkHandler::fetchPageAsync, EXCHANGE_CONCURRENT_CLIENTS.get(configuration.pragmas()));
+        PhysicalOperation sinkOperator = source.withSink(new ExchangeSinkOperatorFactory(sinkHandler::createExchangeSink), source.layout);
+        DriverParallelism driverParallelism = subContext.driverParallelism().get();
+        context.addDriverFactory(new DriverFactory(new DriverSupplier(context.bigArrays, sinkOperator), driverParallelism));
+        return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(sourceHandler::createExchangeSource), layout);
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
@@ -300,6 +313,28 @@ public class LocalExecutionPlanner {
             layout.appendChannel(namedExpression.toAttribute().id());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier, toElementType(namedExpression.dataType())), layout.build());
         }
+        return source;
+    }
+
+    private PhysicalOperation planDissect(DissectExec dissect, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(dissect.child(), context);
+        Layout.Builder layout = source.layout.builder();
+        for (NamedExpression namedExpression : dissect.extractedFields()) {
+            layout.appendChannel(namedExpression.toAttribute().id());
+        }
+        final Expression expr = dissect.inputExpression();
+        String[] attributeNames = Expressions.names(dissect.extractedFields()).toArray(new String[0]);
+        ElementType[] types = new ElementType[dissect.extractedFields().size()];
+        Arrays.fill(types, ElementType.BYTES_REF);
+
+        source = source.with(
+            new StringExtractOperator.StringExtractOperatorFactory(
+                attributeNames,
+                EvalMapper.toEvaluator(expr, layout.build()),
+                () -> (input) -> dissect.parser().parser().parse(input)
+            ),
+            layout.build()
+        );
         return source;
     }
 

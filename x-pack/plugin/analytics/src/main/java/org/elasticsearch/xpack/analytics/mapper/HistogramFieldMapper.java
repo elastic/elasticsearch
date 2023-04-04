@@ -29,10 +29,10 @@ import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -312,7 +312,8 @@ public class HistogramFieldMapper extends FieldMapper {
                         double val = subParser.doubleValue();
                         if (val < previousVal) {
                             // values must be in increasing order
-                            throw new MapperParsingException(
+                            throw new DocumentParsingException(
+                                subParser.getTokenLocation(),
                                 "error parsing field ["
                                     + name()
                                     + "], ["
@@ -341,22 +342,28 @@ public class HistogramFieldMapper extends FieldMapper {
                         token = subParser.nextToken();
                     }
                 } else {
-                    throw new MapperParsingException("error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]");
+                    throw new DocumentParsingException(
+                        subParser.getTokenLocation(),
+                        "error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]"
+                    );
                 }
                 token = subParser.nextToken();
             }
             if (values == null) {
-                throw new MapperParsingException(
+                throw new DocumentParsingException(
+                    subParser.getTokenLocation(),
                     "error parsing field [" + name() + "], expected field called [" + VALUES_FIELD.getPreferredName() + "]"
                 );
             }
             if (counts == null) {
-                throw new MapperParsingException(
+                throw new DocumentParsingException(
+                    subParser.getTokenLocation(),
                     "error parsing field [" + name() + "], expected field called [" + COUNTS_FIELD.getPreferredName() + "]"
                 );
             }
             if (values.size() != counts.size()) {
-                throw new MapperParsingException(
+                throw new DocumentParsingException(
+                    subParser.getTokenLocation(),
                     "error parsing field ["
                         + name()
                         + "], expected same length from ["
@@ -375,7 +382,8 @@ public class HistogramFieldMapper extends FieldMapper {
             for (int i = 0; i < values.size(); i++) {
                 int count = counts.get(i);
                 if (count < 0) {
-                    throw new MapperParsingException(
+                    throw new DocumentParsingException(
+                        subParser.getTokenLocation(),
                         "error parsing field [" + name() + "], [" + COUNTS_FIELD + "] elements must be >= 0 but got " + counts.get(i)
                     );
                 } else if (count > 0) {
@@ -399,7 +407,11 @@ public class HistogramFieldMapper extends FieldMapper {
 
         } catch (Exception ex) {
             if (ignoreMalformed.value() == false) {
-                throw new MapperParsingException("failed to parse field [{}] of type [{}]", ex, fieldType().name(), fieldType().typeName());
+                throw new DocumentParsingException(
+                    context.parser().getTokenLocation(),
+                    "failed to parse field [" + fieldType().name() + "] of type [" + fieldType().typeName() + "]",
+                    ex
+                );
             }
 
             if (subParser != null) {

@@ -41,7 +41,7 @@ public class SearchRequestCacheDisablingInterceptor implements RequestIntercepto
     ) {
         final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
         final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
-        if (requestInfo.getRequest()instanceof SearchRequest searchRequest
+        if (requestInfo.getRequest() instanceof SearchRequest searchRequest
             && false == TransportActionProxy.isProxyAction(requestInfo.getAction())
             && hasRemoteIndices(searchRequest)
             && (isDlsLicensed || isFlsLicensed)) {

@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
+//@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
 public class AnalyzerTests extends ESTestCase {
     public void testIndexResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
@@ -460,6 +461,91 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testRename() {
+        assertProjection("""
+            from test
+            | rename e = emp_no
+            | project first_name, e
+            """, "first_name", "e");
+    }
+
+    public void testChainedRename() {
+        assertProjection("""
+            from test
+            | rename r1 = emp_no, r2 = r1, r3 = r2
+            | project first_name, r3
+            """, "first_name", "r3");
+    }
+
+    public void testChainedRenameReuse() {
+        assertProjection("""
+            from test
+            | rename r1 = emp_no, r2 = r1, r3 = r2, r1 = first_name
+            | project r1, r3
+            """, "r1", "r3");
+    }
+
+    public void testRenameBackAndForth() {
+        assertProjection("""
+            from test
+            | rename r1 = emp_no, emp_no = r1
+            | project emp_no
+            """, "emp_no");
+    }
+
+    public void testRenameReuseAlias() {
+        assertProjection("""
+            from test
+            | rename e = emp_no, e = first_name
+            """, "_meta_field", "e", "gender", "languages", "last_name", "salary");
+    }
+
+    public void testRenameUnsupportedField() {
+        assertProjectionWithMapping("""
+            from test
+            | rename u = unsupported
+            | project int, u, float
+            """, "mapping-multi-field-variation.json", "int", "u", "float");
+    }
+
+    public void testRenameUnsupportedFieldChained() {
+        assertProjectionWithMapping("""
+            from test
+            | rename u1 = unsupported, u2 = u1
+            | project int, u2, float
+            """, "mapping-multi-field-variation.json", "int", "u2", "float");
+    }
+
+    public void testRenameUnsupportedAndResolved() {
+        assertProjectionWithMapping("""
+            from test
+            | rename u = unsupported, f = float
+            | project int, u, f
+            """, "mapping-multi-field-variation.json", "int", "u", "f");
+    }
+
+    public void testRenameUnsupportedSubFieldAndResolved() {
+        assertProjectionWithMapping("""
+            from test
+            | rename ss = some.string, f = float
+            | project int, ss, f
+            """, "mapping-multi-field-variation.json", "int", "ss", "f");
+    }
+
+    public void testRenameUnsupportedAndUnknown() {
+        verifyUnsupported("""
+            from test
+            | rename t = text, d = doesnotexist
+            """, "Found 1 problem\n" + "line 2:24: Unknown column [doesnotexist]");
+    }
+
+    public void testRenameResolvedAndUnknown() {
+        verifyUnsupported("""
+            from test
+            | rename i = int, d = doesnotexist
+            """, "Found 1 problem\n" + "line 2:23: Unknown column [doesnotexist]");
+    }
+
     public void testUnsupportedFieldUsedExplicitly() {
         assertProjectionWithMapping("""
             from test
@@ -748,6 +834,40 @@ public class AnalyzerTests extends ESTestCase {
         as(limit.child(), EsRelation.class);
     }
 
+    private static final String[] COMPARISONS = new String[] { "==", "!=", "<", "<=", ">", ">=" };
+
+    public void testCompareIntToString() {
+        for (String comparison : COMPARISONS) {
+            var e = expectThrows(VerificationException.class, () -> analyze("""
+                from test
+                | where emp_no COMPARISON "foo"
+                """.replace("COMPARISON", comparison)));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "first argument of [emp_no COMPARISON \"foo\"] is [numeric] so second argument must also be [numeric] but was [keyword]"
+                        .replace("COMPARISON", comparison)
+                )
+            );
+        }
+    }
+
+    public void testCompareStringToInt() {
+        for (String comparison : COMPARISONS) {
+            var e = expectThrows(VerificationException.class, () -> analyze("""
+                from test
+                | where "foo" COMPARISON emp_no
+                """.replace("COMPARISON", comparison)));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "first argument of [\"foo\" COMPARISON emp_no] is [keyword] so second argument must also be [keyword] but was [integer]"
+                        .replace("COMPARISON", comparison)
+                )
+            );
+        }
+    }
+
     public void testDateFormatOnInt() {
         verifyUnsupported("""
             from test
@@ -868,6 +988,38 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(Expressions.names(aggregates), contains("b"));
     }
 
+    public void testAggsWithoutAgg() throws Exception {
+        var plan = analyze("""
+            row a = 1, b = 2
+            | stats by a
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(1));
+        assertThat(Expressions.names(aggregates), contains("a"));
+        assertThat(Expressions.names(agg.groupings()), contains("a"));
+        assertEquals(agg.groupings(), agg.aggregates());
+    }
+
+    public void testAggsWithoutAggAndFollowingCommand() throws Exception {
+        var plan = analyze("""
+            row a = 1, b = 2
+            | stats by a
+            | sort a
+            """);
+
+        var limit = as(plan, Limit.class);
+        var order = as(limit.child(), OrderBy.class);
+        var agg = as(order.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(1));
+        assertThat(Expressions.names(aggregates), contains("a"));
+        assertThat(Expressions.names(agg.groupings()), contains("a"));
+        assertEquals(agg.groupings(), agg.aggregates());
+    }
+
     public void testUnsupportedFieldsInStats() {
         var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
 
@@ -928,6 +1080,14 @@ public class AnalyzerTests extends ESTestCase {
             """, errorMsg);
     }
 
+    public void testUnsupportedFieldsInDissect() {
+        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        verifyUnsupported("""
+            from test
+            | dissect point \"%{foo}\"
+            """, errorMsg);
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }
@@ -969,6 +1129,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private LogicalPlan analyze(String query, String mapping) {
-        return newAnalyzer(loadMapping(mapping, "test")).analyze(new EsqlParser().createStatement(query));
+        var plan = new EsqlParser().createStatement(query);
+        // System.out.println(plan);
+        var analyzed = newAnalyzer(loadMapping(mapping, "test")).analyze(plan);
+        // System.out.println(analyzed);
+        return analyzed;
     }
 }

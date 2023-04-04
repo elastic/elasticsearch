@@ -13,12 +13,9 @@ import org.elasticsearch.compute.data.Page;
 import java.util.Arrays;
 import java.util.function.Supplier;
 
-public class FilterOperator implements Operator {
+public class FilterOperator extends AbstractPageMappingOperator {
 
     private final EvalOperator.ExpressionEvaluator evaluator;
-
-    private Page lastInput;
-    boolean finished = false;
 
     public record FilterOperatorFactory(Supplier<EvalOperator.ExpressionEvaluator> evaluatorSupplier) implements OperatorFactory {
 
@@ -38,36 +35,12 @@ public class FilterOperator implements Operator {
     }
 
     @Override
-    public boolean needsInput() {
-        return lastInput == null && finished == false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        lastInput = page;
-    }
-
-    @Override
-    public void finish() {
-        finished = true;
-    }
-
-    @Override
-    public boolean isFinished() {
-        return lastInput == null && finished;
-    }
-
-    @Override
-    public Page getOutput() {
-        if (lastInput == null) {
-            return null;
-        }
-
-        int[] positions = new int[lastInput.getPositionCount()];
+    protected Page process(Page page) {
+        int[] positions = new int[page.getPositionCount()];
         int rowCount = 0;
 
-        for (int i = 0; i < lastInput.getPositionCount(); i++) {
-            Object result = evaluator.computeRow(lastInput, i);
+        for (int i = 0; i < page.getPositionCount(); i++) {
+            Object result = evaluator.computeRow(page, i);
             // possible 3vl evaluation results: true, false, null
             // provided condition must evaluate to `true`, otherwise the position is filtered out
             if (result instanceof Boolean bool && bool) {
@@ -75,27 +48,24 @@ public class FilterOperator implements Operator {
             }
         }
 
-        Page output;
-
         if (rowCount == 0) {
-            output = null;
-        } else if (rowCount == lastInput.getPositionCount()) {
-            output = lastInput;
-        } else {
-            positions = Arrays.copyOf(positions, rowCount);
+            return null;
+        }
+        if (rowCount == page.getPositionCount()) {
+            return page;
+        }
+        positions = Arrays.copyOf(positions, rowCount);
 
-            Block[] filteredBlocks = new Block[lastInput.getBlockCount()];
-            for (int i = 0; i < lastInput.getBlockCount(); i++) {
-                filteredBlocks[i] = lastInput.getBlock(i).filter(positions);
-            }
-
-            output = new Page(filteredBlocks);
+        Block[] filteredBlocks = new Block[page.getBlockCount()];
+        for (int i = 0; i < page.getBlockCount(); i++) {
+            filteredBlocks[i] = page.getBlock(i).filter(positions);
         }
 
-        lastInput = null;
-        return output;
+        return new Page(filteredBlocks);
     }
 
     @Override
-    public void close() {}
+    public String toString() {
+        return "FilterOperator{" + "evaluator=" + evaluator + '}';
+    }
 }

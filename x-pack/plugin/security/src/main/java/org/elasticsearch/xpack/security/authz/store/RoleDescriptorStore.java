@@ -139,6 +139,11 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
         if (roleDescriptors.isEmpty()) {
+            logger.debug(
+                () -> "Cross cluster access role reference ["
+                    + crossClusterAccessRoleReference.id()
+                    + "] resolved to an empty role descriptor set."
+            );
             listener.onResponse(RolesRetrievalResult.EMPTY);
             return;
         }

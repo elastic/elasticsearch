@@ -29,7 +29,7 @@ import java.util.Objects;
 
 @Experimental
 public class EsQueryExec extends LeafExec {
-    static final DataType DOC_DATA_TYPE = new DataType("_doc", Integer.BYTES * 3, false, false, false);
+    public static final DataType DOC_DATA_TYPE = new DataType("_doc", Integer.BYTES * 3, false, false, false);
 
     static final EsField DOC_ID_FIELD = new EsField("_doc", DOC_DATA_TYPE, Map.of(), false);
 

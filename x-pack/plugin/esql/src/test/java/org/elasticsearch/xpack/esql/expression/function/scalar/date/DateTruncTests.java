@@ -9,10 +9,20 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.DateEsField;
+import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.createRounding;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.process;
@@ -121,5 +131,34 @@ public class DateTruncTests extends ESTestCase {
 
     private static long toMillis(String timestamp) {
         return Instant.parse(timestamp).toEpochMilli();
+    }
+
+    public void testSerialization() {
+        var dateTrunc = new DateTrunc(Source.EMPTY, randomDateField(), randomDateIntervalLiteral());
+        SerializationTestUtils.assertSerialization(dateTrunc);
+    }
+
+    private static FieldAttribute randomDateField() {
+        String fieldName = randomAlphaOfLength(randomIntBetween(1, 25));
+        String dateName = randomAlphaOfLength(randomIntBetween(1, 25));
+        boolean hasDocValues = randomBoolean();
+        if (randomBoolean()) {
+            return new FieldAttribute(Source.EMPTY, fieldName, new EsField(dateName, DataTypes.DATETIME, Map.of(), hasDocValues));
+        } else {
+            return new FieldAttribute(Source.EMPTY, fieldName, DateEsField.dateEsField(dateName, Collections.emptyMap(), hasDocValues));
+        }
+    }
+
+    private static Literal randomDateIntervalLiteral() {
+        Duration duration = switch (randomInt(5)) {
+            case 0 -> Duration.ofNanos(randomIntBetween(1, 100000));
+            case 1 -> Duration.ofMillis(randomIntBetween(1, 1000));
+            case 2 -> Duration.ofSeconds(randomIntBetween(1, 1000));
+            case 3 -> Duration.ofMinutes(randomIntBetween(1, 1000));
+            case 4 -> Duration.ofHours(randomIntBetween(1, 100));
+            case 5 -> Duration.ofDays(randomIntBetween(1, 60));
+            default -> throw new AssertionError();
+        };
+        return new Literal(Source.EMPTY, duration, EsqlDataTypes.TIME_DURATION);
     }
 }

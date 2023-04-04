@@ -266,7 +266,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newNormalNode("node2")))
             .build();
         AtomicLong currentTime = new AtomicLong();
-        AtomicReference<ActionListener<ClusterState>> listenerReference = new AtomicReference<>();
+        AtomicReference<ActionListener<Void>> listenerReference = new AtomicReference<>();
         DiskThresholdMonitor monitor = new DiskThresholdMonitor(
             Settings.EMPTY,
             () -> clusterState,
@@ -316,7 +316,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         currentTime.addAndGet(randomLongBetween(0, 120000));
         monitor.onNewInfo(clusterInfo(allDisksOk));
         assertNotNull(listenerReference.get());
-        listenerReference.getAndSet(null).onResponse(clusterState);
+        listenerReference.getAndSet(null).onResponse(null);
 
         // should not reroute when all disks are ok and no new info received
         currentTime.addAndGet(randomLongBetween(0, 120000));
@@ -327,7 +327,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             currentTime.addAndGet(randomLongBetween(0, 120000));
             monitor.onNewInfo(clusterInfo(oneDiskAboveWatermark));
-            Optional.ofNullable(listenerReference.getAndSet(null)).ifPresent(l -> l.onResponse(clusterState));
+            Optional.ofNullable(listenerReference.getAndSet(null)).ifPresent(l -> l.onResponse(null));
         }
 
         // however once the reroute interval has elapsed then we must reroute again
@@ -339,7 +339,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         );
         monitor.onNewInfo(clusterInfo(oneDiskAboveWatermark));
         assertNotNull(listenerReference.get());
-        listenerReference.getAndSet(null).onResponse(clusterState);
+        listenerReference.getAndSet(null).onResponse(null);
 
         if (randomBoolean()) {
             // should not re-route again within the reroute interval
@@ -362,7 +362,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         );
         monitor.onNewInfo(clusterInfo(oneDiskAboveWatermark));
         assertNotNull(listenerReference.get());
-        final ActionListener<ClusterState> rerouteListener1 = listenerReference.getAndSet(null);
+        final ActionListener<Void> rerouteListener1 = listenerReference.getAndSet(null);
 
         // should not re-route again before reroute has completed
         currentTime.addAndGet(randomLongBetween(0, 120000));
@@ -370,7 +370,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNull(listenerReference.get());
 
         // complete reroute
-        rerouteListener1.onResponse(clusterState);
+        rerouteListener1.onResponse(null);
 
         if (randomBoolean()) {
             // should not re-route again within the reroute interval
@@ -475,7 +475,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             (reason, priority, listener) -> {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
-                listener.onResponse(clusterState);
+                listener.onResponse(null);
             }
         ) {
             @Override
@@ -567,7 +567,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             (reason, priority, listener) -> {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
-                listener.onResponse(clusterStateWithBlocks);
+                listener.onResponse(null);
             }
         ) {
             @Override
@@ -813,7 +813,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             (reason, priority, listener) -> {
                 assertNotNull(listener);
                 assertThat(priority, equalTo(Priority.HIGH));
-                listener.onResponse(currentClusterState.get());
+                listener.onResponse(null);
             }
         ) {
             @Override
@@ -1058,7 +1058,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null,
             timeSupplier,
-            (reason, priority, listener) -> listener.onResponse(clusterStateRef.get())
+            (reason, priority, listener) -> listener.onResponse(null)
         ) {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, Releasable onCompletion, boolean readOnly) {

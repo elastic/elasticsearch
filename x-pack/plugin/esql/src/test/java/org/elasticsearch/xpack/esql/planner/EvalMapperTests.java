@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
@@ -45,21 +46,15 @@ import java.util.function.Supplier;
 
 public class EvalMapperTests extends ESTestCase {
 
-    public void testEvaluatorSuppliers() {
+    FieldAttribute double1 = field("foo", DataTypes.DOUBLE);
+    FieldAttribute double2 = field("bar", DataTypes.DOUBLE);
+    FieldAttribute longField = field("long", DataTypes.LONG);
+    FieldAttribute date = field("date", DataTypes.DATETIME);
+
+    Expression[] expressions() {
         Literal literal = new Literal(Source.EMPTY, new BytesRef("something"), DataTypes.KEYWORD);
-        FieldAttribute double1 = field("foo", DataTypes.DOUBLE);
-        FieldAttribute double2 = field("bar", DataTypes.DOUBLE);
-        FieldAttribute longField = field("long", DataTypes.LONG);
-        FieldAttribute date = field("date", DataTypes.DATETIME);
         Literal datePattern = new Literal(Source.EMPTY, new BytesRef("yyyy"), DataTypes.KEYWORD);
         Literal dateInterval = new Literal(Source.EMPTY, Duration.ofHours(1), EsqlDataTypes.TIME_DURATION);
-
-        Layout.Builder lb = new Layout.Builder();
-        lb.appendChannel(double1.id());
-        lb.appendChannel(double2.id());
-        lb.appendChannel(date.id());
-        lb.appendChannel(longField.id());
-        Layout layout = lb.build();
 
         Expression[] expressions = {
             new Add(Source.EMPTY, double1, double2),
@@ -93,13 +88,33 @@ public class EvalMapperTests extends ESTestCase {
             new Substring(Source.EMPTY, literal, longField, longField),
             new DateTrunc(Source.EMPTY, date, dateInterval) };
 
-        for (Expression expression : expressions) {
+        return expressions;
+    }
+
+    public void testEvaluatorSuppliers() {
+        Layout.Builder lb = new Layout.Builder();
+        lb.appendChannel(double1.id());
+        lb.appendChannel(double2.id());
+        lb.appendChannel(date.id());
+        lb.appendChannel(longField.id());
+        Layout layout = lb.build();
+
+        for (Expression expression : expressions()) {
+            logger.info("checking {}", expression.getClass());
             Supplier<EvalOperator.ExpressionEvaluator> supplier = EvalMapper.toEvaluator(expression, layout);
             EvalOperator.ExpressionEvaluator evaluator1 = supplier.get();
             EvalOperator.ExpressionEvaluator evaluator2 = supplier.get();
             assertNotNull(evaluator1);
             assertNotNull(evaluator2);
             assertTrue(evaluator1 != evaluator2);
+        }
+    }
+
+    // Test serialization of expressions, since we have convenient access to some expressions.
+    public void testExpressionSerialization() {
+        for (Expression expression : expressions()) {
+            logger.info("checking {}", expression.getClass());
+            SerializationTestUtils.assertSerialization(expression);
         }
     }
 

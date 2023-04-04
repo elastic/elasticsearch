@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -58,6 +57,7 @@ import java.util.stream.Collectors;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.ql.expression.Expressions.name;
 import static org.elasticsearch.xpack.ql.expression.Expressions.names;
 import static org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC;
@@ -506,8 +506,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(filter.child(), FieldExtractExec.class);
         var source = source(extract.child());
 
-        assertTrue(filter.condition() instanceof GreaterThan);
-        assertTrue(((GreaterThan) filter.condition()).left() instanceof Round);
+        var gt = as(filter.condition(), GreaterThan.class);
+        as(gt.left(), Round.class);
 
         QueryBuilder query = source.query();
         assertTrue(query instanceof RangeQueryBuilder);
@@ -553,8 +553,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(filter.child(), FieldExtractExec.class);
         var source = source(extract.child());
 
-        assertTrue(filter.condition() instanceof BinaryComparison);
-        assertTrue(((BinaryComparison) filter.condition()).left() instanceof Round);
+        var gt = as(filter.condition(), GreaterThan.class);
+        as(gt.left(), Round.class);
         assertNull(source.query());
     }
 
@@ -999,13 +999,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // System.out.println("Before\n" + plan);
         var p = physicalPlanOptimizer.optimize(plan);
         // System.out.println("After\n" + p);
+        assertSerialization(p);
         return p;
     }
 
     private PhysicalPlan physicalPlan(String query) {
         var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
         // System.out.println("Logical\n" + logical);
-        return mapper.map(logical);
+        var physical = mapper.map(logical);
+        assertSerialization(physical);
+        return physical;
     }
 
     private List<FieldSort> sorts(List<Order> orders) {

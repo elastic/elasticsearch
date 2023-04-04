@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
@@ -15,6 +18,7 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.index.mapper.OnScriptError;
@@ -25,11 +29,11 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.plugin.EsqlComputeEngineAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
 
@@ -40,9 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -53,7 +55,6 @@ import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -157,7 +158,7 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
         ActionFuture<EsqlQueryResponse> response = startEsql();
         List<TaskInfo> infos = getTasksStarting();
         TaskInfo running = infos.stream().filter(t -> t.description().equals(READ_DESCRIPTION)).findFirst().get();
-        client().admin().cluster().prepareCancelTasks().setTargetTaskId(running.taskId()).get();
+        cancelTask(running.taskId());
         start.await();
         assertCancelled(response);
     }
@@ -166,7 +167,7 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
         ActionFuture<EsqlQueryResponse> response = startEsql();
         List<TaskInfo> infos = getTasksStarting();
         TaskInfo running = infos.stream().filter(t -> t.description().equals(MERGE_DESCRIPTION)).findFirst().get();
-        client().admin().cluster().prepareCancelTasks().setTargetTaskId(running.taskId()).get();
+        cancelTask(running.taskId());
         start.await();
         assertCancelled(response);
     }
@@ -181,7 +182,7 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
             .setDetailed(true)
             .get()
             .getTasks();
-        client().admin().cluster().prepareCancelTasks().setTargetTaskId(tasks.get(0).taskId()).get();
+        cancelTask(tasks.get(0).taskId());
         start.await();
         assertCancelled(response);
     }
@@ -195,22 +196,27 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
             .execute();
     }
 
+    private void cancelTask(TaskId taskId) {
+        CancelTasksRequest request = new CancelTasksRequest().setTargetTaskId(taskId).setReason("test cancel");
+        client().admin().cluster().execute(CancelTasksAction.INSTANCE, request).actionGet();
+    }
+
     /**
-     * Fetches tasks until it finds all of them are "starting".
-     */
+    * Fetches tasks until it finds all of them are "starting".
+    */
     private List<TaskInfo> getTasksStarting() throws Exception {
         List<TaskInfo> foundTasks = new ArrayList<>();
         assertBusy(() -> {
             List<TaskInfo> tasks = client().admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(EsqlComputeEngineAction.NAME)
+                .setActions(DriverTaskRunner.ACTION_NAME)
                 .setDetailed(true)
                 .get()
                 .getTasks();
             assertThat(tasks, hasSize(equalTo(2)));
             for (TaskInfo task : tasks) {
-                assertThat(task.action(), equalTo(EsqlComputeEngineAction.NAME));
+                assertThat(task.action(), equalTo(DriverTaskRunner.ACTION_NAME));
                 assertThat(task.description(), either(equalTo(READ_DESCRIPTION)).or(equalTo(MERGE_DESCRIPTION)));
                 DriverStatus status = (DriverStatus) task.status();
                 assertThat(status.status(), equalTo(DriverStatus.Status.STARTING));
@@ -229,13 +235,13 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
             List<TaskInfo> tasks = client().admin()
                 .cluster()
                 .prepareListTasks()
-                .setActions(EsqlComputeEngineAction.NAME)
+                .setActions(DriverTaskRunner.ACTION_NAME)
                 .setDetailed(true)
                 .get()
                 .getTasks();
             assertThat(tasks, hasSize(equalTo(2)));
             for (TaskInfo task : tasks) {
-                assertThat(task.action(), equalTo(EsqlComputeEngineAction.NAME));
+                assertThat(task.action(), equalTo(DriverTaskRunner.ACTION_NAME));
                 assertThat(task.description(), either(equalTo(READ_DESCRIPTION)).or(equalTo(MERGE_DESCRIPTION)));
                 DriverStatus status = (DriverStatus) task.status();
                 assertThat(
@@ -248,19 +254,22 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
         return foundTasks;
     }
 
-    private void assertCancelled(ActionFuture<EsqlQueryResponse> response) {
-        Exception e = expectThrows(ExecutionException.class, response::get);
-        assertThat(e.getCause().getCause(), either(instanceOf(TaskCancelledException.class)).or(instanceOf(CancellationException.class)));
-
-        assertThat(
-            client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(EsqlQueryAction.NAME, EsqlComputeEngineAction.NAME)
-                .setDetailed(true)
-                .get()
-                .getTasks(),
-            emptyIterable()
+    private void assertCancelled(ActionFuture<EsqlQueryResponse> response) throws Exception {
+        Exception e = expectThrows(Exception.class, response::actionGet);
+        Throwable cancelException = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
+        assertNotNull(cancelException);
+        assertThat(cancelException.getMessage(), equalTo("test cancel"));
+        assertBusy(
+            () -> assertThat(
+                client().admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions(EsqlQueryAction.NAME, DriverTaskRunner.ACTION_NAME)
+                    .setDetailed(true)
+                    .get()
+                    .getTasks(),
+                emptyIterable()
+            )
         );
     }
 

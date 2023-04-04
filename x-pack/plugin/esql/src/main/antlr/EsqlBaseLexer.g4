@@ -1,5 +1,6 @@
 lexer grammar EsqlBaseLexer;
 
+DISSECT : 'dissect' -> pushMode(EXPRESSION);
 EVAL : 'eval' -> pushMode(EXPRESSION);
 EXPLAIN : 'explain' -> pushMode(EXPRESSION);
 FROM : 'from' -> pushMode(SOURCE_IDENTIFIERS);
@@ -10,6 +11,7 @@ WHERE : 'where' -> pushMode(EXPRESSION);
 SORT : 'sort' -> pushMode(EXPRESSION);
 LIMIT : 'limit' -> pushMode(EXPRESSION);
 DROP : 'drop' -> pushMode(SOURCE_IDENTIFIERS);
+RENAME : 'rename' -> pushMode(SOURCE_IDENTIFIERS);
 PROJECT : 'project' -> pushMode(SOURCE_IDENTIFIERS);
 SHOW : 'show' -> pushMode(EXPRESSION);
 UNKNOWN_CMD : ~[ \r\n\t[\]/]+ -> pushMode(EXPRESSION);

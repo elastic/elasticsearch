@@ -28,7 +28,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertData;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvValues;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.TEST_INDEX_SIMPLE;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
@@ -90,7 +90,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
         Map<String, Object> answer = runEsql(builder.query(testCase.query).build());
-        var expectedColumnsWithValues = loadCsvValues(testCase.expectedResults);
+        var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
         assertNotNull(answer.get("columns"));
         @SuppressWarnings("unchecked")

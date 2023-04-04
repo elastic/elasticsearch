@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -46,6 +47,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
@@ -53,7 +55,7 @@ import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
-public class ExpressionBuilder extends IdentifierBuilder {
+abstract class ExpressionBuilder extends IdentifierBuilder {
     protected Expression expression(ParseTree ctx) {
         return typedParsing(this, ctx, Expression.class);
     }
@@ -116,8 +118,25 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitStringLiteral(EsqlBaseParser.StringLiteralContext ctx) {
-        Source source = source(ctx.string());
+        return visitString(ctx.string());
+    }
+
+    @Override
+    public Literal visitString(EsqlBaseParser.StringContext ctx) {
+        Source source = source(ctx);
         return new Literal(source, unquoteString(source), DataTypes.KEYWORD);
+    }
+
+    @Override
+    public UnresolvedAttribute visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+
+        return new UnresolvedAttribute(
+            source(ctx),
+            Strings.collectionToDelimitedString(visitList(this, ctx.identifier(), String.class), ".")
+        );
     }
 
     @Override
@@ -240,66 +259,34 @@ public class ExpressionBuilder extends IdentifierBuilder {
         );
     }
 
-    public NamedExpression visitDropExpression(EsqlBaseParser.SourceIdentifierContext ctx) {
+    public NamedExpression visitProjectExpression(EsqlBaseParser.SourceIdentifierContext ctx) {
         Source src = source(ctx);
         String identifier = visitSourceIdentifier(ctx);
-        if (identifier.equals(WILDCARD)) {
-            throw new ParsingException(src, "Removing all fields is not allowed [{}]", src.text());
-        }
-        return new UnresolvedAttribute(src, identifier);
+        return identifier.equals(WILDCARD) ? new UnresolvedStar(src, null) : new UnresolvedAttribute(src, identifier);
     }
 
     @Override
-    public NamedExpression visitProjectClause(EsqlBaseParser.ProjectClauseContext ctx) {
+    public Alias visitRenameClause(EsqlBaseParser.RenameClauseContext ctx) {
         Source src = source(ctx);
-        if (ctx.ASSIGN() != null) {
-            String newName = visitSourceIdentifier(ctx.newName);
-            String oldName = visitSourceIdentifier(ctx.oldName);
-            if (newName.contains(WILDCARD) || oldName.contains(WILDCARD)) {
-                throw new ParsingException(src, "Using wildcards (*) in renaming projections is not allowed [{}]", src.text());
-            }
-
-            return new Alias(src, newName, new UnresolvedAttribute(source(ctx.oldName), oldName));
-        } else {
-            String identifier = visitSourceIdentifier(ctx.sourceIdentifier(0));
-            return identifier.equals(WILDCARD) ? new UnresolvedStar(src, null) : new UnresolvedAttribute(src, identifier);
+        String newName = visitSourceIdentifier(ctx.newName);
+        String oldName = visitSourceIdentifier(ctx.oldName);
+        if (newName.contains(WILDCARD) || oldName.contains(WILDCARD)) {
+            throw new ParsingException(src, "Using wildcards (*) in renaming projections is not allowed [{}]", src.text());
         }
+
+        return new Alias(src, newName, new UnresolvedAttribute(source(ctx.oldName), oldName));
     }
 
-    private static String unquoteString(Source source) {
-        String text = source.text();
-        if (text == null) {
-            return null;
-        }
+    @Override
+    public Alias visitField(EsqlBaseParser.FieldContext ctx) {
+        UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
+        Expression value = expression(ctx.booleanExpression());
+        String name = id == null ? ctx.getText() : id.qualifiedName();
+        return new Alias(source(ctx), name, value);
+    }
 
-        // unescaped strings can be interpreted directly
-        if (text.startsWith("\"\"\"")) {
-            return text.substring(3, text.length() - 3);
-        }
-
-        text = text.substring(1, text.length() - 1);
-        StringBuilder sb = new StringBuilder();
-
-        for (int i = 0; i < text.length();) {
-            if (text.charAt(i) == '\\') {
-                // ANTLR4 Grammar guarantees there is always a character after the `\`
-                switch (text.charAt(++i)) {
-                    case 't' -> sb.append('\t');
-                    case 'n' -> sb.append('\n');
-                    case 'r' -> sb.append('\r');
-                    case '"' -> sb.append('\"');
-                    case '\\' -> sb.append('\\');
-
-                    // will be interpreted as regex, so we have to escape it
-                    default ->
-                        // unknown escape sequence, pass through as-is, e.g: `...\w...`
-                        sb.append('\\').append(text.charAt(i));
-                }
-                i++;
-            } else {
-                sb.append(text.charAt(i++));
-            }
-        }
-        return sb.toString();
+    @Override
+    public List<NamedExpression> visitGrouping(EsqlBaseParser.GroupingContext ctx) {
+        return ctx != null ? visitList(this, ctx.qualifiedName(), NamedExpression.class) : emptyList();
     }
 }

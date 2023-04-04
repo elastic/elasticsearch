@@ -458,7 +458,7 @@ public final class OptimizerRules {
                                 }
                             } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) { // a = 2 AND a >/>= ?
                                 if ((compare == 0 && bc instanceof GreaterThan) || // a = 2 AND a > 2
-                                compare < 0) { // a = 2 AND a >/>= 3
+                                    compare < 0) { // a = 2 AND a >/>= 3
                                     return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
                                 }
                             }
@@ -1039,15 +1039,15 @@ public final class OptimizerRules {
                                 // AND
                                 if ((conjunctive &&
                                 // a < 2 AND a < 3 -> a < 2
-                                (compare < 0 ||
+                                    (compare < 0 ||
                                 // a < 2 AND a <= 2 -> a < 2
-                                (compare == 0 && main instanceof LessThan && other instanceof LessThanOrEqual))) ||
+                                        (compare == 0 && main instanceof LessThan && other instanceof LessThanOrEqual))) ||
                                 // OR
-                                (conjunctive == false &&
+                                    (conjunctive == false &&
                                 // a < 2 OR a < 3 -> a < 3
-                                (compare > 0 ||
+                                        (compare > 0 ||
                                 // a <= 2 OR a < 2 -> a <= 2
-                                (compare == 0 && main instanceof LessThanOrEqual && other instanceof LessThan)))) {
+                                            (compare == 0 && main instanceof LessThanOrEqual && other instanceof LessThan)))) {
                                     bcs.remove(i);
                                     bcs.add(i, main);
 
@@ -1241,15 +1241,13 @@ public final class OptimizerRules {
             if (found.isEmpty() == false) {
                 // combine equals alongside the existing ors
                 final ZoneId finalZoneId = zoneId;
-                found.forEach(
-                    (k, v) -> {
-                        ors.add(
-                            v.size() == 1
-                                ? new Equals(k.source(), k, v.iterator().next(), finalZoneId)
-                                : createIn(k, new ArrayList<>(v), finalZoneId)
-                        );
-                    }
-                );
+                found.forEach((k, v) -> {
+                    ors.add(
+                        v.size() == 1
+                            ? new Equals(k.source(), k, v.iterator().next(), finalZoneId)
+                            : createIn(k, new ArrayList<>(v), finalZoneId)
+                    );
+                });
 
                 Expression combineOr = combineOr(ors);
                 // check the result semantically since the result might different in order

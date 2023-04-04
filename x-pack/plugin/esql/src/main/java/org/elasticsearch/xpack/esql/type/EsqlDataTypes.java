@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -73,6 +74,10 @@ public final class EsqlDataTypes {
         return TYPES;
     }
 
+    public static DataType fromTypeName(String name) {
+        return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
+    }
+
     public static DataType fromEs(String name) {
         DataType type = ES_TO_TYPE.get(name);
         return type != null ? type : UNSUPPORTED;
@@ -121,6 +126,22 @@ public final class EsqlDataTypes {
 
     public static boolean isPrimitive(DataType t) {
         return t != OBJECT && t != NESTED;
+    }
+
+    /**
+     * Supported types that can be contained in a block.
+     */
+    public static boolean isRepresentable(DataType t) {
+        return t != OBJECT
+            && t != NESTED
+            && t != UNSUPPORTED
+            && t != DATE_PERIOD
+            && t != TIME_DURATION
+            && t != BYTE
+            && t != SHORT
+            && t != FLOAT
+            && t != SCALED_FLOAT
+            && t != HALF_FLOAT;
     }
 
     public static boolean areCompatible(DataType left, DataType right) {

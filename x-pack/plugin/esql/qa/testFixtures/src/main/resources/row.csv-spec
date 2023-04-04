@@ -226,13 +226,6 @@ sum(l):long | sum(d):double | sum(ln):long | sum(dn):double
           1 |           1.0 |            0 |            0.0
 ;
 
-unquotedNamesWithAt
-row @a = 10 | project @b = @a | eval @c = @b + 1;
-
-@b:integer | @c:integer
-10         | 11
-;
-
 boolean
 row false;
 

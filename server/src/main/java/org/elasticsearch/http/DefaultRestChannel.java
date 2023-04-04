@@ -27,6 +27,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tracing.SpanId;
 import org.elasticsearch.tracing.Tracer;
 
 import java.util.ArrayList;
@@ -91,13 +92,13 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         // We're sending a response so we know we won't be needing the request content again and release it
         httpRequest.release();
 
-        final String traceId = "rest-" + this.request.getRequestId();
+        final SpanId spanId = SpanId.forRestRequest(request);
 
         final ArrayList<Releasable> toClose = new ArrayList<>(4);
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
-        toClose.add(() -> tracer.stopTrace(traceId));
+        toClose.add(() -> tracer.stopTrace(request));
 
         boolean success = false;
         String opaque = null;
@@ -171,9 +172,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             addCookies(httpResponse);
 
-            tracer.setAttribute(traceId, "http.status_code", restResponse.status().getStatus());
+            tracer.setAttribute(spanId, "http.status_code", restResponse.status().getStatus());
             restResponse.getHeaders()
-                .forEach((key, values) -> tracer.setAttribute(traceId, "http.response.headers." + key, String.join("; ", values)));
+                .forEach((key, values) -> tracer.setAttribute(spanId, "http.response.headers." + key, String.join("; ", values)));
 
             ActionListener<Void> listener = ActionListener.releasing(Releasables.wrap(toClose));
             if (httpLogger != null) {

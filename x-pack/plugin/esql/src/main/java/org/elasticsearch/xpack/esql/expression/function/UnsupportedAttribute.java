@@ -53,6 +53,11 @@ public class UnsupportedAttribute extends FieldAttribute implements Unresolvable
     }
 
     @Override
+    public UnsupportedEsField field() {
+        return (UnsupportedEsField) super.field();
+    }
+
+    @Override
     protected Attribute clone(
         Source source,
         String name,
@@ -62,7 +67,7 @@ public class UnsupportedAttribute extends FieldAttribute implements Unresolvable
         NameId id,
         boolean synthetic
     ) {
-        return new UnsupportedAttribute(source, name, (UnsupportedEsField) field(), hasCustomMessage ? message : null, id);
+        return new UnsupportedAttribute(source, name, field(), hasCustomMessage ? message : null, id);
     }
 
     protected String label() {
@@ -82,6 +87,10 @@ public class UnsupportedAttribute extends FieldAttribute implements Unresolvable
     @Override
     public String unresolvedMessage() {
         return message;
+    }
+
+    public boolean hasCustomMessage() {
+        return hasCustomMessage;
     }
 
     @Override

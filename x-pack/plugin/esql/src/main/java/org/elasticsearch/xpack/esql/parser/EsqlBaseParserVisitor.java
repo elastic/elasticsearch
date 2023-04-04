@@ -175,6 +175,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#grouping}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitGrouping(EsqlBaseParser.GroupingContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#sourceIdentifier}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -186,12 +192,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNames}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitQualifiedNames(EsqlBaseParser.QualifiedNamesContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#identifier}.
    * @param ctx the parse tree
@@ -265,17 +265,41 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#projectClause}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitProjectClause(EsqlBaseParser.ProjectClauseContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#dropCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitDropCommand(EsqlBaseParser.DropCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#renameCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRenameCommand(EsqlBaseParser.RenameCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#renameClause}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRenameClause(EsqlBaseParser.RenameClauseContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#dissectCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#commandOptions}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCommandOptions(EsqlBaseParser.CommandOptionsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#commandOption}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCommandOption(EsqlBaseParser.CommandOptionContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#booleanValue}.
    * @param ctx the parse tree

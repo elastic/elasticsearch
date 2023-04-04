@@ -53,6 +53,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.CommitPoint;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -532,7 +533,7 @@ public class PersistedClusterStateService {
         return bestOnDiskState;
     }
 
-    private OnDiskState loadOnDiskState(Path dataPath, DirectoryReader reader) throws IOException {
+    public OnDiskState loadOnDiskState(Path dataPath, DirectoryReader reader) throws IOException {
         final IndexSearcher searcher = new IndexSearcher(reader);
         searcher.setQueryCache(null);
 
@@ -798,8 +799,9 @@ public class PersistedClusterStateService {
             indexWriter.prepareCommit();
         }
 
-        void commit() throws IOException {
+        CommitPoint commit() throws IOException {
             indexWriter.commit();
+            return new CommitPoint(SegmentInfos.readLatestCommit(directory), indexWriter.getDirectory());
         }
 
         @Override
@@ -863,7 +865,7 @@ public class PersistedClusterStateService {
         /**
          * Overrides and commits the given current term and cluster state
          */
-        public void writeFullStateAndCommit(long currentTerm, ClusterState clusterState) throws IOException {
+        public List<CommitPoint> writeFullStateAndCommit(long currentTerm, ClusterState clusterState) throws IOException {
             ensureOpen();
             try {
                 final long startTimeMillis = relativeTimeMillisSupplier.getAsLong();
@@ -873,7 +875,7 @@ public class PersistedClusterStateService {
                 }
 
                 final WriterStats stats = overwriteMetadata(clusterState.metadata());
-                commit(currentTerm, clusterState.version(), clusterState.metadata().oldestIndexVersion());
+                List<CommitPoint> commitPoints = commit(currentTerm, clusterState.version(), clusterState.metadata().oldestIndexVersion());
                 fullStateWritten = true;
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
@@ -887,6 +889,7 @@ public class PersistedClusterStateService {
                 } else {
                     logger.debug("writing full cluster state took [{}ms]; {}", durationMillis, stats);
                 }
+                return commitPoints;
             } finally {
                 closeIfAnyIndexWriterHasTragedyOrIsClosed();
             }
@@ -895,8 +898,11 @@ public class PersistedClusterStateService {
         /**
          * Updates and commits the given cluster state update
          */
-        void writeIncrementalStateAndCommit(long currentTerm, ClusterState previousClusterState, ClusterState clusterState)
-            throws IOException {
+        public List<CommitPoint> writeIncrementalStateAndCommit(
+            long currentTerm,
+            ClusterState previousClusterState,
+            ClusterState clusterState
+        ) throws IOException {
             ensureOpen();
             ensureFullStateWritten();
 
@@ -908,7 +914,7 @@ public class PersistedClusterStateService {
                 }
 
                 final WriterStats stats = updateMetadata(previousClusterState.metadata(), clusterState.metadata());
-                commit(currentTerm, clusterState.version(), clusterState.metadata().oldestIndexVersion());
+                List<CommitPoint> commitPoints = commit(currentTerm, clusterState.version(), clusterState.metadata().oldestIndexVersion());
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
                 if (durationMillis >= finalSlowWriteLoggingThreshold.getMillis()) {
@@ -921,6 +927,7 @@ public class PersistedClusterStateService {
                 } else {
                     logger.debug("writing cluster state took [{}ms]; {}", durationMillis, stats);
                 }
+                return commitPoints;
             } finally {
                 closeIfAnyIndexWriterHasTragedyOrIsClosed();
             }
@@ -1138,18 +1145,19 @@ public class PersistedClusterStateService {
             return new WriterStats(true, true, 0, metadata.getMappingsByHash().size(), 0, 0, metadata.indices().size(), 0, 0);
         }
 
-        public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion)
+        public List<CommitPoint> writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion)
             throws IOException {
             ensureOpen();
             ensureFullStateWritten();
-            commit(currentTerm, lastAcceptedVersion, oldestIndexVersion);
+            return commit(currentTerm, lastAcceptedVersion, oldestIndexVersion);
         }
 
-        void commit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion) throws IOException {
+        List<CommitPoint> commit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion) throws IOException {
             ensureOpen();
             prepareCommit(currentTerm, lastAcceptedVersion, oldestIndexVersion);
-            completeCommit();
+            var latestCommitPoints = completeCommit();
             assert assertOnCommit();
+            return latestCommitPoints;
         }
 
         private boolean assertOnCommit() {
@@ -1190,11 +1198,12 @@ public class PersistedClusterStateService {
             }
         }
 
-        private void completeCommit() {
+        private List<CommitPoint> completeCommit() {
             boolean commitSuccess = false;
+            List<CommitPoint> commitPoints = new ArrayList<>();
             try {
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                    metadataIndexWriter.commit();
+                    commitPoints.add(metadataIndexWriter.commit());
                 }
                 commitSuccess = true;
             } catch (IOException e) {
@@ -1213,6 +1222,7 @@ public class PersistedClusterStateService {
                     closeAndSuppressExceptions(); // let the error propagate even if closing fails here
                 }
             }
+            return commitPoints;
         }
 
         private void closeAndSuppressExceptions() {

@@ -83,7 +83,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public class Lucene {
     public static final String LATEST_CODEC = "Lucene95";
@@ -669,69 +668,6 @@ public class Lucene {
                 }
             }
             return defaultValue;
-        }
-    }
-
-    private static final class CommitPoint extends IndexCommit {
-        private final String segmentsFileName;
-        private final Collection<String> files;
-        private final Directory dir;
-        private final long generation;
-        private final Map<String, String> userData;
-        private final int segmentCount;
-
-        private CommitPoint(SegmentInfos infos, Directory dir) throws IOException {
-            segmentsFileName = infos.getSegmentsFileName();
-            this.dir = dir;
-            userData = infos.getUserData();
-            files = Collections.unmodifiableCollection(infos.files(true));
-            generation = infos.getGeneration();
-            segmentCount = infos.size();
-        }
-
-        @Override
-        public String toString() {
-            return "DirectoryReader.ReaderCommit(" + segmentsFileName + ")";
-        }
-
-        @Override
-        public int getSegmentCount() {
-            return segmentCount;
-        }
-
-        @Override
-        public String getSegmentsFileName() {
-            return segmentsFileName;
-        }
-
-        @Override
-        public Collection<String> getFileNames() {
-            return files;
-        }
-
-        @Override
-        public Directory getDirectory() {
-            return dir;
-        }
-
-        @Override
-        public long getGeneration() {
-            return generation;
-        }
-
-        @Override
-        public boolean isDeleted() {
-            return false;
-        }
-
-        @Override
-        public Map<String, String> getUserData() {
-            return userData;
-        }
-
-        @Override
-        public void delete() {
-            throw new UnsupportedOperationException("This IndexCommit does not support deletions");
         }
     }
 

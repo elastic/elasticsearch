@@ -17,8 +17,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
-import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
+import static org.elasticsearch.cluster.metadata.LifecycleOriginationDateParser.parseIndexNameAndExtractDate;
+import static org.elasticsearch.cluster.metadata.LifecycleOriginationDateParser.shouldParseIndexName;
 
 /**
  * Initializes the {@link LifecycleExecutionState} for an index. This should be the first Step called on an index.

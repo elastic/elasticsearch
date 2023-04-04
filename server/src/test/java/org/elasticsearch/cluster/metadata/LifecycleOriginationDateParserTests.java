@@ -1,23 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.ilm;
+package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.text.ParseException;
 
-import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
-import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
+import static org.elasticsearch.cluster.metadata.LifecycleOriginationDateParser.parseIndexNameAndExtractDate;
+import static org.elasticsearch.cluster.metadata.LifecycleOriginationDateParser.shouldParseIndexName;
 import static org.hamcrest.Matchers.is;
 
-public class IndexLifecycleOriginationDateParserTests extends ESTestCase {
+public class LifecycleOriginationDateParserTests extends ESTestCase {
 
     private static final DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
 

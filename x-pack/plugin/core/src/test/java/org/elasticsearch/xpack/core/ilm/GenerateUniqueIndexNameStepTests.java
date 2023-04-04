@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleOriginationDateParser;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState.Builder;
@@ -230,7 +231,7 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
     public void testParseOriginationDateFromGeneratedIndexName() {
         String indexName = "testIndex-2021.03.13-000001";
         String generateValidIndexName = generateValidIndexName("shrink-", indexName);
-        long extractedDateMillis = IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate(generateValidIndexName);
+        long extractedDateMillis = LifecycleOriginationDateParser.parseIndexNameAndExtractDate(generateValidIndexName);
         assertThat(extractedDateMillis, is(DateFormatter.forPattern("uuuu.MM.dd").parseMillis("2021.03.13")));
     }
 }

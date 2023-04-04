@@ -1,10 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.ilm;
+package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
@@ -16,7 +24,7 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.cluster.metadata.DataStream.LIFECYCLE_ORIGINATION_DATE;
 import static org.elasticsearch.cluster.metadata.DataStream.LIFECYCLE_PARSE_ORIGINATION_DATE;
 
-public class IndexLifecycleOriginationDateParser {
+public class LifecycleOriginationDateParser {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     private static final String INDEX_NAME_REGEX = "^.*-(\\d{4}.\\d{2}.\\d{2})(-[\\d]+)?$";

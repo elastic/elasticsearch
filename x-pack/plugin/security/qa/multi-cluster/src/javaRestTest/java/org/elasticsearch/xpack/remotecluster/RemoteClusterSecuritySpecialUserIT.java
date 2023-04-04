@@ -13,10 +13,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -38,8 +36,9 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
-    private static final AtomicReference<Tuple<LocalClusterConfigProvider, LocalClusterConfigProvider>> CLIENT_AUTH_CONFIG_PROVIDERS =
-        new AtomicReference<>();
+    private static final AtomicReference<TestClusterConfigProviders> CLIENT_AUTH_CONFIG_PROVIDERS = new AtomicReference<>(
+        EMPTY_CONFIG_PROVIDERS
+    );
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -54,7 +53,7 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
-            .apply(() -> CLIENT_AUTH_CONFIG_PROVIDERS.get().v1())
+            .apply(() -> CLIENT_AUTH_CONFIG_PROVIDERS.get().server())
             .build();
 
         queryCluster = ElasticsearchCluster.local()
@@ -79,7 +78,7 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                 }
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })
-            .apply(() -> CLIENT_AUTH_CONFIG_PROVIDERS.get().v2())
+            .apply(() -> CLIENT_AUTH_CONFIG_PROVIDERS.get().client())
             .build();
     }
 
@@ -87,7 +86,7 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
     public static void randomClientAuthenticationConfig() {
         if (randomBoolean()) {
             CLIENT_AUTH_CONFIG_PROVIDERS.set(
-                new Tuple<>(
+                new TestClusterConfigProviders(
                     cluster -> cluster.setting("xpack.security.remote_cluster_server.ssl.client_authentication", "required")
                         .setting("xpack.security.remote_cluster_server.ssl.certificate_authorities", "remote-cluster-client-ca.crt"),
                     cluster -> cluster.setting("xpack.security.remote_cluster_client.ssl.key", "remote-cluster-client.key")
@@ -95,8 +94,6 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                         .keystore("xpack.security.remote_cluster_client.ssl.secure_key_passphrase", "remote-cluster-client-password")
                 )
             );
-        } else {
-            CLIENT_AUTH_CONFIG_PROVIDERS.set(new Tuple<>(cluster -> {}, cluster -> {}));
         }
     }
 

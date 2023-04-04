@@ -173,7 +173,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
     }
 
     private int countRequestsForIndex(ClusterState state, String index) {
-        PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
+        PlainActionFuture<UnpromotableShardStats> response = PlainActionFuture.newFuture();
         state.routingTable().activePrimaryShardsGrouped(new String[] { index }, true).iterator().forEachRemaining(shardId -> {
             logger.debug("--> executing for primary shard id: {}", shardId.shardId());
             ActionTestUtils.execute(
@@ -278,12 +278,12 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         }
         IndexShardRoutingTable wrongRoutingTable = wrongRoutingTableBuilder.build();
 
-        PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
+        PlainActionFuture<UnpromotableShardStats> response = PlainActionFuture.newFuture();
         logger.debug("--> executing for wrong shard routing table: {}", wrongRoutingTable);
         assertThat(
             expectThrows(
                 NodeNotConnectedException.class,
-                () -> PlainActionFuture.<ActionResponse.Empty, Exception>get(
+                () -> PlainActionFuture.<UnpromotableShardStats, Exception>get(
                     f -> ActionTestUtils.execute(
                         broadcastUnpromotableAction,
                         null,
@@ -304,7 +304,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         assertThat(
             expectThrows(
                 NullPointerException.class,
-                () -> PlainActionFuture.<ActionResponse.Empty, Exception>get(
+                () -> PlainActionFuture.<UnpromotableShardStats, Exception>get(
                     f -> ActionTestUtils.execute(
                         broadcastUnpromotableAction,
                         null,

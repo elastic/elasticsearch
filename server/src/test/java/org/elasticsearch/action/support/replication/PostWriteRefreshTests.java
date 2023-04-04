@@ -10,12 +10,12 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.unpromotable.UnpromotableShardStats;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -62,7 +62,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             UnpromotableShardRefreshRequest::new,
             (request, channel, task) -> {
                 unpromotableRefreshRequestReceived.set(true);
-                channel.sendResponse(ActionResponse.Empty.INSTANCE);
+                channel.sendResponse(new UnpromotableShardStats(1, 0));
             }
         );
 

@@ -11,10 +11,10 @@ package org.elasticsearch.action.support.replication;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.unpromotable.UnpromotableShardStats;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -131,7 +131,7 @@ public class PostWriteRefresh {
             unpromotableReplicaRequest,
             new ActionListenerResponseHandler<>(
                 listener.delegateFailure((l, r) -> l.onResponse(wasForced)),
-                (in) -> ActionResponse.Empty.INSTANCE,
+                UnpromotableShardStats::new,
                 ThreadPool.Names.REFRESH
             )
         );

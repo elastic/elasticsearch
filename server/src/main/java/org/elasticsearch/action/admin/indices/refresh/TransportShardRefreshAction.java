@@ -10,9 +10,9 @@ package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.broadcast.unpromotable.UnpromotableShardStats;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -122,7 +122,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
                 unpromotableReplicaRequest,
                 new ActionListenerResponseHandler<>(
                     listener.delegateFailure((l, r) -> l.onResponse(null)),
-                    (in) -> ActionResponse.Empty.INSTANCE,
+                    UnpromotableShardStats::new,
                     ThreadPool.Names.REFRESH
                 )
             );

@@ -26,9 +26,11 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 public abstract class TransportBroadcastUnpromotableAction<Request extends BroadcastUnpromotableRequest> extends HandledTransportAction<
     Request,
-    ActionResponse.Empty> {
+    UnpromotableShardStats> {
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
@@ -56,8 +58,10 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
     protected abstract void unpromotableShardOperation(Task task, Request request, ActionListener<ActionResponse.Empty> listener);
 
     @Override
-    protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
-        try (var listeners = new RefCountingListener(listener.map(v -> ActionResponse.Empty.INSTANCE))) {
+    protected void doExecute(Task task, Request request, ActionListener<UnpromotableShardStats> listener) {
+        AtomicInteger successes = new AtomicInteger();
+        AtomicInteger failures = new AtomicInteger();
+        try (var listeners = new RefCountingListener(listener.map(v -> new UnpromotableShardStats(successes.get(), failures.get())))) {
             ActionListener.completeWith(listeners.acquire(), () -> {
                 final ClusterState clusterState = clusterService.state();
                 if (task != null) {
@@ -70,11 +74,13 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
                         transportUnpromotableAction,
                         request,
                         TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(
-                            listeners.acquire(ignored -> {}),
-                            (in) -> TransportResponse.Empty.INSTANCE,
-                            executor
-                        )
+                        new ActionListenerResponseHandler<>(listeners.acquire(ignored -> {}).delegateFailure((l, o) -> {
+                            successes.incrementAndGet();
+                            l.onResponse(o);
+                        }).delegateResponse((l, e) -> {
+                            failures.incrementAndGet();
+                            l.onFailure(e);
+                        }), (in) -> TransportResponse.Empty.INSTANCE, executor)
                     );
                 });
                 return null;

@@ -18,7 +18,9 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -27,6 +29,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -34,6 +37,7 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 /**
@@ -49,16 +53,17 @@ public class IndexEngine extends InternalEngine {
         Setting.Property.IndexScope
     );
 
+    private final TranslogReplicator translogReplicator;
     private final LongSupplier relativeTimeInNanosSupplier;
-
     private final AtomicLong lastFlushNanos;
     private volatile TimeValue indexFlushInterval;
     private volatile Scheduler.ScheduledCancellable cancellableFlushTask;
     private final ReleasableLock flushLock = new ReleasableLock(new ReentrantLock());
 
-    public IndexEngine(EngineConfig engineConfig) {
+    public IndexEngine(EngineConfig engineConfig, TranslogReplicator translogReplicator) {
         super(engineConfig);
         assert engineConfig.isPromotableToPrimary();
+        this.translogReplicator = translogReplicator;
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushNanos = new AtomicLong(relativeTimeInNanosSupplier.getAsLong());
         this.indexFlushInterval = INDEX_FLUSH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
@@ -147,6 +152,46 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
+    public void asyncEnsureTranslogSynced(Translog.Location location, Consumer<Exception> listener) {
+        super.asyncEnsureTranslogSynced(location, e -> {
+            if (e != null) {
+                listener.accept(e);
+            } else {
+                translogReplicator.sync(shardId, location, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        listener.accept(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.accept(e);
+                    }
+                });
+            }
+
+        });
+    }
+
+    @Override
+    public boolean isTranslogSyncNeeded() {
+        return super.isTranslogSyncNeeded() || translogReplicator.isSyncNeeded(shardId);
+    }
+
+    @Override
+    public void syncTranslog() throws IOException {
+        assert Thread.currentThread().getName().contains("[" + ThreadPool.Names.WRITE + "]") == false
+            : "Expected current thread [" + Thread.currentThread() + "] to not be on a write thread. Reason: [syncTranslog]";
+        super.syncTranslog();
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        translogReplicator.syncAll(shardId, future);
+        try {
+            future.actionGet();
+        } catch (Exception e) {
+            throw new IOException("Exception while syncing translog remotely", e);
+        }
+    }
+
     public void close() throws IOException {
         cancellableFlushTask.cancel();
         super.close();

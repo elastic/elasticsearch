@@ -22,6 +22,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilderTests;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.TestRankBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilderTests;
 import org.elasticsearch.search.suggest.SuggestBuilderTests;
@@ -55,6 +56,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(IndicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
+        entries.add(new NamedWriteableRegistry.Entry(RankBuilder.class, TestRankBuilder.NAME, TestRankBuilder::new));
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }

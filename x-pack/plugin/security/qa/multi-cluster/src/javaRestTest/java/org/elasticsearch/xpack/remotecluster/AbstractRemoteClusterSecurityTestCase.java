@@ -99,8 +99,12 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     }
 
     @AfterClass
-    public static void closeFulFillingClusterClient() throws IOException {
-        IOUtils.close(fulfillingClusterClient);
+    public static void closeFulfillingClusterClient() throws IOException {
+        try {
+            IOUtils.close(fulfillingClusterClient);
+        } finally {
+            fulfillingClusterClient = null;
+        }
     }
 
     @Override

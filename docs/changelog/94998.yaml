@@ -1,5 +1,5 @@
 pr: 94998
 summary: Retain underlying error on proxy mode connection failure
-area: "Security, Network"
+area: "Network"
 type: enhancement
 issues: []

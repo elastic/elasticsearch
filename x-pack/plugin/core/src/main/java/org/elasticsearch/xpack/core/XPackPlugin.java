@@ -500,7 +500,7 @@ public class XPackPlugin extends XPackClientPlugin
         List<StatusSupplier> xPackLicenseStateInitialStatusSupplier = loader.loadExtensions(StatusSupplier.class);
         if (xPackLicenseStateInitialStatusSupplier.size() > 1) {
             throw new IllegalStateException(StatusSupplier.class + " may not have multiple implementations");
-        } else if (licenseServiceFactories.size() == 1) {
+        } else if (xPackLicenseStateInitialStatusSupplier.size() == 1) {
             setLicenseState(
                 new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), xPackLicenseStateInitialStatusSupplier.get(0))
             );

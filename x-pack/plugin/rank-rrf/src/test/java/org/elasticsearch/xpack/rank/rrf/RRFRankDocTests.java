@@ -17,7 +17,7 @@ import static org.elasticsearch.xpack.rank.rrf.RRFRankDoc.NO_RANK;
 
 public class RRFRankDocTests extends AbstractNamedWriteableTestCase<RRFRankDoc> {
 
-    public static RRFRankDoc createTestRRFRankDoc(int queryCount) {
+    static RRFRankDoc createTestRRFRankDoc(int queryCount) {
         RRFRankDoc instance = new RRFRankDoc(randomNonNegativeInt(), randomBoolean() ? -1 : randomNonNegativeInt(), queryCount);
         instance.score = randomFloat();
         instance.rank = randomBoolean() ? NO_RANK : randomIntBetween(1, 10000);
@@ -30,7 +30,7 @@ public class RRFRankDocTests extends AbstractNamedWriteableTestCase<RRFRankDoc> 
         return instance;
     }
 
-    public static RRFRankDoc createTestRRFRankDoc() {
+    static RRFRankDoc createTestRRFRankDoc() {
         int queryCount = randomIntBetween(2, 20);
         return createTestRRFRankDoc(queryCount);
     }

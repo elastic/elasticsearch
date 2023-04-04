@@ -368,6 +368,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 if (source.size() < -1 || source.size() == 0) {
                     validationException = addValidationError("[rank] requires [size] greater than [0]", validationException);
                 }
+                if (source.size() > source.rankContextBuilder().windowSize()) {
+                    validationException = addValidationError(
+                        "[rank] requires [window_size: " + source.rankContextBuilder().windowSize() + "]" +
+                            " be greater than or equal to [size: " + source.size() + "]",
+                        validationException
+                    );
+                }
                 if (source.rescores() != null && source.rescores().isEmpty() == false) {
                     validationException = addValidationError("[rank] cannot be used with [rescore]", validationException);
                 }

@@ -15,12 +15,6 @@ import java.io.IOException;
 
 public abstract class RankBuilderTests<RCB extends RankBuilder<RCB>> extends AbstractXContentSerializingTestCase<RCB> {
 
-    protected static void randomRankContextBuilder(RankBuilder<?> builder) {
-        if (frequently()) {
-            builder.windowSize(randomIntBetween(0, 10000));
-        }
-    }
-
     @Override
     protected final RCB createTestInstance() {
         RCB builder = doCreateTestInstance();

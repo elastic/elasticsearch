@@ -80,19 +80,12 @@ public class RRFRankBuilder extends RankBuilder<RRFRankBuilder> {
      */
     @Override
     public ActionRequestValidationException validate(ActionRequestValidationException validationException, SearchSourceBuilder source) {
-        if (source.size() > windowSize) {
-            validationException = addValidationError(
-                "[window_size] must be greater than or equal to [size] for [rrf]",
-                validationException
-            );
-        }
         if (rankConstant < 1) {
             validationException = addValidationError("[rank_constant] must be greater than [0] for [rrf]", validationException);
         }
         if (source.knnSearch().isEmpty() || source.query() == null && source.knnSearch().size() < 2) {
             validationException = addValidationError("[rrf] requires a minimum of [2] queries", validationException);
         }
-
         return validationException;
     }
 

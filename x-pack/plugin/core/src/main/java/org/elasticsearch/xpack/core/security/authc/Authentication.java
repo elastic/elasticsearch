@@ -291,6 +291,14 @@ public final class Authentication implements ToXContentObject {
      */
     public Authentication copyWithFilteredMetadataFields(final Set<String> fieldsToKeep) {
         Objects.requireNonNull(fieldsToKeep);
+        // Ensure that we don't attempt to remove necessary reserved fields
+        assert false == isApiKey() || fieldsToKeep.contains(AuthenticationField.API_KEY_ID_KEY)
+            : "API key authentication metadata requires this";
+        assert false == isServiceAccount()
+            || (fieldsToKeep.contains(ServiceAccountSettings.TOKEN_NAME_FIELD)
+                && fieldsToKeep.contains(ServiceAccountSettings.TOKEN_SOURCE_FIELD))
+            : "Service account authentication metadata requires this";
+
         final Map<String, Object> metadataCopy = new HashMap<>(getAuthenticatingSubject().getMetadata());
         final boolean isNoop = false == metadataCopy.keySet().retainAll(fieldsToKeep);
         // If no keys were removed, no need to copy authentication instance

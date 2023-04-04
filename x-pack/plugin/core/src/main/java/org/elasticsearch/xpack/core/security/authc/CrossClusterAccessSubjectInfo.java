@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -25,6 +27,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,13 +42,18 @@ import java.util.Objects;
 import java.util.Set;
 
 public final class CrossClusterAccessSubjectInfo {
+
+    private static final Logger logger = LogManager.getLogger(CrossClusterAccessSubjectInfo.class);
+
     public static final String CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY = "_cross_cluster_access_subject_info";
     private static final Set<String> AUTHENTICATION_METADATA_FIELDS_TO_KEEP = Set.of(
         AuthenticationField.API_KEY_ID_KEY,
         AuthenticationField.API_KEY_NAME_KEY,
         AuthenticationField.API_KEY_CREATOR_REALM_NAME,
         ServiceAccountSettings.TOKEN_NAME_FIELD,
-        ServiceAccountSettings.TOKEN_SOURCE_FIELD
+        ServiceAccountSettings.TOKEN_SOURCE_FIELD,
+        AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
+        AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY
     );
 
     private final Authentication authentication;
@@ -78,11 +87,14 @@ public final class CrossClusterAccessSubjectInfo {
         return authentication;
     }
 
-    public CrossClusterAccessSubjectInfo copyWithSanitizedAuthentication() {
-        return new CrossClusterAccessSubjectInfo(
+    public CrossClusterAccessSubjectInfo getSanitizedCopy() {
+        ensureSupportedSubjectType();
+        final var sanitized = new CrossClusterAccessSubjectInfo(
             getAuthentication().copyWithFilteredMetadataFields(AUTHENTICATION_METADATA_FIELDS_TO_KEEP),
             roleDescriptorsBytesList
         );
+        sanitized.validate();
+        return sanitized;
     }
 
     public List<RoleDescriptorsBytes> getRoleDescriptorsBytesList() {
@@ -165,6 +177,42 @@ public final class CrossClusterAccessSubjectInfo {
         copy.put(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY, getAuthentication());
         copy.put(AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY, getRoleDescriptorsBytesList());
         return Collections.unmodifiableMap(copy);
+    }
+
+    private void ensureSupportedSubjectType() {
+        final Subject effectiveSubject = getAuthentication().getEffectiveSubject();
+        if (false == effectiveSubject.getType().equals(Subject.Type.USER)
+            && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)
+            && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)) {
+            throw new IllegalArgumentException(
+                "subject ["
+                    + effectiveSubject.getUser().principal()
+                    + "] has type ["
+                    + effectiveSubject.getType()
+                    + "] which is not supported for cross cluster access"
+            );
+        }
+    }
+
+    private void validate() {
+        ensureSupportedSubjectType();
+        final Authentication authentication = getAuthentication();
+        authentication.checkConsistency();
+        final Subject effectiveSubject = authentication.getEffectiveSubject();
+        final User user = effectiveSubject.getUser();
+        if (CrossClusterAccessUser.is(user)) {
+            if (false == getRoleDescriptorsBytesList().isEmpty()) {
+                logger.warn(
+                    "Received non-empty role descriptors bytes list for internal cross cluster access user. "
+                        + "These will be ignored during authorization."
+                );
+                assert false : "role descriptors bytes list for internal cross cluster access user must be empty";
+            }
+        } else if (User.isInternal(user)) {
+            throw new IllegalArgumentException(
+                "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
+            );
+        }
     }
 
     public static final class RoleDescriptorsBytes implements Writeable {

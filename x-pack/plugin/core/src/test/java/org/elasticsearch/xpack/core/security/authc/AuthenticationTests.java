@@ -930,6 +930,8 @@ public class AuthenticationTests extends ESTestCase {
             ESTestCase.randomAlphaOfLength(20),
             AuthenticationField.API_KEY_NAME_KEY,
             ESTestCase.randomAlphaOfLength(10),
+            AuthenticationField.API_KEY_CREATOR_REALM_NAME,
+            ESTestCase.randomAlphaOfLength(10),
             "field_to_keep",
             ESTestCase.randomAlphaOfLength(10),
             "field_to_remove",
@@ -937,7 +939,12 @@ public class AuthenticationTests extends ESTestCase {
         );
         final Authentication authentication = AuthenticationTestHelper.builder().apiKey().metadata(initialMetadata).build();
 
-        final Set<String> fieldsToKeep = Set.of(AuthenticationField.API_KEY_ID_KEY, AuthenticationField.API_KEY_NAME_KEY, "field_to_keep");
+        final Set<String> fieldsToKeep = Set.of(
+            AuthenticationField.API_KEY_ID_KEY,
+            AuthenticationField.API_KEY_NAME_KEY,
+            AuthenticationField.API_KEY_CREATOR_REALM_NAME,
+            "field_to_keep"
+        );
         final Map<String, Object> actualMetadata = authentication.copyWithFilteredMetadataFields(fieldsToKeep)
             .getAuthenticatingSubject()
             .getMetadata();

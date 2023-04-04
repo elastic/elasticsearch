@@ -19,9 +19,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
-import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
-import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
 import java.util.List;
@@ -99,8 +96,7 @@ public class CrossClusterAccessAuthenticationService {
                     // we should _not_ wrap `authenticate` failures since this produces duplicate audit events
                     try {
                         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = crossClusterAccessHeaders.subjectInfo()
-                            .copyWithSanitizedAuthentication();
-                        validate(crossClusterAccessSubjectInfo);
+                            .getSanitizedCopy();
                         writeAuthToContext(authcContext, authentication.toCrossClusterAccess(crossClusterAccessSubjectInfo), listener);
                     } catch (Exception ex) {
                         withRequestProcessingFailure(authcContext, ex, listener);
@@ -112,37 +108,6 @@ public class CrossClusterAccessAuthenticationService {
 
     public AuthenticationService getAuthenticationService() {
         return authenticationService;
-    }
-
-    private void validate(final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo) {
-        final Authentication authentication = crossClusterAccessSubjectInfo.getAuthentication();
-        final Subject effectiveSubject = authentication.getEffectiveSubject();
-        if (false == effectiveSubject.getType().equals(Subject.Type.USER)
-            && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)
-            && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)) {
-            throw new IllegalArgumentException(
-                "subject ["
-                    + effectiveSubject.getUser().principal()
-                    + "] has type ["
-                    + effectiveSubject.getType()
-                    + "] which is not supported for cross cluster access"
-            );
-        }
-        authentication.checkConsistency();
-        final User user = effectiveSubject.getUser();
-        if (CrossClusterAccessUser.is(user)) {
-            if (false == crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()) {
-                logger.warn(
-                    "Received non-empty role descriptors bytes list for internal cross cluster access user. "
-                        + "These will be ignored during authorization."
-                );
-                assert false : "role descriptors bytes list for internal cross cluster access user must be empty";
-            }
-        } else if (User.isInternal(user)) {
-            throw new IllegalArgumentException(
-                "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
-            );
-        }
     }
 
     private Version getMinNodeVersion() {

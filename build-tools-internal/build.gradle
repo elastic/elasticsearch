@@ -191,6 +191,10 @@ gradlePlugin {
       id = 'elasticsearch.transport-coverage'
       implementationClass = 'org.elasticsearch.gradle.internal.coverage.TransportClassesCoveragePlugin'
     }
+    es_jacoco_report_aggregation {
+      id = 'elasticsearch.jacoco-report-aggregation'
+      implementationClass = 'org.elasticsearch.gradle.internal.coverage.ESJacocoReportAggregation'
+    }
   }
 }
 

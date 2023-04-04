@@ -33,7 +33,7 @@ import javax.inject.Inject;
 @CacheableTask
 public abstract class TransportMethodCoverageVerifierTask extends DefaultTask {
     private static final String MISSING_TRANSPORT_TESTS_FILE = "transport-tests/missing-transport-tests.txt";
-    public static final String JACOCO_XML_REPORT = "reports/jacoco/test/jacocoTestReport.xml";
+    public static final String JACOCO_XML_REPORT = "reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml.xml";
 
     private final XmlReportMethodCoverageVerifier verifier;
 

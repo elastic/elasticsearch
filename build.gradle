@@ -46,7 +46,7 @@ plugins {
   id 'elasticsearch.run-ccs'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
-  id 'jacoco-report-aggregation'
+  id 'elasticsearch.jacoco-report-aggregation'
 
 }
 
@@ -159,53 +159,6 @@ if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } 
 
 subprojects { proj ->
   apply plugin: 'elasticsearch.base'
-}
-repositories {
-  // Only necessary when building plugins against SNAPSHOT versions of Elasticsearch
-  maven {
-    url = 'https://snapshots.elastic.co/maven/'
-    mavenContent {
-      if (gradle.includedBuilds) {
-        // When building in a composite, restrict this to only resolve the Java REST client
-        includeModule 'co.elastic.clients', 'elasticsearch-java'
-      }
-    }
-  }
-  if (gradle.includedBuilds.isEmpty()) {
-    maven {
-      url = "https://artifacts-snapshot.elastic.co/elasticsearch/${elasticsearchVersion}/maven"
-      mavenContent {
-        includeModule 'org.elasticsearch', 'elasticsearch'
-      }
-    }
-  }
-
-  // Same for Lucene, add the snapshot repo based on the currently used Lucene version
-  def luceneVersion = VersionProperties.getLucene()
-  if (luceneVersion.contains('-snapshot')) {
-    def matcher = luceneVersion =~ /[0-9\.]+-snapshot-([a-z0-9]+)/
-    assert matcher.matches(): "Invalid Lucene snapshot version '${luceneVersion}'"
-    maven {
-      url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${matcher.group(1)}"
-    }
-  }
-
-  mavenCentral()
-}
-
-dependencies {
-  jacocoAggregation project(':server')
-}
-
-reporting {
-  reports {
-    testCodeCoverageReport(JacocoCoverageReport) {
-      testType = TestSuiteType.UNIT_TEST
-    }
-  }
-}
-tasks.named('check') {
-  dependsOn tasks.named('testCodeCoverageReport', JacocoReport)
 }
 
 allprojects {

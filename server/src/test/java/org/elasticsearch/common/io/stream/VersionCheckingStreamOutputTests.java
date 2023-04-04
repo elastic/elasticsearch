@@ -37,7 +37,8 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
         TransportVersion streamVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.CURRENT));
+            TransportVersionUtils.getPreviousVersion(TransportVersion.CURRENT)
+        );
         try (VersionCheckingStreamOutput out = new VersionCheckingStreamOutput(streamVersion)) {
             out.writeNamedWriteable(QueryBuilders.matchAllQuery());
 

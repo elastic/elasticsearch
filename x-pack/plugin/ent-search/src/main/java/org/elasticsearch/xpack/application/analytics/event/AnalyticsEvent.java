@@ -55,7 +55,7 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
      * Analytics event types.
      */
     public enum Type {
-        PAGEVIEW("pageview"),
+        PAGE_VIEW("page_view"),
         SEARCH("search"),
         SEARCH_CLICK("search_click");
 

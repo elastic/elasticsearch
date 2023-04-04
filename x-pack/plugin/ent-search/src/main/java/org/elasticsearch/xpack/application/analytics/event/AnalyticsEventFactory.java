@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.application.analytics.event.parser.event.Analytic
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.Type.PAGEVIEW;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.Type.PAGE_VIEW;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.Type.SEARCH;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.Type.SEARCH_CLICK;
 
@@ -36,7 +36,7 @@ public class AnalyticsEventFactory {
     private static final Map<AnalyticsEvent.Type, ContextParser<AnalyticsEvent.Context, AnalyticsEvent>> EVENT_PARSERS = MapBuilder.<
         AnalyticsEvent.Type,
         ContextParser<AnalyticsEvent.Context, AnalyticsEvent>>newMapBuilder()
-        .put(PAGEVIEW, AnalyticsEventPageView::fromXContent)
+        .put(PAGE_VIEW, AnalyticsEventPageView::fromXContent)
         .put(SEARCH, AnalyticsEventSearch::fromXContent)
         .put(SEARCH_CLICK, AnalyticsEventSearchClick::fromXContent)
         .immutableMap();

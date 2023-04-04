@@ -55,6 +55,6 @@ public class AnalyticsEventPageViewTests extends AnalyticsEventParserTestCase {
         payloadBuilder.put(PAGE_FIELD.getPreferredName(), randomEventPageField());
         payloadBuilder.put(DOCUMENT_FIELD.getPreferredName(), randomEventDocumentField());
 
-        return randomAnalyticsEvent(AnalyticsEvent.Type.PAGEVIEW, payloadBuilder.map());
+        return randomAnalyticsEvent(AnalyticsEvent.Type.PAGE_VIEW, payloadBuilder.map());
     }
 }

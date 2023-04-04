@@ -90,8 +90,8 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
                     searchRequest,
                     listener.delegateFailure((l2, searchResponse) -> l2.onResponse(searchResponse))
                 );
-            } catch (Exception exc) {
-                listener.onFailure(exc);
+            } catch (Exception e) {
+                listener.onFailure(e);
             }
         }));
     }

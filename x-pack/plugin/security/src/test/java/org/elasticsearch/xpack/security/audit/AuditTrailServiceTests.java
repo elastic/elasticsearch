@@ -153,11 +153,11 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAuthenticationFailedRestNoToken() throws Exception {
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.get().authenticationFailed(requestId, restRequest);
+        service.get().authenticationFailed(requestId, restRequest.getHttpRequest());
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationFailed(requestId, restRequest);
+                verify(auditTrail).authenticationFailed(requestId, restRequest.getHttpRequest());
             }
         } else {
             verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -166,11 +166,11 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAuthenticationFailedRest() throws Exception {
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.get().authenticationFailed(requestId, token, restRequest);
+        service.get().authenticationFailed(requestId, token, restRequest.getHttpRequest());
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationFailed(requestId, token, restRequest);
+                verify(auditTrail).authenticationFailed(requestId, token, restRequest.getHttpRequest());
             }
         } else {
             verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -192,11 +192,11 @@ public class AuditTrailServiceTests extends ESTestCase {
 
     public void testAuthenticationFailedRestRealm() throws Exception {
         final String requestId = randomAlphaOfLengthBetween(6, 12);
-        service.get().authenticationFailed(requestId, "_realm", token, restRequest);
+        service.get().authenticationFailed(requestId, "_realm", token, restRequest.getHttpRequest());
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationFailed(requestId, "_realm", token, restRequest);
+                verify(auditTrail).authenticationFailed(requestId, "_realm", token, restRequest.getHttpRequest());
             }
         } else {
             verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));

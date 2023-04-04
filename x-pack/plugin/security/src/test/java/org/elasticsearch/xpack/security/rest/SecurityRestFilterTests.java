@@ -17,6 +17,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpPreRequest;
+import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -112,7 +116,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
             callback.onResponse(authentication);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(request), anyActionListener());
+        }).when(authcService).authenticate(eq(request.getHttpRequest()), anyActionListener());
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
         verifyNoMoreInteractions(channel);
@@ -121,8 +125,9 @@ public class SecurityRestFilterTests extends ESTestCase {
     public void testProcessSecondaryAuthentication() throws Exception {
         RestRequest request = mock(RestRequest.class);
         when(channel.request()).thenReturn(request);
-
         when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
+        HttpRequest httpRequest = mock(HttpRequest.class);
+        when(request.getHttpRequest()).thenReturn(httpRequest);
 
         Authentication primaryAuthentication = mock(Authentication.class);
         when(primaryAuthentication.encode()).thenReturn(randomAlphaOfLengthBetween(12, 36));
@@ -132,7 +137,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
             callback.onResponse(primaryAuthentication);
             return null;
-        }).when(authcService).authenticate(eq(request), anyActionListener());
+        }).when(authcService).authenticate(eq(httpRequest), anyActionListener());
 
         Authentication secondaryAuthentication = mock(Authentication.class);
         when(secondaryAuthentication.encode()).thenReturn(randomAlphaOfLengthBetween(12, 36));
@@ -142,7 +147,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
             callback.onResponse(secondaryAuthentication);
             return null;
-        }).when(authcService).authenticate(eq(request), eq(false), anyActionListener());
+        }).when(authcService).authenticate(eq(httpRequest), eq(false), anyActionListener());
 
         SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         AtomicReference<SecondaryAuthentication> secondaryAuthRef = new AtomicReference<>();
@@ -256,7 +261,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             ActionListener<?> callback = (ActionListener<?>) i.getArguments()[1];
             callback.onFailure(authnException);
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(request), anyActionListener());
+        }).when(authcService).authenticate(eq(request.getHttpRequest()), anyActionListener());
         RestChannel channel = mock(RestChannel.class);
         when(channel.detailedErrorsEnabled()).thenReturn(detailedErrorsEnabled);
         when(channel.request()).thenReturn(request);
@@ -301,20 +306,28 @@ public class SecurityRestFilterTests extends ESTestCase {
                 return Collections.singleton("password");
             }
         };
-        SetOnce<RestRequest> authcServiceRequest = new SetOnce<>();
+        SetOnce<HttpPreRequest> authcServiceRequest = new SetOnce<>();
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
-            authcServiceRequest.set((RestRequest) i.getArguments()[0]);
+            authcServiceRequest.set((HttpPreRequest) i.getArguments()[0]);
             callback.onResponse(new Authentication(XPackUser.INSTANCE, new RealmRef("test", "test", "t"), null));
             return Void.TYPE;
-        }).when(authcService).authenticate(any(RestRequest.class), anyActionListener());
+        }).when(authcService).authenticate(any(HttpRequest.class), anyActionListener());
+        AuditTrail auditTrail = mock(AuditTrail.class);
+        SetOnce<RestRequest> auditTrailRequest = new SetOnce<>();
+        doAnswer((i) -> {
+            auditTrailRequest.set((RestRequest) i.getArguments()[0]);
+            return Void.TYPE;
+        }).when(auditTrail).authenticationSuccess(any(RestRequest.class));
+        TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
+        licenseState.update(License.OperationMode.GOLD, true, null);
         filter = new SecurityRestFilter(
             licenseState,
             threadContext,
             authcService,
             secondaryAuthenticator,
-            new AuditTrailService(Arrays.asList(mock(AuditTrail.class)), licenseState),
+            new AuditTrailService(Arrays.asList(auditTrail), licenseState),
             restHandler,
             false
         );
@@ -334,14 +347,15 @@ public class SecurityRestFilterTests extends ESTestCase {
         assertEquals(SecuritySettingsSourceField.TEST_PASSWORD, original.get("password"));
         assertEquals("bar", original.get("foo"));
 
-        assertNotEquals(restRequest, authcServiceRequest.get());
-        assertNotEquals(restRequest.content(), authcServiceRequest.get().content());
+        assertEquals(restRequest.getHttpRequest(), authcServiceRequest.get());
+        assertNotEquals(restRequest, auditTrailRequest.get());
+        assertNotEquals(restRequest.content(), auditTrailRequest.get().content());
 
         Map<String, Object> map = XContentType.JSON.xContent()
             .createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                authcServiceRequest.get().content().streamInput()
+                auditTrailRequest.get().content().streamInput()
             )
             .map();
         assertEquals(1, map.size());

@@ -35,6 +35,7 @@ processingCommand
     | statsCommand
     | whereCommand
     | dropCommand
+    | renameCommand
     | dissectCommand
     ;
 
@@ -138,16 +139,19 @@ orderExpression
     ;
 
 projectCommand
-    :  PROJECT projectClause (COMMA projectClause)*
-    ;
-
-projectClause
-    : sourceIdentifier
-    | newName=sourceIdentifier ASSIGN oldName=sourceIdentifier
+    :  PROJECT sourceIdentifier (COMMA sourceIdentifier)*
     ;
 
 dropCommand
     : DROP sourceIdentifier (COMMA sourceIdentifier)*
+    ;
+
+renameCommand
+    : RENAME renameClause (COMMA renameClause)*
+    ;
+
+renameClause:
+    newName=sourceIdentifier ASSIGN oldName=sourceIdentifier
     ;
 
 dissectCommand

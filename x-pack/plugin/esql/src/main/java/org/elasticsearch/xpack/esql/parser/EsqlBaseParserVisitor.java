@@ -265,17 +265,23 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#projectClause}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitProjectClause(EsqlBaseParser.ProjectClauseContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#dropCommand}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitDropCommand(EsqlBaseParser.DropCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#renameCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRenameCommand(EsqlBaseParser.RenameCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#renameClause}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRenameClause(EsqlBaseParser.RenameClauseContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#dissectCommand}.
    * @param ctx the parse tree

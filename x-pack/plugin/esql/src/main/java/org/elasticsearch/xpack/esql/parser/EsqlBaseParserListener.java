@@ -438,16 +438,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#projectClause}.
-   * @param ctx the parse tree
-   */
-  void enterProjectClause(EsqlBaseParser.ProjectClauseContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#projectClause}.
-   * @param ctx the parse tree
-   */
-  void exitProjectClause(EsqlBaseParser.ProjectClauseContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#dropCommand}.
    * @param ctx the parse tree
    */
@@ -457,6 +447,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitDropCommand(EsqlBaseParser.DropCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#renameCommand}.
+   * @param ctx the parse tree
+   */
+  void enterRenameCommand(EsqlBaseParser.RenameCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#renameCommand}.
+   * @param ctx the parse tree
+   */
+  void exitRenameCommand(EsqlBaseParser.RenameCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#renameClause}.
+   * @param ctx the parse tree
+   */
+  void enterRenameClause(EsqlBaseParser.RenameClauseContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#renameClause}.
+   * @param ctx the parse tree
+   */
+  void exitRenameClause(EsqlBaseParser.RenameClauseContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#dissectCommand}.
    * @param ctx the parse tree

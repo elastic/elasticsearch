@@ -444,7 +444,8 @@ public class EsqlActionIT extends ESIntegTestCase {
     }
 
     public void testFromStatsProjectGroupWithAlias() {
-        EsqlQueryResponse results = run("from test | stats avg_count = avg(count) by data | project d = data, d2 = data");
+        String query = "from test | stats avg_count = avg(count) by data | eval d2 = data | rename d = data | project d, d2";
+        EsqlQueryResponse results = run(query);
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("d", "d2"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("long", "long"));
@@ -460,7 +461,7 @@ public class EsqlActionIT extends ESIntegTestCase {
     }
 
     public void testFromStatsProjectAggWithAlias() {
-        EsqlQueryResponse results = run("from test | stats a = avg(count) by data | project b = a");
+        EsqlQueryResponse results = run("from test | stats a = avg(count) by data | rename b = a | project b");
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("b"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double"));
@@ -468,7 +469,7 @@ public class EsqlActionIT extends ESIntegTestCase {
     }
 
     public void testFromProjectStatsGroupByAlias() {
-        EsqlQueryResponse results = run("from test | project d = data, count | stats avg(count) by d");
+        EsqlQueryResponse results = run("from test | rename d = data | project d, count | stats avg(count) by d");
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("avg(count)", "d"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double", "long"));
@@ -476,7 +477,7 @@ public class EsqlActionIT extends ESIntegTestCase {
     }
 
     public void testFromProjectStatsAggregateAlias() {
-        EsqlQueryResponse results = run("from test | project c = count, data | stats avg(c) by data");
+        EsqlQueryResponse results = run("from test | rename c = count | project c, data | stats avg(c) by data");
         logger.info(results);
         assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("avg(c)", "data"));
         assertThat(results.columns().stream().map(ColumnInfo::type).toList(), contains("double", "long"));
@@ -614,7 +615,7 @@ public class EsqlActionIT extends ESIntegTestCase {
     }
 
     public void testProjectRename() {
-        EsqlQueryResponse results = run("from test | project x = count, y = count");
+        EsqlQueryResponse results = run("from test | eval y = count | rename x = count | project x, y");
         logger.info(results);
         Assert.assertEquals(40, results.values().size());
         assertThat(results.columns(), contains(new ColumnInfo("x", "long"), new ColumnInfo("y", "long")));
@@ -625,7 +626,7 @@ public class EsqlActionIT extends ESIntegTestCase {
     }
 
     public void testProjectRenameEval() {
-        EsqlQueryResponse results = run("from test | project x = count, y = count | eval x2 = x + 1 | eval y2 = y + 2");
+        EsqlQueryResponse results = run("from test | eval y = count | rename x = count | project x, y | eval x2 = x + 1 | eval y2 = y + 2");
         logger.info(results);
         Assert.assertEquals(40, results.values().size());
         assertThat(
@@ -641,7 +642,7 @@ public class EsqlActionIT extends ESIntegTestCase {
     }
 
     public void testProjectRenameEvalProject() {
-        EsqlQueryResponse results = run("from test | project x = count, y = count | eval z = x + y | project x, y, z");
+        EsqlQueryResponse results = run("from test | eval y = count | rename x = count | project x, y | eval z = x + y | project x, y, z");
         logger.info(results);
         Assert.assertEquals(40, results.values().size());
         assertThat(results.columns(), contains(new ColumnInfo("x", "long"), new ColumnInfo("y", "long"), new ColumnInfo("z", "long")));
@@ -653,10 +654,10 @@ public class EsqlActionIT extends ESIntegTestCase {
     }
 
     public void testProjectOverride() {
-        EsqlQueryResponse results = run("from test | project count, data = count");
+        EsqlQueryResponse results = run("from test | eval cnt = count | rename data = count | project cnt, data");
         logger.info(results);
         Assert.assertEquals(40, results.values().size());
-        assertThat(results.columns(), contains(new ColumnInfo("count", "long"), new ColumnInfo("data", "long")));
+        assertThat(results.columns(), contains(new ColumnInfo("cnt", "long"), new ColumnInfo("data", "long")));
         for (List<Object> values : results.values()) {
             assertThat(values.get(1), is(values.get(0)));
         }

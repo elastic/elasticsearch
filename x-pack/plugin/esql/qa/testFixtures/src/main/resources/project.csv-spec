@@ -197,17 +197,6 @@ emp_no:integer | languages:integer | gender:keyword | first_name:keyword | abc:i
 10100 | 4 | F | Hironobu | 3
 ;
 
-projectFromWithFilterPushedToES
-from test | project languages, emp_no, first_name, last_name, x = emp_no | where emp_no > 10030 and x < 10040 | limit 5;
-
-languages:integer | emp_no:integer | first_name:keyword | last_name:keyword | x:integer
-4 | 10031 | null | Joslin | 10031
-3 | 10032 | null | Reistad | 10032
-1 | 10033 | null | Merlo | 10033
-1 | 10034 | null | Swan | 10034
-5 | 10035 | null | Chappelet | 10035
-;
-
 projectFromWithStatsAfterLimit
 from test | project gender, avg_worked_seconds, first_name, last_name | limit 10 | stats m = max(avg_worked_seconds) by gender;
 
@@ -415,42 +404,6 @@ languages.byte:integer | languages.long:long | languages.short:integer | last_na
 4 | 4 | 4 | Bamford  | 6
 5 | 5 | 5 | Koblick  | 7
 1 | 1 | 1 | Maliniak | 3
-;
-
-projectRename
-from test | project x = languages, y = languages | limit 3;
-
-x:integer | y:integer
-2 | 2
-5 | 5
-4 | 4
-;
-
-projectRenameEval
-from test | project x = languages, y = languages | eval x2 = x + 1 | eval y2 = y + 2 | limit 3;
-
-x:integer | y:integer | x2:integer | y2:integer
-2 | 2 | 3 | 4
-5 | 5 | 6 | 7
-4 | 4 | 5 | 6
-;
-
-projectRenameEvalProject
-from test | project x = languages, y = languages | eval z = x + y | project x, y, z | limit 3;
-
-x:integer | y:integer | z:integer
-2 | 2 | 4
-5 | 5 | 10
-4 | 4 | 8
-;
-
-projectOverride
-from test | project languages, first_name = languages | limit 3;
-
-languages:integer | first_name:integer
-2 | 2
-5 | 5
-4 | 4
 ;
 
 evalWithNull

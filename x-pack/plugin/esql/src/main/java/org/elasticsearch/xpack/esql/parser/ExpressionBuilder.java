@@ -259,21 +259,22 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         );
     }
 
-    @Override
-    public NamedExpression visitProjectClause(EsqlBaseParser.ProjectClauseContext ctx) {
+    public NamedExpression visitProjectExpression(EsqlBaseParser.SourceIdentifierContext ctx) {
         Source src = source(ctx);
-        if (ctx.ASSIGN() != null) {
-            String newName = visitSourceIdentifier(ctx.newName);
-            String oldName = visitSourceIdentifier(ctx.oldName);
-            if (newName.contains(WILDCARD) || oldName.contains(WILDCARD)) {
-                throw new ParsingException(src, "Using wildcards (*) in renaming projections is not allowed [{}]", src.text());
-            }
+        String identifier = visitSourceIdentifier(ctx);
+        return identifier.equals(WILDCARD) ? new UnresolvedStar(src, null) : new UnresolvedAttribute(src, identifier);
+    }
 
-            return new Alias(src, newName, new UnresolvedAttribute(source(ctx.oldName), oldName));
-        } else {
-            String identifier = visitSourceIdentifier(ctx.sourceIdentifier(0));
-            return identifier.equals(WILDCARD) ? new UnresolvedStar(src, null) : new UnresolvedAttribute(src, identifier);
+    @Override
+    public Alias visitRenameClause(EsqlBaseParser.RenameClauseContext ctx) {
+        Source src = source(ctx);
+        String newName = visitSourceIdentifier(ctx.newName);
+        String oldName = visitSourceIdentifier(ctx.oldName);
+        if (newName.contains(WILDCARD) || oldName.contains(WILDCARD)) {
+            throw new ParsingException(src, "Using wildcards (*) in renaming projections is not allowed [{}]", src.text());
         }
+
+        return new Alias(src, newName, new UnresolvedAttribute(source(ctx.oldName), oldName));
     }
 
     @Override

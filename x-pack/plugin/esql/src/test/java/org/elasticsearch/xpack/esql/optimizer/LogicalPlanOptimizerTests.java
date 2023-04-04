@@ -126,9 +126,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testCombineProjectionWhilePreservingAlias() {
         var plan = plan("""
             from test
-            | project x = first_name, salary
+            | rename x = first_name
+            | project x, salary
             | where salary > 10
-            | project y = x
+            | rename y = x
+            | project y
             """);
 
         var project = as(plan, Project.class);
@@ -170,7 +172,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testCombineProjectionWithPruning() {
         var plan = plan("""
             from test
-            | project x = first_name, salary, last_name
+            | rename x = first_name
+            | project x, salary, last_name
             | stats count(salary) by x
             """);
 
@@ -401,7 +404,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testPushDownFilterPastProject() {
         LogicalPlan plan = optimizedPlan("""
             from test
-            | project x = emp_no
+            | rename x = emp_no
+            | project x
             | where x > 10""");
 
         var project = as(plan, Project.class);
@@ -414,7 +418,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testPushDownEvalPastProject() {
         LogicalPlan plan = optimizedPlan("""
             from test
-            | project x = emp_no
+            | rename x = emp_no
+            | project x
             | eval y = x * 2""");
 
         var project = as(plan, Project.class);
@@ -434,7 +439,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testPushDownDissectPastProject() {
         LogicalPlan plan = optimizedPlan("""
             from test
-            | project x = first_name
+            | rename x = first_name
+            | project x
             | dissect x "%{y}"
             """);
 
@@ -447,7 +453,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | eval y = emp_no + 1
-            | project x = y
+            | rename x = y
             | where x > 10""");
 
         var project = as(plan, Project.class);
@@ -463,7 +469,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | dissect first_name "%{y}"
-            | project x = y
+            | rename x = y
+            | project x
             | where x == "foo"
             """);
 
@@ -499,7 +506,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testPushDownLimitPastProject() {
         LogicalPlan plan = optimizedPlan("""
             from test
-            | project a = emp_no
+            | rename a = emp_no
+            | project a
             | limit 10""");
 
         var project = as(plan, Project.class);
@@ -657,7 +665,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
-            | project salary, en = emp_no
+            | rename en = emp_no
+            | project salary, en
             | eval e = en * 2
             | sort salary""");
 
@@ -672,7 +681,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
-            | project l = salary, emp_no
+            | rename l = salary
+            | project l, emp_no
             | sort l""");
 
         var project = as(plan, Project.class);
@@ -723,7 +733,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
-            | project l = salary, emp_no, first_name
+            | rename l = salary
+            | project l, emp_no, first_name
             | sort l
             | limit 100
             | sort first_name
@@ -785,8 +796,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testPruneRedundantSortClausesUsingAlias() {
         LogicalPlan plan = optimizedPlan("""
             from test
-            | project e = emp_no, emp_no
-            | sort emp_no, e desc""");
+            | sort emp_no desc
+            | rename e = emp_no
+            | project e
+            | sort e""");
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);

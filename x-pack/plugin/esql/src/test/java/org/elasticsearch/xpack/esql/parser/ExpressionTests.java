@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -37,6 +38,7 @@ import java.time.Period;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
@@ -522,13 +524,13 @@ public class ExpressionTests extends ESTestCase {
     public void testProjectRename() {
         String[] newName = new String[] { "a", "a.b", "a", "x.y" };
         String[] oldName = new String[] { "b", "a.c", "x.y", "a" };
-        List<?> projections;
+        List<?> renamings;
         for (int i = 0; i < newName.length; i++) {
-            Project p = projectExpression(newName[i] + "=" + oldName[i]);
-            projections = p.projections();
-            assertThat(projections.size(), equalTo(1));
-            assertThat(projections.get(0), instanceOf(Alias.class));
-            Alias a = (Alias) projections.get(0);
+            Rename r = renameExpression(newName[i] + "=" + oldName[i]);
+            renamings = r.renamings();
+            assertThat(renamings.size(), equalTo(1));
+            assertThat(renamings.get(0), instanceOf(Alias.class));
+            Alias a = (Alias) renamings.get(0);
             assertThat(a.child(), instanceOf(UnresolvedAttribute.class));
             UnresolvedAttribute ua = (UnresolvedAttribute) a.child();
             assertThat(a.name(), equalTo(newName[i]));
@@ -537,35 +539,43 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testMultipleProjectPatterns() {
-        Project p = projectExpression("abc, xyz*, x=y, *");
+        LogicalPlan plan = parse("from a | rename x = y | project abc, xyz*, x, *");
+        Project p = as(plan, Project.class);
         List<?> projections = p.projections();
         assertThat(projections.size(), equalTo(4));
         assertThat(projections.get(0), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) projections.get(0)).name(), equalTo("abc"));
         assertThat(projections.get(1), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) projections.get(1)).name(), equalTo("xyz*"));
-        assertThat(projections.get(2), instanceOf(Alias.class));
+        assertThat(projections.get(2), instanceOf(UnresolvedAttribute.class));
         assertThat(projections.get(3), instanceOf(UnresolvedStar.class));
     }
 
     public void testForbidWildcardProjectRename() {
         assertParsingException(
-            () -> projectExpression("a*=b*"),
-            "line 1:19: Using wildcards (*) in renaming projections is not allowed [a*=b*]"
+            () -> renameExpression("a*=b*"),
+            "line 1:18: Using wildcards (*) in renaming projections is not allowed [a*=b*]"
         );
     }
 
     private Expression whereExpression(String e) {
-        LogicalPlan plan = parser.createStatement("from a | where " + e);
-        return ((Filter) plan).condition();
+        return ((Filter) parse("from a | where " + e)).condition();
     }
 
     private Drop dropExpression(String e) {
-        return (Drop) parser.createStatement("from a | drop " + e);
+        return (Drop) parse("from a | drop " + e);
+    }
+
+    private Rename renameExpression(String e) {
+        return (Rename) parse("from a | rename " + e);
     }
 
     private Project projectExpression(String e) {
-        return (Project) parser.createStatement("from a | project " + e);
+        return (Project) parse("from a | project " + e);
+    }
+
+    private LogicalPlan parse(String s) {
+        return parser.createStatement(s);
     }
 
     private Literal l(Object value, DataType type) {

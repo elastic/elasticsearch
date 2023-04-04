@@ -87,6 +87,31 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testDoubleRenamingField() {
+        assertEquals(
+            "1:47: Column [emp_no] renamed to [r1] and is no longer available [r3 = emp_no]",
+            error("from test | rename r1 = emp_no, r2 = r1, r3 = emp_no | project r3")
+        );
+    }
+
+    public void testDuplicateRenaming() {
+        assertEquals(
+            "1:38: Column [emp_no] renamed to [r1] and is no longer available [r1 = emp_no]",
+            error("from test | rename r1 = emp_no, r1 = emp_no | project r1")
+        );
+    }
+
+    public void testDoubleRenamingReference() {
+        assertEquals(
+            "1:63: Column [r1] renamed to [r2] and is no longer available [r3 = r1]",
+            error("from test | rename r1 = emp_no, r2 = r1, x = first_name, r3 = r1 | project r3")
+        );
+    }
+
+    public void testDropAfterRenaming() {
+        assertEquals("1:39: Unknown column [emp_no]", error("from test | rename r1 = emp_no | drop emp_no"));
+    }
+
     public void testNonStringFieldsInDissect() {
         assertEquals(
             "1:21: Dissect only supports KEYWORD values, found expression [emp_no] type [INTEGER]",

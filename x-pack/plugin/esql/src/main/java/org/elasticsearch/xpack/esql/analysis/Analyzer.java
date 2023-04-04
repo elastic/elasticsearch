@@ -12,15 +12,16 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRename;
+import org.elasticsearch.xpack.esql.plan.logical.ProjectReorder;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.ql.common.Failure;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -196,7 +198,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveDrop(d, childrenOutput);
             }
 
-            if (plan instanceof ProjectReorderRename p) {
+            if (plan instanceof Rename r) {
+                return resolveRename(r, childrenOutput);
+            }
+
+            if (plan instanceof ProjectReorder p) {
                 return resolveProject(p, childrenOutput);
             }
 
@@ -207,11 +213,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan.transformExpressionsUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput));
         }
 
-        private Expression resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
+        private Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
             if (ua.customMessage()) {
                 return ua;
             }
-            Expression resolved = ua;
+            Attribute resolved = ua;
             var named = resolveAgainstList(ua, childrenOutput);
             // if resolved, return it; otherwise keep it in place to be resolved later
             if (named.size() == 1) {
@@ -310,6 +316,65 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return new EsqlProject(drop.source(), drop.child(), resolvedProjections);
+        }
+
+        private LogicalPlan resolveRename(Rename rename, List<Attribute> childrenOutput) {
+            List<NamedExpression> projections = new ArrayList<>(childrenOutput);
+
+            int renamingsCount = rename.renamings().size();
+            List<NamedExpression> unresolved = new ArrayList<>(renamingsCount);
+            Map<String, String> reverseAliasing = new HashMap<>(renamingsCount); // `| rename x = a` => map(a: x)
+
+            rename.renamings().forEach(alias -> {
+                // skip NOPs: `| rename a = a`
+                if (alias.child()instanceof UnresolvedAttribute ua && alias.name().equals(ua.name()) == false) {
+                    // remove attributes overwritten by a renaming: `| project a, b, c | rename b = a`
+                    projections.removeIf(x -> x.name().equals(alias.name()));
+
+                    var resolved = resolveAttribute(ua, childrenOutput);
+                    if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {
+                        var realiased = (NamedExpression) alias.replaceChildren(List.of(resolved));
+                        projections.replaceAll(x -> x.equals(resolved) ? realiased : x);
+                        childrenOutput.removeIf(x -> x.equals(resolved));
+                        reverseAliasing.put(resolved.name(), alias.name());
+                    } else { // remained UnresolvedAttribute
+                        // is the current alias referencing a previously declared alias?
+                        boolean updated = false;
+                        if (reverseAliasing.containsValue(resolved.name())) {
+                            for (var li = projections.listIterator(); li.hasNext();) {
+                                // does alias still exist? i.e. it hasn't been renamed again (`| rename b=a, c=b, d=b`)
+                                if (li.next()instanceof Alias a && a.name().equals(resolved.name())) {
+                                    reverseAliasing.put(resolved.name(), alias.name());
+                                    // update aliased projection in place
+                                    li.set((NamedExpression) alias.replaceChildren(a.children()));
+                                    updated = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (updated == false) {
+                            var u = resolved;
+                            var previousAliasName = reverseAliasing.get(resolved.name());
+                            if (previousAliasName != null) {
+                                String message = format(
+                                    null,
+                                    "Column [{}] renamed to [{}] and is no longer available [{}]",
+                                    resolved.name(),
+                                    previousAliasName,
+                                    alias.sourceText()
+                                );
+                                u = ua.withUnresolvedMessage(message);
+                            }
+                            unresolved.add(u);
+                        }
+                    }
+                }
+            });
+
+            // add unresolved renamings to later trip the Verifier.
+            projections.addAll(unresolved);
+
+            return new EsqlProject(rename.source(), rename.child(), projections);
         }
     }
 

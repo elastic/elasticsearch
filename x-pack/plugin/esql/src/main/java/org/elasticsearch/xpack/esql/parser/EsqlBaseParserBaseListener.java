@@ -485,18 +485,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterProjectClause(EsqlBaseParser.ProjectClauseContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitProjectClause(EsqlBaseParser.ProjectClauseContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterDropCommand(EsqlBaseParser.DropCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -504,6 +492,30 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitDropCommand(EsqlBaseParser.DropCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterRenameCommand(EsqlBaseParser.RenameCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitRenameCommand(EsqlBaseParser.RenameCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterRenameClause(EsqlBaseParser.RenameClauseContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitRenameClause(EsqlBaseParser.RenameClauseContext ctx) { }
   /**
    * {@inheritDoc}
    *

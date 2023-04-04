@@ -16,7 +16,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.ProjectReorderRename;
+import org.elasticsearch.xpack.esql.plan.logical.ProjectReorder;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -225,13 +226,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx) {
-        int clauseSize = ctx.projectClause().size();
-        List<NamedExpression> projections = new ArrayList<>(clauseSize);
+    public PlanFactory visitRenameCommand(EsqlBaseParser.RenameCommandContext ctx) {
+        List<Alias> renamings = ctx.renameClause().stream().map(this::visitRenameClause).toList();
+        return child -> new Rename(source(ctx), child, renamings);
+    }
 
+    @Override
+    public PlanFactory visitProjectCommand(EsqlBaseParser.ProjectCommandContext ctx) {
+        List<NamedExpression> projections = new ArrayList<>(ctx.sourceIdentifier().size());
         boolean hasSeenStar = false;
-        for (EsqlBaseParser.ProjectClauseContext clause : ctx.projectClause()) {
-            NamedExpression ne = this.visitProjectClause(clause);
+        for (var srcIdCtx : ctx.sourceIdentifier()) {
+            NamedExpression ne = visitProjectExpression(srcIdCtx);
             if (ne instanceof UnresolvedStar) {
                 if (hasSeenStar) {
                     throw new ParsingException(ne.source(), "Cannot specify [*] more than once", ne.source().text());
@@ -241,7 +246,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             projections.add(ne);
         }
-        return input -> new ProjectReorderRename(source(ctx), input, projections);
+        return child -> new ProjectReorder(source(ctx), child, projections);
     }
 
     @Override

@@ -461,6 +461,91 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testRename() {
+        assertProjection("""
+            from test
+            | rename e = emp_no
+            | project first_name, e
+            """, "first_name", "e");
+    }
+
+    public void testChainedRename() {
+        assertProjection("""
+            from test
+            | rename r1 = emp_no, r2 = r1, r3 = r2
+            | project first_name, r3
+            """, "first_name", "r3");
+    }
+
+    public void testChainedRenameReuse() {
+        assertProjection("""
+            from test
+            | rename r1 = emp_no, r2 = r1, r3 = r2, r1 = first_name
+            | project r1, r3
+            """, "r1", "r3");
+    }
+
+    public void testRenameBackAndForth() {
+        assertProjection("""
+            from test
+            | rename r1 = emp_no, emp_no = r1
+            | project emp_no
+            """, "emp_no");
+    }
+
+    public void testRenameReuseAlias() {
+        assertProjection("""
+            from test
+            | rename e = emp_no, e = first_name
+            """, "_meta_field", "e", "gender", "languages", "last_name", "salary");
+    }
+
+    public void testRenameUnsupportedField() {
+        assertProjectionWithMapping("""
+            from test
+            | rename u = unsupported
+            | project int, u, float
+            """, "mapping-multi-field-variation.json", "int", "u", "float");
+    }
+
+    public void testRenameUnsupportedFieldChained() {
+        assertProjectionWithMapping("""
+            from test
+            | rename u1 = unsupported, u2 = u1
+            | project int, u2, float
+            """, "mapping-multi-field-variation.json", "int", "u2", "float");
+    }
+
+    public void testRenameUnsupportedAndResolved() {
+        assertProjectionWithMapping("""
+            from test
+            | rename u = unsupported, f = float
+            | project int, u, f
+            """, "mapping-multi-field-variation.json", "int", "u", "f");
+    }
+
+    public void testRenameUnsupportedSubFieldAndResolved() {
+        assertProjectionWithMapping("""
+            from test
+            | rename ss = some.string, f = float
+            | project int, ss, f
+            """, "mapping-multi-field-variation.json", "int", "ss", "f");
+    }
+
+    public void testRenameUnsupportedAndUnknown() {
+        verifyUnsupported("""
+            from test
+            | rename t = text, d = doesnotexist
+            """, "Found 1 problem\n" + "line 2:24: Unknown column [doesnotexist]");
+    }
+
+    public void testRenameResolvedAndUnknown() {
+        verifyUnsupported("""
+            from test
+            | rename i = int, d = doesnotexist
+            """, "Found 1 problem\n" + "line 2:23: Unknown column [doesnotexist]");
+    }
+
     public void testUnsupportedFieldUsedExplicitly() {
         assertProjectionWithMapping("""
             from test

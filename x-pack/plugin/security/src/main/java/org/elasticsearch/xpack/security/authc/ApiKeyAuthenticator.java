@@ -47,7 +47,7 @@ class ApiKeyAuthenticator implements Authenticator {
             listener.onResponse(AuthenticationResult.notHandled());
             return;
         }
-        final ApiKeyCredentials apiKeyCredentials = (ApiKeyCredentials) authenticationToken;
+        ApiKeyCredentials apiKeyCredentials = (ApiKeyCredentials) authenticationToken;
         apiKeyService.tryAuthenticate(context.getThreadContext(), apiKeyCredentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
                 final Authentication authentication = Authentication.newApiKeyAuthentication(authResult, nodeName);
@@ -62,15 +62,11 @@ class ApiKeyAuthenticator implements Authenticator {
                 if (authResult.getMessage() != null) {
                     if (authResult.getException() != null) {
                         logger.warn(
-                            () -> format(
-                                "Authentication using apikey [%s] failed - %s",
-                                apiKeyCredentials.getId(),
-                                authResult.getMessage()
-                            ),
+                            () -> format("Authentication using apikey failed - %s", authResult.getMessage()),
                             authResult.getException()
                         );
                     } else {
-                        logger.warn("Authentication using apikey [{}] failed - {}", apiKeyCredentials.getId(), authResult.getMessage());
+                        logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
                     }
                 }
                 listener.onResponse(AuthenticationResult.unsuccessful(authResult.getMessage(), authResult.getException()));

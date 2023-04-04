@@ -699,9 +699,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testAggregateSettingsAppliesSettingsFromTemplatesAndRequest() {
-        IndexTemplateMetadata templateMetadata = addMatchingTemplate(
-            builder -> { builder.settings(Settings.builder().put("template_setting", "value1")); }
-        );
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            builder.settings(Settings.builder().put("template_setting", "value1"));
+        });
         Metadata metadata = new Metadata.Builder().templates(Map.of("template_1", templateMetadata)).build();
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)

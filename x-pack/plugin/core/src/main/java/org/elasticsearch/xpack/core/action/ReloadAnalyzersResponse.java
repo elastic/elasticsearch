@@ -104,7 +104,9 @@ public class ReloadAnalyzersResponse extends BroadcastResponse {
     private static final ConstructingObjectParser<ReloadDetails, Void> ENTRY_PARSER = new ConstructingObjectParser<>(
         "reload_analyzer.entry",
         true,
-        arg -> { return new ReloadDetails((String) arg[0], new HashSet<>((List<String>) arg[1]), new HashSet<>((List<String>) arg[2])); }
+        arg -> {
+            return new ReloadDetails((String) arg[0], new HashSet<>((List<String>) arg[1]), new HashSet<>((List<String>) arg[2]));
+        }
     );
 
     static {

@@ -51,6 +51,7 @@ setup:
 ---
 multi-valued fields unsupported:
   - skip:
+      features: contains
       version: " - 8.7.99"
       reason: position metric introduced in 8.8.0
   - do:
@@ -67,8 +68,7 @@ multi-valued fields unsupported:
   - match: { errors: true }
   - match: { items.0.index.result: "created" }
   - match: { items.1.index.result: "created" }
-  - match: { items.2.index.error.reason: "failed to parse" }
-  - match: { items.2.index.error.caused_by.reason: "field type for [location] does not accept more than single value" }
+  - contains: { items.2.index.error.reason: "failed to parse: field type for [location] does not accept more than single value" }
 
 ---
 "avg aggregation on position field unsupported":

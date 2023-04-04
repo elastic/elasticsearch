@@ -97,7 +97,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertFalse(firstTaskCompleted.get());
 
         final Runnable scheduleTask = runnableTasks.remove(0);
-        assertThat(scheduleTask, hasToString("master service scheduling next task"));
+        assertThat(scheduleTask, hasToString("master service queue processor"));
         scheduleTask.run();
 
         // run tasks for computing routing nodes and indices lookup
@@ -137,6 +137,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertThat(runnableTasks.size(), equalTo(0));
 
         publishingCallback.getAndSet(null).onResponse(null);
+        runnableTasks.remove(0).run(); // complete publication back on master service thread
         assertTrue(firstTaskCompleted.get());
         assertThat(runnableTasks.size(), equalTo(1)); // check that new task gets queued
 
@@ -151,6 +152,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertNotNull(publishingCallback.get());
         assertFalse(secondTaskCompleted.get());
         publishingCallback.getAndSet(null).onResponse(null);
+        runnableTasks.remove(0).run(); // complete publication back on master service thread
         assertTrue(secondTaskCompleted.get());
         assertThat(runnableTasks.size(), equalTo(0)); // check that no more tasks are queued
     }

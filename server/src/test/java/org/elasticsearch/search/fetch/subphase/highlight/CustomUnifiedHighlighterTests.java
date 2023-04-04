@@ -38,4 +38,61 @@ public class CustomUnifiedHighlighterTests extends HighlighterTestCase {
         assertHighlights(highlights, "field", "this is <em>some</em> text");
     }
 
+    public void testStoredFieldHighlighting() throws IOException {
+
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+                "field" : { "type" : "text", "store" : true }
+            }}}
+            """);
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            { "field" : "this is some text" }
+            """));
+
+        SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "some"))
+            .highlighter(new HighlightBuilder().field("field"));
+
+        Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
+        assertHighlights(highlights, "field", "this is <em>some</em> text");
+    }
+
+    public void testStoredCopyToFieldHighlighting() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+                "field_source" : { "type" : "text", "copy_to" : [ "field" ] },
+                "field" : { "type" : "text", "store" : true }
+            }}}
+            """);
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            { "field_source" : "this is some text" }
+            """));
+
+        SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "some"))
+            .highlighter(new HighlightBuilder().field("field"));
+
+        Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
+        assertHighlights(highlights, "field", "this is <em>some</em> text");
+    }
+
+    public void testUnstoredCopyToFieldHighlighting() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+                "field_source" : { "type" : "text", "copy_to" : [ "field" ] },
+                "field" : { "type" : "text" }
+            }}}
+            """);
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            { "field_source" : "this is some text" }
+            """));
+
+        SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "some"))
+            .highlighter(new HighlightBuilder().field("field"));
+
+        Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
+        assertHighlights(highlights, "field", "this is <em>some</em> text");
+    }
+
 }

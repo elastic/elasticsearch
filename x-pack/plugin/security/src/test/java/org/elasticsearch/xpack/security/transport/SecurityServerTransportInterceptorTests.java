@@ -925,8 +925,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final TransportVersion versionBeforeCrossClusterAccessRealm = TransportVersionUtils.getPreviousVersion(
             VERSION_CROSS_CLUSTER_ACCESS_REALM
         );
-        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
+            TransportVersion.V_7_17_0,
             versionBeforeCrossClusterAccessRealm
         );
         when(connection.getTransportVersion()).thenReturn(version);

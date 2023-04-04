@@ -1570,6 +1570,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94905")
     public void testClusterRecoversAfterExceptionDuringSerialization() {
         try (Cluster cluster = new Cluster(randomIntBetween(2, 5))) {
             cluster.runRandomly();

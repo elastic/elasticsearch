@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -227,5 +228,31 @@ public class ClusterServiceUtils {
             }, statePredicate);
             future.get(30L, TimeUnit.SECONDS);
         }
+    }
+
+    public static void awaitNoPendingTasks(ClusterService clusterService) {
+        PlainActionFuture.<Void, RuntimeException>get(
+            fut -> clusterService.submitUnbatchedStateUpdateTask(
+                "await-queue-empty",
+                new ClusterStateUpdateTask(Priority.LANGUID, TimeValue.timeValueSeconds(10)) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return currentState;
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fut.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                        fut.onResponse(null);
+                    }
+                }
+            ),
+            10,
+            TimeUnit.SECONDS
+        );
     }
 }

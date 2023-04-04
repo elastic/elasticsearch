@@ -57,6 +57,7 @@ public class XPackLicenseState {
         messages.put(XPackField.DEPRECATION, new String[] { "Deprecation APIs are disabled" });
         messages.put(XPackField.UPGRADE, new String[] { "Upgrade API is disabled" });
         messages.put(XPackField.SQL, new String[] { "SQL support is disabled" });
+        messages.put(XPackField.ENTERPRISE_SEARCH, new String[] { "Search Applications and behavioral analytics will be disabled" });
         messages.put(
             XPackField.ROLLUP,
             new String[] {
@@ -98,6 +99,7 @@ public class XPackLicenseState {
         messages.put(XPackField.BEATS, XPackLicenseState::beatsAcknowledgementMessages);
         messages.put(XPackField.SQL, XPackLicenseState::sqlAcknowledgementMessages);
         messages.put(XPackField.CCR, XPackLicenseState::ccrAcknowledgementMessages);
+        messages.put(XPackField.ENTERPRISE_SEARCH, XPackLicenseState::enterpriseSearchAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -205,6 +207,22 @@ public class XPackLicenseState {
                     case PLATINUM:
                     case ENTERPRISE:
                         return new String[] { "Graph will be disabled" };
+                }
+                break;
+        }
+        return Strings.EMPTY_ARRAY;
+    }
+
+    private static String[] enterpriseSearchAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
+        switch (newMode) {
+            case BASIC:
+            case STANDARD:
+            case GOLD:
+                switch (currentMode) {
+                    case TRIAL:
+                    case PLATINUM:
+                    case ENTERPRISE:
+                        return new String[] { "Search Applications and behavioral analytics will be disabled" };
                 }
                 break;
         }
@@ -360,7 +378,7 @@ public class XPackLicenseState {
      * @param active True if the current license exists and is within its allowed usage period; false if it is expired or missing.
      * @param expiryWarning Warning to emit on license checks about the license expiring soon.
      */
-    protected void update(OperationMode mode, boolean active, String expiryWarning) {
+    void update(OperationMode mode, boolean active, String expiryWarning) {
         status = new Status(mode, active, expiryWarning);
         listeners.forEach(LicenseStateListener::licenseStateChanged);
     }

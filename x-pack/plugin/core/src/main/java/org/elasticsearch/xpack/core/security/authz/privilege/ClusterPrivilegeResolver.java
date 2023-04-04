@@ -83,7 +83,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_TOKEN_PATTERN = Set.of("cluster:admin/xpack/security/token/*");
     private static final Set<String> MANAGE_API_KEY_PATTERN = Set.of("cluster:admin/xpack/security/api_key/*");
     private static final Set<String> MANAGE_BEHAVIORAL_ANALYTICS_PATTERN = Set.of("cluster:admin/xpack/application/analytics/*");
-    private static final Set<String> SEND_BEHAVIORAL_ANALYTICS_EVENT_PATTERN = Set.of(
+    private static final Set<String> POST_BEHAVIORAL_ANALYTICS_EVENT_PATTERN = Set.of(
         "cluster:admin/xpack/application/analytics/post_event"
     );
     private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Set.of("cluster:admin/xpack/security/service_account/*");
@@ -274,9 +274,9 @@ public class ClusterPrivilegeResolver {
         MANAGE_BEHAVIORAL_ANALYTICS_PATTERN
     );
 
-    public static final NamedClusterPrivilege SEND_BEHAVIORAL_ANALYTICS_EVENT = new ActionClusterPrivilege(
-        "send_behavioral_analytics_event",
-        SEND_BEHAVIORAL_ANALYTICS_EVENT_PATTERN
+    public static final NamedClusterPrivilege POST_BEHAVIORAL_ANALYTICS_EVENT = new ActionClusterPrivilege(
+        "post_behavioral_analytics_event",
+        POST_BEHAVIORAL_ANALYTICS_EVENT_PATTERN
     );
 
     public static final NamedClusterPrivilege CROSS_CLUSTER_ACCESS = new ActionClusterPrivilege(
@@ -331,7 +331,7 @@ public class ClusterPrivilegeResolver {
             CANCEL_TASK,
             MANAGE_SEARCH_APPLICATION,
             MANAGE_BEHAVIORAL_ANALYTICS,
-            SEND_BEHAVIORAL_ANALYTICS_EVENT,
+            POST_BEHAVIORAL_ANALYTICS_EVENT,
             TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_ACCESS : null
         ).filter(Objects::nonNull).toList()
     );

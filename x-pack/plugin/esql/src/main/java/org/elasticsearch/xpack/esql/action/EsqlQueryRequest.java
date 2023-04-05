@@ -22,6 +22,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -44,7 +45,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     private boolean columnar;
     private ZoneId zoneId;
     private QueryBuilder filter;
-    private Settings pragmas = Settings.EMPTY;
+    private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
 
     public EsqlQueryRequest(StreamInput in) throws IOException {
         super(in);
@@ -96,11 +97,11 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         return filter;
     }
 
-    public void pragmas(Settings pragmas) {
+    public void pragmas(QueryPragmas pragmas) {
         this.pragmas = pragmas;
     }
 
-    public Settings pragmas() {
+    public QueryPragmas pragmas() {
         return pragmas;
     }
 
@@ -114,7 +115,11 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
         parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE_FIELD);
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
-        parser.declareObject(EsqlQueryRequest::pragmas, (p, c) -> Settings.builder().loadFromMap(p.map()).build(), PRAGMA_FIELD);
+        parser.declareObject(
+            EsqlQueryRequest::pragmas,
+            (p, c) -> new QueryPragmas(Settings.builder().loadFromMap(p.map()).build()),
+            PRAGMA_FIELD
+        );
         return parser;
     }
 

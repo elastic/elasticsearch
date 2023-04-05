@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
@@ -35,6 +32,7 @@ import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
 import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.compute.operator.TopNOperator.TopNOperatorFactory;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -56,7 +54,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -94,48 +92,38 @@ import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperator
 @Experimental
 public class LocalExecutionPlanner {
 
-    private static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
-        "task_concurrency",
-        ThreadPool.searchOrGetThreadPoolSize(EsExecutors.allocatedProcessors(Settings.EMPTY))
-    );
-    private static final Setting<Integer> EXCHANGE_BUFFER_SIZE = Setting.intSetting("esql.exchange.buffer_size", 10);
-    private static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("esql.exchange.concurrent_clients", 3);
-    private static final Setting<DataPartitioning> DATA_PARTITIONING = Setting.enumSetting(
-        DataPartitioning.class,
-        "data_partitioning",
-        DataPartitioning.SEGMENT
-    );
-
+    private final String sessionId;
     private final BigArrays bigArrays;
     private final ThreadPool threadPool;
-    private final EsqlConfiguration configuration;
-    private final DataPartitioning dataPartitioning;
+    private final QueryPragmas queryPragmas;
+    private final ExchangeService exchangeService;
     private final PhysicalOperationProviders physicalOperationProviders;
 
     public LocalExecutionPlanner(
+        String sessionId,
         BigArrays bigArrays,
         ThreadPool threadPool,
-        EsqlConfiguration configuration,
+        QueryPragmas queryPragmas,
+        ExchangeService exchangeService,
         PhysicalOperationProviders physicalOperationProviders
     ) {
+        this.sessionId = sessionId;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
+        this.exchangeService = exchangeService;
         this.physicalOperationProviders = physicalOperationProviders;
-        this.configuration = configuration;
-        this.dataPartitioning = DATA_PARTITIONING.get(configuration.pragmas());
+        this.queryPragmas = queryPragmas;
     }
 
     /**
      * turn the given plan into a list of drivers to execute
      */
     public LocalExecutionPlan plan(PhysicalPlan node) {
-
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
-            TASK_CONCURRENCY.get(configuration.pragmas()),
-            EXCHANGE_BUFFER_SIZE.get(configuration.pragmas()),
-            dataPartitioning,
+            queryPragmas.taskConcurrency(),
+            queryPragmas.dataPartitioning(),
             bigArrays
         );
 
@@ -255,20 +243,50 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {
-        DriverParallelism parallelism = DriverParallelism.SINGLE;
-        context.driverParallelism(parallelism);
-        LocalExecutionPlannerContext subContext = context.createSubContext();
-        PhysicalOperation source = plan(exchangeExec.child(), subContext);
-        Layout layout = source.layout;
+        return switch (exchangeExec.mode()) {
+            case LOCAL -> {
+                DriverParallelism parallelism = DriverParallelism.SINGLE;
+                context.driverParallelism(parallelism);
+                LocalExecutionPlannerContext subContext = context.createSubContext();
+                PhysicalOperation source = plan(exchangeExec.child(), subContext);
+                Layout layout = source.layout;
 
-        var sinkHandler = new ExchangeSinkHandler(context.bufferMaxPages);
-        var executor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
-        var sourceHandler = new ExchangeSourceHandler(context.bufferMaxPages, executor);
-        sourceHandler.addRemoteSink(sinkHandler::fetchPageAsync, EXCHANGE_CONCURRENT_CLIENTS.get(configuration.pragmas()));
-        PhysicalOperation sinkOperator = source.withSink(new ExchangeSinkOperatorFactory(sinkHandler::createExchangeSink), source.layout);
-        DriverParallelism driverParallelism = subContext.driverParallelism().get();
-        context.addDriverFactory(new DriverFactory(new DriverSupplier(context.bigArrays, sinkOperator), driverParallelism));
-        return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(sourceHandler::createExchangeSource), layout);
+                var sinkHandler = new ExchangeSinkHandler(queryPragmas.exchangeBufferSize());
+                var executor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
+                var sourceHandler = new ExchangeSourceHandler(queryPragmas.exchangeBufferSize(), executor);
+                sourceHandler.addRemoteSink(sinkHandler::fetchPageAsync, queryPragmas.concurrentExchangeClients());
+                PhysicalOperation sinkOperator = source.withSink(
+                    new ExchangeSinkOperatorFactory(sinkHandler::createExchangeSink),
+                    source.layout
+                );
+                DriverParallelism driverParallelism = subContext.driverParallelism().get();
+                context.addDriverFactory(new DriverFactory(new DriverSupplier(context.bigArrays, sinkOperator), driverParallelism));
+                yield PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(sourceHandler::createExchangeSource), layout);
+            }
+            case REMOTE_SINK -> {
+                var sinkHandler = exchangeService.getSinkHandler(sessionId, true);
+                PhysicalOperation source = plan(exchangeExec.child(), context);
+                yield source.withSink(new ExchangeSinkOperatorFactory(sinkHandler::createExchangeSink), source.layout);
+            }
+            case REMOTE_SOURCE -> {
+                final Layout layout;
+                if (exchangeExec.child() instanceof ExchangeExec remoteSink) {
+                    LocalExecutionPlannerContext dummyContext = new LocalExecutionPlannerContext(
+                        new ArrayList<>(),
+                        new Holder<>(DriverParallelism.SINGLE),
+                        context.taskConcurrency,
+                        context.dataPartitioning,
+                        context.bigArrays
+                    );
+                    PhysicalOperation source = plan(remoteSink.child(), dummyContext);
+                    layout = source.layout;
+                } else {
+                    throw new IllegalStateException("Expected remote sink; got " + exchangeExec.child());
+                }
+                var sourceHandler = exchangeService.getSourceHandler(sessionId, true);
+                yield PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(sourceHandler::createExchangeSource), layout);
+            }
+        };
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
@@ -523,7 +541,6 @@ public class LocalExecutionPlanner {
         List<DriverFactory> driverFactories,
         Holder<DriverParallelism> driverParallelism,
         int taskConcurrency,
-        int bufferMaxPages,
         DataPartitioning dataPartitioning,
         BigArrays bigArrays
     ) {
@@ -540,7 +557,6 @@ public class LocalExecutionPlanner {
                 driverFactories,
                 new Holder<>(DriverParallelism.SINGLE),
                 taskConcurrency,
-                bufferMaxPages,
                 dataPartitioning,
                 bigArrays
             );

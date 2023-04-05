@@ -51,7 +51,9 @@ public abstract class DriverRunner {
                             if (ExceptionsHelper.unwrap(first, TaskCancelledException.class) != null) {
                                 return e;
                             } else {
-                                first.addSuppressed(e);
+                                if (first != e) {
+                                    first.addSuppressed(e);
+                                }
                                 return first;
                             }
                         }

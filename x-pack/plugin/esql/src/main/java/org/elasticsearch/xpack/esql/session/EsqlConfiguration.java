@@ -7,23 +7,23 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.ql.session.Configuration;
 
 import java.time.ZoneId;
 
 public class EsqlConfiguration extends Configuration {
-    private final Settings pragmas;
+    private final QueryPragmas pragmas;
 
     private final int resultTruncationMaxSize;
 
-    public EsqlConfiguration(ZoneId zi, String username, String clusterName, Settings pragmas, int resultTruncationMaxSize) {
+    public EsqlConfiguration(ZoneId zi, String username, String clusterName, QueryPragmas pragmas, int resultTruncationMaxSize) {
         super(zi, username, clusterName);
         this.pragmas = pragmas;
         this.resultTruncationMaxSize = resultTruncationMaxSize;
     }
 
-    public Settings pragmas() {
+    public QueryPragmas pragmas() {
         return pragmas;
     }
 

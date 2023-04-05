@@ -31,6 +31,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Assert;
 import org.junit.Before;
 
@@ -51,7 +52,6 @@ import java.util.stream.LongStream;
 import static java.util.Comparator.comparing;
 import static java.util.Comparator.nullsFirst;
 import static java.util.Comparator.reverseOrder;
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -67,7 +67,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @Experimental
-@ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public class EsqlActionIT extends ESIntegTestCase {
 
@@ -497,10 +496,7 @@ public class EsqlActionIT extends ESIntegTestCase {
 
     public void testFromStatsEvalWithPragma() {
         assumeTrue("pragmas only enabled on snapshot builds", Build.CURRENT.isSnapshot());
-        EsqlQueryResponse results = run(
-            "from test | stats avg_count = avg(count) | eval x = avg_count + 7",
-            Settings.builder().put("add_task_parallelism_above_query", true).build()
-        );
+        EsqlQueryResponse results = run("from test | stats avg_count = avg(count) | eval x = avg_count + 7");
         logger.info(results);
         Assert.assertEquals(1, results.values().size());
         assertEquals(2, results.values().get(0).size());
@@ -1077,7 +1073,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).pragmas(randomPragmas()).get();
     }
 
-    static EsqlQueryResponse run(String esqlCommands, Settings pragmas) {
+    static EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas) {
         return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).pragmas(pragmas).get();
     }
 
@@ -1086,7 +1082,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         return Collections.singletonList(EsqlPlugin.class);
     }
 
-    private static Settings randomPragmas() {
+    private static QueryPragmas randomPragmas() {
         Settings.Builder settings = Settings.builder();
         // pragmas are only enabled on snapshot builds
         if (Build.CURRENT.isSnapshot()) {
@@ -1100,15 +1096,15 @@ public class EsqlActionIT extends ESIntegTestCase {
                 } else {
                     exchangeBufferSize = randomIntBetween(5, 5000);
                 }
-                settings.put("esql.exchange.buffer_size", exchangeBufferSize);
+                settings.put("exchange_buffer_size", exchangeBufferSize);
             }
             if (randomBoolean()) {
-                settings.put("esql.exchange.concurrent_clients", randomIntBetween(1, 10));
+                settings.put("exchange_concurrent_clients", randomIntBetween(1, 10));
             }
             if (randomBoolean()) {
                 settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
             }
         }
-        return settings.build();
+        return new QueryPragmas(settings.build());
     }
 }

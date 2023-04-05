@@ -19,10 +19,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * An {@link ExchangeSinkHandler} receives pages and status from its {@link ExchangeSink}s, which are created using
  * {@link #createExchangeSink()}} method. Pages and status can then be retrieved asynchronously by {@link ExchangeSourceHandler}s
- * using the {@link #fetchPageAsync(ExchangeRequest, ActionListener)} method.
+ * using the {@link #fetchPageAsync(boolean, ActionListener)} method.
  *
  * @see #createExchangeSink()
- * @see #fetchPageAsync(ExchangeRequest, ActionListener)
+ * @see #fetchPageAsync(boolean, ActionListener)
  * @see ExchangeSourceHandler
  */
 public final class ExchangeSinkHandler {
@@ -77,17 +77,17 @@ public final class ExchangeSinkHandler {
     /**
      * Fetches pages and the sink status asynchronously.
      *
-     * @param request  if {@link ExchangeRequest#sourcesFinished()} is true, then this handler can finish as sources have enough pages.
-     * @param listener the listener that will be notified when pages are ready or this handler is finished
+     * @param sourceFinished if true, then this handler can finish as sources have enough pages.
+     * @param listener       the listener that will be notified when pages are ready or this handler is finished
      * @see RemoteSink
      * @see ExchangeSourceHandler#addRemoteSink(RemoteSink, int)
      */
-    public void fetchPageAsync(ExchangeRequest request, ActionListener<ExchangeResponse> listener) {
-        if (request.sourcesFinished()) {
-            allSourcesFinished = true;
+    public void fetchPageAsync(boolean sourceFinished, ActionListener<ExchangeResponse> listener) {
+        if (sourceFinished) {
+            this.allSourcesFinished = true;
             buffer.drainPages();
         }
-        if (allSourcesFinished) {
+        if (this.allSourcesFinished) {
             listener.onResponse(new ExchangeResponse(null, true));
         } else {
             listeners.add(listener);
@@ -125,7 +125,8 @@ public final class ExchangeSinkHandler {
         return new LocalExchangeSink();
     }
 
-    int bufferSize() {
-        return buffer.size();
+    public void finish() {
+        buffer.finish();
+        notifyListeners();
     }
 }

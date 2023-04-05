@@ -295,10 +295,12 @@ public final class PlanNamedTypes {
     }
 
     static ExchangeExec readExchangeExec(PlanStreamInput in) throws IOException {
-        return new ExchangeExec(Source.EMPTY, in.readPhysicalPlanNode());
+        ExchangeExec.Mode mode = in.readEnum(ExchangeExec.Mode.class);
+        return new ExchangeExec(Source.EMPTY, in.readPhysicalPlanNode(), mode);
     }
 
     static void writeExchangeExec(PlanStreamOutput out, ExchangeExec exchangeExec) throws IOException {
+        out.writeEnum(exchangeExec.mode());
         out.writePhysicalPlanNode(exchangeExec.child());
     }
 
@@ -306,7 +308,7 @@ public final class PlanNamedTypes {
         return new FieldExtractExec(
             Source.EMPTY,
             in.readPhysicalPlanNode(),
-            in.readAttributeSet(readerFromPlanReader(PlanStreamInput::readAttribute))
+            in.readList(readerFromPlanReader(PlanStreamInput::readAttribute))
         );
     }
 

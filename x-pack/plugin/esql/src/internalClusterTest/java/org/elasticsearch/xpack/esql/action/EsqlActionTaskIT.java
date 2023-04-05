@@ -35,6 +35,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -61,6 +62,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests that we expose a reasonable task status.
  */
+// TODO: make sure cancellation work across multiple nodes
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false) // ESQL is single node
 public class EsqlActionTaskIT extends ESIntegTestCase {
     private static final int COUNT = LuceneSourceOperator.PAGE_SIZE * 5;
@@ -192,7 +194,7 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
         scriptStarted.set(false);
         scriptDraining.set(false);
         return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query("from test | stats sum(pause_me)")
-            .pragmas(Settings.builder().put("data_partitioning", "shard").build())
+            .pragmas(new QueryPragmas(Settings.builder().put("data_partitioning", "shard").build()))
             .execute();
     }
 

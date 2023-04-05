@@ -52,19 +52,19 @@ public class EsqlActionRuntimeFieldIT extends ESIntegTestCase {
 
     public void testLong() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("long");
-        EsqlQueryResponse response = EsqlActionIT.run("from test | stats sum(const)", Settings.EMPTY);
+        EsqlQueryResponse response = EsqlActionIT.run("from test | stats sum(const)");
         assertThat(response.values(), equalTo(List.of(List.of((long) SIZE))));
     }
 
     public void testDouble() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("double");
-        EsqlQueryResponse response = EsqlActionIT.run("from test | stats sum(const)", Settings.EMPTY);
+        EsqlQueryResponse response = EsqlActionIT.run("from test | stats sum(const)");
         assertThat(response.values(), equalTo(List.of(List.of((double) SIZE))));
     }
 
     public void testKeyword() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("keyword");
-        EsqlQueryResponse response = EsqlActionIT.run("from test | project const | limit 1", Settings.EMPTY);
+        EsqlQueryResponse response = EsqlActionIT.run("from test | project const | limit 1");
         assertThat(response.values(), equalTo(List.of(List.of("const"))));
     }
 
@@ -74,20 +74,20 @@ public class EsqlActionRuntimeFieldIT extends ESIntegTestCase {
      */
     public void testKeywordBy() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("keyword");
-        EsqlQueryResponse response = EsqlActionIT.run("from test | stats max(foo) by const", Settings.EMPTY);
+        EsqlQueryResponse response = EsqlActionIT.run("from test | stats max(foo) by const");
         assertThat(response.values(), equalTo(List.of(List.of(SIZE - 1L, "const"))));
     }
 
     public void testBoolean() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("boolean");
-        EsqlQueryResponse response = EsqlActionIT.run("from test | sort foo | limit 3", Settings.EMPTY);
+        EsqlQueryResponse response = EsqlActionIT.run("from test | sort foo | limit 3");
         assertThat(response.values(), equalTo(List.of(List.of(true, 0L), List.of(true, 1L), List.of(true, 2L))));
     }
 
     public void testDate() throws InterruptedException, IOException {
         createIndexWithConstRuntimeField("date");
         EsqlQueryResponse response = EsqlActionIT.run("""
-            from test | eval d=date_format(const, "yyyy") | stats min (foo) by d""", Settings.EMPTY);
+            from test | eval d=date_format(const, "yyyy") | stats min (foo) by d""");
         assertThat(response.values(), equalTo(List.of(List.of(0L, "2023"))));
     }
 

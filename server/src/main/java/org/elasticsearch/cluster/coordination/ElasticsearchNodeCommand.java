@@ -267,6 +267,11 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
 
         @Override
+        public String valueToHumanReadableString() {
+            return value.toString();
+        }
+
+        @Override
         public Type type() {
             assert false;
             throw new UnsupportedOperationException();

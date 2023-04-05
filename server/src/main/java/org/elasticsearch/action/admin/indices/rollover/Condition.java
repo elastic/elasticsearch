@@ -73,6 +73,11 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
         return value;
     }
 
+    /**
+     * Returns the value of the condition as human-readable string.
+     */
+    public abstract String valueToHumanReadableString();
+
     public String name() {
         return name;
     }

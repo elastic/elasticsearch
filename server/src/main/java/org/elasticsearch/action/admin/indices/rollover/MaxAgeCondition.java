@@ -40,6 +40,11 @@ public class MaxAgeCondition extends Condition<TimeValue> {
     }
 
     @Override
+    public String valueToHumanReadableString() {
+        return value.getStringRep();
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

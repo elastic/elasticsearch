@@ -39,6 +39,11 @@ public class MaxPrimaryShardDocsCondition extends Condition<Long> {
     }
 
     @Override
+    public String valueToHumanReadableString() {
+        return String.valueOf(value);
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }

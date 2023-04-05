@@ -296,7 +296,7 @@ as well as the various CPU and memory time series metrics.
 // TEST[continued]
 
 Next, you can run a terms aggregation on the set of time series dimensions (`_tsid`) to
-create a date histogram on a fixed interval of one day.
+view a date histogram on a fixed interval of one day.
 
 [source,console]
 ----

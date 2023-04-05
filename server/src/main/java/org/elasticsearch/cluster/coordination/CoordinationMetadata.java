@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -337,12 +336,12 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         }
 
         public VotingConfiguration(StreamInput in) throws IOException {
-            nodeIds = Collections.unmodifiableSet(Sets.newHashSet(in.readStringArray()));
+            nodeIds = Set.of(in.readStringArray());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringArray(nodeIds.toArray(new String[0]));
+            out.writeStringCollection(nodeIds);
         }
 
         public boolean hasQuorum(Collection<String> votes) {

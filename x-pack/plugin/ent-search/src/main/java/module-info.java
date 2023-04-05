@@ -11,6 +11,7 @@ module org.elasticsearch.application {
     requires com.fasterxml.jackson.annotation;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
+    requires org.slf4j;
 
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;

@@ -93,14 +93,6 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
         out.writeOptionalWriteable(templateParamValidator);
     }
 
-    static {
-        PARSER.declareObject(
-            optionalConstructorArg(),
-            (p, c) -> Script.parse(p, Script.DEFAULT_TEMPLATE_LANG),
-            TEMPLATE_SCRIPT_FIELD
-        );
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(script, templateParamValidator);

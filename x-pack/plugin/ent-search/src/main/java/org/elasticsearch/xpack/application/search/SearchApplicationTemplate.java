@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -39,6 +40,9 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
         if (script != null && script.getLang() != null) {
             if (MustacheScriptEngine.NAME.equals(script.getLang()) == false) {
                 throw new IllegalArgumentException("only [" + MustacheScriptEngine.NAME + "] scripting language is supported");
+            }
+            if (script.getType().getId() != ScriptType.INLINE.getId()) {
+                throw new IllegalArgumentException("only [" + ScriptType.INLINE.getName() + "] script type is supported");
             }
         }
 

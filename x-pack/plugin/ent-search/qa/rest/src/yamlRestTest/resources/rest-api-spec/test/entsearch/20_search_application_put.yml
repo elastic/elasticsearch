@@ -35,6 +35,27 @@ setup:
               number_of_shards: 1
               number_of_replicas: 0
 
+  - do:
+      indices.create:
+        index: test-index4
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      put_script:
+        id: test-script
+        body:
+          script:
+            source:
+              query:
+                query_string:
+                  query: "{{query_string}}"
+            lang: mustache
+
+
 ---
 teardown:
   - do:
@@ -51,6 +72,10 @@ teardown:
       search_application.delete:
         name: test-re-creating-search-application
         ignore: 404
+
+  - do:
+      delete_script:
+        id: "test-script"
 
 ---
 "Create Search Application":
@@ -171,7 +196,7 @@ teardown:
   - do:
       catch: bad_request
       search_application.put:
-        name: test-error-search-application
+        name: test-error-template-language-search-application
         body:
           indices: [ "test-index1", "test-index-does-not-exist" ]
           template:
@@ -183,3 +208,15 @@ teardown:
                   total += doc['goals'][i];
                 }
                 return total;
+---
+"Create Search Application - Cluster State Template":
+  - do:
+      catch: bad_request
+      search_application.put:
+        name: test-error-cluster-state-template-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          template:
+            script:
+              lang: mustache
+              id: test-script

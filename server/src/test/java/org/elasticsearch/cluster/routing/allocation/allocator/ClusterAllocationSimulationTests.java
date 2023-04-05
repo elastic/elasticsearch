@@ -240,7 +240,9 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 1,
                 1,
                 TimeUnit.SECONDS,
-                r -> { throw new AssertionError("should not create new threads"); },
+                r -> {
+                    throw new AssertionError("should not create new threads");
+                },
                 null,
                 null
             ) {

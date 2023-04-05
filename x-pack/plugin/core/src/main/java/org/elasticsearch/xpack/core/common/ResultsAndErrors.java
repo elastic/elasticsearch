@@ -17,7 +17,7 @@ import java.util.Map;
  * from the documents retrieved by MultiGet and the errors are a map key by IDs and any exception encountered
  * when attempt retrieving associated documents.
  */
-public record ResultsAndErrors<T> (Collection<T> results, Map<String, Exception> errors) {
+public record ResultsAndErrors<T>(Collection<T> results, Map<String, Exception> errors) {
 
     private static final ResultsAndErrors<?> EMPTY = new ResultsAndErrors<>(List.of(), Map.of());
 

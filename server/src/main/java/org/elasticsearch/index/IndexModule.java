@@ -650,7 +650,9 @@ public final class IndexModule {
             parserConfiguration,
             new SimilarityService(indexSettings, scriptService, similarities),
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException("no index query shard context available"); },
+            () -> {
+                throw new UnsupportedOperationException("no index query shard context available");
+            },
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
             scriptService
         );

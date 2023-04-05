@@ -1,0 +1,41 @@
+{
+  "behavioral_analytics.list": {
+    "documentation": {
+      "url": "http://todo.com/tbd",
+      "description": "Returns the existing behavioral analytics collections."
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "xpack.ent-search.enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_application/analytics",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/_application/analytics/{name}",
+          "methods": [
+            "GET"
+          ],
+          "parts":{
+            "name":{
+              "type":"list",
+              "description":"A comma-separated list of analytics collections to limit the returned information"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

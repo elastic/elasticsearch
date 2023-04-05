@@ -29,13 +29,8 @@ public class RetentionLeaseUtils {
         return retentionLeases.leases()
             .stream()
             .filter(l -> ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(l.source()) == false)
-            .collect(
-                Collectors.toMap(
-                    RetentionLease::id,
-                    Function.identity(),
-                    (o1, o2) -> { throw new AssertionError("unexpectedly merging " + o1 + " and " + o2); },
-                    LinkedHashMap::new
-                )
-            );
+            .collect(Collectors.toMap(RetentionLease::id, Function.identity(), (o1, o2) -> {
+                throw new AssertionError("unexpectedly merging " + o1 + " and " + o2);
+            }, LinkedHashMap::new));
     }
 }

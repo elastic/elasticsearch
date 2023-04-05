@@ -254,7 +254,7 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                     if (clusterVersion.before(Version.V_8_8_0)) {
                         transportVersion = TransportVersion.fromId(clusterVersion.id);
                     } else {
-                        transportVersion = TransportVersion.fromId(input.readInt());
+                        transportVersion = TransportVersion.readVersion(input);
                     }
 
                     input.setTransportVersion(transportVersion);

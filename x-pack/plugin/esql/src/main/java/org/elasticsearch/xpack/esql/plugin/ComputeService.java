@@ -134,6 +134,8 @@ public class ComputeService {
             () -> exchangeService.completeSourceHandler(sessionId)
         );
         try (RefCountingListener refs = new RefCountingListener(listener)) {
+            // run compute on the coordinator
+            runCompute(sessionId, rootTask, planForCoordinator, List.of(), queryPragmas, cancelOnFailure(rootTask, refs.acquire()));
             // dispatch compute requests to data nodes
             for (Map.Entry<String, List<ShardId>> e : targetNodes.entrySet()) {
                 DiscoveryNode targetNode = clusterState.nodes().get(e.getKey());
@@ -151,8 +153,6 @@ public class ComputeService {
                 final var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, targetNode);
                 sourceHandler.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
             }
-            // run compute on the coordinator
-            runCompute(sessionId, rootTask, planForCoordinator, List.of(), queryPragmas, cancelOnFailure(rootTask, refs.acquire()));
         }
     }
 

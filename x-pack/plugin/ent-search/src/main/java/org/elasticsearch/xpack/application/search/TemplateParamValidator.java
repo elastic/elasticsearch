@@ -56,7 +56,6 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
             // Create a new Schema with "properties" node based on the dictionary content
             final ObjectNode schemaJsonNode = OBJECT_MAPPER.createObjectNode();
             schemaJsonNode.set(PROPERTIES_NODE, OBJECT_MAPPER.readTree(dictionaryContent));
-
             validateWithSchema(META_SCHEMA, schemaJsonNode);
 
             this.jsonSchema = SCHEMA_FACTORY.getSchema(schemaJsonNode);

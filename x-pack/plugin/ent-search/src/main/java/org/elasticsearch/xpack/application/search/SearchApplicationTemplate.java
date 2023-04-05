@@ -70,6 +70,10 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
         this.templateParamValidator = templateParamValidator;
     }
 
+    public static SearchApplicationTemplate parse(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

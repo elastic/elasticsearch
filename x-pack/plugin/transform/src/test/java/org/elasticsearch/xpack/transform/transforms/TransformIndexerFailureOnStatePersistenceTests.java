@@ -245,7 +245,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
 
                 this.<Void>assertAsyncFailure(
                     listener -> indexer.persistState(
-                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false, null),
                         listener
                     ),
                     e -> {
@@ -257,7 +257,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
 
                 this.<Void>assertAsyncFailure(
                     listener -> indexer.persistState(
-                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false, null),
                         listener
                     ),
                     e -> {
@@ -269,7 +269,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
 
                 this.<Void>assertAsyncFailure(
                     listener -> indexer.persistState(
-                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false, null),
                         listener
                     ),
                     e -> {
@@ -327,7 +327,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
 
                 this.<Void>assertAsyncFailure(
                     listener -> indexer.persistState(
-                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false, null),
                         listener
                     ),
                     e -> {
@@ -340,7 +340,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 // succeed
                 this.<Void>assertAsync(
                     listener -> indexer.persistState(
-                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false, null),
                         listener
                     ),
                     r -> {
@@ -352,7 +352,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 // fail again
                 this.<Void>assertAsyncFailure(
                     listener -> indexer.persistState(
-                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false, null),
                         listener
                     ),
                     e -> {
@@ -364,7 +364,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
 
                 this.<Void>assertAsyncFailure(
                     listener -> indexer.persistState(
-                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false, null),
                         listener
                     ),
                     e -> {
@@ -376,7 +376,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
 
                 this.<Void>assertAsyncFailure(
                     listener -> indexer.persistState(
-                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false, null),
                         listener
                     ),
                     e -> {
@@ -458,7 +458,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             // succeed
             this.<Void>assertAsync(
                 listener -> indexer.persistState(
-                    new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                    new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false, null),
                     listener
                 ),
                 r -> {
@@ -472,7 +472,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 listener -> configManager.putOrUpdateTransformStoredDoc(
                     new TransformStoredDoc(
                         config.getId(),
-                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                        new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false, null),
                         indexer.getStats()
                     ),
                     indexer.getSeqNoPrimaryTermAndIndex(),
@@ -487,7 +487,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             // state persistence should fail with a version conflict
             this.<Void>assertAsyncFailure(
                 listener -> indexer.persistState(
-                    new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                    new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false, null),
                     listener
                 ),
                 e -> {
@@ -500,7 +500,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             // recovered
             this.<Void>assertAsync(
                 listener -> indexer.persistState(
-                    new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                    new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false, null),
                     listener
                 ),
                 r -> {
@@ -513,7 +513,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             // succeed
             this.<Void>assertAsync(
                 listener -> indexer.persistState(
-                    new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false),
+                    new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 42, null, null, null, false, null),
                     listener
                 ),
                 r -> {

@@ -307,7 +307,7 @@ public final class Authentication implements ToXContentObject {
     public Authentication copyWithEmptyMetadata() {
         if (false == getAuthenticatingSubject().getMetadata().isEmpty() && logger.isTraceEnabled()) {
             logger.trace(
-                "Authentication metadata [{}] has non-empty fields. All fields will be removed in the copy.",
+                "Authentication metadata [{}] is not empty. All fields will be removed in the copy.",
                 getAuthenticatingSubject().getMetadata().keySet()
             );
         }

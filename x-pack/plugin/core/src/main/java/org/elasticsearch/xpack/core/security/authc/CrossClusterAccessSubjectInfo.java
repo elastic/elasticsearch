@@ -89,22 +89,12 @@ public final class CrossClusterAccessSubjectInfo {
     }
 
     public CrossClusterAccessSubjectInfo cleanWithValidation() {
-        // Need to do this first. Otherwise, `copyWithFilteredMetadataFields` may fail with a confusing error message for unsupported types
+        // Need to do this first. Otherwise, the `copyWithFilteredMetadataFields` call in `copyAuthenticationWithCleanMetadata` may fail
+        // with a confusing error message for unsupported types
         ensureAuthenticationHasSupportedSubjectType();
         final var cleanCopy = new CrossClusterAccessSubjectInfo(copyAuthenticationWithCleanMetadata(), roleDescriptorsBytesList);
         cleanCopy.validate();
         return cleanCopy;
-    }
-
-    private Authentication copyAuthenticationWithCleanMetadata() {
-        assert authenticationHasSupportedSubjectType();
-        if (authentication.isAuthenticatedAsApiKey()) {
-            return authentication.copyWithFilteredMetadataFields(API_KEY_AUTHENTICATION_METADATA_TO_KEEP);
-        } else if (authentication.isServiceAccount()) {
-            return authentication.copyWithFilteredMetadataFields(SERVICE_ACCOUNT_AUTHENTICATION_METADATA_TO_KEEP);
-        } else {
-            return authentication.copyWithEmptyMetadata();
-        }
     }
 
     public List<RoleDescriptorsBytes> getRoleDescriptorsBytesList() {
@@ -199,6 +189,17 @@ public final class CrossClusterAccessSubjectInfo {
                     + effectiveSubject.getType()
                     + "] which is not supported for cross cluster access"
             );
+        }
+    }
+
+    private Authentication copyAuthenticationWithCleanMetadata() {
+        assert authenticationHasSupportedSubjectType();
+        if (authentication.isAuthenticatedAsApiKey()) {
+            return authentication.copyWithFilteredMetadataFields(API_KEY_AUTHENTICATION_METADATA_TO_KEEP);
+        } else if (authentication.isServiceAccount()) {
+            return authentication.copyWithFilteredMetadataFields(SERVICE_ACCOUNT_AUTHENTICATION_METADATA_TO_KEEP);
+        } else {
+            return authentication.copyWithEmptyMetadata();
         }
     }
 

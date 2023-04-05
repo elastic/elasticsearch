@@ -164,14 +164,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                             .addAsNew(indexMetadata)
                     )
                     .build();
-                return allocationService.reroute(
-                    newState,
-                    "test",
-                    ActionListener.wrap(
-                        response -> listenerCalled.set(true),
-                        exception -> { throw new AssertionError("should not happen in test", exception); }
-                    )
-                );
+                return allocationService.reroute(newState, "test", ActionListener.wrap(response -> listenerCalled.set(true), exception -> {
+                    throw new AssertionError("should not happen in test", exception);
+                }));
             }
 
             @Override
@@ -362,14 +357,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                             .addAsNew(indexMetadata)
                     )
                     .build();
-                return allocationService.reroute(
-                    newState,
-                    "test",
-                    ActionListener.wrap(
-                        response -> { throw new AssertionError("Should not happen in test"); },
-                        exception -> listenersCalled.countDown()
-                    )
-                );
+                return allocationService.reroute(newState, "test", ActionListener.wrap(response -> {
+                    throw new AssertionError("Should not happen in test");
+                }, exception -> listenersCalled.countDown()));
             }
 
             @Override

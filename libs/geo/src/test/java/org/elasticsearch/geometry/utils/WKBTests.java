@@ -141,8 +141,18 @@ public class WKBTests extends ESTestCase {
     private void assertWKB(Geometry geometry) throws IOException {
         final boolean hasZ = geometry.hasZ();
         final ByteOrder byteOrder = randomByteOrder();
-        byte[] b = WellKnownBinary.toWKB(geometry, byteOrder);
-        assertEquals(geometry, WellKnownBinary.fromWKB(StandardValidator.instance(hasZ), randomBoolean(), b));
+        final byte[] b = WellKnownBinary.toWKB(geometry, byteOrder);
+        if (randomBoolean()) {
+            // add padding to the byte array
+            final int extraBytes = randomIntBetween(1, 500);
+            final byte[] oversizeB = new byte[b.length + extraBytes];
+            random().nextBytes(oversizeB);
+            final int offset = randomInt(extraBytes);
+            System.arraycopy(b, 0, oversizeB, offset, b.length);
+            assertEquals(geometry, WellKnownBinary.fromWKB(StandardValidator.instance(hasZ), randomBoolean(), oversizeB, offset, b.length));
+        } else {
+            assertEquals(geometry, WellKnownBinary.fromWKB(StandardValidator.instance(hasZ), randomBoolean(), b));
+        }
     }
 
 }

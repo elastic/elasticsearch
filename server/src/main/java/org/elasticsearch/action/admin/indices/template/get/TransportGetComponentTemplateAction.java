@@ -16,10 +16,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -30,6 +32,8 @@ import java.util.Map;
 public class TransportGetComponentTemplateAction extends TransportMasterNodeReadAction<
     GetComponentTemplateAction.Request,
     GetComponentTemplateAction.Response> {
+
+    private final ClusterSettings clusterSettings;
 
     @Inject
     public TransportGetComponentTemplateAction(
@@ -50,6 +54,7 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
             GetComponentTemplateAction.Response::new,
             ThreadPool.Names.SAME
         );
+        clusterSettings = clusterService.getClusterSettings();
     }
 
     @Override
@@ -65,27 +70,33 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
         ActionListener<GetComponentTemplateAction.Response> listener
     ) {
         Map<String, ComponentTemplate> allTemplates = state.metadata().componentTemplates();
+        Map<String, ComponentTemplate> results;
 
         // If we did not ask for a specific name, then we return all templates
         if (request.name() == null) {
-            listener.onResponse(new GetComponentTemplateAction.Response(allTemplates));
-            return;
-        }
-
-        final Map<String, ComponentTemplate> results = new HashMap<>();
-        String name = request.name();
-        if (Regex.isSimpleMatchPattern(name)) {
-            for (Map.Entry<String, ComponentTemplate> entry : allTemplates.entrySet()) {
-                if (Regex.simpleMatch(name, entry.getKey())) {
-                    results.put(entry.getKey(), entry.getValue());
-                }
-            }
-        } else if (allTemplates.containsKey(name)) {
-            results.put(name, allTemplates.get(name));
+            results = allTemplates;
         } else {
-            throw new ResourceNotFoundException("component template matching [" + request.name() + "] not found");
-        }
+            results = new HashMap<>();
+            String name = request.name();
+            if (Regex.isSimpleMatchPattern(name)) {
+                for (Map.Entry<String, ComponentTemplate> entry : allTemplates.entrySet()) {
+                    if (Regex.simpleMatch(name, entry.getKey())) {
+                        results.put(entry.getKey(), entry.getValue());
+                    }
+                }
+            } else if (allTemplates.containsKey(name)) {
+                results.put(name, allTemplates.get(name));
+            } else {
+                throw new ResourceNotFoundException("component template matching [" + request.name() + "] not found");
 
-        listener.onResponse(new GetComponentTemplateAction.Response(results));
+            }
+        }
+        if (request.includeDefaults() && DataLifecycle.isEnabled()) {
+            listener.onResponse(
+                new GetComponentTemplateAction.Response(results, clusterSettings.get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING))
+            );
+        } else {
+            listener.onResponse(new GetComponentTemplateAction.Response(results));
+        }
     }
 }

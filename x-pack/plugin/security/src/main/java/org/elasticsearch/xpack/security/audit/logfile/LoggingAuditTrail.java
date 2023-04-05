@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
@@ -41,6 +42,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
@@ -95,6 +97,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
@@ -121,6 +124,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_NAME_FIELD;
 import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_SOURCE_FIELD;
@@ -168,6 +172,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String PRINCIPAL_RUN_BY_FIELD_NAME = "user.run_by.name";
     public static final String PRINCIPAL_RUN_AS_FIELD_NAME = "user.run_as.name";
     public static final String PRINCIPAL_REALM_FIELD_NAME = "user.realm";
+    public static final String CROSS_CLUSTER_ACCESS_FIELD_NAME = "cross_cluster_access";
     public static final String PRINCIPAL_DOMAIN_FIELD_NAME = "user.realm_domain";
     public static final String PRINCIPAL_RUN_BY_REALM_FIELD_NAME = "user.run_by.realm";
     public static final String PRINCIPAL_RUN_BY_DOMAIN_FIELD_NAME = "user.run_by.realm_domain";
@@ -365,6 +370,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     private final Logger logger;
     private final ThreadContext threadContext;
+    private final SecurityContext securityContext;
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     // package for testing
     volatile EnumSet<AuditLevel> events;
@@ -386,6 +392,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
         this.threadContext = threadContext;
+        this.securityContext = new SecurityContext(settings, threadContext);
         this.entryCommonFields = new EntryCommonFields(settings, null, clusterService);
         this.eventFilterPolicyRegistry = new EventFilterPolicyRegistry(settings);
         clusterService.addListener(this);
@@ -432,18 +439,30 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         MarkerFilter auditMarkerFilter = MarkerFilter.createFilter(AUDIT_MARKER.getName(), Result.ACCEPT, Result.NEUTRAL);
         ctx.addFilter(auditMarkerFilter);
         ctx.updateLoggers();
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
-                ignored -> {
-                    LogManager.getLogger(Security.class)
-                        .warn("Changing log level for [" + LoggingAuditTrail.class.getName() + "] has no effect");
-                },
-                List.of(Loggers.LOG_LEVEL_SETTING.getConcreteSettingForNamespace(LoggingAuditTrail.class.getName()))
-            );
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ignored -> {
+            LogManager.getLogger(Security.class).warn("Changing log level for [" + LoggingAuditTrail.class.getName() + "] has no effect");
+        }, List.of(Loggers.LOG_LEVEL_SETTING.getConcreteSettingForNamespace(LoggingAuditTrail.class.getName())));
     }
 
     @Override
-    public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {
+    public void authenticationSuccess(RestRequest request) {
+        final String requestId = AuditUtil.extractRequestId(securityContext.getThreadContext());
+        if (requestId == null) {
+            // should never happen
+            throw new ElasticsearchSecurityException("Authenticated context must include request id");
+        }
+        final Authentication authentication;
+        try {
+            authentication = securityContext.getAuthentication();
+        } catch (Exception e) {
+            logger.error(() -> format("caught exception while trying to read authentication from request [%s]", request), e);
+            tamperedRequest(requestId, request.getHttpRequest());
+            throw new ElasticsearchSecurityException("rest request attempted to inject a user", e);
+        }
+        if (authentication == null) {
+            // should never happen
+            throw new ElasticsearchSecurityException("Context is not authenticated");
+        }
         if (events.contains(AUTHENTICATION_SUCCESS)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -462,12 +481,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
                 .with(REALM_FIELD_NAME, authnRealm)
                 // Not adding domain since "realm" field is considered redundant for bwc purposes
-                .withRestUriAndMethod(request)
+                .withRestUriAndMethod(request.getHttpRequest())
                 .withRequestId(requestId)
                 .withAuthentication(authentication)
-                .withRestOrigin(request)
+                .withRestOrigin(threadContext)
                 .withRequestBody(request)
-                .withThreadContext(threadContext)
+                .withThreadContext(securityContext.getThreadContext())
                 .build();
         }
     }
@@ -521,14 +540,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void anonymousAccessDenied(String requestId, RestRequest request) {
+    public void anonymousAccessDenied(String requestId, HttpPreRequest request) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)
             && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
-                .withRequestBody(request)
+                .withRestOrigin(threadContext)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
                 .build();
@@ -559,13 +577,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationFailed(String requestId, RestRequest request) {
+    public void authenticationFailed(String requestId, HttpPreRequest request) {
         if (events.contains(AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
-                .withRequestBody(request)
+                .withRestOrigin(threadContext)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
                 .build();
@@ -592,7 +609,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request) {
+    public void authenticationFailed(String requestId, AuthenticationToken token, HttpPreRequest request) {
         if (events.contains(AUTHENTICATION_FAILED)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), Optional.empty(), Optional.empty())) == false) {
@@ -600,8 +617,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                 .with(PRINCIPAL_FIELD_NAME, token.principal())
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
-                .withRequestBody(request)
+                .withRestOrigin(threadContext)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext);
             if (token instanceof ServiceAccountToken) {
@@ -640,7 +656,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {
+    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, HttpPreRequest request) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty(), Optional.empty())) == false) {
@@ -650,8 +666,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 // domain information is not useful here since authentication fails
                 .with(PRINCIPAL_FIELD_NAME, token.principal())
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
-                .withRequestBody(request)
+                .withRestOrigin(threadContext)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
                 .build();
@@ -863,13 +878,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void tamperedRequest(String requestId, RestRequest request) {
+    public void tamperedRequest(String requestId, HttpPreRequest request) {
         if (events.contains(TAMPERED_REQUEST) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
                 .withRestUriAndMethod(request)
-                .withRestOrigin(request)
-                .withRequestBody(request)
+                .withRestOrigin(threadContext)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
                 .build();
@@ -1031,7 +1045,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void runAsDenied(String requestId, Authentication authentication, RestRequest request, AuthorizationInfo authorizationInfo) {
+    public void runAsDenied(String requestId, Authentication authentication, HttpPreRequest request, AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1049,8 +1063,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(authorizationInfo.asMap())
                 .withRestUriAndMethod(request)
                 .withRunAsSubject(authentication)
-                .withRestOrigin(request)
-                .withRequestBody(request)
+                .withRestOrigin(threadContext)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
                 .build();
@@ -1511,7 +1524,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.endObject();
         }
 
-        LogEntryBuilder withRestUriAndMethod(RestRequest request) {
+        LogEntryBuilder withRestUriAndMethod(HttpPreRequest request) {
             final int queryStringIndex = request.uri().indexOf('?');
             int queryStringLength = request.uri().indexOf('#');
             if (queryStringLength < 0) {
@@ -1546,12 +1559,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withRestOrigin(RestRequest request) {
+        LogEntryBuilder withRestOrigin(ThreadContext threadContext) {
             assert LOCAL_ORIGIN_FIELD_VALUE.equals(logEntry.get(ORIGIN_TYPE_FIELD_NAME)); // this is the default
-            final InetSocketAddress socketAddress = request.getHttpChannel().getRemoteAddress();
-            if (socketAddress != null) {
+            final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
+            if (restAddress != null) {
                 logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                    .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(socketAddress));
+                    .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
             }
             // fall through to local_node default
             return this;
@@ -1606,11 +1619,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withAuthentication(Authentication authentication) {
-            // TODO auditing for remote access
-            assert false == authentication.isRemoteAccess() : "remote access authentication not supported here yet";
+            addAuthenticationFieldsToLogEntry(logEntry, authentication);
+            return this;
+        }
+
+        static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-            if (authentication.isApiKey()) {
+            if (authentication.isApiKey() || authentication.isCrossClusterAccess()) {
                 logEntry.with(
                     API_KEY_ID_FIELD_NAME,
                     (String) authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
@@ -1626,6 +1642,23 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     // can be null for API keys created before version 7.7
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
                     // No domain information is needed here since API key itself does not work across realms
+                }
+                if (authentication.isCrossClusterAccess()) {
+                    final Authentication innerAuthentication = (Authentication) authentication.getAuthenticatingSubject()
+                        .getMetadata()
+                        .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
+                    final StringMapMessage crossClusterAccessLogEntry = logEntry.newInstance(Collections.emptyMap());
+                    addAuthenticationFieldsToLogEntry(crossClusterAccessLogEntry, innerAuthentication);
+                    try {
+                        final XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+                        builder.map(crossClusterAccessLogEntry.getData());
+                        logEntry.with(CROSS_CLUSTER_ACCESS_FIELD_NAME, Strings.toString(builder));
+                    } catch (IOException e) {
+                        throw new ElasticsearchSecurityException(
+                            "Unexpected error while serializing cross cluster access authentication data",
+                            e
+                        );
+                    }
                 }
             } else {
                 final Authentication.RealmRef authenticatedBy = authentication.getAuthenticatingSubject().getRealm();
@@ -1653,7 +1686,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 }
             }
             // TODO: service token info is logged in a separate authentication field (#84394)
-            if (authentication.isAuthenticatedWithServiceAccount()) {
+            if (authentication.isServiceAccount()) {
                 logEntry.with(
                     SERVICE_TOKEN_NAME_FIELD_NAME,
                     (String) authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD)
@@ -1665,7 +1698,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             + authentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD)
                     );
             }
-            return this;
         }
 
         LogEntryBuilder with(String key, String value) {

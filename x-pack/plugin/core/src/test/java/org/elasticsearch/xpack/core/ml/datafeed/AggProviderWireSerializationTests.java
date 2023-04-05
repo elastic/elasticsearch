@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -72,8 +72,8 @@ public class AggProviderWireSerializationTests extends AbstractBWCWireSerializat
     }
 
     @Override
-    protected AggProvider mutateInstanceForVersion(AggProvider instance, Version version) {
-        if (version.before(Version.V_8_0_0)) {
+    protected AggProvider mutateInstanceForVersion(AggProvider instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_0_0)) {
             return new AggProvider(instance.getAggs(), instance.getParsedAggs(), instance.getParsingException(), false);
         }
         return instance;

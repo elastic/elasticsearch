@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class TransformPrivilegeCheckerTests extends ESTestCase {
 
     private static final String OPERATION_NAME = "create";
+    private static final Settings SETTINGS = Settings.builder().put("xpack.security.enabled", true).build();
     private static final String USER_NAME = "bob";
     private static final String TRANSFORM_ID = "some-id";
     private static final String SOURCE_INDEX_NAME = "some-source-index";
@@ -110,6 +111,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
         ).build();
         TransformPrivilegeChecker.checkPrivileges(
             OPERATION_NAME,
+            SETTINGS,
             securityContext,
             indexNameExpressionResolver,
             ClusterState.EMPTY_STATE,
@@ -134,6 +136,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             .build();
         TransformPrivilegeChecker.checkPrivileges(
             OPERATION_NAME,
+            SETTINGS,
             securityContext,
             indexNameExpressionResolver,
             ClusterState.EMPTY_STATE,
@@ -150,6 +153,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
     public void testCheckPrivileges_CheckDestIndexPrivileges_DestIndexDoesNotExist() {
         TransformPrivilegeChecker.checkPrivileges(
             OPERATION_NAME,
+            SETTINGS,
             securityContext,
             indexNameExpressionResolver,
             ClusterState.EMPTY_STATE,
@@ -181,6 +185,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             .build();
         TransformPrivilegeChecker.checkPrivileges(
             OPERATION_NAME,
+            SETTINGS,
             securityContext,
             indexNameExpressionResolver,
             clusterState,
@@ -214,6 +219,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             .build();
         TransformPrivilegeChecker.checkPrivileges(
             OPERATION_NAME,
+            SETTINGS,
             securityContext,
             indexNameExpressionResolver,
             clusterState,
@@ -245,6 +251,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
         ).build();
         TransformPrivilegeChecker.checkPrivileges(
             OPERATION_NAME,
+            SETTINGS,
             securityContext,
             indexNameExpressionResolver,
             clusterState,
@@ -286,6 +293,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
         );
         TransformPrivilegeChecker.checkPrivileges(
             OPERATION_NAME,
+            SETTINGS,
             securityContext,
             indexNameExpressionResolver,
             clusterState,

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.repositories.blobstore.testkit;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -46,8 +47,10 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -268,6 +271,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private final long maxTotalBlobSize;
         private final Map<String, byte[]> blobs = ConcurrentCollections.newConcurrentMap();
         private final AtomicLong totalBytesWritten = new AtomicLong();
+        private final Map<String, AtomicLong> registers = ConcurrentCollections.newConcurrentMap();
+        private final AtomicBoolean firstRegisterRead = new AtomicBoolean(true);
 
         AssertingBlobContainer(
             BlobPath path,
@@ -406,9 +411,27 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public long compareAndExchangeRegister(String key, long expected, long updated) {
-            assert false : "should not have been called";
-            throw new UnsupportedOperationException();
+        public void getRegister(String key, ActionListener<OptionalLong> listener) {
+            if (firstRegisterRead.compareAndSet(true, false) && randomBoolean() && randomBoolean()) {
+                // only fail the first read, we must not fail the final check
+                listener.onResponse(OptionalLong.empty());
+            } else if (randomBoolean()) {
+                listener.onResponse(OptionalLong.of(registers.computeIfAbsent(key, ignored -> new AtomicLong()).get()));
+            } else {
+                compareAndExchangeRegister(key, -1, -1, listener);
+            }
+        }
+
+        @Override
+        public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+            if (updated != -1 && randomBoolean() && randomBoolean()) {
+                // updated != -1 so we don't fail the final check because we know there can be no concurrent operations at that point
+                listener.onResponse(OptionalLong.empty());
+            } else {
+                listener.onResponse(
+                    OptionalLong.of(registers.computeIfAbsent(key, ignored -> new AtomicLong()).compareAndExchange(expected, updated))
+                );
+            }
         }
     }
 

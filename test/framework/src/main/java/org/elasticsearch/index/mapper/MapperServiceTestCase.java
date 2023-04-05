@@ -119,11 +119,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected static IndexAnalyzers createIndexAnalyzers() {
-        return new IndexAnalyzers(
-            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            Map.of(),
-            Map.of()
-        );
+        return IndexAnalyzers.of(Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())));
     }
 
     protected final String randomIndexOptions() {
@@ -212,7 +208,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             parserConfig(),
             similarityService,
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
             this::compileScript
         );
@@ -240,12 +238,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     protected final void withLuceneIndex(
         MapperService mapperService,
         CheckedConsumer<RandomIndexWriter, IOException> builder,
-        CheckedConsumer<IndexReader, IOException> test
+        CheckedConsumer<DirectoryReader, IOException> test
     ) throws IOException {
         IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService));
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
             builder.accept(iw);
-            try (IndexReader reader = iw.getReader()) {
+            try (DirectoryReader reader = iw.getReader()) {
                 test.accept(reader);
             }
         }

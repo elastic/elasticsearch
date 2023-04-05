@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.reservedstate.service.FileSettingsChangedListener;
+import org.elasticsearch.reservedstate.service.FileChangedListener;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
 
@@ -37,7 +37,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener, FileSettingsChangedListener {
+public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener, FileChangedListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
 
     private final Environment environment;
@@ -253,12 +253,17 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
      * Add a listener for bound readiness service address.
      * @param listener
      */
-    public void addBoundAddressListener(BoundAddressListener listener) {
+    public synchronized void addBoundAddressListener(BoundAddressListener listener) {
+        // this expects that setupSocket is called within a synchronized method
+        var b = boundAddress();
+        if (b != null) {
+            listener.addressBound(b);
+        }
         boundAddressListeners.add(listener);
     }
 
     @Override
-    public void settingsChanged() {
+    public void watchedFileChanged() {
         fileSettingsApplied = true;
         setReady(masterElected && (shuttingDown == false));
     }

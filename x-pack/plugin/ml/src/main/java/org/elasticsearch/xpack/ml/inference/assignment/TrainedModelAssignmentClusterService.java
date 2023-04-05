@@ -505,7 +505,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
         if (assignment.getNodeRoutingTable().isEmpty()) {
             String msg = "Could not start deployment because no suitable nodes were found, allocation explanation ["
-                + assignment.getReason()
+                + assignment.getReason().orElse("none")
                 + "]";
             logger.warn("[{}] {}", modelId, msg);
             Exception detail = new IllegalStateException(msg);

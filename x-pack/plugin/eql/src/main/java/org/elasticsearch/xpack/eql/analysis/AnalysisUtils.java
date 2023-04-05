@@ -76,7 +76,7 @@ public final class AnalysisUtils {
         if (named instanceof FieldAttribute fa) {
 
             // incompatible mappings
-            if (fa.field()instanceof InvalidMappedField field) {
+            if (fa.field() instanceof InvalidMappedField field) {
                 named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] due to ambiguities being " + field.errorMessage());
             }
             // unsupported types

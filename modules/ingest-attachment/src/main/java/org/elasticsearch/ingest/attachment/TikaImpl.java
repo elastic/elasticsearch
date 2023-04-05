@@ -130,7 +130,7 @@ final class TikaImpl {
             // classpath
             addReadPermissions(perms, JarHell.parseClassPath());
             // plugin jars
-            if (TikaImpl.class.getClassLoader()instanceof URLClassLoader urlClassLoader) {
+            if (TikaImpl.class.getClassLoader() instanceof URLClassLoader urlClassLoader) {
                 URL[] urls = urlClassLoader.getURLs();
                 Set<URL> set = new LinkedHashSet<>(Arrays.asList(urls));
                 if (set.size() != urls.length) {

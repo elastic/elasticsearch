@@ -9,9 +9,9 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -598,11 +598,9 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         }).when(mockLogger).warn(any(String.class), any(RuntimeException.class));
         final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, scheduler, mockLogger);
         final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(1, 50));
-        globalCheckpointListeners.add(
-            NO_OPS_PERFORMED,
-            maybeMultipleInvocationProtectingListener((g, e) -> { throw new RuntimeException("failure"); }),
-            timeout
-        );
+        globalCheckpointListeners.add(NO_OPS_PERFORMED, maybeMultipleInvocationProtectingListener((g, e) -> {
+            throw new RuntimeException("failure");
+        }), timeout);
         latch.await();
         final ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
         final ArgumentCaptor<RuntimeException> t = ArgumentCaptor.forClass(RuntimeException.class);

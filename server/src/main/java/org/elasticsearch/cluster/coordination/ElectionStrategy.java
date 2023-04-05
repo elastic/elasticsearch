@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -32,14 +34,10 @@ public abstract class ElectionStrategy {
         }
     };
 
-    protected ElectionStrategy() {
-
-    }
-
     /**
      * Whether there is an election quorum from the point of view of the given local node under the provided voting configurations
      */
-    public final boolean isElectionQuorum(
+    public boolean isElectionQuorum(
         DiscoveryNode localNode,
         long localCurrentTerm,
         long localAcceptedTerm,
@@ -59,6 +57,14 @@ public abstract class ElectionStrategy {
                 lastAcceptedConfiguration,
                 joinVotes
             );
+    }
+
+    public boolean isPublishQuorum(
+        VoteCollection voteCollection,
+        VotingConfiguration lastCommittedConfiguration,
+        VotingConfiguration latestPublishedConfiguration
+    ) {
+        return voteCollection.isQuorum(lastCommittedConfiguration) && voteCollection.isQuorum(latestPublishedConfiguration);
     }
 
     /**
@@ -81,4 +87,21 @@ public abstract class ElectionStrategy {
         VotingConfiguration lastAcceptedConfiguration,
         VoteCollection joinVotes
     );
+
+    public void onNewElection(DiscoveryNode candidateMasterNode, long proposedTerm, ActionListener<StartJoinRequest> listener) {
+        listener.onResponse(new StartJoinRequest(candidateMasterNode, proposedTerm));
+    }
+
+    public boolean isInvalidReconfiguration(
+        ClusterState clusterState,
+        VotingConfiguration lastAcceptedConfiguration,
+        VotingConfiguration lastCommittedConfiguration
+    ) {
+        return clusterState.getLastAcceptedConfiguration().equals(lastAcceptedConfiguration) == false
+            && lastCommittedConfiguration.equals(lastAcceptedConfiguration) == false;
+    }
+
+    public void beforeCommit(long term, long version, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
 }

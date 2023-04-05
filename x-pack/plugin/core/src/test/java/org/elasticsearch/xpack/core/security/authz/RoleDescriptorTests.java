@@ -395,8 +395,8 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testSerializationForCurrentVersion() throws Exception {
-        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
-        final boolean canIncludeRemoteIndices = version.onOrAfter(RoleDescriptor.VERSION_REMOTE_INDICES);
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        final boolean canIncludeRemoteIndices = version.onOrAfter(RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
@@ -415,31 +415,44 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
-        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(RoleDescriptor.VERSION_REMOTE_INDICES);
-        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(random(), versionBeforeRemoteIndices);
+        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(
+            RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES
+        );
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_17_0,
+            versionBeforeRemoteIndices
+        );
         final BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
 
         final RoleDescriptor descriptor = randomRoleDescriptor(true, true);
+        descriptor.writeTo(output);
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+        StreamInput streamInput = new NamedWriteableAwareStreamInput(
+            ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
+            registry
+        );
+        streamInput.setTransportVersion(version);
+        final RoleDescriptor serialized = new RoleDescriptor(streamInput);
         if (descriptor.hasRemoteIndicesPrivileges()) {
-            final var ex = expectThrows(IllegalArgumentException.class, () -> descriptor.writeTo(output));
             assertThat(
-                ex.getMessage(),
-                containsString(
-                    "versions of Elasticsearch before [8060099] can't handle remote indices privileges and attempted to send to ["
-                        + version
-                        + "]"
+                serialized,
+                equalTo(
+                    new RoleDescriptor(
+                        descriptor.getName(),
+                        descriptor.getClusterPrivileges(),
+                        descriptor.getIndicesPrivileges(),
+                        descriptor.getApplicationPrivileges(),
+                        descriptor.getConditionalClusterPrivileges(),
+                        descriptor.getRunAs(),
+                        descriptor.getMetadata(),
+                        descriptor.getTransientMetadata(),
+                        null
+                    )
                 )
             );
         } else {
-            descriptor.writeTo(output);
-            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
-            StreamInput streamInput = new NamedWriteableAwareStreamInput(
-                ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
-                registry
-            );
-            streamInput.setTransportVersion(version);
-            final RoleDescriptor serialized = new RoleDescriptor(streamInput);
             assertThat(descriptor, equalTo(serialized));
         }
     }
@@ -868,6 +881,21 @@ public class RoleDescriptorTests extends ESTestCase {
         }
     }
 
+    public void testHasPrivilegesOtherThanIndex() {
+        assertThat(
+            new RoleDescriptor("name", null, randomBoolean() ? null : randomIndicesPrivileges(1, 5), null, null, null, null, null, null)
+                .hasPrivilegesOtherThanIndex(),
+            is(false)
+        );
+        final RoleDescriptor roleDescriptor = randomRoleDescriptor();
+        final boolean expected = roleDescriptor.hasClusterPrivileges()
+            || roleDescriptor.hasConfigurableClusterPrivileges()
+            || roleDescriptor.hasApplicationPrivileges()
+            || roleDescriptor.hasRunAs()
+            || roleDescriptor.hasRemoteIndicesPrivileges();
+        assertThat(roleDescriptor.hasPrivilegesOtherThanIndex(), equalTo(expected));
+    }
+
     public static List<RoleDescriptor> randomUniquelyNamedRoleDescriptors(int minSize, int maxSize) {
         return randomValueOtherThanMany(
             roleDescriptors -> roleDescriptors.stream().map(RoleDescriptor::getName).distinct().count() != roleDescriptors.size(),
@@ -884,36 +912,40 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata, boolean allowRemoteIndices) {
-        final RoleDescriptor.IndicesPrivileges[] indexPrivileges = randomIndicesPriveleges();
         final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges;
         if (false == allowRemoteIndices || randomBoolean()) {
             remoteIndexPrivileges = null;
         } else {
-            final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPriveleges();
-            remoteIndexPrivileges = new RoleDescriptor.RemoteIndicesPrivileges[innerIndexPrivileges.length];
-            for (int i = 0; i < remoteIndexPrivileges.length; i++) {
-                remoteIndexPrivileges[i] = new RoleDescriptor.RemoteIndicesPrivileges(
-                    innerIndexPrivileges[i],
-                    generateRandomStringArray(5, randomIntBetween(3, 9), false, false)
-                );
-            }
+            remoteIndexPrivileges = randomRemoteIndicesPrivileges(0, 3);
         }
-        final ApplicationResourcePrivileges[] applicationPrivileges = new ApplicationResourcePrivileges[randomIntBetween(0, 2)];
-        for (int i = 0; i < applicationPrivileges.length; i++) {
-            final ApplicationResourcePrivileges.Builder builder = ApplicationResourcePrivileges.builder();
-            builder.application(randomAlphaOfLengthBetween(5, 12) + (randomBoolean() ? "*" : ""));
-            if (randomBoolean()) {
-                builder.privileges("*");
-            } else {
-                builder.privileges(generateRandomStringArray(6, randomIntBetween(4, 8), false, false));
+
+        return new RoleDescriptor(
+            randomAlphaOfLengthBetween(3, 90),
+            randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
+            randomIndicesPrivileges(0, 3),
+            randomApplicationPrivileges(),
+            randomClusterPrivileges(),
+            generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
+            randomRoleDescriptorMetadata(allowReservedMetadata),
+            Map.of(),
+            remoteIndexPrivileges
+        );
+    }
+
+    public static Map<String, Object> randomRoleDescriptorMetadata(boolean allowReservedMetadata) {
+        final Map<String, Object> metadata = new HashMap<>();
+        while (randomBoolean()) {
+            String key = randomAlphaOfLengthBetween(4, 12);
+            if (allowReservedMetadata && randomBoolean()) {
+                key = MetadataUtils.RESERVED_PREFIX + key;
             }
-            if (randomBoolean()) {
-                builder.resources("*");
-            } else {
-                builder.resources(generateRandomStringArray(6, randomIntBetween(4, 8), false, false));
-            }
-            applicationPrivileges[i] = builder.build();
+            final Object value = randomBoolean() ? randomInt() : randomAlphaOfLengthBetween(3, 50);
+            metadata.put(key, value);
         }
+        return metadata;
+    }
+
+    public static ConfigurableClusterPrivilege[] randomClusterPrivileges() {
         final ConfigurableClusterPrivilege[] configurableClusterPrivileges = switch (randomIntBetween(0, 4)) {
             case 0 -> new ConfigurableClusterPrivilege[0];
             case 1 -> new ConfigurableClusterPrivilege[] {
@@ -940,31 +972,44 @@ public class RoleDescriptorTests extends ESTestCase {
                 ) };
             default -> throw new IllegalStateException("Unexpected value");
         };
-        final Map<String, Object> metadata = new HashMap<>();
-        while (randomBoolean()) {
-            String key = randomAlphaOfLengthBetween(4, 12);
-            if (allowReservedMetadata && randomBoolean()) {
-                key = MetadataUtils.RESERVED_PREFIX + key;
-            }
-            final Object value = randomBoolean() ? randomInt() : randomAlphaOfLengthBetween(3, 50);
-            metadata.put(key, value);
-        }
-
-        return new RoleDescriptor(
-            randomAlphaOfLengthBetween(3, 90),
-            randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
-            indexPrivileges,
-            applicationPrivileges,
-            configurableClusterPrivileges,
-            generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
-            metadata,
-            Map.of(),
-            remoteIndexPrivileges
-        );
+        return configurableClusterPrivileges;
     }
 
-    public static RoleDescriptor.IndicesPrivileges[] randomIndicesPriveleges() {
-        final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(0, 3)];
+    public static ApplicationResourcePrivileges[] randomApplicationPrivileges() {
+        final ApplicationResourcePrivileges[] applicationPrivileges = new ApplicationResourcePrivileges[randomIntBetween(0, 2)];
+        for (int i = 0; i < applicationPrivileges.length; i++) {
+            final ApplicationResourcePrivileges.Builder builder = ApplicationResourcePrivileges.builder();
+            builder.application("app" + randomAlphaOfLengthBetween(5, 12) + (randomBoolean() ? "*" : ""));
+            if (randomBoolean()) {
+                builder.privileges("*");
+            } else {
+                builder.privileges(generateRandomStringArray(6, randomIntBetween(4, 8), false, false));
+            }
+            if (randomBoolean()) {
+                builder.resources("*");
+            } else {
+                builder.resources(generateRandomStringArray(6, randomIntBetween(4, 8), false, false));
+            }
+            applicationPrivileges[i] = builder.build();
+        }
+        return applicationPrivileges;
+    }
+
+    public static RoleDescriptor.RemoteIndicesPrivileges[] randomRemoteIndicesPrivileges(int min, int max) {
+        final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPrivileges(min, max);
+        final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges =
+            new RoleDescriptor.RemoteIndicesPrivileges[innerIndexPrivileges.length];
+        for (int i = 0; i < remoteIndexPrivileges.length; i++) {
+            remoteIndexPrivileges[i] = new RoleDescriptor.RemoteIndicesPrivileges(
+                innerIndexPrivileges[i],
+                generateRandomStringArray(5, randomIntBetween(3, 9), false, false)
+            );
+        }
+        return remoteIndexPrivileges;
+    }
+
+    public static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges(int min, int max) {
+        final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(min, max)];
         for (int i = 0; i < indexPrivileges.length; i++) {
             indexPrivileges[i] = randomIndicesPrivilegesBuilder().build();
         }

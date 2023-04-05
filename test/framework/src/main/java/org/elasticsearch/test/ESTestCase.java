@@ -32,7 +32,6 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
@@ -58,6 +57,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.HeaderWarningAppender;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -82,10 +82,8 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
@@ -151,6 +149,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -182,7 +182,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
-@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class })
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
 // assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
@@ -417,13 +417,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void setContentType() throws Exception {
-        Requests.CONTENT_TYPE = randomFrom(XContentType.values());
         Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
     }
 
     @AfterClass
     public static void restoreContentType() {
-        Requests.CONTENT_TYPE = XContentType.SMILE;
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
 
@@ -1279,6 +1277,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
     }
 
+    /** Return consistent index settings for the provided index version, shard- and replica-count. */
+    public static Settings.Builder indexSettings(Version indexVersionCreated, int shards, int replicas) {
+        return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
+    }
+
     /**
      * Returns size random values
      */
@@ -1483,20 +1487,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Same as {@link #copyWriteable(Writeable, NamedWriteableRegistry, Writeable.Reader)} but also allows to provide
-     * a {@link Version} argument which will be used to write and read back the object.
-     */
-    @Deprecated
-    public static <T extends Writeable> T copyWriteable(
-        T original,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Writeable.Reader<T> reader,
-        Version version
-    ) throws IOException {
-        return copyWriteable(original, namedWriteableRegistry, reader, version.transportVersion);
-    }
-
-    /**
-     * Same as {@link #copyWriteable(Writeable, NamedWriteableRegistry, Writeable.Reader)} but also allows to provide
      * a {@link TransportVersion} argument which will be used to write and read back the object.
      */
     public static <T extends Writeable> T copyWriteable(
@@ -1522,22 +1512,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
-     * a {@link Version} argument which will be used to write and read back the object.
-     * @return
-     */
-    @SuppressWarnings("unchecked")
-    @Deprecated
-    public static <C extends NamedWriteable, T extends C> C copyNamedWriteable(
-        T original,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Class<C> categoryClass,
-        Version version
-    ) throws IOException {
-        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, version.transportVersion);
-    }
-
-    /**
-     * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
      * a {@link TransportVersion} argument which will be used to write and read back the object.
      * @return
      */
@@ -1555,17 +1529,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             in -> in.readNamedWriteable(categoryClass),
             version
         );
-    }
-
-    @Deprecated
-    protected static <T> T copyInstance(
-        T original,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Writeable.Writer<T> writer,
-        Writeable.Reader<T> reader,
-        Version version
-    ) throws IOException {
-        return copyInstance(original, namedWriteableRegistry, writer, reader, version.transportVersion);
     }
 
     protected static <T> T copyInstance(
@@ -1712,11 +1675,12 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Creates an IndexAnalyzers with a single default analyzer
      */
     protected IndexAnalyzers createDefaultIndexAnalyzers() {
-        return new IndexAnalyzers(
-            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            Map.of(),
-            Map.of()
-        );
+        return (type, name) -> {
+            if (type == IndexAnalyzers.AnalyzerType.ANALYZER && "default".equals(name)) {
+                return Lucene.STANDARD_ANALYZER;
+            }
+            return null;
+        };
     }
 
     /**
@@ -1982,5 +1946,34 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         secureRandomFips.setSeed(seed); // DEFAULT/BCFIPS setSeed() is non-deterministic
         return secureRandomFips;
+    }
+
+    public static void safeAwait(CyclicBarrier barrier) {
+        try {
+            barrier.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("unexpected", e);
+        } catch (Exception e) {
+            throw new AssertionError("unexpected", e);
+        }
+    }
+
+    public static void safeAwait(CountDownLatch countDownLatch) {
+        try {
+            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("unexpected", e);
+        }
+    }
+
+    public static void safeSleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("unexpected", e);
+        }
     }
 }

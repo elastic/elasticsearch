@@ -116,11 +116,9 @@ public class AllocationDecidersTests extends ESTestCase {
     }
 
     private static Decision.Multi collectToMultiDecision(List<Decision> decisions, Predicate<Decision> filter) {
-        return decisions.stream()
-            .filter(filter)
-            .collect(
-                Collector.of(Decision.Multi::new, Decision.Multi::add, (a, b) -> { throw new AssertionError("should not be called"); })
-            );
+        return decisions.stream().filter(filter).collect(Collector.of(Decision.Multi::new, Decision.Multi::add, (a, b) -> {
+            throw new AssertionError("should not be called");
+        }));
     }
 
     private void verifyDecidersCall(

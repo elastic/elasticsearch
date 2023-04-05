@@ -222,7 +222,24 @@ public class ClusterStatsNodesTests extends ESTestCase {
         }
 
         {
-            // two nodes, different ip addresses, same data paths, same device
+            // two nodes, same ip address, but different data paths on different devices
+            InetAddress address1 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path1 = new FsInfo.Path("/data/a", "/dev/sda", 3, 2, 1);
+            InetAddress address2 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path2 = new FsInfo.Path("/data/b", "/dev/sdb", 3, 2, 1);
+            ClusterStatsNodes.ClusterFsStatsDeduplicator deduplicator = new ClusterStatsNodes.ClusterFsStatsDeduplicator(1);
+            deduplicator.add(address1, newFsInfo(path1));
+            deduplicator.add(address2, newFsInfo(path2));
+            FsInfo.Path total = deduplicator.getTotal();
+
+            // since they're different devices, they sum
+            assertThat(total.getTotal().getBytes(), equalTo(6L));
+            assertThat(total.getFree().getBytes(), equalTo(4L));
+            assertThat(total.getAvailable().getBytes(), equalTo(2L));
+        }
+
+        {
+            // two nodes, different ip addresses, different data paths, same device
             InetAddress address1 = InetAddresses.forString("192.168.0.1");
             FsInfo.Path path1 = new FsInfo.Path("/data/a", "/dev/sda", 3, 2, 1);
             InetAddress address2 = InetAddresses.forString("192.168.0.2");
@@ -239,7 +256,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
         }
 
         {
-            // two nodes, same ip addresses, same data paths, same device
+            // two nodes, same ip address, same data path, same device
             InetAddress address1 = InetAddresses.forString("192.168.0.1");
             FsInfo.Path path1 = new FsInfo.Path("/app/data", "/app (/dev/mapper/lxc-data)", 3, 2, 1);
             InetAddress address2 = InetAddresses.forString("192.168.0.1");
@@ -251,13 +268,43 @@ public class ClusterStatsNodesTests extends ESTestCase {
 
             // wait a second, this is the super-special case -- you can't actually have two nodes doing this unless something
             // very interesting is happening, so they sum (i.e. we assume the operator is doing smart things)
-            // assertThat(total.getTotal().getBytes(), equalTo(6L));
-            // assertThat(total.getFree().getBytes(), equalTo(4L));
-            // assertThat(total.getAvailable().getBytes(), equalTo(2L));
-            // BUG 1: we don't sum in this super-special case, we just dedup by ip address
+            assertThat(total.getTotal().getBytes(), equalTo(6L));
+            assertThat(total.getFree().getBytes(), equalTo(4L));
+            assertThat(total.getAvailable().getBytes(), equalTo(2L));
+        }
+
+        {
+            // two nodes, same ip address, different data paths, same device
+            InetAddress address1 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path1 = new FsInfo.Path("/app/data1", "/dev/sda", 3, 2, 1);
+            InetAddress address2 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path2 = new FsInfo.Path("/app/data2", "/dev/sda", 3, 2, 1);
+            ClusterStatsNodes.ClusterFsStatsDeduplicator deduplicator = new ClusterStatsNodes.ClusterFsStatsDeduplicator(1);
+            deduplicator.add(address1, newFsInfo(path1));
+            deduplicator.add(address2, newFsInfo(path2));
+            FsInfo.Path total = deduplicator.getTotal();
+
+            // since the paths aren't the same, it doesn't trigger the special case -- it's just the same device and doesn't sum
             assertThat(total.getTotal().getBytes(), equalTo(3L));
             assertThat(total.getFree().getBytes(), equalTo(2L));
             assertThat(total.getAvailable().getBytes(), equalTo(1L));
+        }
+
+        {
+            // two nodes, same ip address, same data path, different devices
+            InetAddress address1 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path1 = new FsInfo.Path("/app/data", "/dev/sda", 3, 2, 1);
+            InetAddress address2 = InetAddresses.forString("192.168.0.1");
+            FsInfo.Path path2 = new FsInfo.Path("/app/data", "/dev/sdb", 3, 2, 1);
+            ClusterStatsNodes.ClusterFsStatsDeduplicator deduplicator = new ClusterStatsNodes.ClusterFsStatsDeduplicator(1);
+            deduplicator.add(address1, newFsInfo(path1));
+            deduplicator.add(address2, newFsInfo(path2));
+            FsInfo.Path total = deduplicator.getTotal();
+
+            // having the same path isn't special in this case, it's just unique ip/mount pairs, so they sum
+            assertThat(total.getTotal().getBytes(), equalTo(6L));
+            assertThat(total.getFree().getBytes(), equalTo(4L));
+            assertThat(total.getAvailable().getBytes(), equalTo(2L));
         }
     }
 

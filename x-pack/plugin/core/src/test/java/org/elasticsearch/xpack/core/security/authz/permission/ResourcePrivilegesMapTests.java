@@ -66,15 +66,12 @@ public class ResourcePrivilegesMapTests extends ESTestCase {
             .addResourcePrivilege("*", mapBuilder().put("read", true).put("write", true).map())
             .build();
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            instance,
-            (original) -> { return ResourcePrivilegesMap.builder().addResourcePrivilegesMap(original).build(); }
-        );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            instance,
-            (original) -> { return ResourcePrivilegesMap.builder().addResourcePrivilegesMap(original).build(); },
-            ResourcePrivilegesMapTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(instance, (original) -> {
+            return ResourcePrivilegesMap.builder().addResourcePrivilegesMap(original).build();
+        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(instance, (original) -> {
+            return ResourcePrivilegesMap.builder().addResourcePrivilegesMap(original).build();
+        }, ResourcePrivilegesMapTests::mutateTestItem);
     }
 
     private static ResourcePrivilegesMap mutateTestItem(ResourcePrivilegesMap original) {

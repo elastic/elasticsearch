@@ -33,7 +33,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -362,7 +361,14 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("inference_results", inferenceResults.stream().map(InferenceResults::asMap).collect(Collectors.toList()));
+            builder.startArray("inference_results");
+            for (var inference : inferenceResults) {
+                // inference results implement ToXContentFragment
+                builder.startObject();
+                inference.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endArray();
             builder.endObject();
             return builder;
         }

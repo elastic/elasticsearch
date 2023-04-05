@@ -134,7 +134,6 @@ public class XPackPluginTests extends ESTestCase {
 
     public void testLoadExtensions() throws Exception {
         XPackPlugin xpackPlugin = createXPackPlugin(Settings.builder().build());
-        // when(mockLicense.uid()).thenReturn(UUID.randomUUID().toString());
         xpackPlugin.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
             @Override
             @SuppressWarnings("unchecked")

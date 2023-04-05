@@ -35,27 +35,6 @@ setup:
               number_of_shards: 1
               number_of_replicas: 0
 
-  - do:
-      indices.create:
-        index: test-index4
-        body:
-          settings:
-            index:
-              number_of_shards: 1
-              number_of_replicas: 0
-
-  - do:
-      put_script:
-        id: test-script
-        body:
-          script:
-            source:
-              query:
-                query_string:
-                  query: "{{query_string}}"
-            lang: mustache
-
-
 ---
 teardown:
   - do:
@@ -72,10 +51,6 @@ teardown:
       search_application.delete:
         name: test-re-creating-search-application
         ignore: 404
-
-  - do:
-      delete_script:
-        id: "test-script"
 
 ---
 "Create Search Application":
@@ -219,3 +194,4 @@ teardown:
           template:
             script:
               id: test-script
+  - match: { error.type: "x_content_parse_exception" }

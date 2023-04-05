@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -76,7 +77,7 @@ public class RoleReferenceTests extends ESTestCase {
         final var crossClusterAccessRoleReference = new RoleReference.CrossClusterAccessRoleReference("user", roleDescriptorsBytes);
 
         final RoleKey roleKey = crossClusterAccessRoleReference.id();
-        assertThat(roleKey.getNames(), hasItem("cross_cluster_access:" + roleDescriptorsBytes.digest()));
+        assertThat(roleKey.getNames(), containsInAnyOrder("cross_cluster_access:" + roleDescriptorsBytes.digest()));
         assertThat(roleKey.getSource(), equalTo("cross_cluster_access"));
     }
 
@@ -91,7 +92,7 @@ public class RoleReferenceTests extends ESTestCase {
         assertThat(actualRetrievalResult.getRoleDescriptors(), equalTo(Set.of(roleDescriptor)));
 
         final RoleKey roleKey = fixedRoleReference.id();
-        assertThat(roleKey.getNames(), hasItem(roleDescriptor.getName()));
+        assertThat(roleKey.getNames(), containsInAnyOrder(roleDescriptor.getName()));
         assertThat(roleKey.getSource(), equalTo(source));
     }
 

@@ -131,14 +131,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         final AuthorizationService authzService = internalCluster().getInstance(AuthorizationService.class, nodeName);
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
             new RoleDescriptorsIntersection(
-                randomValueOtherThanMany(
-                    rd -> false == (rd.hasClusterPrivileges()
-                        || rd.hasApplicationPrivileges()
-                        || rd.hasConfigurableClusterPrivileges()
-                        || rd.hasRunAs()
-                        || rd.hasRemoteIndicesPrivileges()),
-                    () -> RoleDescriptorTests.randomRoleDescriptor()
-                )
+                randomValueOtherThanMany(rd -> false == rd.hasPrivilegesOtherThanIndex(), () -> RoleDescriptorTests.randomRoleDescriptor())
             )
         );
         final Authentication authentication = AuthenticationTestHelper.builder()

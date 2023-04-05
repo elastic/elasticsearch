@@ -16,6 +16,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.internal.MutableLicenseService;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;

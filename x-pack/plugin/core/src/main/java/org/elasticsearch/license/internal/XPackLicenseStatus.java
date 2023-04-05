@@ -5,7 +5,9 @@
  * 2.0.
  */
 
-package org.elasticsearch.license;
+package org.elasticsearch.license.internal;
+
+import org.elasticsearch.license.License;
 
 /**
  * A wrapper for the license mode, state, and expiration date, to allow atomically swapping.

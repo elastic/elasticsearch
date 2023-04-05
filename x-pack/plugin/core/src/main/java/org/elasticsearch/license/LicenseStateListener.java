@@ -7,6 +7,8 @@
 
 package org.elasticsearch.license;
 
+import org.elasticsearch.license.internal.XPackLicenseStatus;
+
 /**
  * Marker interface for callbacks that are invoked when the license state changes.
  */

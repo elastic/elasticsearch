@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.license.License.LicenseType;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.rest.RestStatus;
 

@@ -48,7 +48,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseStatus;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ClusterPlugin;

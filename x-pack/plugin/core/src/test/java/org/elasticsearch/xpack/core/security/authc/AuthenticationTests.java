@@ -927,14 +927,18 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testCopyWithFilteredMetadataFields() {
-        final Map<String, Object> metadataToKeep = randomBoolean() ? Map.of() : Map.of("field_to_keep", ESTestCase.randomAlphaOfLength(10));
+        final Map<String, Object> metadataToKeep = ESTestCase.randomMap(
+            0,
+            10,
+            () -> new Tuple<>(ESTestCase.randomAlphaOfLength(20), ESTestCase.randomAlphaOfLength(10))
+        );
         final Map<String, Object> allMetadata = new HashMap<>(metadataToKeep);
         allMetadata.putAll(
-            ESTestCase.randomMap(0, 10, () -> new Tuple<>(ESTestCase.randomAlphaOfLength(20), ESTestCase.randomAlphaOfLength(20)))
+            ESTestCase.randomMap(0, 10, () -> new Tuple<>(ESTestCase.randomAlphaOfLength(30), ESTestCase.randomAlphaOfLength(10)))
         );
         // Using service account since it allows us to easily specific metadata, but will not fail instantiation if any service-account
         // specific metadata is missing
-        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().metadata(allMetadata).build();
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().metadata(Map.copyOf(allMetadata)).build();
 
         final Set<String> fieldsToKeep = metadataToKeep.keySet();
         final Map<String, Object> actualMetadata = authentication.copyWithFilteredMetadataFields(fieldsToKeep)

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -294,24 +295,24 @@ public final class Authentication implements ToXContentObject {
         }
         final Map<String, Object> metadataCopy = new HashMap<>(getAuthenticatingSubject().getMetadata());
         final boolean metadataChanged = metadataCopy.keySet().retainAll(fieldsToKeep);
-        if (metadataChanged && logger.isTraceEnabled()) {
+        if (logger.isTraceEnabled() && metadataChanged) {
             logger.trace(
                 "Authentication metadata [{}] contains fields other than [{}]. These will be removed in the copy.",
                 getAuthenticatingSubject().getMetadata().keySet(),
                 fieldsToKeep
             );
         }
-        return copyWithMetadata(metadataCopy);
+        return copyWithMetadata(Map.copyOf(metadataCopy));
     }
 
     public Authentication copyWithEmptyMetadata() {
-        if (false == getAuthenticatingSubject().getMetadata().isEmpty() && logger.isTraceEnabled()) {
+        if (logger.isTraceEnabled() && false == getAuthenticatingSubject().getMetadata().isEmpty()) {
             logger.trace(
                 "Authentication metadata [{}] is not empty. All fields will be removed in the copy.",
                 getAuthenticatingSubject().getMetadata().keySet()
             );
         }
-        return copyWithMetadata(new HashMap<>());
+        return copyWithMetadata(Collections.emptyMap());
     }
 
     private Authentication copyWithMetadata(final Map<String, Object> newMetadata) {

@@ -289,6 +289,9 @@ public final class Authentication implements ToXContentObject {
      */
     public Authentication copyWithFilteredMetadataFields(final Set<String> fieldsToKeep) {
         Objects.requireNonNull(fieldsToKeep);
+        if (fieldsToKeep.isEmpty()) {
+            return copyWithEmptyMetadata();
+        }
         final Map<String, Object> metadataCopy = new HashMap<>(getAuthenticatingSubject().getMetadata());
         final boolean metadataChanged = metadataCopy.keySet().retainAll(fieldsToKeep);
         if (metadataChanged && logger.isTraceEnabled()) {
@@ -298,6 +301,21 @@ public final class Authentication implements ToXContentObject {
                 fieldsToKeep
             );
         }
+        return copyWithMetadata(metadataCopy);
+    }
+
+    public Authentication copyWithEmptyMetadata() {
+        if (false == getAuthenticatingSubject().getMetadata().isEmpty() && logger.isTraceEnabled()) {
+            logger.trace(
+                "Authentication metadata [{}] has non-empty fields. All fields will be removed in the copy.",
+                getAuthenticatingSubject().getMetadata().keySet()
+            );
+        }
+        return copyWithMetadata(new HashMap<>());
+    }
+
+    private Authentication copyWithMetadata(final Map<String, Object> newMetadata) {
+        Objects.requireNonNull(newMetadata);
         return isRunAs()
             ? new Authentication(
                 effectiveSubject,
@@ -305,7 +323,7 @@ public final class Authentication implements ToXContentObject {
                     authenticatingSubject.getUser(),
                     authenticatingSubject.getRealm(),
                     authenticatingSubject.getTransportVersion(),
-                    metadataCopy
+                    newMetadata
                 ),
                 type
             )
@@ -314,7 +332,7 @@ public final class Authentication implements ToXContentObject {
                     authenticatingSubject.getUser(),
                     authenticatingSubject.getRealm(),
                     authenticatingSubject.getTransportVersion(),
-                    metadataCopy
+                    newMetadata
                 ),
                 type
             );

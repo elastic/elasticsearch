@@ -45,13 +45,6 @@ public final class CrossClusterAccessSubjectInfo {
 
     public static final String CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY = "_cross_cluster_access_subject_info";
     private static final Logger logger = LogManager.getLogger(CrossClusterAccessSubjectInfo.class);
-    private static final Set<String> AUTHENTICATION_METADATA_FIELDS_TO_KEEP = Set.of(
-        AuthenticationField.API_KEY_ID_KEY,
-        AuthenticationField.API_KEY_NAME_KEY,
-        AuthenticationField.API_KEY_CREATOR_REALM_NAME,
-        ServiceAccountSettings.TOKEN_NAME_FIELD,
-        ServiceAccountSettings.TOKEN_SOURCE_FIELD
-    );
 
     private final Authentication authentication;
     private final List<RoleDescriptorsBytes> roleDescriptorsBytesList;
@@ -87,12 +80,28 @@ public final class CrossClusterAccessSubjectInfo {
     public CrossClusterAccessSubjectInfo cleanWithValidation() {
         // Need to do this first. Otherwise, `copyWithFilteredMetadataFields` may fail with a confusing error message for unsupported types
         ensureAuthenticationHasSupportedSubjectType();
-        final var cleanCopy = new CrossClusterAccessSubjectInfo(
-            authentication.copyWithFilteredMetadataFields(AUTHENTICATION_METADATA_FIELDS_TO_KEEP),
-            roleDescriptorsBytesList
-        );
+        final var cleanCopy = new CrossClusterAccessSubjectInfo(copyAuthenticationWithCleanMetadata(), roleDescriptorsBytesList);
         cleanCopy.validate();
         return cleanCopy;
+    }
+
+    private Authentication copyAuthenticationWithCleanMetadata() {
+        // TODO fix this
+        if (authentication.isApiKey() || authentication.isAuthenticatedAsApiKey()) {
+            return authentication.copyWithFilteredMetadataFields(
+                Set.of(
+                    AuthenticationField.API_KEY_ID_KEY,
+                    AuthenticationField.API_KEY_NAME_KEY,
+                    AuthenticationField.API_KEY_CREATOR_REALM_NAME
+                )
+            );
+        } else if (authentication.isServiceAccount()) {
+            return authentication.copyWithFilteredMetadataFields(
+                Set.of(ServiceAccountSettings.TOKEN_NAME_FIELD, ServiceAccountSettings.TOKEN_SOURCE_FIELD)
+            );
+        } else {
+            return authentication.copyWithEmptyMetadata();
+        }
     }
 
     public List<RoleDescriptorsBytes> getRoleDescriptorsBytesList() {

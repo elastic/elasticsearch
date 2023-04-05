@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -69,7 +70,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
         String sessionId = sessionID(task);
         planExecutor.newSession(sessionId, configuration).execute(request, wrap(r -> {
-            computeService.runCompute(sessionId, task, r, configuration, listener.map(pages -> {
+            computeService.execute(sessionId, (CancellableTask) task, r, configuration, listener.map(pages -> {
                 List<ColumnInfo> columns = r.output()
                     .stream()
                     .map(c -> new ColumnInfo(c.qualifiedName(), EsqlDataTypes.outputType(c.dataType())))

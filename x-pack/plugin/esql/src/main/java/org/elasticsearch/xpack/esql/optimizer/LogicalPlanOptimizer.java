@@ -99,7 +99,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Literal lit) {
-            if (lit.value() != null && lit.value()instanceof String s) {
+            if (lit.value() != null && lit.value() instanceof String s) {
                 return Literal.of(lit, new BytesRef(s));
             }
             return lit;
@@ -193,12 +193,12 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(Limit limit) {
-            if (limit.child()instanceof Limit childLimit) {
+            if (limit.child() instanceof Limit childLimit) {
                 var limitSource = limit.limit();
                 var l1 = (int) limitSource.fold();
                 var l2 = (int) childLimit.limit().fold();
                 return new Limit(limit.source(), Literal.of(limitSource, Math.min(l1, l2)), childLimit.child());
-            } else if (limit.child()instanceof UnaryPlan unary) {
+            } else if (limit.child() instanceof UnaryPlan unary) {
                 if (unary instanceof Project || unary instanceof Eval || unary instanceof Dissect) {
                     return unary.replaceChild(limit.replaceChild(unary.child()));
                 }
@@ -230,7 +230,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 if (plan instanceof Limit limit) {
                     return limit;
                 }
-                if (plan.child()instanceof UnaryPlan unaryPlan) {
+                if (plan.child() instanceof UnaryPlan unaryPlan) {
                     plan = unaryPlan;
                 } else {
                     break;
@@ -448,7 +448,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
     }
 
     private static Project pushDownPastProject(UnaryPlan parent) {
-        if (parent.child()instanceof Project project) {
+        if (parent.child() instanceof Project project) {
             AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
             project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
             var aliases = aliasBuilder.build();

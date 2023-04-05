@@ -13,6 +13,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
@@ -20,6 +23,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -38,7 +42,9 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
@@ -68,6 +74,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.TEST_INDEX_SIMPLE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
+import static org.mockito.Mockito.mock;
 
 /**
  * CSV-based unit testing.
@@ -111,7 +118,7 @@ public class CsvTests extends ESTestCase {
         ZoneOffset.UTC,
         null,
         null,
-        Settings.EMPTY,
+        new QueryPragmas(Settings.EMPTY),
         EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY)
     );
     private final FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -169,14 +176,8 @@ public class CsvTests extends ESTestCase {
 
     public void doTest() throws Throwable {
         Tuple<Page, List<String>> testData = loadPageFromCsv(CsvTests.class.getResource("/" + CsvTestsDataLoader.DATA));
-        LocalExecutionPlanner planner = new LocalExecutionPlanner(
-            BigArrays.NON_RECYCLING_INSTANCE,
-            threadPool,
-            configuration,
-            new TestPhysicalOperationProviders(testData.v1(), testData.v2())
-        );
 
-        var actualResults = executePlan(planner);
+        var actualResults = executePlan(new TestPhysicalOperationProviders(testData.v1(), testData.v2()));
         var expected = loadCsvSpecValues(testCase.expectedResults);
 
         var log = logResults() ? LOGGER : null;
@@ -203,7 +204,17 @@ public class CsvTests extends ESTestCase {
         return optimizedPlan;
     }
 
-    private ActualResults executePlan(LocalExecutionPlanner planner) {
+    private ActualResults executePlan(TestPhysicalOperationProviders operationProviders) {
+        ExchangeService exchangeService = new ExchangeService(mock(TransportService.class), threadPool);
+        String sessionId = "csv-test";
+        LocalExecutionPlanner planner = new LocalExecutionPlanner(
+            sessionId,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            threadPool,
+            configuration.pragmas(),
+            exchangeService,
+            operationProviders
+        );
         PhysicalPlan physicalPlan = physicalPlan();
         List<Driver> drivers = new ArrayList<>();
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
@@ -215,12 +226,23 @@ public class CsvTests extends ESTestCase {
             .map(o -> Type.asType(o.dataType().name()))
             .toList();
         try {
-            LocalExecutionPlan localExecutionPlan = planner.plan(new OutputExec(physicalPlan, (l, p) -> { collectedPages.add(p); }));
-            drivers.addAll(localExecutionPlan.createDrivers("csv-test-session"));
-
+            ExchangeSourceHandler sourceHandler = exchangeService.createSourceHandler(sessionId, randomIntBetween(1, 64));
+            LocalExecutionPlan coordinatorNodePlan = planner.plan(new OutputExec(physicalPlan, (l, p) -> { collectedPages.add(p); }));
+            drivers.addAll(coordinatorNodePlan.createDrivers(sessionId));
+            PhysicalPlan planForDataNodes = ComputeService.planForDataNodes(physicalPlan);
+            if (planForDataNodes != null) {
+                ExchangeSinkHandler sinkHandler = exchangeService.createSinkHandler(sessionId, randomIntBetween(1, 64));
+                sourceHandler.addRemoteSink(sinkHandler::fetchPageAsync, randomIntBetween(1, 3));
+                LocalExecutionPlan dataNodesPlan = planner.plan(planForDataNodes);
+                drivers.addAll(dataNodesPlan.createDrivers(sessionId));
+            }
             runToCompletion(threadPool.executor(ThreadPool.Names.SEARCH), drivers);
         } finally {
-            Releasables.close(drivers);
+            Releasables.close(
+                () -> Releasables.close(drivers),
+                () -> exchangeService.completeSinkHandler(sessionId),
+                () -> exchangeService.completeSourceHandler(sessionId)
+            );
         }
         return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages);
     }

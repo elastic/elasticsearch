@@ -18,7 +18,7 @@ import java.io.IOException;
  * Block that stores BytesRef values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,BytesRefArrayBlock,BytesRefVectorBlock {
+public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock, BytesRefArrayBlock, BytesRefVectorBlock {
 
     /**
      * Retrieves the BytesRef value stored at the given value index.

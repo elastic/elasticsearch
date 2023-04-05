@@ -98,11 +98,14 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         // add it at the end after all the other rules have ran
         var fieldExtraction = new Batch<>("Field extraction", Limiter.ONCE, new InsertFieldExtraction());
 
+        // the distributed plan must be executed after the field extraction
+        var distribution = new Batch<>("Distributed", Limiter.ONCE, new Distributed());
+
         // local planning - clean-up
         var localPlanningStop = new Batch<>("Local Plan Stop", Limiter.ONCE, new RemoveLocalPlanMarker());
 
         // return asList(exchange, parallelism, reducer, localPlanningStart, localPlanning, localPlanningStop);
-        return asList(gather, localPlanningStart, localPlanning, fieldExtraction, localPlanningStop);
+        return asList(gather, localPlanningStart, localPlanning, fieldExtraction, distribution, localPlanningStop);
     }
 
     @Override
@@ -193,7 +196,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         }
 
         private static ExchangeExec addGatherExchange(PhysicalPlan p) {
-            return new ExchangeExec(p.source(), p);
+            return new ExchangeExec(p.source(), p, ExchangeExec.Mode.LOCAL);
         }
     }
 
@@ -310,7 +313,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                 // add extractor
                 if (missing.isEmpty() == false) {
                     // collect source attributes and add the extractor
-                    var extractor = new FieldExtractExec(p.source(), p.child(), missing);
+                    var extractor = new FieldExtractExec(p.source(), p.child(), List.copyOf(missing));
                     p = p.replaceChild(extractor);
                     lastFieldExtractorParent.set(p);
                 }
@@ -332,7 +335,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                     var exchange = localPlan.child();
                     plan = plan.transformDown(UnaryExec.class, p -> {
                         if (p == exchange) {
-                            var fieldExtract = new FieldExtractExec(exchange.source(), p.child(), missingSet);
+                            var fieldExtract = new FieldExtractExec(exchange.source(), p.child(), List.copyOf(missingSet));
                             p = p.replaceChild(projectAwayDocId(needsProjection.get(), fieldExtract));
                         }
                         return p;
@@ -347,7 +350,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                             if (p == lastParent) {
                                 var extractor = (FieldExtractExec) p.child();
                                 var combined = new AttributeSet(extractor.attributesToExtract()).combine(new AttributeSet(missingUpstream));
-                                var fieldExtractor = new FieldExtractExec(p.source(), extractor.child(), combined);
+                                var fieldExtractor = new FieldExtractExec(p.source(), extractor.child(), List.copyOf(combined));
                                 pl = p.replaceChild(projectAwayDocId(needsProjection.get(), fieldExtractor));
                             }
                             return pl;
@@ -464,7 +467,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         @Override
         protected PhysicalPlan rule(FilterExec filterExec) {
             PhysicalPlan plan = filterExec;
-            if (filterExec.child()instanceof EsQueryExec queryExec) {
+            if (filterExec.child() instanceof EsQueryExec queryExec) {
                 List<Expression> pushable = new ArrayList<>();
                 List<Expression> nonPushable = new ArrayList<>();
                 for (Expression exp : splitAnd(filterExec.condition())) {
@@ -513,7 +516,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
             PhysicalPlan child = limitExec.child();
             if (child instanceof EsQueryExec queryExec) { // add_task_parallelism_above_query: false
                 plan = queryExec.withLimit(limitExec.limit());
-            } else if (child instanceof ExchangeExec exchangeExec && exchangeExec.child()instanceof EsQueryExec queryExec) {
+            } else if (child instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec queryExec) {
                 plan = exchangeExec.replaceChild(queryExec.withLimit(limitExec.limit()));
             }
             return plan;
@@ -532,7 +535,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                 var sorts = buildFieldSorts(topNExec.order());
                 var limit = topNExec.limit();
 
-                if (child instanceof ExchangeExec exchangeExec && exchangeExec.child()instanceof EsQueryExec queryExec) {
+                if (child instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec queryExec) {
                     plan = exchangeExec.replaceChild(queryExec.withSorts(sorts).withLimit(limit));
                 } else {
                     plan = ((EsQueryExec) child).withSorts(sorts).withLimit(limit);
@@ -552,6 +555,66 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                 sorts.add(new FieldSort(((FieldAttribute) o.child()), o.direction(), o.nullsPosition()));
             }
             return sorts;
+        }
+    }
+
+    /**
+     * Splits the given physical into two parts: the downstream below the remote exchange, to be executed on data nodes
+     * and the upstream above the remote exchange, to be executed on the coordinator node.
+     * TODO: We should have limit, topN on data nodes before returning the result.
+     */
+    private static class Distributed extends Rule<PhysicalPlan, PhysicalPlan> {
+
+        private static boolean startWithLuceneIndex(PhysicalPlan plan) {
+            var foundLucene = new Holder<>(FALSE);
+            plan.forEachUp(p -> {
+                if (p instanceof EsQueryExec) {
+                    foundLucene.set(TRUE);
+                }
+            });
+            return foundLucene.get();
+        }
+
+        @Override
+        public PhysicalPlan apply(PhysicalPlan plan) {
+            if (startWithLuceneIndex(plan) == false) {
+                return plan;
+            }
+            var delimiter = new Holder<PhysicalPlan>();
+            var foundLimit = new Holder<>(FALSE);
+            plan.forEachUp(p -> {
+                if (p instanceof TopNExec || p instanceof LimitExec || p instanceof OrderExec) {
+                    foundLimit.set(TRUE);
+                }
+                // aggregation partial from limit must be executed after the final topN
+                if (p instanceof EsQueryExec
+                    || p instanceof FieldExtractExec
+                    || (p instanceof AggregateExec agg && agg.getMode() == Mode.PARTIAL && foundLimit.get() == FALSE)) {
+                    delimiter.set(p);
+                }
+                // execute as much as possible on data nodes to minimize network traffic and achieve higher concurrent execution
+                if (p instanceof ExchangeExec e && delimiter.get() != null) {
+                    assert e.mode() == ExchangeExec.Mode.LOCAL;
+                    delimiter.set(e);
+                }
+            });
+            plan = plan.transformDown(PhysicalPlan.class, p -> {
+                if (p == delimiter.get()) {
+                    delimiter.set(null);
+                    if (p instanceof ExchangeExec e) {
+                        p = addRemoteExchange(e.child());
+                    } else {
+                        p = addRemoteExchange(p);
+                    }
+                }
+                return p;
+            });
+            return plan;
+        }
+
+        private static ExchangeExec addRemoteExchange(PhysicalPlan p) {
+            var remoteSink = new ExchangeExec(p.source(), p, ExchangeExec.Mode.REMOTE_SINK);
+            return new ExchangeExec(p.source(), remoteSink, ExchangeExec.Mode.REMOTE_SOURCE);
         }
     }
 }

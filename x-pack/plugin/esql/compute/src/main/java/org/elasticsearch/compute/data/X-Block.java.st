@@ -21,7 +21,7 @@ import java.io.IOException;
  * Block that stores $type$ values.
  * This class is generated. Do not edit it.
  */
-public sealed interface $Type$Block extends Block permits Filter$Type$Block,$Type$ArrayBlock,$Type$VectorBlock {
+public sealed interface $Type$Block extends Block permits Filter$Type$Block, $Type$ArrayBlock, $Type$VectorBlock {
 
     /**
      * Retrieves the $type$ value stored at the given value index.

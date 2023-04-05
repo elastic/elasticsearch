@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -92,7 +93,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     DateUtils.UTC,
                     null,
                     null,
-                    settings,
+                    new QueryPragmas(settings),
                     EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(settings)
                 ) };
         }).toList();
@@ -131,7 +132,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = optimizedPlan(plan);
         var topLimit = as(optimized, LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var restExtract = as(project.child(), FieldExtractExec.class);
         var limit = as(restExtract.child(), LimitExec.class);
@@ -152,7 +153,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(plan);
         var eval = as(optimized, EvalExec.class);
         var topLimit = as(eval.child(), LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var restExtract = as(project.child(), FieldExtractExec.class);
         var limit = as(restExtract.child(), LimitExec.class);
@@ -176,7 +177,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(plan);
         var limit = as(optimized, LimitExec.class);
         var aggregate = as(limit.child(), AggregateExec.class);
-        var exchange = as(aggregate.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(aggregate.child());
         aggregate = as(exchange.child(), AggregateExec.class);
         var eval = as(aggregate.child(), EvalExec.class);
 
@@ -201,7 +202,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(plan);
         var limit = as(optimized, LimitExec.class);
         var aggregate = as(limit.child(), AggregateExec.class);
-        var exchange = as(aggregate.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(aggregate.child());
         aggregate = as(exchange.child(), AggregateExec.class);
 
         var extract = as(aggregate.child(), FieldExtractExec.class);
@@ -249,7 +250,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var filter = as(eval.child(), FilterExec.class);
         var topN = as(filter.child(), TopNExec.class);
 
-        var exchange = as(topN.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topN.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("salary", "first_name", "emp_no", "last_name"));
@@ -286,7 +287,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var eval = as(optimized, EvalExec.class);
         eval = as(eval.child(), EvalExec.class);
         var topLimit = as(eval.child(), LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
@@ -316,7 +317,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var eval = as(optimized, EvalExec.class);
         eval = as(eval.child(), EvalExec.class);
         var topLimit = as(eval.child(), LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(
@@ -334,7 +335,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(plan);
         var limit = as(optimized, LimitExec.class);
         var node = as(limit.child(), AggregateExec.class);
-        var exchange = as(node.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(node.child());
         var aggregate = as(exchange.child(), AggregateExec.class);
 
         var extract = as(aggregate.child(), FieldExtractExec.class);
@@ -351,7 +352,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var limit = as(optimized, LimitExec.class);
         var aggregate = as(limit.child(), AggregateExec.class);
         assertThat(aggregate.groupings(), hasSize(1));
-        var exchange = as(aggregate.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(aggregate.child());
         aggregate = as(exchange.child(), AggregateExec.class);
         assertThat(aggregate.groupings(), hasSize(1));
 
@@ -372,7 +373,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var limit = as(optimized, LimitExec.class);
         var aggregate = as(limit.child(), AggregateExec.class);
         assertThat(aggregate.groupings(), hasSize(1));
-        var exchange = as(aggregate.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(aggregate.child());
         aggregate = as(exchange.child(), AggregateExec.class);
         assertThat(aggregate.groupings(), hasSize(1));
 
@@ -394,7 +395,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var limit = as(optimized, LimitExec.class);
         var aggregate = as(limit.child(), AggregateExec.class);
         assertThat(aggregate.groupings(), hasSize(1));
-        var exchange = as(aggregate.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(aggregate.child());
         aggregate = as(exchange.child(), AggregateExec.class);
         assertThat(aggregate.groupings(), hasSize(1));
 
@@ -416,7 +417,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(plan);
         var limit = as(optimized, LimitExec.class);
         var node = as(limit.child(), AggregateExec.class);
-        var exchange = as(node.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(node.child());
         var aggregate = as(exchange.child(), AggregateExec.class);
 
         var extract = as(aggregate.child(), FieldExtractExec.class);
@@ -434,7 +435,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var eval = as(optimized, EvalExec.class);
         var topLimit = as(eval.child(), LimitExec.class);
         var agg = as(topLimit.child(), AggregateExec.class);
-        var exchange = as(agg.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(agg.child());
         var aggregate = as(exchange.child(), AggregateExec.class);
         var extract = as(aggregate.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("emp_no"));
@@ -450,7 +451,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = optimizedPlan(plan);
         var topN = as(optimized, TopNExec.class);
-        var exchange = as(topN.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topN.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         var topNLocal = as(extract.child(), TopNExec.class);
@@ -468,7 +469,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = optimizedPlan(plan);
         var topLimit = as(optimized, LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
@@ -498,7 +499,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = optimizedPlan(plan);
         var topLimit = as(optimized, LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extractRest = as(project.child(), FieldExtractExec.class);
         var limit = as(extractRest.child(), LimitExec.class);
@@ -524,7 +525,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = optimizedPlan(plan);
         var topLimit = as(optimized, LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extractRest = as(project.child(), FieldExtractExec.class);
         var limit = as(extractRest.child(), LimitExec.class);
@@ -545,7 +546,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = optimizedPlan(plan);
         var topLimit = as(optimized, LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extractRest = as(project.child(), FieldExtractExec.class);
         var limit = as(extractRest.child(), LimitExec.class);
@@ -579,7 +580,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var optimized = optimizedPlan(plan);
 
         var topLimit = as(optimized, LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
@@ -607,7 +608,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = optimizedPlan(plan);
         var topLimit = as(optimized, LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
@@ -637,7 +638,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = optimizedPlan(plan);
         var topLimit = as(optimized, LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
@@ -671,7 +672,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """));
 
         var topLimit = as(optimized, LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
@@ -696,7 +697,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | limit 1
             """));
         var topN = as(optimized, TopNExec.class);
-        var exchange = as(topN.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topN.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         var topNLocal = as(extract.child(), TopNExec.class);
@@ -714,7 +715,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertEquals(1, topProject.projections().size());
         assertEquals("first_name", topProject.projections().get(0).name());
         var topN = as(topProject.child(), TopNExec.class);
-        var exchange = as(topN.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topN.child());
         var project = as(exchange.child(), ProjectExec.class);
         List<String> projectionNames = project.projections().stream().map(NamedExpression::name).collect(Collectors.toList());
         assertTrue(projectionNames.containsAll(List.of("first_name", "emp_no")));
@@ -743,7 +744,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var eval = as(optimized, EvalExec.class);
         var topLimit = as(eval.child(), LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         var leaves = extract.collectLeaves();
@@ -771,7 +772,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var eval = as(optimized, EvalExec.class);
         var topLimit = as(eval.child(), LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
 
@@ -808,7 +809,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var topN = as(optimized, TopNExec.class);
         var limit = as(topN.child(), LimitExec.class);
-        var exchange = as(limit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(limit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         var source = source(extract.child());
@@ -838,7 +839,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var project = as(optimized, ProjectExec.class);
         var topN = as(project.child(), TopNExec.class);
-        var exchange = as(topN.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
         assertThat(names(project.projections()), contains("emp_no", "x"));
@@ -870,7 +871,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var project = as(optimized, ProjectExec.class);
         var eval = as(project.child(), EvalExec.class);
         var topN = as(eval.child(), TopNExec.class);
-        var exchange = as(topN.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
         assertThat(names(project.projections()), contains("languages", "salary"));
@@ -908,7 +909,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var topN = as(optimized, TopNExec.class);
         var filter = as(topN.child(), FilterExec.class);
         var limit = as(filter.child(), LimitExec.class);
-        var exchange = as(limit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(limit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         var source = source(extract.child());
@@ -938,7 +939,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var topN = as(optimized, TopNExec.class);
         var eval = as(topN.child(), EvalExec.class);
         var limit = as(eval.child(), LimitExec.class);
-        var exchange = as(limit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(limit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         var source = source(extract.child());
@@ -951,7 +952,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """));
 
         var limit = as(optimized, LimitExec.class);
-        var exchange = as(limit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(limit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
         var source = source(extract.child());
@@ -967,7 +968,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var optimized = optimizedPlan(plan);
         var topLimit = as(optimized, LimitExec.class);
-        var exchange = as(topLimit.child(), ExchangeExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extractRest = as(project.child(), FieldExtractExec.class);
         var source = source(extractRest.child());
@@ -1013,5 +1014,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private List<FieldSort> sorts(List<Order> orders) {
         return orders.stream().map(o -> new FieldSort((FieldAttribute) o.child(), o.direction(), o.nullsPosition())).toList();
+    }
+
+    private ExchangeExec asRemoteExchange(PhysicalPlan plan) {
+        ExchangeExec remoteSource = as(plan, ExchangeExec.class);
+        assertThat(remoteSource.mode(), equalTo(ExchangeExec.Mode.REMOTE_SOURCE));
+        ExchangeExec remoteSink = as(remoteSource.child(), ExchangeExec.class);
+        assertThat(remoteSink.mode(), equalTo(ExchangeExec.Mode.REMOTE_SINK));
+        return remoteSink;
     }
 }

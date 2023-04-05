@@ -50,7 +50,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 // add the field to the layout
                 layout.appendChannel(ne.id());
 
-                if (ne instanceof Alias alias && alias.child()instanceof AggregateFunction aggregateFunction) {
+                if (ne instanceof Alias alias && alias.child() instanceof AggregateFunction aggregateFunction) {
                     AggregatorMode aggMode = null;
                     NamedExpression sourceAttr = null;
 
@@ -101,7 +101,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                  */
                 for (NamedExpression agg : aggregateExec.aggregates()) {
                     if (agg instanceof Alias a) {
-                        if (a.child()instanceof Attribute attr) {
+                        if (a.child() instanceof Attribute attr) {
                             if (groupAttribute.id().equals(attr.id())) {
                                 grpAttribIds.add(a.id());
                                 // TODO: investigate whether a break could be used since it shouldn't be possible to have multiple

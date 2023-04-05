@@ -456,15 +456,15 @@ public class BlockHashTests extends ESTestCase {
         }
         for (int r = 0; r < expectedKeys.length; r++) {
             for (int c = 0; c < actualKeys.length; c++) {
-                if (expectedKeys[r][c]instanceof Integer v) {
+                if (expectedKeys[r][c] instanceof Integer v) {
                     assertThat(((IntBlock) actualKeys[c]).getInt(r), equalTo(v));
-                } else if (expectedKeys[r][c]instanceof Long v) {
+                } else if (expectedKeys[r][c] instanceof Long v) {
                     assertThat(((LongBlock) actualKeys[c]).getLong(r), equalTo(v));
-                } else if (expectedKeys[r][c]instanceof Double v) {
+                } else if (expectedKeys[r][c] instanceof Double v) {
                     assertThat(((DoubleBlock) actualKeys[c]).getDouble(r), equalTo(v));
-                } else if (expectedKeys[r][c]instanceof String v) {
+                } else if (expectedKeys[r][c] instanceof String v) {
                     assertThat(((BytesRefBlock) actualKeys[c]).getBytesRef(r, new BytesRef()), equalTo(new BytesRef(v)));
-                } else if (expectedKeys[r][c]instanceof Boolean v) {
+                } else if (expectedKeys[r][c] instanceof Boolean v) {
                     assertThat(((BooleanBlock) actualKeys[c]).getBoolean(r), equalTo(v));
                 } else {
                     throw new IllegalArgumentException("unsupported type " + expectedKeys[r][c].getClass());

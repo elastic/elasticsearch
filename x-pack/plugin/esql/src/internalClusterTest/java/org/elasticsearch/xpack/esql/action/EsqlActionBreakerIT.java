@@ -16,6 +16,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -67,7 +68,7 @@ public class EsqlActionBreakerIT extends ESIntegTestCase {
         ensureYellow("test");
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> EsqlActionIT.run("from test | stats avg(foo) by bar", Settings.EMPTY)
+            () -> EsqlActionIT.run("from test | stats avg(foo) by bar", QueryPragmas.EMPTY)
         );
         logger.info("expected error", e);
         if (e instanceof CircuitBreakingException) {

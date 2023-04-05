@@ -16,17 +16,16 @@ import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
 @Experimental
 public class FieldExtractExec extends UnaryExec {
 
-    private final Collection<Attribute> attributesToExtract;
+    private final List<Attribute> attributesToExtract;
     private final Attribute sourceAttribute;
 
-    public FieldExtractExec(Source source, PhysicalPlan child, Collection<Attribute> attributesToExtract) {
+    public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract) {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
         this.sourceAttribute = extractSourceAttributesFrom(child);
@@ -55,7 +54,7 @@ public class FieldExtractExec extends UnaryExec {
         return new FieldExtractExec(source(), newChild, attributesToExtract);
     }
 
-    public Collection<Attribute> attributesToExtract() {
+    public List<Attribute> attributesToExtract() {
         return attributesToExtract;
     }
 

@@ -17,7 +17,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankShardContext;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * The builder to support RRF. Adds user-defined parameters for window size and rank constant.
@@ -39,23 +38,18 @@ public class RRFRankBuilder extends RankBuilder<RRFRankBuilder> {
 
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
-    static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>(RankRRFPlugin.NAME, args -> {
-        RRFRankBuilder builder = new RRFRankBuilder();
-        builder.windowSize(args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0]);
-        builder.rankConstant(args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1]);
-        return builder;
-    });
+    static final ObjectParser<RRFRankBuilder, Void> PARSER = new ObjectParser<>(RankRRFPlugin.NAME);
 
     static {
-        PARSER.declareInt(optionalConstructorArg(), WINDOW_SIZE_FIELD);
-        PARSER.declareInt(optionalConstructorArg(), RANK_CONSTANT_FIELD);
+        PARSER.declareInt(RRFRankBuilder::windowSize, WINDOW_SIZE_FIELD);
+        PARSER.declareInt(RRFRankBuilder::rankConstant, RANK_CONSTANT_FIELD);
     }
 
     public static RRFRankBuilder fromXContent(XContentParser parser) throws IOException {
         if (RankRRFPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
         }
-        return PARSER.parse(parser, null);
+        return PARSER.parse(parser, new RRFRankBuilder(), null);
     }
 
     @Override

@@ -130,9 +130,10 @@ public class JobsAndModelsIT extends BaseMlIntegTestCase {
             )
         ).actionGet();
 
+        logger.info("starting deployment: " + model.getModelId());
         client().execute(
             StartTrainedModelDeploymentAction.INSTANCE,
-            new StartTrainedModelDeploymentAction.Request(model.getModelId(), "deployment-foo")
+            new StartTrainedModelDeploymentAction.Request(model.getModelId(), model.getModelId())
         ).actionGet();
 
         setMlIndicesDelayedNodeLeftTimeoutToZero();

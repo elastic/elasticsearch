@@ -491,7 +491,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         );
         TrainedModelAssignmentMetadata.Builder rebalanced = rebalancer.rebalance();
         if (modelToAdd.isPresent()) {
-            checkModelIsFullyAllocatedIfScalingIsNotPossible(modelToAdd.get().getModelId(), rebalanced, nodes);
+            checkModelIsFullyAllocatedIfScalingIsNotPossible(modelToAdd.get().getDeploymentId(), rebalanced, nodes);
         }
         return rebalanced;
     }

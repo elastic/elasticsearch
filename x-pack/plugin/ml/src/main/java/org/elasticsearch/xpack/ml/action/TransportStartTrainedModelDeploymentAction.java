@@ -131,7 +131,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ClusterState state,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) throws Exception {
-        logger.trace(() -> "[" + request.getModelId() + "] received deploy request");
+        logger.info(() -> "[" + request.getModelId() + "/" + request.getDeploymentId() + "] received deploy request");
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;

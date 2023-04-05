@@ -402,7 +402,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), TrainedModelConfig.MODEL_ID);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), Request.DEPLOYMENT_ID);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Request.DEPLOYMENT_ID);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODEL_BYTES);
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUMBER_OF_ALLOCATIONS);
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), THREADS_PER_ALLOCATION);
@@ -435,7 +435,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         private TaskParams(
             String modelId,
-            String deploymentId,
+            @Nullable String deploymentId,
             long modelBytes,
             Integer numberOfAllocations,
             Integer threadsPerAllocation,
@@ -447,7 +447,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         ) {
             this(
                 modelId,
-                deploymentId,
+                // deploymentId should only be null in a mixed cluster
+                // with pre-8.8 nodes
+                deploymentId == null ? modelId : deploymentId,
                 modelBytes,
                 numberOfAllocations == null ? legacyModelThreads : numberOfAllocations,
                 threadsPerAllocation == null ? legacyInferenceThreads : threadsPerAllocation,

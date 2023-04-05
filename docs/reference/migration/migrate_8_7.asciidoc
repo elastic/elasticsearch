@@ -7,7 +7,7 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to {es} 8.7.
 
-See also {ref-bare}/8.7/release-highlights.html[What's new in 8.7] and <<es-release-notes>>.
+See also <<release-highlights>> and <<es-release-notes>>.
 
 [discrete]
 [[breaking-changes-8.7]]

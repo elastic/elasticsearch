@@ -39,15 +39,12 @@ public class RRFRankBuilder extends RankBuilder<RRFRankBuilder> {
 
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
-    private static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>(
-        RankRRFPlugin.NAME,
-        args -> {
-            RRFRankBuilder builder = new RRFRankBuilder();
-            builder.windowSize(args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0]);
-            builder.rankConstant(args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1]);
-            return builder;
-        }
-    );
+    static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>(RankRRFPlugin.NAME, args -> {
+        RRFRankBuilder builder = new RRFRankBuilder();
+        builder.windowSize(args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0]);
+        builder.rankConstant(args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1]);
+        return builder;
+    });
 
     static {
         PARSER.declareInt(optionalConstructorArg(), WINDOW_SIZE_FIELD);

@@ -177,7 +177,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             threadPool,
             client
         );
-        analyticsPipelineRegistry.initialize();
 
         return Arrays.asList(analyticsTemplateRegistry, analyticsPipelineRegistry);
     }

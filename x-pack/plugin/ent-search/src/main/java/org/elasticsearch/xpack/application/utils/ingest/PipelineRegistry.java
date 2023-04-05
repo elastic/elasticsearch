@@ -41,10 +41,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
+/**
+ * Allow to create a registry that will manage ingest pipelines setup while the service is started.
+ * Also, pipeline are versioned, allowing to keep them up to date.
+ * The work is heavily inspired by {@link org.elasticsearch.xpack.core.template.IndexTemplateRegistry}.
+ */
 public abstract class PipelineRegistry implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(PipelineRegistry.class);
-    private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Client client;
 
@@ -55,15 +59,8 @@ public abstract class PipelineRegistry implements ClusterStateListener {
         ThreadPool threadPool,
         Client client
     ) {
-        this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.client = client;
-    }
-
-    /**
-     * Initialize the template registry, adding it as a listener so templates will be installed as necessary
-     */
-    public void initialize() {
         clusterService.addListener(this);
     }
 
@@ -71,31 +68,17 @@ public abstract class PipelineRegistry implements ClusterStateListener {
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState state = event.state();
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // wait until the gateway has recovered from disk, otherwise we think may not have the index templates,
-            // while they actually do exist
+            // wait until recovered from disk, so the cluster state view is consistent
             return;
         }
 
-        // no master node, exit immediately
         DiscoveryNode masterNode = event.state().getNodes().getMasterNode();
-        if (masterNode == null) {
+        if (masterNode == null || state.nodes().isLocalNodeElectedMaster() == false) {
+            // no master node elected or current node is not master
             return;
         }
 
-        // This registry requires to run on a master node.
-        // If not a master node, exit.
-        if (state.nodes().isLocalNodeElectedMaster() == false) {
-            return;
-        }
-
-        // if this node is newer than the master node, we probably need to add the template, which might be newer than the
-        // template the master node has, so we need potentially add new templates despite being not the master node
-        DiscoveryNode localNode = event.state().getNodes().getLocalNode();
-        boolean localNodeVersionAfterMaster = localNode.getVersion().after(masterNode.getVersion());
-
-        if (event.localNodeMaster() || localNodeVersionAfterMaster) {
-            addIngestPipelinesIfMissing(state);
-        }
+        addIngestPipelinesIfMissing(state);
     }
 
     protected abstract String getOrigin();

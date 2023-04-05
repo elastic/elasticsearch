@@ -18,13 +18,13 @@ public class PipelineTemplateConfiguration {
 
     private final String id;
     private final String resource;
-    private final String version;
+    private final int version;
     private final String versionProperty;
 
     public PipelineTemplateConfiguration(String id, String resource, int version, String versionProperty) {
         this.id = Objects.requireNonNull(id);
         this.resource = Objects.requireNonNull(resource);
-        this.version = String.valueOf(version);
+        this.version = version;
         this.versionProperty = Objects.requireNonNull(versionProperty);
     }
 
@@ -32,8 +32,12 @@ public class PipelineTemplateConfiguration {
         return id;
     }
 
+    public int getVersion() {
+        return version;
+    }
+
     public PipelineConfiguration load() {
-        String config = TemplateUtils.loadTemplate(resource, version, versionProperty);
+        String config = TemplateUtils.loadTemplate(resource, String.valueOf(version), versionProperty);
 
         return new PipelineConfiguration(id, new BytesArray(config), XContentType.JSON);
     }

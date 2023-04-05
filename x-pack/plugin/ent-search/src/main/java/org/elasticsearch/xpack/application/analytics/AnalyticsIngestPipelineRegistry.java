@@ -21,11 +21,14 @@ import static org.elasticsearch.xpack.application.analytics.AnalyticsTemplateReg
 import static org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry.TEMPLATE_VERSION_VARIABLE;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
+/**
+ * Set up the behavioral analytics ingest pipelines.
+ */
 public class AnalyticsIngestPipelineRegistry extends PipelineRegistry {
 
     // Ingest pipelines configuration.
-    private static final String EVENT_DATA_STREAM_INGEST_PIPELINE_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "final_pipeline";
-    private static final List<PipelineTemplateConfiguration> INGEST_PIPELINES = Collections.singletonList(
+    protected static final String EVENT_DATA_STREAM_INGEST_PIPELINE_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "final_pipeline";
+    protected static final List<PipelineTemplateConfiguration> INGEST_PIPELINES = Collections.singletonList(
         new PipelineTemplateConfiguration(
             EVENT_DATA_STREAM_INGEST_PIPELINE_NAME,
             ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_INGEST_PIPELINE_NAME + ".json",

@@ -395,7 +395,7 @@ public abstract class Publication {
 
         private Exception getRootCause(Exception e) {
             if (e instanceof final TransportException transportException) {
-                if (transportException.getRootCause()instanceof final Exception rootCause) {
+                if (transportException.getRootCause() instanceof final Exception rootCause) {
                     return rootCause;
                 } else {
                     assert false : e;

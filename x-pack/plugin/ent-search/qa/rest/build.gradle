@@ -1,0 +1,21 @@
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+
+dependencies {
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search_application', 'behavioral_analytics'
+  }
+}
+
+testClusters.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: 'entsearch-admin', password: 'entsearch-admin-password', role: 'superuser'
+  user username: 'entsearch-user', password: 'entsearch-user-password', role: 'entsearch'
+}

@@ -1,0 +1,35 @@
+{
+  "behavioral_analytics.delete": {
+    "documentation": {
+      "url": "http://todo.com/tbd",
+      "description": "Delete a behavioral analytics collection."
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "xpack.ent-search.enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_application/analytics/{name}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the analytics collection to be deleted"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

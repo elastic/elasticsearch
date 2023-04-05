@@ -40,15 +40,12 @@ public class ResourcePrivilegesTests extends ESTestCase {
     public void testEqualsHashCode() {
         ResourcePrivileges instance = createInstance();
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            instance,
-            (original) -> { return ResourcePrivileges.builder(original.getResource()).addPrivileges(original.getPrivileges()).build(); }
-        );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            instance,
-            (original) -> { return ResourcePrivileges.builder(original.getResource()).addPrivileges(original.getPrivileges()).build(); },
-            ResourcePrivilegesTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(instance, (original) -> {
+            return ResourcePrivileges.builder(original.getResource()).addPrivileges(original.getPrivileges()).build();
+        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(instance, (original) -> {
+            return ResourcePrivileges.builder(original.getResource()).addPrivileges(original.getPrivileges()).build();
+        }, ResourcePrivilegesTests::mutateTestItem);
     }
 
     private ResourcePrivileges createInstance() {

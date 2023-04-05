@@ -252,17 +252,12 @@ public class AuthenticationTestHelper {
         }
     }
 
-    public static CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfoForInternalUser(boolean emptyRoleDescriptors) {
+    public static CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfoForInternalUser() {
         final Authentication authentication = AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE).build();
-        return emptyRoleDescriptors
-            ? CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
-                authentication.getEffectiveSubject().getTransportVersion(),
-                authentication.getEffectiveSubject().getRealm().getNodeName()
-            )
-            : CrossClusterAccessUser.subjectInfoWithRoleDescriptors(
-                authentication.getEffectiveSubject().getTransportVersion(),
-                authentication.getEffectiveSubject().getRealm().getNodeName()
-            );
+        return CrossClusterAccessUser.subjectInfo(
+            authentication.getEffectiveSubject().getTransportVersion(),
+            authentication.getEffectiveSubject().getRealm().getNodeName()
+        );
     }
 
     private static Authentication randomCrossClusterAccessSupportedAuthenticationSubject(boolean allowInternalUser) {
@@ -290,7 +285,7 @@ public class AuthenticationTestHelper {
 
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(final Authentication authentication) {
         if (CrossClusterAccessUser.is(authentication.getEffectiveSubject().getUser())) {
-            return crossClusterAccessSubjectInfoForInternalUser(false);
+            return crossClusterAccessSubjectInfoForInternalUser();
         }
         final int numberOfRoleDescriptors;
         if (authentication.isApiKey()) {

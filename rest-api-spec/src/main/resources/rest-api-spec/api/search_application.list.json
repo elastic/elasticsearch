@@ -1,12 +1,11 @@
 {
   "search_application.list": {
     "documentation": {
-      "url": "http://todo.com/tbd",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/list-search-applications.html",
       "description": "Returns the existing search applications."
     },
-    "stability": "experimental",
-    "visibility": "feature_flag",
-    "feature_flag": "xpack.ent-search.enabled",
+    "stability": "beta",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"

@@ -1568,7 +1568,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94905")
     public void testClusterRecoversAfterExceptionDuringSerialization() {
         try (Cluster cluster = new Cluster(randomIntBetween(2, 5))) {
             cluster.runRandomly();
@@ -1584,7 +1583,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 assertThat(e.getCause().getMessage(), equalTo(BrokenCustom.EXCEPTION_MESSAGE));
                 failed.set(true);
             });
-            cluster.runFor(2 * DEFAULT_DELAY_VARIABILITY + 1, "processing broken task");
+            // allow for forking 3 times:
+            // - once onto the master-service thread
+            // - once to fork the publication in FakeThreadPoolMasterService
+            // - once to fork the publication listener back onto the master-service thread
+            cluster.runFor(3 * DEFAULT_DELAY_VARIABILITY + 1, "processing broken task");
             assertTrue(failed.get());
 
             cluster.stabilise();

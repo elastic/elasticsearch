@@ -195,7 +195,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
             }
         }
-        logger.debug("registered processor types: {}", processorFactories.keySet());
+        logger.debug("registered ingest processor types: {}", processorFactories.keySet());
         return Map.copyOf(processorFactories);
     }
 

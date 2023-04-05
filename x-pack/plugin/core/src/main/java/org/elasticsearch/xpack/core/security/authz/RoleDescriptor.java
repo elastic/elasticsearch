@@ -215,6 +215,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return configurableClusterPrivileges.length != 0;
     }
 
+    public boolean hasPrivilegesOtherThanIndex() {
+        return hasClusterPrivileges()
+            || hasConfigurableClusterPrivileges()
+            || hasApplicationPrivileges()
+            || hasRunAs()
+            || hasRemoteIndicesPrivileges();
+    }
+
     public boolean hasRunAs() {
         return runAs.length != 0;
     }

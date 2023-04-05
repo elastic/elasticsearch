@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
@@ -56,6 +57,11 @@ public class CrossClusterAccessUser extends User {
         return INSTANCE.equals(user);
     }
 
+    /**
+     * The role descriptor intersection in the returned subject info is always empty. Because the privileges of the cross cluster access
+     * internal user are static, we set them during role reference resolution instead of needlessly deserializing the role descriptor
+     * intersection (see flow starting at {@link Subject#getRoleReferenceIntersection(AnonymousUser)})
+     */
     public static CrossClusterAccessSubjectInfo subjectInfo(TransportVersion transportVersion, String nodeName) {
         try {
             return new CrossClusterAccessSubjectInfo(

@@ -76,8 +76,9 @@ public class RoleReferenceTests extends ESTestCase {
         final var crossClusterAccessRoleReference = new RoleReference.CrossClusterAccessRoleReference("user", roleDescriptorsBytes);
 
         final RoleKey roleKey = crossClusterAccessRoleReference.id();
-        assertThat(roleKey.getNames(), hasItem("cross_cluster_access:" + roleDescriptorsBytes.digest()));
+        assertThat(roleKey.getNames(), equalTo(Set.of("cross_cluster_access:" + roleDescriptorsBytes.digest())));
         assertThat(roleKey.getSource(), equalTo("cross_cluster_access"));
+        assertThat(roleKey, equalTo(new RoleKey(Set.of("cross_cluster_access:" + roleDescriptorsBytes.digest()), "cross_cluster_access")));
     }
 
     public void testFixedRoleReference() throws ExecutionException, InterruptedException {
@@ -91,8 +92,9 @@ public class RoleReferenceTests extends ESTestCase {
         assertThat(actualRetrievalResult.getRoleDescriptors(), equalTo(Set.of(roleDescriptor)));
 
         final RoleKey roleKey = fixedRoleReference.id();
-        assertThat(roleKey.getNames(), hasItem(roleDescriptor.getName()));
+        assertThat(roleKey.getNames(), equalTo(Set.of(roleDescriptor.getName())));
         assertThat(roleKey.getSource(), equalTo(source));
+        assertThat(roleKey, equalTo(new RoleKey(Set.of(roleDescriptor.getName()), source)));
     }
 
     public void testServiceAccountRoleReference() {

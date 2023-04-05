@@ -315,19 +315,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     }
 
     @Override
-    public Number nextKey(Number key) {
-        return nextKey(key.doubleValue());
-    }
-
-    /**
-     * This method should not be called for this specific subclass of InternalHistogram, since there should not be
-     * empty buckets when clustering.
-    =    */
-    private static double nextKey(double key) {
-        return key + 1;
-    }
-
-    @Override
     protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
         long docCount = 0;

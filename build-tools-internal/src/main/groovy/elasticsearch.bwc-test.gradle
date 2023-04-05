@@ -32,8 +32,8 @@ tasks.register("bwcTest") {
 }
 
 plugins.withType(ElasticsearchTestBasePlugin) {
-  tasks.withType(Test).configureEach {
-    onlyIf { project.bwc_tests_enabled }
+  tasks.withType(Test).matching { it.name ==~ /v[0-9\.]+#.*/ }.configureEach {
+    onlyIf("BWC tests enabled") { project.bwc_tests_enabled }
     nonInputProperties.systemProperty 'tests.bwc', 'true'
   }
 }

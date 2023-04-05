@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.Step;
@@ -84,14 +85,17 @@ public final class IndexLifecycleTransition {
         }
 
         final Set<Step.StepKey> cachedStepKeys = stepRegistry.parseStepKeysFromPhase(
-            lifecycleState.phaseDefinition(),
-            lifecycleState.phase()
+            policyName,
+            lifecycleState.phase(),
+            lifecycleState.phaseDefinition()
         );
         boolean isNewStepCached = cachedStepKeys != null && cachedStepKeys.contains(newStepKey);
 
         // Always allow moving to the terminal step or to a step that's present in the cached phase, even if it doesn't exist in the policy
         if (isNewStepCached == false
-            && (stepRegistry.stepExists(policyName, newStepKey) == false && newStepKey.equals(TerminalPolicyStep.KEY) == false)) {
+            && (stepRegistry.stepExists(policyName, newStepKey) == false
+                && newStepKey.equals(TerminalPolicyStep.KEY) == false
+                && newStepKey.equals(PhaseCompleteStep.stepKey(lifecycleState.phase())) == false)) {
             throw new IllegalArgumentException(
                 "step [" + newStepKey + "] for index [" + indexName + "] with policy [" + policyName + "] does not exist"
             );

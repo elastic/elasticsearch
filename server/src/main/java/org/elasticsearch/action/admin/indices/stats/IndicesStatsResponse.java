@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
@@ -178,14 +179,8 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
 
     @Override
     protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
-        final String level = params.param("level", "indices");
-        final boolean isLevelValid = "cluster".equalsIgnoreCase(level)
-            || "indices".equalsIgnoreCase(level)
-            || "shards".equalsIgnoreCase(level);
-        if (isLevelValid == false) {
-            throw new IllegalArgumentException("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
-        }
-        if ("indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level)) {
+        final ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.INDICES);
+        if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
             return Iterators.concat(Iterators.single(((builder, p) -> {
                 commonStats(builder, p);
                 return builder.startObject(Fields.INDICES);
@@ -206,7 +201,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                 indexStats.getTotal().toXContent(builder, p);
                 builder.endObject();
 
-                if ("shards".equalsIgnoreCase(level)) {
+                if (level == ClusterStatsLevel.SHARDS) {
                     builder.startObject(Fields.SHARDS);
                     for (IndexShardStats indexShardStats : indexStats) {
                         builder.startArray(Integer.toString(indexShardStats.getShardId().id()));

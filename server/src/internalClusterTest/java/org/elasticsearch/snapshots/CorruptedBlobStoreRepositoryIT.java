@@ -31,6 +31,7 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -812,6 +813,19 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             .setWaitForCompletion(true)
             .get();
         assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
+    }
+
+    public void testDeletesWithUnexpectedIndexBlob() throws Exception {
+        Path repo = randomRepoPath();
+        final String repoName = "test-repo";
+        createRepository(repoName, FsRepository.TYPE, repo);
+        final String snapshot = "first-snapshot";
+        createFullSnapshot(repoName, snapshot);
+        // create extra file with the index prefix
+        final var extraFile = Files.createFile(repo.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + randomAlphaOfLength(5)));
+        assertAcked(startDeleteSnapshot(repoName, snapshot).get());
+        // delete file again so repo consistency checks pass
+        Files.delete(extraFile);
     }
 
     private void assertRepositoryBlocked(String repo, String existingSnapshot) {

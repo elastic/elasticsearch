@@ -72,13 +72,9 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             .execute()
             .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5))
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5))
+        );
 
         int recCount = randomIntBetween(20, 200);
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
@@ -108,11 +104,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             assertConcreteMappingsOnAll("test", fieldName);
         }
 
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey()))
-            .get();
+        updateClusterSettings(Settings.builder().putNull(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey()));
     }
 
     public void testUpdateMappingWithoutType() {
@@ -139,12 +131,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     }
 
     public void testUpdateMappingWithoutTypeMultiObjects() {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
-            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-            .execute()
-            .actionGet();
+        createIndex("test", 1, 0);
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setSource("""

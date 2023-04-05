@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -26,6 +25,7 @@ import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -95,8 +95,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         searchRequest.source()
             .knnSearch(
                 List.of(
-                    new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 1, 2 }, 5, 10),
-                    new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 4, 12, 41 }, 3, 5)
+                    new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 1, 2 }, 5, 10, randomBoolean() ? null : randomFloat()),
+                    new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 4, 12, 41 }, 3, 5, randomBoolean() ? null : randomFloat())
                 )
             );
         expectThrows(
@@ -105,32 +105,35 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 searchRequest,
                 namedWriteableRegistry,
                 SearchRequest::new,
-                VersionUtils.randomVersionBetween(random(), Version.V_8_4_0, Version.V_8_6_0)
+                TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_4_0, TransportVersion.V_8_6_0)
             )
         );
 
-        searchRequest.source().knnSearch(List.of(new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 1, 2 }, 5, 10)));
+        searchRequest.source()
+            .knnSearch(
+                List.of(new KnnSearchBuilder(randomAlphaOfLength(10), new float[] { 1, 2 }, 5, 10, randomBoolean() ? null : randomFloat()))
+            );
         // Shouldn't throw because its just one KNN request
         copyWriteable(
             searchRequest,
             namedWriteableRegistry,
             SearchRequest::new,
-            VersionUtils.randomVersionBetween(random(), Version.V_8_4_0, Version.V_8_6_0)
+            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_8_4_0, TransportVersion.V_8_6_0)
         );
     }
 
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
-        Version version = VersionUtils.randomVersion(random());
-        if (version.before(Version.V_7_11_0) && searchRequest.source() != null) {
+        TransportVersion version = TransportVersionUtils.randomVersion(random());
+        if (version.before(TransportVersion.V_7_11_0) && searchRequest.source() != null) {
             // Versions before 7.11.0 don't support runtime mappings
             searchRequest.source().runtimeMappings(emptyMap());
         }
-        if (version.before(Version.V_8_4_0)) {
+        if (version.before(TransportVersion.V_8_4_0)) {
             // Versions before 8.4.0 don't support force_synthetic_source
             searchRequest.setForceSyntheticSource(false);
         }
-        if (version.before(Version.V_8_7_0) && searchRequest.hasKnnSearch() && searchRequest.source().knnSearch().size() > 1) {
+        if (version.before(TransportVersion.V_8_7_0) && searchRequest.hasKnnSearch() && searchRequest.source().knnSearch().size() > 1) {
             // Versions before 8.7.0 don't support more than one KNN clause
             searchRequest.source().knnSearch(List.of(searchRequest.source().knnSearch().get(0)));
         }

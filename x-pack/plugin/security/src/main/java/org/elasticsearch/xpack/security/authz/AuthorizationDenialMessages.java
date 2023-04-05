@@ -59,8 +59,8 @@ class AuthorizationDenialMessages {
         @Nullable String context
     ) {
         String userText = successfulAuthenticationDescription(authentication, authorizationInfo);
-
-        String message = actionIsUnauthorizedMessage(action, userText);
+        String remoteClusterText = authentication.isCrossClusterAccess() ? remoteClusterText(null) : "";
+        String message = actionIsUnauthorizedMessage(action, remoteClusterText, userText);
         if (context != null) {
             message = message + " " + context;
         }
@@ -94,27 +94,33 @@ class AuthorizationDenialMessages {
     ) {
         assert isIndexAction(action);
         String userText = successfulAuthenticationDescription(authentication, authorizationInfo);
+        String remoteClusterText = remoteClusterText(clusterAlias);
+        return actionIsUnauthorizedMessage(action, remoteClusterText, userText)
+            + " because no remote indices privileges apply for the target cluster";
+    }
 
-        return Strings.format(
-            "action [%s] towards remote cluster [%s] is unauthorized for %s"
-                + " because no remote indices privileges apply for the target cluster",
-            action,
-            clusterAlias,
-            userText
-        );
+    private static String remoteClusterText(@Nullable String clusterAlias) {
+        return Strings.format("towards remote cluster%s ", clusterAlias == null ? "" : " [" + clusterAlias + "]");
     }
 
     private static String authenticatedUserDescription(Authentication authentication) {
-        String userText = (authentication.isAuthenticatedWithServiceAccount() ? "service account" : "user")
+        String userText = (authentication.isServiceAccount() ? "service account" : "user")
             + " ["
             + authentication.getAuthenticatingSubject().getUser().principal()
             + "]";
-        if (authentication.isAuthenticatedAsApiKey()) {
+        if (authentication.isAuthenticatedAsApiKey() || authentication.isCrossClusterAccess()) {
             final String apiKeyId = (String) authentication.getAuthenticatingSubject()
                 .getMetadata()
                 .get(AuthenticationField.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
+            if (authentication.isCrossClusterAccess()) {
+                final Authentication crossClusterAccessAuthentication = (Authentication) authentication.getAuthenticatingSubject()
+                    .getMetadata()
+                    .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
+                assert crossClusterAccessAuthentication != null : "cross cluster access authentication must be present in the metadata";
+                userText = successfulAuthenticationDescription(crossClusterAccessAuthentication, null) + " authenticated by " + userText;
+            }
         }
         return userText;
     }
@@ -171,6 +177,10 @@ class AuthorizationDenialMessages {
     }
 
     private static String actionIsUnauthorizedMessage(String action, String userText) {
-        return "action [" + action + "] is unauthorized for " + userText;
+        return actionIsUnauthorizedMessage(action, "", userText);
+    }
+
+    private static String actionIsUnauthorizedMessage(String action, String remoteClusterText, String userText) {
+        return "action [" + action + "] " + remoteClusterText + "is unauthorized for " + userText;
     }
 }

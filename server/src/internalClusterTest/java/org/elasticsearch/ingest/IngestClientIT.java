@@ -17,7 +17,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
@@ -226,8 +225,7 @@ public class IngestClientIT extends ESIntegTestCase {
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
-        GetPipelineRequest getPipelineRequest = new GetPipelineRequest("_id");
-        GetPipelineResponse getResponse = client().admin().cluster().getPipeline(getPipelineRequest).get();
+        GetPipelineResponse getResponse = client().admin().cluster().prepareGetPipeline("_id").get();
         assertThat(getResponse.isFound(), is(true));
         assertThat(getResponse.pipelines().size(), equalTo(1));
         assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));

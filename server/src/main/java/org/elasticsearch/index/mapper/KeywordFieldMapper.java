@@ -14,19 +14,16 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
-import org.apache.lucene.index.ReaderSlice;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -69,11 +66,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -118,6 +113,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             super(field, term, ft);
         }
 
+        @Override
+        public InvertableType invertableType() {
+            return InvertableType.BINARY;
+        }
     }
 
     private static TextSearchInfo textSearchInfo(
@@ -440,7 +439,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return super.termsQuery(values, context);
             } else {
                 BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
-                return new DocValuesTermsQuery(name(), bytesRefs);
+                return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
             }
         }
 
@@ -473,11 +472,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
             if (isIndexed()) {
-                return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
+                return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context, rewriteMethod);
             } else {
                 return StringScriptFieldFuzzyQuery.build(
                     new Script(""),
@@ -529,9 +529,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-            throws IOException {
-            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+        public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
 
             Terms terms = null;
             if (isIndexed()) {
@@ -543,7 +541,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // Field does not exist on this shard.
                 return null;
             }
-            Automaton a = caseInsensitive ? AutomatonQueries.caseInsensitivePrefix(string) : Automata.makeString(string);
+            Automaton a = caseInsensitive ? AutomatonQueries.caseInsensitivePrefix(prefix) : Automata.makeString(prefix);
             a = Operations.concatenate(a, Automata.makeAnyString());
             a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
 
@@ -559,129 +557,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return result;
             }
             return terms.intersect(automaton, searchBytes);
-        }
-
-        // Initialises with a seek to a given term but excludes that term
-        // from any results. The problem it addresses is that termsEnum.seekCeil()
-        // would work but either leaves us positioned on the seek term (if it exists) or the
-        // term after (if the seek term doesn't exist). That complicates any subsequent
-        // iteration logic so this class simplifies the pagination use case.
-        static final class SearchAfterTermsEnum extends FilteredTermsEnum {
-            private final BytesRef afterRef;
-
-            SearchAfterTermsEnum(TermsEnum tenum, BytesRef termText) {
-                super(tenum);
-                afterRef = termText;
-                setInitialSeekTerm(termText);
-            }
-
-            @Override
-            protected AcceptStatus accept(BytesRef term) {
-                return term.equals(afterRef) ? AcceptStatus.NO : AcceptStatus.YES;
-            }
-        }
-
-        /**
-         * A simple terms implementation for SortedSetDocValues that only provides access to {@link TermsEnum} via
-         * {@link #iterator} and {@link #intersect(CompiledAutomaton, BytesRef)} methods.
-         * We have this custom implementation based on {@link MultiTerms} instead of using
-         * {@link org.apache.lucene.index.MultiDocValues#getSortedSetValues(IndexReader, String)}
-         * because {@link org.apache.lucene.index.MultiDocValues} builds global ordinals up-front whereas
-         * {@link MultiTerms}, which exposes the terms enum via {@link org.apache.lucene.index.MultiTermsEnum},
-         * merges terms on the fly.
-         */
-        static class SortedSetDocValuesTerms extends Terms {
-
-            public static Terms getTerms(IndexReader r, String field) throws IOException {
-                final List<LeafReaderContext> leaves = r.leaves();
-                if (leaves.size() == 1) {
-                    SortedSetDocValues sortedSetDocValues = leaves.get(0).reader().getSortedSetDocValues(field);
-                    if (sortedSetDocValues == null) {
-                        return null;
-                    } else {
-                        return new SortedSetDocValuesTerms(sortedSetDocValues);
-                    }
-                }
-
-                final List<Terms> termsPerLeaf = new ArrayList<>(leaves.size());
-                final List<ReaderSlice> slicePerLeaf = new ArrayList<>(leaves.size());
-
-                for (int leafIdx = 0; leafIdx < leaves.size(); leafIdx++) {
-                    LeafReaderContext ctx = leaves.get(leafIdx);
-                    SortedSetDocValues sortedSetDocValues = ctx.reader().getSortedSetDocValues(field);
-                    if (sortedSetDocValues != null) {
-                        termsPerLeaf.add(new SortedSetDocValuesTerms(sortedSetDocValues));
-                        slicePerLeaf.add(new ReaderSlice(ctx.docBase, r.maxDoc(), leafIdx));
-                    }
-                }
-
-                if (termsPerLeaf.isEmpty()) {
-                    return null;
-                } else {
-                    return new MultiTerms(termsPerLeaf.toArray(EMPTY_ARRAY), slicePerLeaf.toArray(ReaderSlice.EMPTY_ARRAY));
-                }
-            }
-
-            private final SortedSetDocValues values;
-
-            SortedSetDocValuesTerms(SortedSetDocValues values) {
-                this.values = values;
-            }
-
-            @Override
-            public TermsEnum iterator() throws IOException {
-                return values.termsEnum();
-            }
-
-            @Override
-            public TermsEnum intersect(CompiledAutomaton compiled, final BytesRef startTerm) throws IOException {
-                if (startTerm == null) {
-                    return values.intersect(compiled);
-                } else {
-                    return super.intersect(compiled, startTerm);
-                }
-            }
-
-            @Override
-            public long size() throws IOException {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public long getSumTotalTermFreq() throws IOException {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public long getSumDocFreq() throws IOException {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public int getDocCount() throws IOException {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public boolean hasFreqs() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public boolean hasOffsets() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public boolean hasPositions() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public boolean hasPayloads() {
-                throw new UnsupportedOperationException();
-            }
-
         }
 
         @Override
@@ -898,6 +773,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         /**
          * @return true if field has been marked as a dimension field
          */
+        @Override
         public boolean isDimension() {
             return isDimension;
         }

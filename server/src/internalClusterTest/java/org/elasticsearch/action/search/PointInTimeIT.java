@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
@@ -163,12 +165,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                 .map(DiscoveryNode::getId)
                 .collect(Collectors.toSet());
             final List<String> excludedNodes = randomSubsetOf(2, dataNodes);
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put("index.routing.allocation.exclude._id", String.join(",", excludedNodes)).build())
-            );
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._id", String.join(",", excludedNodes)), "test");
             if (randomBoolean()) {
                 int moreDocs = randomIntBetween(10, 50);
                 for (int i = 0; i < moreDocs; i++) {
@@ -184,7 +181,6 @@ public class PointInTimeIT extends ESIntegTestCase {
                 final Set<String> assignedNodes = clusterService().state()
                     .routingTable()
                     .allShards()
-                    .stream()
                     .filter(shr -> shr.index().getName().equals("test") && shr.assignedToNode())
                     .map(ShardRouting::currentNodeId)
                     .collect(Collectors.toSet());
@@ -277,6 +273,14 @@ public class PointInTimeIT extends ESIntegTestCase {
         } finally {
             closePointInTime(pit);
         }
+    }
+
+    public void testAllowNoIndex() {
+        var request = new OpenPointInTimeRequest("my_index").indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .keepAlive(TimeValue.timeValueMinutes(between(1, 10)));
+        String pit = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet().getPointInTimeId();
+        var closeResp = client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pit)).actionGet();
+        assertThat(closeResp.status(), equalTo(RestStatus.OK));
     }
 
     public void testCanMatch() throws Exception {

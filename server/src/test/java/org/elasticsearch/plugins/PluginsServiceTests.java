@@ -493,10 +493,9 @@ public class PluginsServiceTests extends ESTestCase {
         class TestExtension implements TestExtensionPoint {
             private TestExtension() {}
         }
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,
@@ -525,10 +524,9 @@ public class PluginsServiceTests extends ESTestCase {
 
             }
         }
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,
@@ -546,10 +544,9 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testBadSingleParameterConstructor() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(BadSingleParameterConstructorExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(BadSingleParameterConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,
@@ -571,10 +568,9 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testTooManyParametersExtensionConstructors() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(TooManyParametersConstructorExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(TooManyParametersConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,
@@ -594,10 +590,9 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testThrowingConstructor() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(ThrowingConstructorExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(ThrowingConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,
@@ -748,12 +743,16 @@ public class PluginsServiceTests extends ESTestCase {
         Path jar = plugin.resolve("impl.jar");
         JarUtils.createJarWithEntries(jar, Map.of("p/DeprecatedPlugin.class", InMemoryJavaCompiler.compile("p.DeprecatedPlugin", """
             package p;
+            import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
+            import org.elasticsearch.common.settings.ClusterSettings;
+            import org.elasticsearch.common.settings.Settings;
+            import org.elasticsearch.plugins.ClusterPlugin;
+            import org.elasticsearch.plugins.Plugin;
             import java.util.Map;
-            import org.elasticsearch.plugins.*;
-            import org.elasticsearch.cluster.coordination.ElectionStrategy;
-            public class DeprecatedPlugin extends Plugin implements DiscoveryPlugin {
+            import java.util.function.Supplier;
+            public class DeprecatedPlugin extends Plugin implements ClusterPlugin {
                 @Override
-                public Map<String, ElectionStrategy> getElectionStrategies() {
+                public Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
                     return Map.of();
                 }
             }
@@ -761,10 +760,9 @@ public class PluginsServiceTests extends ESTestCase {
 
         var pluginService = newPluginsService(settings);
         try {
-            assertWarnings(
-                "Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements deprecated method "
-                    + "getElectionStrategies from plugin interface DiscoveryPlugin. This method will be removed in a future release."
-            );
+            assertCriticalWarnings("""
+                Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements deprecated method getShardsAllocators from \
+                plugin interface ClusterPlugin. This method will be removed in a future release.""");
         } finally {
             closePluginLoaders(pluginService);
         }
@@ -879,14 +877,14 @@ public class PluginsServiceTests extends ESTestCase {
     // Closes the URLClassLoaders and UberModuleClassloaders of plugins loaded by the given plugin service.
     static void closePluginLoaders(PluginsService pluginService) {
         for (var lp : pluginService.plugins()) {
-            if (lp.loader()instanceof URLClassLoader urlClassLoader) {
+            if (lp.loader() instanceof URLClassLoader urlClassLoader) {
                 try {
                     PrivilegedOperations.closeURLClassLoader(urlClassLoader);
                 } catch (IOException unexpected) {
                     throw new UncheckedIOException(unexpected);
                 }
             }
-            if (lp.loader()instanceof UberModuleClassLoader loader) {
+            if (lp.loader() instanceof UberModuleClassLoader loader) {
                 try {
                     PrivilegedOperations.closeURLClassLoader(loader.getInternalLoader());
                 } catch (Exception e) {

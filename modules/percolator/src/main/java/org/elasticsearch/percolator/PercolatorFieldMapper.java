@@ -453,8 +453,7 @@ public class PercolatorFieldMapper extends FieldMapper {
                 out.setTransportVersion(TransportVersion.fromId(indexVersion.id));
             } else {
                 // write the version id to the stream first
-                // use a normal int here (rather than a vint), so we can easily change the interpretation later
-                out.writeInt(clusterTransportVersion.id);
+                TransportVersion.writeVersion(clusterTransportVersion, out);
                 out.setTransportVersion(clusterTransportVersion);
             }
 

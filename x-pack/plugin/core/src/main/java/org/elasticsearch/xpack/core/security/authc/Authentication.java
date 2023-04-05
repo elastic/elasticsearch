@@ -302,7 +302,7 @@ public final class Authentication implements ToXContentObject {
                 fieldsToKeep
             );
         }
-        return copyWithMetadata(Map.copyOf(metadataCopy));
+        return copyWithMetadata(Collections.unmodifiableMap(metadataCopy));
     }
 
     public Authentication copyWithEmptyMetadata() {

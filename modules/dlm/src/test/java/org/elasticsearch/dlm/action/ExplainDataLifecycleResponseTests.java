@@ -157,8 +157,8 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
                 Map<String, Object> lifecycleRollover = (Map<String, Object>) ((Map<String, Object>) explainIndexMap.get("lifecycle")).get(
                     "rollover"
                 );
-                assertThat(lifecycleRollover.get("min_primary_shard_docs"), is(4));
-                assertThat(lifecycleRollover.get("max_primary_shard_docs"), is(9));
+                assertThat(lifecycleRollover.get("min_primary_shard_docs"), is("4"));
+                assertThat(lifecycleRollover.get("max_primary_shard_docs"), is("9"));
             }
         }
     }

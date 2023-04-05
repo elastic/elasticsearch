@@ -62,6 +62,10 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
          */
         void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause);
 
+        /**
+         * Returns a new wrapping {@link Dispatcher} that sets the thread context, based on the incoming request, before actually
+         * dispatching the request to be handled.
+         */
         static Dispatcher dispatchWithThreadContextWrapper(Dispatcher dispatcher, Consumer<HttpPreRequest> setDispatcherContext) {
             return dispatchWithThreadContextWrapper(
                 dispatcher,
@@ -69,6 +73,10 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
             );
         };
 
+        /**
+         * Returns a new wrapping {@link Dispatcher} that sets the thread context, based on the incoming request, before actually
+         * dispatching the request to be handled.
+         */
         static Dispatcher dispatchWithThreadContextWrapper(
             Dispatcher dispatcher,
             BiConsumer<RestRequest, ThreadContext> setDispatcherContext

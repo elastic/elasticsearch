@@ -550,10 +550,16 @@ public class ActionModule extends AbstractModule {
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
     }
 
+    /**
+     * Certain request header values need to be copied in the thread context under which request handlers are to be dispatched.
+     * Careful that this method modifies the thread context. The thread context must be reinstated after the request handler
+     * finishes and returns.
+     */
     public void copyRequestHeadersToThreadContext(HttpPreRequest request, ThreadContext threadContext) {
         copyRequestHeadersToThreadContext(request, headersToCopy, threadContext);
     }
 
+    // to be used in tests
     public static void copyRequestHeadersToThreadContext(
         HttpPreRequest request,
         Set<RestHeaderDefinition> headersToCopy,

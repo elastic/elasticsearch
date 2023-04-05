@@ -65,6 +65,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
+
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
     protected final NetworkService networkService;

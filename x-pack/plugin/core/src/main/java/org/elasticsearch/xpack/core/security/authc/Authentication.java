@@ -866,7 +866,7 @@ public final class Authentication implements ToXContentObject {
                         + "a non-null serialized cross cluster access role descriptors field"
                 );
             }
-            checkNoRunAs(this, "Remote access");
+            checkNoRunAs(this, "Cross cluster access");
         } else {
             if (isRunAs()) {
                 checkRunAsConsistency(effectiveSubject, authenticatingSubject);

@@ -45,6 +45,17 @@ public final class CrossClusterAccessSubjectInfo {
 
     public static final String CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY = "_cross_cluster_access_subject_info";
     private static final Logger logger = LogManager.getLogger(CrossClusterAccessSubjectInfo.class);
+    private static final Set<String> API_KEY_AUTHENTICATION_METADATA_TO_KEEP = Set.of(
+        AuthenticationField.API_KEY_ID_KEY,
+        // These are required for complete audit log entries
+        AuthenticationField.API_KEY_NAME_KEY,
+        AuthenticationField.API_KEY_CREATOR_REALM_NAME
+    );
+    private static final Set<String> SERVICE_ACCOUNT_AUTHENTICATION_METADATA_TO_KEEP = Set.of(
+        // These are required for complete audit log entries
+        ServiceAccountSettings.TOKEN_NAME_FIELD,
+        ServiceAccountSettings.TOKEN_SOURCE_FIELD
+    );
 
     private final Authentication authentication;
     private final List<RoleDescriptorsBytes> roleDescriptorsBytesList;
@@ -86,19 +97,11 @@ public final class CrossClusterAccessSubjectInfo {
     }
 
     private Authentication copyAuthenticationWithCleanMetadata() {
-        // TODO fix this
-        if (authentication.isApiKey() || authentication.isAuthenticatedAsApiKey()) {
-            return authentication.copyWithFilteredMetadataFields(
-                Set.of(
-                    AuthenticationField.API_KEY_ID_KEY,
-                    AuthenticationField.API_KEY_NAME_KEY,
-                    AuthenticationField.API_KEY_CREATOR_REALM_NAME
-                )
-            );
+        assert authenticationHasSupportedSubjectType();
+        if (authentication.isAuthenticatedAsApiKey()) {
+            return authentication.copyWithFilteredMetadataFields(API_KEY_AUTHENTICATION_METADATA_TO_KEEP);
         } else if (authentication.isServiceAccount()) {
-            return authentication.copyWithFilteredMetadataFields(
-                Set.of(ServiceAccountSettings.TOKEN_NAME_FIELD, ServiceAccountSettings.TOKEN_SOURCE_FIELD)
-            );
+            return authentication.copyWithFilteredMetadataFields(SERVICE_ACCOUNT_AUTHENTICATION_METADATA_TO_KEEP);
         } else {
             return authentication.copyWithEmptyMetadata();
         }
@@ -187,10 +190,8 @@ public final class CrossClusterAccessSubjectInfo {
     }
 
     private void ensureAuthenticationHasSupportedSubjectType() {
-        final Subject effectiveSubject = authentication.getEffectiveSubject();
-        if (false == effectiveSubject.getType().equals(Subject.Type.USER)
-            && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)
-            && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)) {
+        if (false == authenticationHasSupportedSubjectType()) {
+            final Subject effectiveSubject = authentication.getEffectiveSubject();
             throw new IllegalArgumentException(
                 "subject ["
                     + effectiveSubject.getUser().principal()
@@ -199,6 +200,13 @@ public final class CrossClusterAccessSubjectInfo {
                     + "] which is not supported for cross cluster access"
             );
         }
+    }
+
+    private boolean authenticationHasSupportedSubjectType() {
+        final Subject effectiveSubject = authentication.getEffectiveSubject();
+        return effectiveSubject.getType().equals(Subject.Type.USER)
+            || effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)
+            || effectiveSubject.getType().equals(Subject.Type.API_KEY);
     }
 
     private void validate() {

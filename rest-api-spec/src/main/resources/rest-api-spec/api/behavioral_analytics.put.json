@@ -1,12 +1,11 @@
 {
   "behavioral_analytics.put": {
     "documentation": {
-      "url": "http://todo.com/tbd",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-analytics-collection.html",
       "description": "Creates a behavioral analytics collection."
     },
-    "stability": "experimental",
-    "visibility": "feature_flag",
-    "feature_flag": "xpack.ent-search.enabled",
+    "stability": "beta",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"

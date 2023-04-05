@@ -1,12 +1,11 @@
 {
   "behavioral_analytics.delete": {
     "documentation": {
-      "url": "http://todo.com/tbd",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-analytics-collection.html",
       "description": "Delete a behavioral analytics collection."
     },
-    "stability": "experimental",
-    "visibility": "feature_flag",
-    "feature_flag": "xpack.ent-search.enabled",
+    "stability": "beta",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"

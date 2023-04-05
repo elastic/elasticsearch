@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -18,6 +20,12 @@ import org.elasticsearch.xcontent.ParseField;
 import java.util.List;
 
 public class RankRRFPlugin extends Plugin {
+
+    public static final LicensedFeature.Momentary RANK_RRF_FEATURE = LicensedFeature.momentary(
+        null,
+        "rank-rrf",
+        License.OperationMode.PLATINUM
+    );
 
     public static final String NAME = "rrf";
 

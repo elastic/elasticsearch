@@ -10,6 +10,7 @@ module org.elasticsearch.rank.rrf {
     requires org.elasticsearch.base;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.server;
+    requires org.elasticsearch.xcore;
 
     exports org.elasticsearch.xpack.rank.rrf;
 }

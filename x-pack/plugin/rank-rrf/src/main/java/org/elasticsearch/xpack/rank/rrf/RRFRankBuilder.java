@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
@@ -20,6 +21,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,6 +55,9 @@ public class RRFRankBuilder extends RankBuilder<RRFRankBuilder> {
     }
 
     public static RRFRankBuilder fromXContent(XContentParser parser) throws IOException {
+        if (RankRRFPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+            throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
+        }
         return PARSER.parse(parser, null);
     }
 

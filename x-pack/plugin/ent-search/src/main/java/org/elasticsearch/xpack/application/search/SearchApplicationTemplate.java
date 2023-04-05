@@ -56,22 +56,29 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
 
     public SearchApplicationTemplate(StreamInput in) throws IOException, ValidationException {
         this.script = in.readOptionalWriteable(Script::new);
+        this.templateParamValidator = in.readOptionalWriteable(TemplateParamValidator::new);
     }
 
-    public SearchApplicationTemplate(Script script) {
+    public SearchApplicationTemplate(Script script, TemplateParamValidator templateParamValidator) {
         if (script != null && script.getLang() != null) {
             if (MustacheScriptEngine.NAME.equals(script.getLang()) == false) {
                 throw new IllegalArgumentException("only [" + MustacheScriptEngine.NAME + "] scripting language is supported");
             }
         }
-
         this.script = script;
+
+        this.templateParamValidator = templateParamValidator;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(SearchApplication.TEMPLATE_SCRIPT_FIELD.getPreferredName(), script);
+        if (script != null) {
+            builder.field(TEMPLATE_SCRIPT_FIELD.getPreferredName(), script);
+        }
+        if (templateParamValidator != null) {
+            builder.field(DICTIONARY_FIELD.getPreferredName(), templateParamValidator);
+        }
         builder.endObject();
         return builder;
     }
@@ -79,16 +86,12 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(script);
+        out.writeOptionalWriteable(templateParamValidator);
     }
 
     public static SearchApplicationTemplate parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
-
-    private static final ConstructingObjectParser<SearchApplicationTemplate, Void> PARSER = new ConstructingObjectParser<>(
-        "search_template",
-        p -> new SearchApplicationTemplate((Script) p[0])
-    );
 
     static {
         PARSER.declareObject(
@@ -100,7 +103,7 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(script);
+        return Objects.hash(script, templateParamValidator);
     }
 
     @Override
@@ -108,8 +111,7 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchApplicationTemplate template = (SearchApplicationTemplate) o;
-        if (script == null) return template.script == null;
-        return script.equals(template.script);
+        return Objects.equals(script, template.script) && Objects.equals(templateParamValidator, template.templateParamValidator);
     }
 
     public void validateTemplateParams(Map<String, Object> templateParams) throws ValidationException {

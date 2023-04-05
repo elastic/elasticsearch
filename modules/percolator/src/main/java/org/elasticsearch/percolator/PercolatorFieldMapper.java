@@ -28,6 +28,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ParsingException;
@@ -96,7 +97,8 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), searchExecutionContext, mapUnmappedFieldsAsText, indexCreatedVersion).init(this);
+        return new Builder(simpleName(), searchExecutionContext, mapUnmappedFieldsAsText, indexCreatedVersion, clusterTransportVersion)
+            .init(this);
     }
 
     static class Builder extends FieldMapper.Builder {
@@ -107,17 +109,20 @@ public class PercolatorFieldMapper extends FieldMapper {
         private final boolean mapUnmappedFieldsAsText;
 
         private final Version indexCreatedVersion;
+        private final Supplier<TransportVersion> clusterTransportVersion;
 
         Builder(
             String fieldName,
             Supplier<SearchExecutionContext> searchExecutionContext,
             boolean mapUnmappedFieldsAsText,
-            Version indexCreatedVersion
+            Version indexCreatedVersion,
+            Supplier<TransportVersion> clusterTransportVersion
         ) {
             super(fieldName);
             this.searchExecutionContext = searchExecutionContext;
             this.mapUnmappedFieldsAsText = mapUnmappedFieldsAsText;
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
+            this.clusterTransportVersion = clusterTransportVersion;
         }
 
         @Override
@@ -165,7 +170,8 @@ public class PercolatorFieldMapper extends FieldMapper {
                 rangeFieldMapper,
                 minimumShouldMatchFieldMapper,
                 mapUnmappedFieldsAsText,
-                indexCreatedVersion
+                indexCreatedVersion,
+                clusterTransportVersion
             );
         }
 
@@ -206,7 +212,8 @@ public class PercolatorFieldMapper extends FieldMapper {
                 name,
                 parserContext.searchExecutionContext(),
                 getMapUnmappedFieldAsText(parserContext.getSettings()),
-                parserContext.indexVersionCreated()
+                parserContext.indexVersionCreated(),
+                parserContext.clusterTransportVersion()
             );
         }
     }
@@ -354,6 +361,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     private final RangeFieldMapper rangeFieldMapper;
     private final boolean mapUnmappedFieldsAsText;
     private final Version indexCreatedVersion;
+    private final Supplier<TransportVersion> clusterTransportVersion;
 
     PercolatorFieldMapper(
         String simpleName,
@@ -367,7 +375,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         RangeFieldMapper rangeFieldMapper,
         NumberFieldMapper minimumShouldMatchFieldMapper,
         boolean mapUnmappedFieldsAsText,
-        Version indexCreatedVersion
+        Version indexCreatedVersion,
+        Supplier<TransportVersion> clusterTransportVersion
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.searchExecutionContext = searchExecutionContext;
@@ -378,6 +387,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         this.rangeFieldMapper = rangeFieldMapper;
         this.mapUnmappedFieldsAsText = mapUnmappedFieldsAsText;
         this.indexCreatedVersion = indexCreatedVersion;
+        this.clusterTransportVersion = clusterTransportVersion;
     }
 
     @Override
@@ -399,7 +409,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         queryBuilder = future.actionGet();
 
         Version indexVersion = context.indexSettings().getIndexVersionCreated();
-        createQueryBuilderField(indexVersion, queryBuilderField, queryBuilder, context);
+        createQueryBuilderField(indexVersion, clusterTransportVersion.get(), queryBuilderField, queryBuilder, context);
 
         QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new SearchExecutionContext(executionContext));
         Query query = queryBuilderForProcessing.toQuery(executionContext);
@@ -428,16 +438,27 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     static void createQueryBuilderField(
         Version indexVersion,
+        TransportVersion clusterTransportVersion,
         BinaryFieldMapper qbField,
         QueryBuilder queryBuilder,
         DocumentParserContext context
     ) throws IOException {
-        try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
-            try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(stream)) {
-                out.setTransportVersion(indexVersion.transportVersion);
-                out.writeNamedWriteable(queryBuilder);
-                qbField.indexValue(context, stream.toByteArray());
+        try (
+            ByteArrayOutputStream stream = new ByteArrayOutputStream();
+            OutputStreamStreamOutput out = new OutputStreamStreamOutput(stream)
+        ) {
+            if (indexVersion.before(Version.V_8_8_0)) {
+                // just use the index version directly
+                // there's a direct mapping from Version to TransportVersion before 8.8.0
+                out.setTransportVersion(TransportVersion.fromId(indexVersion.id));
+            } else {
+                // write the version id to the stream first
+                TransportVersion.writeVersion(clusterTransportVersion, out);
+                out.setTransportVersion(clusterTransportVersion);
             }
+
+            out.writeNamedWriteable(queryBuilder);
+            qbField.indexValue(context, stream.toByteArray());
         }
     }
 

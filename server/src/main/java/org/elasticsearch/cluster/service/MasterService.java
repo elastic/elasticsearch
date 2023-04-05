@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -250,6 +251,8 @@ public class MasterService extends AbstractLifecycleComponent {
         } else {
             final long publicationStartTime = threadPool.rawRelativeTimeInMillis();
             try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                final var newClusterStateVersion = newClusterState.getVersion();
+
                 final Task task = taskManager.register("master", STATE_UPDATE_ACTION_NAME, new TaskAwareRequest() {
                     @Override
                     public void setParentTask(TaskId taskId) {}
@@ -264,14 +267,28 @@ public class MasterService extends AbstractLifecycleComponent {
 
                     @Override
                     public String getDescription() {
-                        return "publication of cluster state [" + newClusterState.getVersion() + "]";
+                        return "publication of cluster state [" + newClusterStateVersion + "]";
                     }
                 });
-                ActionListener.run(ActionListener.runAfter(listener, () -> taskManager.unregister(task)).delegateResponse((l, e) -> {
-                    assert publicationMayFail() : e;
-                    handleException(summary, publicationStartTime, newClusterState, e);
-                    l.onResponse(null);
-                }),
+
+                ActionListener.run(
+                    new DelegatingActionListener<Void, Void>(
+                        ActionListener.runAfter(listener, () -> taskManager.unregister(task)).delegateResponse((l, e) -> {
+                            assert publicationMayFail() : e;
+                            handleException(summary, publicationStartTime, newClusterState, e);
+                            l.onResponse(null);
+                        })
+                    ) {
+                        @Override
+                        public void onResponse(Void response) {
+                            delegate.onResponse(response);
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "listener for publication of cluster state [" + newClusterStateVersion + "]";
+                        }
+                    },
                     l -> publishClusterStateUpdate(
                         executor,
                         summary,

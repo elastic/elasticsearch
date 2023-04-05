@@ -19,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -203,6 +204,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         return new MapperService(
+            () -> TransportVersion.CURRENT,
             indexSettings,
             createIndexAnalyzers(indexSettings),
             parserConfig(),

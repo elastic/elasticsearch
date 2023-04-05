@@ -1403,10 +1403,7 @@ public class Security extends Plugin
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Collections.singletonMap(
-            SetSecurityUserProcessor.TYPE,
-            new SetSecurityUserProcessor.Factory(securityContext::get, settings)
-        );
+        return Map.of(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(securityContext::get, settings));
     }
 
     @Override

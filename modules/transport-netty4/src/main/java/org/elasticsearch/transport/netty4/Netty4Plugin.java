@@ -18,6 +18,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -32,6 +34,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 public class Netty4Plugin extends Plugin implements NetworkPlugin {
@@ -99,9 +102,14 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        BiConsumer<HttpPreRequest, ThreadContext> dispatcherContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
+        HttpServerTransport.Dispatcher dispatcherWithContext = HttpServerTransport.Dispatcher.dispatchWithThreadContextWrapper(
+            dispatcher,
+            (httpPreRequest -> dispatcherContext.accept(httpPreRequest, threadPool.getThreadContext()))
+        );
         return Collections.singletonMap(
             NETTY_HTTP_TRANSPORT_NAME,
             () -> new Netty4HttpServerTransport(
@@ -109,7 +117,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                 networkService,
                 threadPool,
                 xContentRegistry,
-                dispatcher,
+                dispatcherWithContext,
                 clusterSettings,
                 getSharedGroupFactory(settings),
                 tracer,

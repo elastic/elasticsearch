@@ -1552,7 +1552,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
             randomIntBetween(9200, 9300)
         );
         final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address);
-        final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
         RemoteHostHeader.process(request, threadContext);
 

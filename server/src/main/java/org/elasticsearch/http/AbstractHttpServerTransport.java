@@ -65,7 +65,8 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
-
+    static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
+    static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
     protected final NetworkService networkService;
@@ -373,6 +374,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
             if (badRequestCause != null) {
                 dispatcher.dispatchBadRequest(channel, threadContext, badRequestCause);
             } else {

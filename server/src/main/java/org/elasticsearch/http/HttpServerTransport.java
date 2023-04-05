@@ -8,14 +8,22 @@
 
 package org.elasticsearch.http;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public interface HttpServerTransport extends LifecycleComponent, ReportingService<HttpInfo> {
+
+    Logger logger = LogManager.getLogger(HttpServerTransport.class);
 
     String HTTP_PROFILE_NAME = ".http";
     String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
@@ -52,5 +60,42 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
          */
         void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause);
 
+        static Dispatcher dispatchWithThreadContextWrapper(Dispatcher dispatcher, Consumer<HttpPreRequest> setDispatcherContext) {
+            return dispatchWithThreadContextWrapper(
+                dispatcher,
+                (restRequest, threadContext) -> setDispatcherContext.accept(restRequest.getHttpRequest())
+            );
+        };
+
+        static Dispatcher dispatchWithThreadContextWrapper(
+            Dispatcher dispatcher,
+            BiConsumer<RestRequest, ThreadContext> setDispatcherContext
+        ) {
+            return new Dispatcher() {
+                @Override
+                public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                    populateRequestThreadContext(request, channel, threadContext);
+                    dispatcher.dispatchRequest(request, channel, threadContext);
+                }
+
+                @Override
+                public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                    dispatcher.dispatchBadRequest(channel, threadContext, cause);
+                }
+
+                private void populateRequestThreadContext(RestRequest restRequest, RestChannel channel, ThreadContext threadContext) {
+                    try {
+                        setDispatcherContext.accept(restRequest, threadContext);
+                    } catch (Exception e) {
+                        try {
+                            channel.sendResponse(new RestResponse(channel, e));
+                        } catch (Exception inner) {
+                            inner.addSuppressed(e);
+                            logger.error(() -> "failed to send failure response for uri [" + restRequest.uri() + "]", inner);
+                        }
+                    }
+                }
+            };
+        }
     }
 }

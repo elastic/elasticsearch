@@ -212,6 +212,5 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
 
-    opens org.elasticsearch.license.internal;
-    opens org.elasticsearch.license; // spi
+    opens org.elasticsearch.license.internal; //spi
 }

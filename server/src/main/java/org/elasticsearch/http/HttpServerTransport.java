@@ -27,6 +27,8 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
 
     String HTTP_PROFILE_NAME = ".http";
     String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
+    String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
+    String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
 
     BoundTransportAddress boundAddress();
 

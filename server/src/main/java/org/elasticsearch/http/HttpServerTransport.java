@@ -76,12 +76,14 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
             return new Dispatcher() {
                 @Override
                 public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                    threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
                     populateRequestThreadContext(request, channel, threadContext);
                     dispatcher.dispatchRequest(request, channel, threadContext);
                 }
 
                 @Override
                 public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                    threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
                     dispatcher.dispatchBadRequest(channel, threadContext, cause);
                 }
 

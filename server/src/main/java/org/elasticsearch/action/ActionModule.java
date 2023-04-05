@@ -550,7 +550,15 @@ public class ActionModule extends AbstractModule {
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
     }
 
-    public void copyRestHeaders(HttpPreRequest request, ThreadContext threadContext) {
+    public void copyRequestHeadersToThreadContext(HttpPreRequest request, ThreadContext threadContext) {
+        copyRequestHeadersToThreadContext(request, headersToCopy, threadContext);
+    }
+
+    public static void copyRequestHeadersToThreadContext(
+        HttpPreRequest request,
+        Set<RestHeaderDefinition> headersToCopy,
+        ThreadContext threadContext
+    ) {
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getHeaders().get(name);

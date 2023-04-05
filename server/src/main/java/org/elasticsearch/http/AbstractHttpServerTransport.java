@@ -372,7 +372,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
             if (badRequestCause != null) {
                 dispatcher.dispatchBadRequest(channel, threadContext, badRequestCause);
             } else {

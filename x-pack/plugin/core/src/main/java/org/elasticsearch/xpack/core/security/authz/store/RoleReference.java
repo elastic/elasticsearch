@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.util.HashSet;
 import java.util.List;
@@ -121,8 +122,13 @@ public interface RoleReference {
 
         private final CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes;
         private RoleKey id = null;
+        private final String userPrincipal;
 
-        public CrossClusterAccessRoleReference(CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes) {
+        public CrossClusterAccessRoleReference(
+            String userPrincipal,
+            CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes
+        ) {
+            this.userPrincipal = userPrincipal;
             this.roleDescriptorsBytes = roleDescriptorsBytes;
         }
 
@@ -141,10 +147,36 @@ public interface RoleReference {
             resolver.resolveCrossClusterAccessRoleReference(this, listener);
         }
 
+        public String getUserPrincipal() {
+            return userPrincipal;
+        }
+
         public CrossClusterAccessSubjectInfo.RoleDescriptorsBytes getRoleDescriptorsBytes() {
             return roleDescriptorsBytes;
         }
+    }
 
+    final class FixedRoleReference implements RoleReference {
+
+        private final RoleDescriptor roleDescriptor;
+        private final String source;
+
+        public FixedRoleReference(RoleDescriptor roleDescriptor, String source) {
+            this.roleDescriptor = roleDescriptor;
+            this.source = source;
+        }
+
+        @Override
+        public RoleKey id() {
+            return new RoleKey(Set.of(roleDescriptor.getName()), source);
+        }
+
+        @Override
+        public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
+            final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
+            rolesRetrievalResult.addDescriptors(Set.of(roleDescriptor));
+            listener.onResponse(rolesRetrievalResult);
+        }
     }
 
     /**

@@ -10,7 +10,6 @@ module org.elasticsearch.application {
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
     requires json.schema.validator;
-    requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
     requires org.slf4j;
 

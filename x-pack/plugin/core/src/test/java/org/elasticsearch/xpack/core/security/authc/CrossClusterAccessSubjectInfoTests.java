@@ -188,7 +188,7 @@ public class CrossClusterAccessSubjectInfoTests extends ESTestCase {
     private static Authentication randomRealmAuthenticationWithMetadata(Map<String, Object> metadata) throws IOException {
         final Authentication authentication = AuthenticationTestHelper.builder().realm().build(false);
         final Subject authenticatingSubject = authentication.getAuthenticatingSubject();
-        final var subjectWithMetadata = new Subject(
+        final var authenticatingSubjectWithMetadata = new Subject(
             authenticatingSubject.getUser(),
             authenticatingSubject.getRealm(),
             authenticatingSubject.getTransportVersion(),
@@ -196,7 +196,11 @@ public class CrossClusterAccessSubjectInfoTests extends ESTestCase {
         );
         // Hack that allows us to set metadata on a realm authentication
         return AuthenticationContextSerializer.decode(
-            Authentication.doEncode(subjectWithMetadata, subjectWithMetadata, Authentication.AuthenticationType.REALM)
+            Authentication.doEncode(
+                authenticatingSubjectWithMetadata,
+                authenticatingSubjectWithMetadata,
+                Authentication.AuthenticationType.REALM
+            )
         );
     }
 }

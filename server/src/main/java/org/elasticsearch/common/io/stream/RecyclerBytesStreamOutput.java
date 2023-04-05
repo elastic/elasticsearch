@@ -37,7 +37,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     private final Recycler<BytesRef> recycler;
     private final int pageSize;
     private int pageIndex = -1;
-    private int currentCapacity = 0;
     private int currentPageOffset;
 
     public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler) {
@@ -225,21 +224,24 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     private void ensureCapacityFromPosition(long newPosition) {
-        // Integer.MAX_VALUE is not a multiple of the page size so we can only allocate the largest multiple of the pagesize that is less
-        // than Integer.MAX_VALUE
-        if (newPosition > Integer.MAX_VALUE - (Integer.MAX_VALUE % pageSize)) {
+        final long desiredPageCount = (newPosition + pageSize - 1) / pageSize; // ceil(minTargetSize/pageSize)
+        final long pagesToAdd = desiredPageCount - pages.size();
+        if (pagesToAdd <= 0) {
+            return;
+        }
+        if (desiredPageCount * pageSize > Integer.MAX_VALUE) {
             throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
         }
-        while (newPosition > currentCapacity) {
+        pages.ensureCapacity(Math.toIntExact(desiredPageCount));
+        // We are at the end of the current page, increment page index
+        if (currentPageOffset == pageSize) {
+            pageIndex++;
+            currentPageOffset = 0;
+        }
+        for (int i = 0; i < pagesToAdd; i++) {
             Recycler.V<BytesRef> newPage = recycler.obtain();
             assert pageSize == newPage.v().length;
             pages.add(newPage);
-            // We are at the end of the current page, increment page index
-            if (currentPageOffset == pageSize) {
-                pageIndex++;
-                currentPageOffset = 0;
-            }
-            currentCapacity += pageSize;
         }
     }
 }

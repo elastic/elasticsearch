@@ -239,7 +239,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Filter fb = new Filter(EMPTY, project, conditionB);
 
         Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
-        assertEquals(new Project(EMPTY, combinedFilter, projections), new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb));
+        assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb));
     }
 
     // from ... | where a > 1 | stats count(1) by b | where count(1) >= 3 and b < 2

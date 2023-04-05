@@ -28,6 +28,11 @@ public class EsqlProject extends Project {
     }
 
     @Override
+    public EsqlProject replaceChild(LogicalPlan newChild) {
+        return new EsqlProject(source(), newChild, projections());
+    }
+
+    @Override
     public boolean expressionsResolved() {
         for (NamedExpression projection : projections()) {
             // don't call dataType() - it will fail on UnresolvedAttribute

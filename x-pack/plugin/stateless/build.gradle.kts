@@ -34,6 +34,7 @@ dependencies {
     testImplementation("org.elasticsearch.plugin:repository-s3")
     testImplementation("org.elasticsearch.plugin:repository-gcs")
     testImplementation("org.elasticsearch.plugin:repository-azure")
+    testImplementation(testArtifact("org.elasticsearch:server"))
 }
 
 tasks {

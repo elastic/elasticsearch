@@ -242,6 +242,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             .blobContainer(objectStore.basePath().add("nodes").add(discoveryNode.getEphemeralId()).add("translog"));
     }
 
+    public BlobContainer getTermLeaseBlobContainer() {
+        final BlobStoreRepository objectStore = getObjectStore();
+        return objectStore.blobStore().blobContainer(objectStore.basePath().add("cluster_state"));
+    }
+
     /**
      * Gets the translog blob container of the local node
      */

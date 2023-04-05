@@ -1,0 +1,32 @@
+setup:
+  - do:
+      behavioral_analytics.put:
+        name: my-test-analytics-collection
+
+---
+teardown:
+  - do:
+      behavioral_analytics.delete:
+        name: test-analytics-collection-to-delete
+        ignore: 404
+
+---
+"Delete Analytics Collection":
+  - do:
+      behavioral_analytics.delete:
+        name: my-test-analytics-collection
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: "missing"
+      behavioral_analytics.list:
+        name: my-test-analytics-collection
+
+---
+"Delete Analytics Collection - Analytics Collection does not exist":
+  - do:
+      catch: "missing"
+      behavioral_analytics.delete:
+        name: test-nonexistent-analytics-collection
+

@@ -19,6 +19,7 @@ esplugin {
 }
 archivesBaseName = 'dlm'
 dependencies {
+  implementation project(path: ':modules:data-streams')
   testImplementation project(':modules:data-streams')
 }
 

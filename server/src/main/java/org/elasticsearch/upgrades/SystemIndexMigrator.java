@@ -298,16 +298,13 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         MigrationResultsUpdateTask updateTask = MigrationResultsUpdateTask.upsert(
             lastMigrationInfo.getFeatureName(),
             SingleFeatureMigrationResult.success(),
-            ActionListener.wrap(
-                state -> {
-                    prepareNextIndex(
-                        state,
-                        clusterState -> migrateSingleIndex(clusterState, this::finishIndexAndLoop),
-                        lastMigrationInfo.getFeatureName()
-                    );
-                },
-                this::markAsFailed
-            )
+            ActionListener.wrap(state -> {
+                prepareNextIndex(
+                    state,
+                    clusterState -> migrateSingleIndex(clusterState, this::finishIndexAndLoop),
+                    lastMigrationInfo.getFeatureName()
+                );
+            }, this::markAsFailed)
         );
         updateTask.submit(clusterService);
     }

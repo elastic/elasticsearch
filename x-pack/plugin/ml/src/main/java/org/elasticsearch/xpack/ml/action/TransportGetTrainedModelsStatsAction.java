@@ -223,11 +223,11 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             Map<String, Long> totalDefinitionLengthByModelId = new HashMap<>();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 DocumentField modelIdField = hit.field(TrainedModelConfig.MODEL_ID.getPreferredName());
-                if (modelIdField != null && modelIdField.getValue()instanceof String modelId) {
+                if (modelIdField != null && modelIdField.getValue() instanceof String modelId) {
                     DocumentField totalDefinitionLengthField = hit.field(
                         TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName()
                     );
-                    if (totalDefinitionLengthField != null && totalDefinitionLengthField.getValue()instanceof Long totalDefinitionLength) {
+                    if (totalDefinitionLengthField != null && totalDefinitionLengthField.getValue() instanceof Long totalDefinitionLength) {
                         totalDefinitionLengthByModelId.put(modelId, totalDefinitionLength);
                     }
                 }

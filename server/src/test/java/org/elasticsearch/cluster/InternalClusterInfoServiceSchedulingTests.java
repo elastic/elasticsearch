@@ -62,12 +62,9 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             }
         };
 
-        final MasterService masterService = new FakeThreadPoolMasterService(
-            "test",
-            "masterService",
-            threadPool,
-            r -> { fail("master service should not run any tasks"); }
-        );
+        final MasterService masterService = new FakeThreadPoolMasterService("test", "masterService", threadPool, r -> {
+            fail("master service should not run any tasks");
+        });
 
         final ClusterService clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
 

@@ -230,7 +230,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         if (newPosition > Integer.MAX_VALUE - (Integer.MAX_VALUE % pageSize)) {
             throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
         }
-        while (newPosition > currentCapacity) {
+        while (newPosition > currentCapacity - 1) {
             Recycler.V<BytesRef> newPage = recycler.obtain();
             assert pageSize == newPage.v().length;
             pages.add(newPage);

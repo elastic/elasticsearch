@@ -93,7 +93,6 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
         assertThat(concreteConditions.getMinPrimaryShardSize(), nullValue());
         assertThat(concreteConditions.getMinPrimaryShardDocs(), nullValue());
         assertThat(concreteConditions.getMaxAge(), nullValue());
-
     }
 
     public void testInvalidClusterSetting() {

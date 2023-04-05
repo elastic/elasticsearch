@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.IndicesModule;
@@ -79,11 +78,6 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
             }
         }
         return new RolloverConfiguration(concreteConditionsBuilder.build(), automaticConditions);
-    }
-
-    private static ByteSizeValue randomByteSizeValue() {
-        ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
-        return new ByteSizeValue(randomNonNegativeLong() / unit.toBytes(1), unit);
     }
 
     @Override

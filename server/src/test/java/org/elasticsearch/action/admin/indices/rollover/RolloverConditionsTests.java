@@ -64,11 +64,6 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
             .build();
     }
 
-    private static ByteSizeValue randomByteSizeValue() {
-        ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
-        return new ByteSizeValue(randomNonNegativeLong() / unit.toBytes(1), unit);
-    }
-
     @Override
     protected RolloverConditions mutateInstance(RolloverConditions instance) {
         ByteSizeValue maxSize = instance.getMaxSize();

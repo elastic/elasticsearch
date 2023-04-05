@@ -110,7 +110,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         clusterService.addListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DLM_POLL_INTERVAL_SETTING, this::updatePollInterval);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConditions);
+            .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConfiguration);
     }
 
     @Override
@@ -214,7 +214,11 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private void maybeExecuteRollover(ClusterState state, DataStream dataStream) {
         Index writeIndex = dataStream.getWriteIndex();
         if (dataStream.isIndexManagedByDLM(writeIndex, state.metadata()::index)) {
-            RolloverRequest rolloverRequest = getDefaultRolloverRequest(dataStream.getName(), dataStream.getLifecycle().getDataRetention());
+            RolloverRequest rolloverRequest = getDefaultRolloverRequest(
+                rolloverConfiguration,
+                dataStream.getName(),
+                dataStream.getLifecycle().getDataRetention()
+            );
             transportActionsDeduplicator.executeOnce(
                 rolloverRequest,
                 new ErrorRecordingActionListener(writeIndex.getName(), errorStore),
@@ -360,7 +364,11 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         }
     }
 
-    private RolloverRequest getDefaultRolloverRequest(String dataStream, TimeValue dataRetention) {
+    static RolloverRequest getDefaultRolloverRequest(
+        RolloverConfiguration rolloverConfiguration,
+        String dataStream,
+        TimeValue dataRetention
+    ) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         rolloverRequest.setConditions(rolloverConfiguration.resolveRolloverConditions(dataRetention));
         return rolloverRequest;
@@ -371,7 +379,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         maybeScheduleJob();
     }
 
-    private void updateRolloverConditions(RolloverConfiguration newRolloverConfiguration) {
+    private void updateRolloverConfiguration(RolloverConfiguration newRolloverConfiguration) {
         this.rolloverConfiguration = newRolloverConfiguration;
     }
 

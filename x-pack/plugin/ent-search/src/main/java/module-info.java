@@ -6,6 +6,10 @@
  */
 
 module org.elasticsearch.application {
+    requires com.fasterxml.jackson.core;
+    requires com.fasterxml.jackson.databind;
+    requires com.fasterxml.jackson.annotation;
+    requires com.networknt.schema;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
 

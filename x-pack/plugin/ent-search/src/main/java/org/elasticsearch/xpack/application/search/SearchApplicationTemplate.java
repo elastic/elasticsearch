@@ -14,8 +14,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction.Request;
@@ -44,8 +46,9 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
     static {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> Script.parse(p, Script.DEFAULT_TEMPLATE_LANG), TEMPLATE_SCRIPT_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            return new TemplateParamValidator(builder.copyCurrentStructure(p));
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                return new TemplateParamValidator(builder.copyCurrentStructure(p));
+            }
         }, DICTIONARY_FIELD);
     }
 

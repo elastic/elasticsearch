@@ -881,6 +881,21 @@ public class RoleDescriptorTests extends ESTestCase {
         }
     }
 
+    public void testHasPrivilegesOtherThanIndex() {
+        assertThat(
+            new RoleDescriptor("name", null, randomBoolean() ? null : randomIndicesPrivileges(1, 5), null, null, null, null, null, null)
+                .hasPrivilegesOtherThanIndex(),
+            is(false)
+        );
+        final RoleDescriptor roleDescriptor = randomRoleDescriptor();
+        final boolean expected = roleDescriptor.hasClusterPrivileges()
+            || roleDescriptor.hasConfigurableClusterPrivileges()
+            || roleDescriptor.hasApplicationPrivileges()
+            || roleDescriptor.hasRunAs()
+            || roleDescriptor.hasRemoteIndicesPrivileges();
+        assertThat(roleDescriptor.hasPrivilegesOtherThanIndex(), equalTo(expected));
+    }
+
     public static List<RoleDescriptor> randomUniquelyNamedRoleDescriptors(int minSize, int maxSize) {
         return randomValueOtherThanMany(
             roleDescriptors -> roleDescriptors.stream().map(RoleDescriptor::getName).distinct().count() != roleDescriptors.size(),

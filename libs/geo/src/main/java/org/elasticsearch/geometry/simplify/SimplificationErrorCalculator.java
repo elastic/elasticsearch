@@ -8,6 +8,8 @@
 
 package org.elasticsearch.geometry.simplify;
 
+import java.util.Locale;
+
 public interface SimplificationErrorCalculator {
     double calculateError(PointLike left, PointLike middle, PointLike right);
 
@@ -15,6 +17,14 @@ public interface SimplificationErrorCalculator {
         double getX();
 
         double getY();
+    }
+
+    static SimplificationErrorCalculator byName(String calculatorName) {
+        return switch (calculatorName.toLowerCase(Locale.ROOT)) {
+            case "trianglearea" -> new TriangleAreaCalculator();
+            case "frecheterror" -> new FrechetErrorCalculator();
+            default -> throw new IllegalArgumentException("Unknown geometry simplification error calculator: " + calculatorName);
+        };
     }
 
     class TriangleAreaCalculator implements SimplificationErrorCalculator {

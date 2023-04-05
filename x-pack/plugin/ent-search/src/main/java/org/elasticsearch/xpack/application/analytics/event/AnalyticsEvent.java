@@ -28,7 +28,6 @@ import java.util.Objects;
 
 /**
  * This class represents Analytics events object meant to be emitted to the event queue.
- * Subclasses are implementing the different event types.
  */
 public class AnalyticsEvent implements Writeable, ToXContentObject {
 

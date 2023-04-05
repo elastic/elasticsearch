@@ -49,7 +49,8 @@ public final class CrossClusterAccessSubjectInfo {
         AuthenticationField.API_KEY_ID_KEY,
         // These are required for complete audit log entries
         AuthenticationField.API_KEY_NAME_KEY,
-        AuthenticationField.API_KEY_CREATOR_REALM_NAME
+        AuthenticationField.API_KEY_CREATOR_REALM_NAME,
+        AuthenticationField.API_KEY_CREATOR_REALM_TYPE
     );
     private static final Set<String> SERVICE_ACCOUNT_AUTHENTICATION_METADATA_TO_KEEP = Set.of(
         // These are required for complete audit log entries

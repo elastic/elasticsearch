@@ -569,8 +569,7 @@ public final class Authentication implements ToXContentObject {
         doWriteTo(effectiveSubject, authenticatingSubject, type, out);
     }
 
-    // Package private for testing
-    static void doWriteTo(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type, StreamOutput out)
+    private static void doWriteTo(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type, StreamOutput out)
         throws IOException {
         // cross cluster access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting we
         // should not send them across the wire to older nodes

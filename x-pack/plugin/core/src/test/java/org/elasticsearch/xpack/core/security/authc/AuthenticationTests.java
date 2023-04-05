@@ -14,10 +14,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfoTests.randomRoleDescriptorsIntersection;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -925,32 +927,24 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testCopyWithFilteredMetadataFields() {
-        final Map<String, Object> initialMetadata = Map.of(
-            AuthenticationField.API_KEY_ID_KEY,
-            ESTestCase.randomAlphaOfLength(20),
-            AuthenticationField.API_KEY_NAME_KEY,
-            ESTestCase.randomAlphaOfLength(10),
-            AuthenticationField.API_KEY_CREATOR_REALM_NAME,
-            ESTestCase.randomAlphaOfLength(10),
-            "field_to_keep",
-            ESTestCase.randomAlphaOfLength(10),
-            "field_to_remove",
-            ESTestCase.randomAlphaOfLength(10)
+        final Map<String, Object> metadataToKeep = randomBoolean() ? Map.of() : Map.of("field_to_keep", ESTestCase.randomAlphaOfLength(10));
+        final Map<String, Object> allMetadata = new HashMap<>(metadataToKeep);
+        allMetadata.putAll(
+            ESTestCase.randomMap(0, 10, () -> new Tuple<>(ESTestCase.randomAlphaOfLength(20), ESTestCase.randomAlphaOfLength(20)))
         );
-        final Authentication authentication = AuthenticationTestHelper.builder().apiKey().metadata(initialMetadata).build();
+        // Using service account since it allows us to easily specific metadata, but will not fail instantiation if any service-account
+        // specific metadata is missing
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().metadata(allMetadata).build();
 
-        final Set<String> fieldsToKeep = Set.of(
-            AuthenticationField.API_KEY_ID_KEY,
-            AuthenticationField.API_KEY_NAME_KEY,
-            AuthenticationField.API_KEY_CREATOR_REALM_NAME,
-            "field_to_keep"
-        );
+        final Set<String> fieldsToKeep = metadataToKeep.keySet();
         final Map<String, Object> actualMetadata = authentication.copyWithFilteredMetadataFields(fieldsToKeep)
             .getAuthenticatingSubject()
             .getMetadata();
 
-        final var expectedMetadata = Maps.copyMapWithRemovedEntry(initialMetadata, "field_to_remove");
-        assertThat(actualMetadata, equalTo(expectedMetadata));
+        assertThat(actualMetadata, equalTo(metadataToKeep));
+
+        // Test removing all metadata
+        assertThat(authentication.copyWithEmptyMetadata().getAuthenticatingSubject().getMetadata(), is(anEmptyMap()));
     }
 
     public void testMaybeRewriteForOlderVersionErasesDomainForVersionsBeforeDomains() {

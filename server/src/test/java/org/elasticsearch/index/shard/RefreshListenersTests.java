@@ -119,15 +119,7 @@ public class RefreshListenersTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        store.createEmpty();
         final long primaryTerm = randomNonNegativeLong();
-        final String translogUUID = Translog.createEmptyTranslog(
-            translogConfig.getTranslogPath(),
-            SequenceNumbers.NO_OPS_PERFORMED,
-            shardId,
-            primaryTerm
-        );
-        store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = new EngineConfig(
             shardId,
             threadPool,
@@ -156,6 +148,14 @@ public class RefreshListenersTests extends ESTestCase {
             null,
             true
         );
+        store.createEmpty(config.getIndexCommitListener());
+        final String translogUUID = Translog.createEmptyTranslog(
+            translogConfig.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTerm
+        );
+        store.associateIndexWithNewTranslog(translogUUID);
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);

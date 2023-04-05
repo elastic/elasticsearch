@@ -202,7 +202,7 @@ public final class StoreRecovery {
              * document-level semantics.
              */
             writer.setLiveCommitData(() -> {
-                final Map<String, String> liveCommitData = Maps.newMapWithExpectedSize(3);
+                final Map<String, String> liveCommitData = Maps.newMapWithExpectedSize(4);
                 liveCommitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
                 liveCommitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
                 liveCommitData.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp));
@@ -457,7 +457,7 @@ public final class StoreRecovery {
                     }
                     index.setFileDetailsComplete();
                 } else {
-                    store.createEmpty();
+                    store.createEmpty(indexShard.getIndexCommitListener());
                     final String translogUUID = Translog.createEmptyTranslog(
                         indexShard.shardPath().resolveTranslog(),
                         SequenceNumbers.NO_OPS_PERFORMED,

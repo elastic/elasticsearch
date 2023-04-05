@@ -218,6 +218,15 @@ public abstract class Engine implements Closeable {
     public interface IndexCommitListener {
 
         /**
+         * Defines user data to be stored in a commit file.
+         *
+         * Note that any conflicting keys used internally by the engine or the store will not take effect.
+         */
+        default Map<String, String> getCommitExtraUserData() {
+            return Map.of();
+        }
+
+        /**
          * This method is invoked each time a new Lucene commit is created through this engine. There is no guarantee that a listener will
          * be notified of the commits in order, ie newer commits may appear before older ones. The {@link IndexCommitRef} prevents the
          * {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such, the listener must close the

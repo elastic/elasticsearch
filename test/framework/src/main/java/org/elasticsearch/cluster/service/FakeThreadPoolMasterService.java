@@ -32,7 +32,7 @@ public class FakeThreadPoolMasterService extends MasterService {
     private final Consumer<Runnable> taskExecutor;
     private final ThreadContext threadContext;
 
-    public FakeThreadPoolMasterService(String nodeName, String serviceName, ThreadPool threadPool, Consumer<Runnable> taskExecutor) {
+    public FakeThreadPoolMasterService(String nodeName, ThreadPool threadPool, Consumer<Runnable> taskExecutor) {
         this(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),

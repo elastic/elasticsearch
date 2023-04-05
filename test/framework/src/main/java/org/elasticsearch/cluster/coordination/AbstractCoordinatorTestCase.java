@@ -1614,7 +1614,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ThreadPool threadPool,
             Consumer<Runnable> onTaskAvailableToRun
         ) {
-            super(nodeName, serviceName, threadPool, onTaskAvailableToRun);
+            super(nodeName, threadPool, onTaskAvailableToRun);
         }
 
         @Override

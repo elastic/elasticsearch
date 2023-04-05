@@ -3000,8 +3000,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 remoteAuthentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME)
             );
             case SERVICE_ACCOUNT -> Strings.format(
-                """
-                    {"authentication.token.name":"%s","authentication.token.type":"%s","authentication.type":"TOKEN","user.name":"%s","user.realm":"%s"}""",
+                "{\"authentication.token.name\":\"%s\",\"authentication.token.type\":\"%s\","
+                    + "\"authentication.type\":\"TOKEN\",\"user.name\":\"%s\",\"user.realm\":\"%s\"}",
                 remoteAuthentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD),
                 ServiceAccountSettings.REALM_TYPE
                     + "_"

@@ -63,7 +63,6 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
 
         queryCluster = ElasticsearchCluster.local()
             .name("query-cluster")
-            .nodes(2)
             .apply(commonClusterConfig)
             .setting("xpack.security.remote_cluster_client.ssl.enabled", String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")

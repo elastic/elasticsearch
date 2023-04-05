@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
@@ -57,23 +59,34 @@ public class TransformUpdater {
         }
 
         // the new config after the update
+        @Nullable
         private final TransformConfig config;
+
+        // the auth state to persist after the update
+        @Nullable
+        private final AuthorizationState authState;
 
         // the action taken for the upgrade
         private final Status status;
 
-        UpdateResult(final TransformConfig config, final Status status) {
+        UpdateResult(final TransformConfig config, final AuthorizationState authState, final Status status) {
             this.config = config;
+            this.authState = authState;
             this.status = status;
-        }
-
-        public Status getStatus() {
-            return status;
         }
 
         @Nullable
         public TransformConfig getConfig() {
             return config;
+        }
+
+        @Nullable
+        public AuthorizationState getAuthState() {
+            return authState;
+        }
+
+        public Status getStatus() {
+            return status;
         }
     }
 
@@ -115,14 +128,15 @@ public class TransformUpdater {
         ActionListener<UpdateResult> listener
     ) {
         // rewrite config into a new format if necessary
-        TransformConfig rewrittenConfig = TransformConfig.rewriteForUpdate(config);
-        TransformConfig updatedConfig = update != null ? update.apply(rewrittenConfig) : rewrittenConfig;
+        final TransformConfig rewrittenConfig = TransformConfig.rewriteForUpdate(config);
+        final TransformConfig updatedConfig = update != null ? update.apply(rewrittenConfig) : rewrittenConfig;
+        final SetOnce<AuthorizationState> authStateHolder = new SetOnce<>();
 
         // <5> Update checkpoints
         ActionListener<Long> updateStateListener = ActionListener.wrap(lastCheckpoint -> {
             // config was updated, but the transform has no state or checkpoint
             if (lastCheckpoint == null || lastCheckpoint == -1) {
-                listener.onResponse(new UpdateResult(updatedConfig, UpdateResult.Status.UPDATED));
+                listener.onResponse(new UpdateResult(updatedConfig, authStateHolder.get(), UpdateResult.Status.UPDATED));
                 return;
             }
 
@@ -131,7 +145,7 @@ public class TransformUpdater {
                 lastCheckpoint,
                 transformConfigManager,
                 ActionListener.wrap(
-                    r -> listener.onResponse(new UpdateResult(updatedConfig, UpdateResult.Status.UPDATED)),
+                    r -> listener.onResponse(new UpdateResult(updatedConfig, authStateHolder.get(), UpdateResult.Status.UPDATED)),
                     listener::onFailure
                 )
             );
@@ -153,12 +167,12 @@ public class TransformUpdater {
             if (config.getVersion() != null
                 && config.getVersion().onOrAfter(TransformInternalIndexConstants.INDEX_VERSION_LAST_CHANGED)
                 && updatedConfig.equals(config)) {
-                listener.onResponse(new UpdateResult(updatedConfig, UpdateResult.Status.NONE));
+                listener.onResponse(new UpdateResult(updatedConfig, authStateHolder.get(), UpdateResult.Status.NONE));
                 return;
             }
 
             if (dryRun) {
-                listener.onResponse(new UpdateResult(updatedConfig, UpdateResult.Status.NEEDS_UPDATE));
+                listener.onResponse(new UpdateResult(updatedConfig, authStateHolder.get(), UpdateResult.Status.NEEDS_UPDATE));
                 return;
             }
 
@@ -175,22 +189,29 @@ public class TransformUpdater {
         }, listener::onFailure);
 
         // <2> Validate source and destination indices
-        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
-            aVoid -> validateTransform(updatedConfig, client, deferValidation, timeout, validateTransformListener),
-            listener::onFailure
-        );
+        ActionListener<AuthorizationState> checkPrivilegesListener = ActionListener.wrap(authState -> {
+            authStateHolder.set(authState);
+            validateTransform(updatedConfig, client, deferValidation, timeout, validateTransformListener);
+        }, listener::onFailure);
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
-        if (checkAccess && XPackSettings.SECURITY_ENABLED.get(settings) && deferValidation == false) {
+        if (checkAccess && XPackSettings.SECURITY_ENABLED.get(settings)) {
             TransformPrivilegeChecker.checkPrivileges(
                 "update",
+                settings,
                 securityContext,
                 indexNameExpressionResolver,
                 clusterState,
                 client,
                 updatedConfig,
                 true,
-                checkPrivilegesListener
+                ActionListener.wrap(aVoid -> checkPrivilegesListener.onResponse(AuthorizationState.green()), e -> {
+                    if (deferValidation) {
+                        checkPrivilegesListener.onResponse(AuthorizationState.red(e));
+                    } else {
+                        checkPrivilegesListener.onFailure(e);
+                    }
+                })
             );
         } else { // No security enabled, just move on
             checkPrivilegesListener.onResponse(null);

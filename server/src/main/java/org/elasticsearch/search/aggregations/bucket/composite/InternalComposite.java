@@ -41,8 +41,6 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     private final int size;
     private final List<InternalBucket> buckets;
     private final CompositeKey afterKey;
-    // not final because we may evaluate it lazily when read from StreamInput
-    private Map<String, Object> formattedAfterKey;
     private final int[] reverseMuls;
     private final MissingOrder[] missingOrders;
     private final List<String> sourceNames;
@@ -71,7 +69,27 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         this.reverseMuls = reverseMuls;
         this.missingOrders = missingOrders;
         this.earlyTerminated = earlyTerminated;
-        this.formattedAfterKey = afterKey == null ? null : new ArrayMap(sourceNames, formats, afterKey.values());
+        validateAfterKey();
+    }
+
+    /**
+     * Checks that the afterKey formatting does not result in loss of information
+     *
+     * Only called when a new InternalComposite() is built directly.  We can't validate afterKeys from
+     * InternalComposites built from a StreamInput because they may be coming from nodes that do not
+     * do validation, and errors thrown during StreamInput deserialization can kill a node.  However,
+     * InternalComposites that come from remote nodes will always be reduced on the co-ordinator, and
+     * this will always create a new InternalComposite by calling the standard constructor.
+     */
+    private void validateAfterKey() {
+        if (afterKey != null) {
+            if (this.formats.size() != this.afterKey.size()) {
+                throw new IllegalArgumentException("Cannot format afterkey [" + this.afterKey + "] - wrong number of formats");
+            }
+            for (int i = 0; i < this.afterKey.size(); i++) {
+                formatObject(this.afterKey.get(i), this.formats.get(i));
+            }
+        }
     }
 
     public InternalComposite(StreamInput in) throws IOException {
@@ -92,11 +110,6 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls, missingOrders));
         this.afterKey = in.readOptionalWriteable(CompositeKey::new);
         this.earlyTerminated = in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0) ? in.readBoolean() : false;
-        // You can't pull a formatted after key from an internal composite that has come across the wire,
-        // because it may come from a cluster that doesn't do formatting checks at this point, and we can't
-        // throw exceptions here because that can kill a node.  However, InternalComposite is always reduced
-        // before it is streamed, and so the formatted after key will be built at that point
-        this.formattedAfterKey = null;
     }
 
     @Override
@@ -179,14 +192,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
     @Override
     public Map<String, Object> afterKey() {
-        if (this.afterKey != null && this.formattedAfterKey == null) {
-            // This can happen if the InternalComposite has been created from a StreamInput
-            // We don't built the formattedAfterKey there directly, because it could be from
-            // a cluster that does not validate the formats, and we cannot throw an IAE in
-            // a StreamInput cluster.  IAE is safe to throw here, however.
-            this.formattedAfterKey = new ArrayMap(this.sourceNames, this.formats, this.afterKey.values());
-        }
-        return formattedAfterKey;
+        return this.afterKey == null ? null : new ArrayMap(this.sourceNames, this.formats, this.afterKey.values());
     }
 
     // Visible for tests

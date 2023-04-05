@@ -192,7 +192,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
     @Override
     public Map<String, Object> afterKey() {
-        return this.afterKey == null ? null : new ArrayMap(this.sourceNames, this.formats, this.afterKey.values());
+        if (afterKey != null) {
+            return new ArrayMap(sourceNames, formats, afterKey.values());
+        }
+        return null;
     }
 
     // Visible for tests
@@ -598,16 +601,13 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
         final List<String> keys;
         final Comparable<?>[] values;
-        final List<Object> formattedValues;
+        final List<DocValueFormat> formats;
 
         ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable<?>[] values) {
             assert keys.size() == values.length && keys.size() == formats.size();
             this.keys = keys;
+            this.formats = formats;
             this.values = values;
-            this.formattedValues = new ArrayList<>();
-            for (int i = 0; i < values.length; i++) {
-                this.formattedValues.add(formatObject(values[i], formats.get(i)));
-            }
         }
 
         @Override
@@ -619,7 +619,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         public Object get(Object key) {
             for (int i = 0; i < keys.size(); i++) {
                 if (key.equals(keys.get(i))) {
-                    return formattedValues.get(i);
+                    return formatObject(values[i], formats.get(i));
                 }
             }
             return null;
@@ -627,10 +627,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
         @Override
         public Set<Entry<String, Object>> entrySet() {
-            return new AbstractSet<>() {
+            return new AbstractSet<Entry<String, Object>>() {
                 @Override
                 public Iterator<Entry<String, Object>> iterator() {
-                    return new Iterator<>() {
+                    return new Iterator<Entry<String, Object>>() {
                         int pos = 0;
 
                         @Override
@@ -640,7 +640,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
                         @Override
                         public Entry<String, Object> next() {
-                            SimpleEntry<String, Object> entry = new SimpleEntry<>(keys.get(pos), formattedValues.get(pos));
+                            SimpleEntry<String, Object> entry = new SimpleEntry<>(
+                                keys.get(pos),
+                                formatObject(values[pos], formats.get(pos))
+                            );
                             ++pos;
                             return entry;
                         }

@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -33,6 +34,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,6 +54,11 @@ import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 
 public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
 
@@ -82,7 +89,16 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        broadcastUnpromotableAction = new TestTransportBroadcastUnpromotableAction();
+
+        var shardStateAction = mock(ShardStateAction.class);
+        Mockito.doAnswer(invocation -> {
+            ActionListener<Void> argument = invocation.getArgument(6);
+            argument.onResponse(null);
+            return null;
+        })
+            .when(shardStateAction)
+            .remoteShardFailed(any(ShardId.class), anyString(), anyLong(), anyBoolean(), anyString(), any(Exception.class), any());
+        broadcastUnpromotableAction = new TestTransportBroadcastUnpromotableAction(shardStateAction);
     }
 
     @Override
@@ -100,11 +116,12 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
 
     private class TestTransportBroadcastUnpromotableAction extends TransportBroadcastUnpromotableAction<TestBroadcastUnpromotableRequest> {
 
-        TestTransportBroadcastUnpromotableAction() {
+        TestTransportBroadcastUnpromotableAction(ShardStateAction shardStateAction) {
             super(
                 "indices:admin/test",
                 TransportBroadcastUnpromotableActionTests.this.clusterService,
                 TransportBroadcastUnpromotableActionTests.this.transportService,
+                shardStateAction,
                 new ActionFilters(Set.of()),
                 TestBroadcastUnpromotableRequest::new,
                 ThreadPool.Names.SAME

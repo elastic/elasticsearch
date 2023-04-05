@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.unpromotable.TransportBroadcastUnpromotableAction;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.shard.IndexShard;
@@ -30,10 +31,19 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
     public TransportUnpromotableShardRefreshAction(
         ClusterService clusterService,
         TransportService transportService,
+        ShardStateAction shardStateAction,
         ActionFilters actionFilters,
         IndicesService indicesService
     ) {
-        super(NAME, clusterService, transportService, actionFilters, UnpromotableShardRefreshRequest::new, ThreadPool.Names.REFRESH);
+        super(
+            NAME,
+            clusterService,
+            transportService,
+            shardStateAction,
+            actionFilters,
+            UnpromotableShardRefreshRequest::new,
+            ThreadPool.Names.REFRESH
+        );
         this.indicesService = indicesService;
     }
 

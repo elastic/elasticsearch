@@ -22,7 +22,7 @@ dependencies {
 
   // JSON Schema dependencies
   runtimeOnly "org.apache.commons:commons-lang3:${versions.commons_lang3}"
-  runtimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
   runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
 

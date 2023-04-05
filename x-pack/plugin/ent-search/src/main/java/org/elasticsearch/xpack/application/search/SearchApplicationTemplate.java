@@ -93,15 +93,11 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
         out.writeOptionalWriteable(templateParamValidator);
     }
 
-    public static SearchApplicationTemplate parse(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
-
     static {
         PARSER.declareObject(
             optionalConstructorArg(),
             (p, c) -> Script.parse(p, Script.DEFAULT_TEMPLATE_LANG),
-            SearchApplication.TEMPLATE_SCRIPT_FIELD
+            TEMPLATE_SCRIPT_FIELD
         );
     }
 

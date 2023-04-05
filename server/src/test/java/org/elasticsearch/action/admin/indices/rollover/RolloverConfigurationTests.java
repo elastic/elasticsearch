@@ -224,24 +224,24 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
     }
 
     public void testConcreteRolloverConditionCalculation() {
-        RolloverConfiguration rolloverConfiguration = new RolloverConfiguration(new RolloverConditions(), Set.of(MaxAgeCondition.NAME));
-        assertThat(rolloverConfiguration.resolveRolloverConditions(null).getMaxAge(), equalTo(TimeValue.timeValueDays(30)));
-        assertThat(
-            rolloverConfiguration.resolveRolloverConditions(TimeValue.timeValueDays(91)).getMaxAge(),
-            equalTo(TimeValue.timeValueDays(30))
+        RolloverConfiguration autoAgeRolloverConfiguration = new RolloverConfiguration(
+            new RolloverConditions(),
+            Set.of(MaxAgeCondition.NAME)
         );
-        assertThat(
-            rolloverConfiguration.resolveRolloverConditions(TimeValue.timeValueDays(90)).getMaxAge(),
-            equalTo(TimeValue.timeValueDays(7))
+        assertThat(autoAgeRolloverConfiguration.resolveRolloverConditions(null).getMaxAge(), equalTo(TimeValue.timeValueDays(30)));
+        RolloverConfiguration concreteAgeRolloverConfiguration = new RolloverConfiguration(
+            RolloverConditions.newBuilder().addMaxIndexAgeCondition(TimeValue.timeValueHours(3)).build()
         );
-        assertThat(
-            rolloverConfiguration.resolveRolloverConditions(TimeValue.timeValueDays(14)).getMaxAge(),
-            equalTo(TimeValue.timeValueDays(1))
-        );
-        assertThat(
-            rolloverConfiguration.resolveRolloverConditions(TimeValue.timeValueDays(1)).getMaxAge(),
-            equalTo(TimeValue.timeValueDays(1))
-        );
+        assertThat(concreteAgeRolloverConfiguration.resolveRolloverConditions(null).getMaxAge(), equalTo(TimeValue.timeValueHours(3)));
+
+    }
+
+    public void testAutoMaxAgeCalculation() {
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(null), equalTo(TimeValue.timeValueDays(30)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(91)), equalTo(TimeValue.timeValueDays(30)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(90)), equalTo(TimeValue.timeValueDays(7)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(14)), equalTo(TimeValue.timeValueDays(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(1)), equalTo(TimeValue.timeValueDays(1)));
     }
 
     public void testXContentSerializationWithKnownDataRetention() throws IOException {

@@ -280,28 +280,30 @@ public class NodeStats extends BaseNodeResponse implements ChunkedToXContent {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
 
-        return Iterators.concat(Iterators.single((builder, params) -> {
-            builder.field("name", getNode().getName());
-            builder.field("transport_address", getNode().getAddress().toString());
-            builder.field("host", getNode().getHostName());
-            builder.field("ip", getNode().getAddress());
+        return Iterators.concat(
 
-            builder.startArray("roles");
-            for (DiscoveryNodeRole role : getNode().getRoles()) {
-                builder.value(role.roleName());
-            }
-            builder.endArray();
+            Iterators.single((builder, params) -> {
+                builder.field("name", getNode().getName());
+                builder.field("transport_address", getNode().getAddress().toString());
+                builder.field("host", getNode().getHostName());
+                builder.field("ip", getNode().getAddress());
 
-            if (getNode().getAttributes().isEmpty() == false) {
-                builder.startObject("attributes");
-                for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
-                    builder.field(attrEntry.getKey(), attrEntry.getValue());
+                builder.startArray("roles");
+                for (DiscoveryNodeRole role : getNode().getRoles()) {
+                    builder.value(role.roleName());
                 }
-                builder.endObject();
-            }
+                builder.endArray();
 
-            return builder;
-        }),
+                if (getNode().getAttributes().isEmpty() == false) {
+                    builder.startObject("attributes");
+                    for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
+                        builder.field(attrEntry.getKey(), attrEntry.getValue());
+                    }
+                    builder.endObject();
+                }
+
+                return builder;
+            }),
 
             ifPresent(getIndices()).toXContentChunked(outerParams),
 

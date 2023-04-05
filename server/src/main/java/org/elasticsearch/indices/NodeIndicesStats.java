@@ -222,48 +222,55 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
 
-        return Iterators.concat(Iterators.single((builder, params) -> {
-            builder.startObject(Fields.INDICES);
-            return stats.toXContent(builder, params);
-        }), switch (NodeStatsLevel.of(outerParams, NodeStatsLevel.NODE)) {
+        return Iterators.concat(
 
-            case NODE -> Collections.<ToXContent>emptyIterator();
+            Iterators.single((builder, params) -> {
+                builder.startObject(Fields.INDICES);
+                return stats.toXContent(builder, params);
+            }),
 
-            case INDICES -> Iterators.concat(
-                ChunkedToXContentHelper.startObject(Fields.INDICES),
-                Iterators.flatMap(
-                    createCommonStatsByIndex().entrySet().iterator(),
-                    entry -> Iterators.<ToXContent>single((builder, params) -> {
-                        builder.startObject(entry.getKey().getName());
-                        entry.getValue().toXContent(builder, params);
-                        return builder.endObject();
-                    })
-                ),
-                ChunkedToXContentHelper.endObject()
-            );
+            switch (NodeStatsLevel.of(outerParams, NodeStatsLevel.NODE)) {
 
-            case SHARDS -> Iterators.concat(
-                ChunkedToXContentHelper.startObject(Fields.SHARDS),
-                Iterators.flatMap(
-                    statsByShard.entrySet().iterator(),
-                    entry -> Iterators.concat(
-                        ChunkedToXContentHelper.startArray(entry.getKey().getName()),
-                        Iterators.flatMap(
-                            entry.getValue().iterator(),
-                            indexShardStats -> Iterators.<ToXContent>concat(
-                                Iterators.single(
-                                    (b, p) -> b.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()))
-                                ),
-                                Iterators.flatMap(Iterators.forArray(indexShardStats.getShards()), Iterators::<ToXContent>single),
-                                Iterators.single((b, p) -> b.endObject().endObject())
-                            )
-                        ),
-                        ChunkedToXContentHelper.endArray()
-                    )
-                ),
-                ChunkedToXContentHelper.endObject()
-            );
-        }, ChunkedToXContentHelper.endObject());
+                case NODE -> Collections.<ToXContent>emptyIterator();
+
+                case INDICES -> Iterators.concat(
+                    ChunkedToXContentHelper.startObject(Fields.INDICES),
+                    Iterators.flatMap(
+                        createCommonStatsByIndex().entrySet().iterator(),
+                        entry -> Iterators.<ToXContent>single((builder, params) -> {
+                            builder.startObject(entry.getKey().getName());
+                            entry.getValue().toXContent(builder, params);
+                            return builder.endObject();
+                        })
+                    ),
+                    ChunkedToXContentHelper.endObject()
+                );
+
+                case SHARDS -> Iterators.concat(
+                    ChunkedToXContentHelper.startObject(Fields.SHARDS),
+                    Iterators.flatMap(
+                        statsByShard.entrySet().iterator(),
+                        entry -> Iterators.concat(
+                            ChunkedToXContentHelper.startArray(entry.getKey().getName()),
+                            Iterators.flatMap(
+                                entry.getValue().iterator(),
+                                indexShardStats -> Iterators.<ToXContent>concat(
+                                    Iterators.single(
+                                        (b, p) -> b.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()))
+                                    ),
+                                    Iterators.flatMap(Iterators.forArray(indexShardStats.getShards()), Iterators::<ToXContent>single),
+                                    Iterators.single((b, p) -> b.endObject().endObject())
+                                )
+                            ),
+                            ChunkedToXContentHelper.endArray()
+                        )
+                    ),
+                    ChunkedToXContentHelper.endObject()
+                );
+            },
+
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     private Map<Index, CommonStats> createCommonStatsByIndex() {

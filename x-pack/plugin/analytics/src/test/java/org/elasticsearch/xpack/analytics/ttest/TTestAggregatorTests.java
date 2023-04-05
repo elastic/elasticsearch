@@ -149,12 +149,9 @@ public class TTestAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNotEnoughRecords() throws IOException {
-        testCase(
-            new MatchAllDocsQuery(),
-            randomFrom(TTestType.values()),
-            iw -> { iw.addDocument(asList(new NumericDocValuesField("a", 102), new NumericDocValuesField("b", 89))); },
-            tTest -> assertEquals(Double.NaN, tTest.getValue(), 0)
-        );
+        testCase(new MatchAllDocsQuery(), randomFrom(TTestType.values()), iw -> {
+            iw.addDocument(asList(new NumericDocValuesField("a", 102), new NumericDocValuesField("b", 89)));
+        }, tTest -> assertEquals(Double.NaN, tTest.getValue(), 0));
     }
 
     public void testSameValues() throws IOException {

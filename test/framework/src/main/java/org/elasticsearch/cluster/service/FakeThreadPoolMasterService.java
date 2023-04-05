@@ -59,6 +59,11 @@ public class FakeThreadPoolMasterService extends MasterService {
             public void execute(Runnable command) {
                 taskExecutor.accept(threadContext.preserveContext(command));
             }
+
+            @Override
+            public String toString() {
+                return "FakeThreadPoolMasterService executor";
+            }
         };
     }
 

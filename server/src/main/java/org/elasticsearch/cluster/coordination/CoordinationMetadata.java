@@ -361,7 +361,8 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
 
         @Override
         public String toString() {
-            return "VotingConfiguration{" + String.join(",", nodeIds) + "}";
+            // Sorting the node IDs for deterministic logging until https://github.com/elastic/elasticsearch/issues/94946 is fixed
+            return "VotingConfiguration{" + nodeIds.stream().sorted().collect(Collectors.joining(",")) + "}";
         }
 
         @Override

@@ -133,7 +133,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     }
 
     // Visible for testing
-    RolloverConditions getConcreteConditions() {
+    public RolloverConditions getConcreteConditions() {
         return concreteConditions;
     }
 

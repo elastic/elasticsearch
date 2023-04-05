@@ -279,7 +279,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
             // apply the disabling of the license once the cluster is stable
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(OperationMode.BASIC, false, null);
+                licenseState.update(new XPackLicenseStatus(OperationMode.BASIC, false, null));
             }
         }, 30L, TimeUnit.SECONDS);
     }
@@ -291,7 +291,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             // first update the license so we can execute monitoring actions
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, null);
+                licenseState.update(new XPackLicenseStatus(operationMode, true, null));
             }
 
             ensureGreen();
@@ -301,7 +301,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             // re-apply the update in case any node received an updated cluster state that triggered the license state
             // to change
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, null);
+                licenseState.update(new XPackLicenseStatus(operationMode, true, null));
             }
         }, 30L, TimeUnit.SECONDS);
     }
@@ -309,7 +309,7 @@ public class LicensingTests extends SecurityIntegTestCase {
     private void setLicensingExpirationDate(License.OperationMode operationMode, String expiryWarning) throws Exception {
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, expiryWarning);
+                licenseState.update(new XPackLicenseStatus(operationMode, true, expiryWarning));
             }
 
             ensureGreen();

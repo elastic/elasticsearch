@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -28,19 +29,19 @@ import org.elasticsearch.license.PostStartTrialRequest;
 import org.elasticsearch.license.PostStartTrialResponse;
 import org.elasticsearch.license.PutLicenseRequest;
 import org.elasticsearch.license.internal.MutableLicenseService;
-import org.elasticsearch.license.internal.Status;
-import org.elasticsearch.license.internal.StatusSupplier;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -50,8 +51,26 @@ import static org.mockito.Mockito.when;
 
 public class XPackPluginTests extends ESTestCase {
 
-    private final License mockLicense = mock(License.class);
-    private final License.OperationMode operationMode = randomFrom(License.OperationMode.values());
+    private License license;
+    private License.LicenseType licenseType;
+
+    @Before
+    public void setup() {
+        licenseType = randomFrom(License.LicenseType.values());
+        License.Builder builder = License.builder()
+            .uid(UUIDs.randomBase64UUID(random()))
+            .type(licenseType)
+            .issueDate(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(100))
+            .expiryDate(System.currentTimeMillis() + TimeUnit.DAYS.toMillis(100))
+            .issuedTo("me")
+            .issuer("you");
+        if (licenseType.equals(License.LicenseType.ENTERPRISE)) {
+            builder.maxResourceUnits(1);
+        } else {
+            builder.maxNodes(1);
+        }
+        license = builder.build();
+    }
 
     public void testXPackInstalledAttrClash() throws Exception {
         Settings.Builder builder = Settings.builder();
@@ -115,6 +134,7 @@ public class XPackPluginTests extends ESTestCase {
 
     public void testLoadExtensions() throws Exception {
         XPackPlugin xpackPlugin = createXPackPlugin(Settings.builder().build());
+        // when(mockLicense.uid()).thenReturn(UUID.randomUUID().toString());
         xpackPlugin.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
             @Override
             @SuppressWarnings("unchecked")
@@ -122,14 +142,12 @@ public class XPackPluginTests extends ESTestCase {
                 List<Object> extensions = new ArrayList<>();
                 if (extensionPointType == MutableLicenseService.class) {
                     extensions.add(new TestLicenseService());
-                } else if (extensionPointType == StatusSupplier.class) {
-                    extensions.add(new TestStatusSupplier());
                 }
                 return (List<T>) extensions;
             }
         });
-        assertEquals(mockLicense, XPackPlugin.getSharedLicenseService().getLicense());
-        assertEquals(operationMode, XPackPlugin.getSharedLicenseState().getOperationMode());
+        assertEquals(license, XPackPlugin.getSharedLicenseService().getLicense());
+        assertEquals(License.OperationMode.resolve(licenseType), XPackPlugin.getSharedLicenseState().getOperationMode());
     }
 
     public void testLoadExtensionsFailure() throws Exception {
@@ -142,8 +160,8 @@ public class XPackPluginTests extends ESTestCase {
                 public <T> List<T> loadExtensions(Class<T> extensionPointType) {
                     List<Object> extensions = new ArrayList<>();
                     if (extensionPointType == MutableLicenseService.class) {
-                        extensions.add(new TestStatusSupplier());
-                        extensions.add(new TestStatusSupplier());
+                        extensions.add(new TestLicenseService());
+                        extensions.add(new TestLicenseService());
                     }
                     return (List<T>) extensions;
                 }
@@ -152,26 +170,6 @@ public class XPackPluginTests extends ESTestCase {
         assertThat(
             exception.getMessage(),
             is("interface org.elasticsearch.license.internal.MutableLicenseService " + "may not have multiple implementations")
-        );
-
-        IllegalStateException exception2 = expectThrows(
-            IllegalStateException.class,
-            () -> xpackPlugin.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
-                @Override
-                @SuppressWarnings("unchecked")
-                public <T> List<T> loadExtensions(Class<T> extensionPointType) {
-                    List<Object> extensions = new ArrayList<>();
-                    if (extensionPointType == StatusSupplier.class) {
-                        extensions.add(new TestLicenseService());
-                        extensions.add(new TestLicenseService());
-                    }
-                    return (List<T>) extensions;
-                }
-            })
-        );
-        assertThat(
-            exception2.getMessage(),
-            is("interface org.elasticsearch.license.internal.StatusSupplier " + "may not have multiple implementations")
         );
     }
 
@@ -230,7 +228,7 @@ public class XPackPluginTests extends ESTestCase {
 
         @Override
         public License getLicense() {
-            return mockLicense;
+            return license;
         }
 
         @Override
@@ -250,12 +248,4 @@ public class XPackPluginTests extends ESTestCase {
         @Override
         public void close() {}
     }
-
-    class TestStatusSupplier implements StatusSupplier {
-        @Override
-        public Status get() {
-            return new Status(operationMode, false, "");
-        }
-    }
-
 }

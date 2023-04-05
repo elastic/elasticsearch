@@ -5,9 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.license.internal;
-
-import org.elasticsearch.license.License;
+package org.elasticsearch.license;
 
 /**
  * A wrapper for the license mode, state, and expiration date, to allow atomically swapping.
@@ -15,6 +13,6 @@ import org.elasticsearch.license.License;
  * @param active True if the license is active, or false if it is expired.
  * @param expiryWarning A warning to be emitted on license checks about the license expiring soon.
  */
-public record Status(License.OperationMode mode, boolean active, String expiryWarning) {
+public record XPackLicenseStatus(License.OperationMode mode, boolean active, String expiryWarning) {
 
 }

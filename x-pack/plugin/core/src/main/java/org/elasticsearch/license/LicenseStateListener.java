@@ -14,7 +14,7 @@ package org.elasticsearch.license;
 public interface LicenseStateListener {
 
     /**
-     * Callback when the license state changes. See {@link XPackLicenseState#update(License.OperationMode, boolean, String)}.
+     * Callback when the license state changes. See {@link XPackLicenseState#update(XPackLicenseStatus)}.
      */
     void licenseStateChanged();
 

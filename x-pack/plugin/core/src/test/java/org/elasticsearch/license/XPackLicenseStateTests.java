@@ -44,7 +44,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     XPackLicenseState buildLicenseState(OperationMode mode, boolean active) {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        licenseState.update(mode, active, null);
+        licenseState.update(new XPackLicenseStatus(mode, active, null));
         return licenseState;
     }
 
@@ -265,12 +265,12 @@ public class XPackLicenseStateTests extends ESTestCase {
         License.OperationMode licenseLevel = randomFrom(STANDARD, GOLD, PLATINUM, ENTERPRISE);
         LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "testfeature", licenseLevel);
 
-        licenseState.update(licenseLevel, true, null);
+        licenseState.update(new XPackLicenseStatus(licenseLevel, true, null));
         feature.check(licenseState);
         ensureNoWarnings();
 
         String warningSoon = "warning: license expiring soon";
-        licenseState.update(licenseLevel, true, warningSoon);
+        licenseState.update(new XPackLicenseStatus(licenseLevel, true, warningSoon));
         feature.check(licenseState);
         assertCriticalWarnings(warningSoon);
 

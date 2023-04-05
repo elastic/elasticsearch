@@ -44,12 +44,12 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseStatus;
 import org.elasticsearch.license.internal.MutableLicenseService;
-import org.elasticsearch.license.internal.Status;
-import org.elasticsearch.license.internal.StatusSupplier;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -494,19 +494,20 @@ public class XPackPlugin extends XPackClientPlugin
         if (licenseServices.size() > 1) {
             throw new IllegalStateException(MutableLicenseService.class + " may not have multiple implementations");
         } else if (licenseServices.size() == 1) {
-            setLicenseService(licenseServices.get(0));
-        }
-
-        List<StatusSupplier> xPackLicenseStateInitialStatusSupplier = loader.loadExtensions(StatusSupplier.class);
-        if (xPackLicenseStateInitialStatusSupplier.size() > 1) {
-            throw new IllegalStateException(StatusSupplier.class + " may not have multiple implementations");
-        } else if (xPackLicenseStateInitialStatusSupplier.size() == 1) {
+            MutableLicenseService licenseService = licenseServices.get(0);
+            setLicenseService(licenseService);
             setLicenseState(
-                new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), xPackLicenseStateInitialStatusSupplier.get(0))
+                new XPackLicenseState(
+                    () -> getEpochMillisSupplier().getAsLong(),
+                    LicenseUtils.getXPackLicenseStatus(licenseService.getLicense(), getClock())
+                )
             );
         } else {
             setLicenseState(
-                new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong(), () -> new Status(License.OperationMode.TRIAL, true, null))
+                new XPackLicenseState(
+                    () -> getEpochMillisSupplier().getAsLong(),
+                    new XPackLicenseStatus(License.OperationMode.TRIAL, true, null)
+                )
             );
         }
     }

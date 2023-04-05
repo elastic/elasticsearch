@@ -1,5 +1,5 @@
 pr: 95027
-summary: "[Enterprise Search][Behavioral Analytics] Events ingest API"
-area: Application
+summary: "Implements behavioral analytics events ingest API"
+area: Search
 type: feature
 issues: []

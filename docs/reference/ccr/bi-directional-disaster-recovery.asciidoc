@@ -21,13 +21,9 @@ DELETE /_data_stream/*
 
 Learn how to set up disaster recovery between two clusters based on
 bi-directional {ccr}. The following tutorial is designed for data streams which support 
-<<update-docs-in-a-data-stream-by-query,update by query>> and
- <<delete-docs-in-a-data-stream-by-query,delete by query>>. 
- You can only perform these actions on the leader index. 
+<<update-docs-in-a-data-stream-by-query,update by query>> and <<delete-docs-in-a-data-stream-by-query,delete by query>>. You can only perform these actions on the leader index. 
 
-This tutorial works with {ls} as the source of ingestion. It takes
-advantage of a {ls} feature where {logstash-ref}/plugins-outputs-elasticsearch.html[the {ls} output to {es}] can be load balanced
-across an array of hosts specified>>. {beats} and {agents} currently do not 
+This tutorial works with {ls} as the source of ingestion. It takes advantage of a {ls} feature where {logstash-ref}/plugins-outputs-elasticsearch.html[the {ls} output to {es}] can be load balanced across an array of hosts specified. {beats} and {agents} currently do not 
 support multiple outputs. It should also be possible to set up a proxy 
 (load balancer) to redirect traffic without {ls} in this tutorial. 
 
@@ -37,6 +33,7 @@ support multiple outputs. It should also be possible to set up a proxy
 
 image::images/ccr-bi-directional-disaster-recovery.png[Bi-directional cross cluster replication failover and failback]
 
+[[ccr-tutorial-initial-setup]]
 ==== Initial setup
 . Set up a remote cluster on both clusters.
 +
@@ -125,7 +122,7 @@ TIP: `follow_index_pattern` allows lowercase characters only.
 TIP: This step cannot be executed via the {kib} UI due to the lack of an exclusion
 pattern in the UI. Use the API in this step.
 
-. Set up the {ls} configuration file
+. Set up the {ls} configuration file.
 +
 This example uses the input generator to demonstrate the document
 count in the clusters. Reconfigure this section
@@ -168,9 +165,7 @@ bin/logstash -f multiple_hosts.conf
 
 . Observe document counts in data streams.
 +
-The setup creates a data stream named `logs-generic-default`
-on each of the clusters. {ls} will write 50% of the documents to `cluster
-A` and 50% of the documents to `cluster B` when both clusters are up.
+The setup creates a data stream named `logs-generic-default` on each of the clusters. {ls} will write 50% of the documents to `cluster A` and 50% of the documents to `cluster B` when both clusters are up.
 +
 Bi-directional {ccr} will create one more data stream on each of the clusters
 with the `-replication_from_cluster{a|b}` suffix. At the end of this step:
@@ -196,7 +191,7 @@ GET logs*/_search?size=0
 . You can simulate this by shutting down either of the clusters. Let's shut down
 `cluster A` in this tutorial.
 . Start {ls} with the same configuration file. (This step is not required in real
-use cases where {ls} ingests continuously)
+use cases where {ls} ingests continuously.)
 +
 [source,sh]
 ----
@@ -253,9 +248,9 @@ GET logs-generic-default*/_search?filter_path=hits.hits._index
 +
 * If the hits returns `"_index": ".ds-logs-generic-default-replicated_from_clustera-<yyyy.MM.dd>-*"`, then you need to proceed to the next step on `cluster A`.
 * If the hits returns `"_index": ".ds-logs-generic-default-replicated_from_clusterb-<yyyy.MM.dd>-*"`, then you need to proceed to the next step on `cluster B`.
-* If the hits returns `"_index": ".ds-logs-generic-default-<yyyy.MM.dd>-*"`, then you need to proceed to the next step on the same cluster where you perform the search query.
+* If the hits returns `"_index": ".ds-logs-generic-default-<yyyy.MM.dd>-*"`, then you need to proceed to the next step on the same cluster where you performed the search query.
 
-. Perform the update (or delete) by query
+. Perform the update (or delete) by query:
 +
 [source,console]
 ----

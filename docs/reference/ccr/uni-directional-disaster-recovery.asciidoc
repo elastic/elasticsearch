@@ -20,17 +20,15 @@ DELETE kibana_sample_data_ecommerce
 ////
 
 
-Learn how to fail over and fail back between two clusters based on
-uni-directional {ccr}. You can also visit <<ccr-disaster-recovery-bi-directional-tutorial>> to set up replicating data streams that automatically fail over and fail back without human
-intervention.
+Learn how to failover and failback between two clusters based on uni-directional {ccr}. You can also visit <<ccr-disaster-recovery-bi-directional-tutorial>> to set up replicating data streams that automatically failover and failback without human intervention.
 
 * Setting up uni-directional {ccr} replicated from `clusterA`
 to `clusterB`.
-* Failover. If `clusterA` goes offline, `clusterB` needs to "promote" follower
+* Failover - If `clusterA` goes offline, `clusterB` needs to "promote" follower
 indices to regular indices to allow write operations. All ingestion will need to
 be redirected to `clusterB`, this is controlled by the clients ({ls}, {beats},
 {agents}, etc). 
-* Failback. When `clusterA` is back online, it assumes the role of a follower
+* Failback - When `clusterA` is back online, it assumes the role of a follower
 and replicates the leader indices from `clusterB`.
 
 image::images/ccr-uni-directional-disaster-recovery.png[Uni-directional cross cluster replication failover and failback]
@@ -73,7 +71,6 @@ PUT _cluster/settings
 // TEST[s/clustera.es.australia-southeast1.gcp.elastic-cloud.com:9400/\${transport_host}/]
 // TEST[s/clusterA/remote_cluster/]
 
-+
 [source,console]
 ----
 ### On clusterB ###
@@ -158,7 +155,7 @@ PUT _cluster/settings
 // TEST[s/clusterb.es.australia-southeast1.gcp.elastic-cloud.com:9400/\${transport_host}/]
 // TEST[s/clusterB/remote_cluster/]
 
-. Existing data need to be discarded before you can turn any index into a
+. Existing data needs to be discarded before you can turn any index into a
 follower. Ensure the most up-to-date data is available on `clusterB` prior to
 deleting any indices on `clusterA`.  
 +

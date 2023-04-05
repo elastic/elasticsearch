@@ -336,7 +336,7 @@ public class CoordinationMetadata implements Writeable, ToXContentFragment {
         }
 
         public VotingConfiguration(StreamInput in) throws IOException {
-            nodeIds = Set.copyOf(in.readStringList());
+            nodeIds = Set.of(in.readStringArray());
         }
 
         @Override

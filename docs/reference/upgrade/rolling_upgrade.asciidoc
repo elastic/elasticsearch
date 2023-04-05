@@ -17,7 +17,8 @@ configured with `node.master: false`.
 Complete the upgrade for all nodes in each data tier before moving to the next.
 Upgrade the frozen tier, then the cold tier, then the warm tier, and upgrade
 the hot tier last. This ensures {ilm-init} can continue to move data through
-the tiers during the upgrade.
+the tiers during the upgrade. You can get the list of nodes in a specific tier
+with a `GET /_nodes` request, for example: `GET /_nodes/data_frozen:true/_none`.
 
 . Upgrade the master-eligible nodes last. You can retrieve a list
 of these nodes with `GET /_nodes/master:true`.

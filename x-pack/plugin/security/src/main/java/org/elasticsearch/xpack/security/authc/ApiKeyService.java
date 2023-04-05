@@ -53,7 +53,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -127,7 +126,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -304,7 +302,7 @@ public class ApiKeyService {
             if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
-                    new IllegalStateException(
+                    new IllegalArgumentException(
                         "all nodes must have version ["
                             + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
                             + "] or higher to support remote indices privileges for API keys"
@@ -414,7 +412,7 @@ public class ApiKeyService {
         if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
-                new IllegalStateException(
+                new IllegalArgumentException(
                     "all nodes must have version ["
                         + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
                         + "] or higher to support remote indices privileges for API keys"
@@ -1038,7 +1036,7 @@ public class ApiKeyService {
 
     // pkg private for testing
     CachedApiKeyHashResult getFromCache(String id) {
-        return apiKeyAuthCache == null ? null : FutureUtils.get(apiKeyAuthCache.get(id), 0L, TimeUnit.MILLISECONDS);
+        return apiKeyAuthCache == null ? null : apiKeyAuthCache.get(id).result();
     }
 
     // pkg private for testing
@@ -1878,7 +1876,7 @@ public class ApiKeyService {
      * @return realm name
      */
     public static String getCreatorRealmName(final Authentication authentication) {
-        if (authentication.isApiKey()) {
+        if (authentication.isApiKey() || authentication.isCrossClusterAccess()) {
             return (String) authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
         } else {
             // TODO we should use the effective subject realm here but need to handle the failed lookup scenario, in which the realm may be

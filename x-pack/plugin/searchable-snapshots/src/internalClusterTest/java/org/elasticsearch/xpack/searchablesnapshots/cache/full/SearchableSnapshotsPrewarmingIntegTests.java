@@ -30,7 +30,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -93,7 +93,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
     protected Settings nodeSettings() {
         return Settings.builder()
             .put(super.nodeSettings())
-            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .put(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_SETTING + ".max", randomIntBetween(1, 32))
             .put(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_SETTING + ".keep_alive", "1s")
             .put(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_SETTING + ".max", randomIntBetween(1, 32))

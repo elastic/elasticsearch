@@ -99,6 +99,9 @@ import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
+import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
+import org.elasticsearch.cluster.coordination.Reconfigurator;
+import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -268,7 +271,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo")
             );
             deterministicTaskQueue.runAllRunnableTasks();
-            assertNull(future.actionGet(0));
+            assertNull(future.result());
         } finally {
             testClusterNodes.nodes.values().forEach(TestClusterNodes.TestClusterNode::stop);
         }
@@ -2190,7 +2193,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     rerouteService,
                     ElectionStrategy.DEFAULT_INSTANCE,
                     () -> new StatusInfo(HEALTHY, "healthy-info"),
-                    new NoneCircuitBreakerService()
+                    new NoneCircuitBreakerService(),
+                    new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings()),
+                    LeaderHeartbeatService.NO_OP,
+                    StatefulPreVoteCollector::new
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

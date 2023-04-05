@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.sql;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireTestCase;
@@ -23,13 +22,11 @@ public abstract class AbstractSqlWireSerializingTestCase<T extends Writeable> ex
 
     @Override
     protected T copyInstance(T instance, TransportVersion version) throws IOException {
-        Version nodeVersion = Version.fromId(version.id);
-
         ZoneId zoneId = instanceZoneId(instance);
-        SqlStreamOutput out = SqlStreamOutput.create(nodeVersion, zoneId);
+        SqlStreamOutput out = SqlStreamOutput.create(version, zoneId);
         instance.writeTo(out);
         out.close();
-        try (SqlStreamInput in = SqlStreamInput.fromString(out.streamAsString(), getNamedWriteableRegistry(), nodeVersion)) {
+        try (SqlStreamInput in = SqlStreamInput.fromString(out.streamAsString(), getNamedWriteableRegistry(), version)) {
             return instanceReader().read(in);
         }
     }

@@ -9,7 +9,6 @@ package org.elasticsearch.search.geo;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -254,9 +253,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
 
         try {
             // Execute with search.allow_expensive_queries to false
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", false));
 
             SearchRequestBuilder builder = client().prepareSearch("test")
                 .setQuery(queryBuilder().shapeQuery("shape", new Circle(0, 0, 77000)));
@@ -272,20 +269,14 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
             }
 
             // Set search.allow_expensive_queries to "null"
-            updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
             assertThat(builder.get().getHits().getTotalHits().value, equalTo(1L));
 
             // Set search.allow_expensive_queries to "true"
-            updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", true));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", true));
             assertThat(builder.get().getHits().getTotalHits().value, equalTo(1L));
         } finally {
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
         }
     }
 

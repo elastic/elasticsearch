@@ -161,7 +161,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             );
             verify(ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation, emptyShardsSize());
             // verify empty tier (no cold nodes) are always assumed a storage reason.
-            SortedSet<ShardId> unassignedShardIds = StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
+            SortedSet<ShardId> unassignedShardIds = state.getRoutingNodes()
+                .unassigned()
+                .stream()
                 .map(ShardRouting::shardId)
                 .collect(Collectors.toCollection(TreeSet::new));
             verify(
@@ -216,9 +218,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         do {
             startRandomShards();
             // all of the relevant replicas are assigned too.
-        } while (StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
-            .map(ShardRouting::shardId)
-            .anyMatch(warmShards::contains));
+        } while (state.getRoutingNodes().unassigned().stream().map(ShardRouting::shardId).anyMatch(warmShards::contains));
 
         // relocate warm shards to warm nodes and start them
         withRoutingAllocation(
@@ -454,7 +454,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         RoutingAllocation allocation = createRoutingAllocation(state, deciders);
         // There could be duplicated of shard ids, and numOfShards is calculated based on them,
         // so we can't just collect to the shard ids to `TreeSet`
-        List<ShardId> allocatableShards = StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
+        List<ShardId> allocatableShards = state.getRoutingNodes()
+            .unassigned()
+            .stream()
             .filter(shard -> subjectShards.contains(shard.shardId()))
             .filter(
                 shard -> allocation.routingNodes().stream().anyMatch(node -> deciders.canAllocate(shard, node, allocation) != Decision.NO)

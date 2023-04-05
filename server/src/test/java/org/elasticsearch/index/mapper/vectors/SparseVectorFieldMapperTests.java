@@ -15,6 +15,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -110,8 +111,8 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
         );
 
-        MapperParsingException indexException = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException indexException = expectThrows(
+            DocumentParsingException.class,
             () -> mapper.parse(new SourceToParse("id", source, XContentType.JSON))
         );
         assertThat(indexException.getCause().getMessage(), containsString(SparseVectorFieldMapper.ERROR_MESSAGE));

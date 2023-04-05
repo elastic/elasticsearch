@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -16,7 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.Booleans;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -27,8 +26,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -40,33 +37,11 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         "cluster.dlm.default.rollover",
         "max_age=7d,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000",
         (s) -> RolloverConditions.parseSetting(s, "cluster.dlm.default.rollover"),
-        new RolloverConditionsValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    /**
-     * We require the default rollover conditions to have min_docs set to a non-negative number to avoid empty indices
-     * and to have at least one MAX condition set to ensure that the rollover will be triggered.
-     */
-    static class RolloverConditionsValidator implements Setting.Validator<RolloverConditions> {
-
-        @Override
-        public void validate(RolloverConditions value) {
-            List<String> errors = new ArrayList<>(2);
-            if (value.getMinDocs() == null && value.getMinPrimaryShardDocs() == null) {
-                errors.add("Either min_docs or min_primary_shard_docs rollover conditions should be set and greater than 0.");
-            }
-            if (value.hasMaxConditions() == false) {
-                errors.add("At least one max_* rollover condition must be set.");
-            }
-            if (errors.isEmpty() == false) {
-                throw new IllegalArgumentException(String.join(" ", errors));
-            }
-        }
-    }
-
-    private static final boolean FEATURE_FLAG_ENABLED;
+    private static final FeatureFlag DLM_FEATURE_FLAG = new FeatureFlag("dlm");
 
     public static final DataLifecycle EMPTY = new DataLifecycle();
     public static final String DLM_ORIGIN = "data_lifecycle";
@@ -81,11 +56,6 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     );
 
     static {
-        final String property = System.getProperty("es.dlm_feature_flag_enabled");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.dlm_feature_flag_enabled is only supported in non-snapshot builds");
-        }
-        FEATURE_FLAG_ENABLED = Booleans.parseBoolean(property, false);
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DATA_RETENTION_FIELD.getPreferredName()),
@@ -95,7 +65,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     public static boolean isEnabled() {
-        return Build.CURRENT.isSnapshot() || FEATURE_FLAG_ENABLED;
+        return DLM_FEATURE_FLAG.isEnabled();
     }
 
     @Nullable

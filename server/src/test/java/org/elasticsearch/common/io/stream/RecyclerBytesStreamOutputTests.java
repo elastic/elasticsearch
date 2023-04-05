@@ -1002,4 +1002,12 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
             assertThat(pagesAllocated.get(), equalTo(0L));
         }
     }
+
+    public void testSeekToPageBoundary() {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        out.seek(PageCacheRecycler.BYTE_PAGE_SIZE);
+        byte b = randomByte();
+        out.writeByte(b);
+        assertEquals(b, out.bytes().get(PageCacheRecycler.BYTE_PAGE_SIZE));
+    }
 }

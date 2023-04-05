@@ -245,7 +245,7 @@ public class AuthenticationTestHelper {
         RoleDescriptorsIntersection roleDescriptorsIntersection
     ) {
         try {
-            final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject(false);
+            final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject();
             return new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsIntersection);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -260,12 +260,8 @@ public class AuthenticationTestHelper {
         );
     }
 
-    private static Authentication randomCrossClusterAccessSupportedAuthenticationSubject(boolean allowInternalUser) {
-        final Set<String> allowedTypes = new HashSet<>(Set.of("realm", "apikey"));
-        if (allowInternalUser) {
-            allowedTypes.add("internal");
-        }
-        final String type = ESTestCase.randomFrom(allowedTypes.toArray(new String[0]));
+    private static Authentication randomCrossClusterAccessSupportedAuthenticationSubject() {
+        final String type = ESTestCase.randomFrom("realm", "apikey", "internal");
         return switch (type) {
             case "realm" -> AuthenticationTestHelper.builder().realm().build();
             case "apikey" -> AuthenticationTestHelper.builder().apiKey().build();
@@ -275,11 +271,7 @@ public class AuthenticationTestHelper {
     }
 
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo() {
-        return randomCrossClusterAccessSubjectInfo(true);
-    }
-
-    public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(boolean allowInternalUser) {
-        final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject(allowInternalUser);
+        final Authentication authentication = randomCrossClusterAccessSupportedAuthenticationSubject();
         return randomCrossClusterAccessSubjectInfo(authentication);
     }
 

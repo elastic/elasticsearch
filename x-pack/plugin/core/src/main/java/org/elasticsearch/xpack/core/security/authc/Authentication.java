@@ -286,24 +286,18 @@ public final class Authentication implements ToXContentObject {
     /**
      * Creates a copy of this Authentication instance, but only with metadata entries specified by `fieldsToKeep`.
      * All other entries are removed from the copy's metadata.
-     *
-     * If the instance's metadata already conforms to the specified fields, no copy is performed and this instance is returned.
      */
-    public Authentication maybeCopyWithFilteredMetadataFields(final Set<String> fieldsToKeep) {
+    public Authentication copyWithFilteredMetadataFields(final Set<String> fieldsToKeep) {
         Objects.requireNonNull(fieldsToKeep);
         final Map<String, Object> metadataCopy = new HashMap<>(getAuthenticatingSubject().getMetadata());
-        final boolean isNoop = false == metadataCopy.keySet().retainAll(fieldsToKeep);
-        // If no keys were removed, no need to copy authentication instance
-        if (isNoop) {
-            return this;
-        }
-        logger.trace(
-            () -> Strings.format(
-                "Authentication metadata [%s] contains fields other than [%s]. These will be removed in the copy.",
+        final boolean metadataChanged = metadataCopy.keySet().retainAll(fieldsToKeep);
+        if (metadataChanged && logger.isTraceEnabled()) {
+            logger.trace(
+                "Authentication metadata [{}] contains fields other than [{}]. These will be removed in the copy.",
                 getAuthenticatingSubject().getMetadata().keySet(),
                 fieldsToKeep
-            )
-        );
+            );
+        }
         return isRunAs()
             ? new Authentication(
                 effectiveSubject,

@@ -887,7 +887,6 @@ public class RoleDescriptorTests extends ESTestCase {
                 .hasPrivilegesOtherThanIndex(),
             is(false)
         );
-
         final RoleDescriptor roleDescriptor = randomRoleDescriptor();
         final boolean expected = roleDescriptor.hasClusterPrivileges()
             || roleDescriptor.hasConfigurableClusterPrivileges()

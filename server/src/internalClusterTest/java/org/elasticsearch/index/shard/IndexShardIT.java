@@ -141,11 +141,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         final LockObtainFailedException exception = expectThrows(
             LockObtainFailedException.class,
-            () -> env.deleteShardDirectoryUnderLock(
-                sLock,
-                indexSettings,
-                indexPaths -> { assert false : "should not be called " + indexPaths; }
-            )
+            () -> env.deleteShardDirectoryUnderLock(sLock, indexSettings, indexPaths -> {
+                assert false : "should not be called " + indexPaths;
+            })
         );
         assertThat(exception.getMessage(), exception.getMessage(), containsString("unable to acquire write.lock"));
     }

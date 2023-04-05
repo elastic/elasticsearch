@@ -174,6 +174,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         if (XPackSettings.SECURITY_ENABLED.get(nodeSettings)) {
             TransformPrivilegeChecker.checkPrivileges(
                 "preview",
+                nodeSettings,
                 securityContext,
                 indexNameExpressionResolver,
                 clusterState,
@@ -184,7 +185,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 DUMMY_DEST_INDEX_FOR_PREVIEW.equals(config.getDestination().getIndex()) == false,
                 checkPrivilegesListener
             );
-        } else { // No security enabled, just create the transform
+        } else { // No security enabled, just move on
             checkPrivilegesListener.onResponse(null);
         }
     }

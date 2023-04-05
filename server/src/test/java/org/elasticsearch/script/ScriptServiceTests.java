@@ -436,10 +436,9 @@ public class ScriptServiceTests extends ESTestCase {
         assertNull(scriptMetadata.getStoredScript("_id"));
 
         ScriptMetadata errorMetadata = scriptMetadata;
-        ResourceNotFoundException e = expectThrows(
-            ResourceNotFoundException.class,
-            () -> { ScriptMetadata.deleteStoredScript(errorMetadata, "_id"); }
-        );
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> {
+            ScriptMetadata.deleteStoredScript(errorMetadata, "_id");
+        });
         assertEquals("stored script [_id] does not exist and cannot be deleted", e.getMessage());
     }
 
@@ -465,24 +464,17 @@ public class ScriptServiceTests extends ESTestCase {
     public void testMaxSizeLimit() throws Exception {
         buildScriptService(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 4).build());
         scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> {
-                scriptService.compile(
-                    new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()),
-                    randomFrom(contexts.values())
-                );
-            }
-        );
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
+            scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
+        });
         assertEquals("exceeded max allowed inline script size in bytes [4] with size [5] for script [10+10]", iae.getMessage());
         clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 6).build());
         scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
         clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 5).build());
         scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
-        iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> { clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 2).build()); }
-        );
+        iae = expectThrows(IllegalArgumentException.class, () -> {
+            clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 2).build());
+        });
         assertEquals(
             "script.max_size_in_bytes cannot be set to [2], stored script [test1] exceeds the new value with a size of [3]",
             iae.getMessage()
@@ -593,10 +585,9 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertEquals(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(s), ScriptService.USE_CONTEXT_RATE_VALUE);
 
-        IllegalArgumentException illegal = expectThrows(
-            IllegalArgumentException.class,
-            () -> { ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getAsMap(s); }
-        );
+        IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
+            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getAsMap(s);
+        });
 
         assertEquals("parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [use-context]", illegal.getMessage());
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { contextMaxCompilationRate });

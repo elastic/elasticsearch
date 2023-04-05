@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
@@ -85,6 +86,7 @@ public class CodecTests extends ESTestCase {
             MapperPlugin.NOOP_FIELD_FILTER
         );
         MapperService service = new MapperService(
+            () -> TransportVersion.CURRENT,
             settings,
             indexAnalyzers,
             parserConfig(),

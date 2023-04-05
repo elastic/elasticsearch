@@ -318,7 +318,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         public SyntheticSourceExample example(int maxValues) {
             if (randomBoolean()) {
                 Tuple<Object, Object> v = generateValue();
-                if (v.v2()instanceof InetAddress a) {
+                if (v.v2() instanceof InetAddress a) {
                     return new SyntheticSourceExample(v.v1(), NetworkAddress.format(a), this::mapping);
                 }
                 return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);

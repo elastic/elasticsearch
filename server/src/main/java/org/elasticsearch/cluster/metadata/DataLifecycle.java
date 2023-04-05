@@ -49,7 +49,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     private static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
     private static final ParseField ROLLOVER_FIELD = new ParseField("rollover");
 
-    private static final ConstructingObjectParser<DataLifecycle, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DataLifecycle, Void> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
         false,
         (args, unused) -> new DataLifecycle((TimeValue) args[0])

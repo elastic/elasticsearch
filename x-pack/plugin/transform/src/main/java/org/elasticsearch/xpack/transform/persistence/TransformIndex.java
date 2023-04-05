@@ -110,7 +110,9 @@ public final class TransformIndex {
             client,
             CreateIndexAction.INSTANCE,
             request,
-            ActionListener.wrap(createIndexResponse -> { listener.onResponse(true); }, e -> {
+            ActionListener.wrap(createIndexResponse -> {
+                listener.onResponse(true);
+            }, e -> {
                 String message = TransformMessages.getMessage(
                     TransformMessages.FAILED_TO_CREATE_DESTINATION_INDEX,
                     transformConfig.getDestination().getIndex(),

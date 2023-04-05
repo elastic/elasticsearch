@@ -29,7 +29,7 @@ import java.util.stream.IntStream;
 public class CompositeIndexEventListenerTests extends IndexShardTestCase {
 
     private Exception getRootCause(Exception e) {
-        while (e.getCause()instanceof Exception ee) {
+        while (e.getCause() instanceof Exception ee) {
             e = ee;
         }
         if (e.getCause() != null) {

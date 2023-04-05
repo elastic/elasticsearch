@@ -1,0 +1,33 @@
+{
+  "phases": {
+    "hot": {
+      "actions": {
+        "rollover": {
+          "max_age": "30d",
+          "max_size": "3GB"
+        }
+      }
+    },
+    "warm": {
+      "min_age": "2d",
+      "actions": {
+        "shrink": {
+          "number_of_shards": 1
+        },
+        "forcemerge": {
+          "max_num_segments": 1
+        }
+      }
+    },
+    "delete": {
+      "min_age": "180d",
+      "actions":{
+        "delete": {}
+      }
+    }
+  },
+  "_meta": {
+    "description": "Built-in policy applied by default to behavioral analytics event data streams.",
+    "managed": true
+  }
+}

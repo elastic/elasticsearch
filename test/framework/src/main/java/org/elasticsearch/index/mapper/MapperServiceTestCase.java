@@ -208,7 +208,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             parserConfig(),
             similarityService,
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
             this::compileScript
         );

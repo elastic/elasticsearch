@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.search;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationA
 import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction.Request;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -44,14 +46,15 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
     static {
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> Script.parse(p, Script.DEFAULT_TEMPLATE_LANG), TEMPLATE_SCRIPT_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            return new TemplateParamValidator(builder.copyCurrentStructure(p));
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                return new TemplateParamValidator(builder.copyCurrentStructure(p));
+            }
         }, DICTIONARY_FIELD);
     }
 
     private final TemplateParamValidator templateParamValidator;
 
-    public SearchApplicationTemplate(StreamInput in) throws IOException {
+    public SearchApplicationTemplate(StreamInput in) throws IOException, ValidationException {
         this.script = in.readOptionalWriteable(Script::new);
         this.templateParamValidator = in.readOptionalWriteable(TemplateParamValidator::new);
     }
@@ -90,6 +93,18 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
         out.writeOptionalWriteable(templateParamValidator);
     }
 
+    public static SearchApplicationTemplate parse(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    static {
+        PARSER.declareObject(
+            optionalConstructorArg(),
+            (p, c) -> Script.parse(p, Script.DEFAULT_TEMPLATE_LANG),
+            SearchApplication.TEMPLATE_SCRIPT_FIELD
+        );
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(script, templateParamValidator);
@@ -101,6 +116,12 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         SearchApplicationTemplate template = (SearchApplicationTemplate) o;
         return Objects.equals(script, template.script) && Objects.equals(templateParamValidator, template.templateParamValidator);
+    }
+
+    public void validateTemplateParams(Map<String, Object> templateParams) throws ValidationException {
+        if (templateParamValidator != null) {
+            templateParamValidator.validate(templateParams);
+        }
     }
 
     public Script script() {

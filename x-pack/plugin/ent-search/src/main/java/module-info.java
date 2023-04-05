@@ -6,6 +6,9 @@
  */
 
 module org.elasticsearch.application {
+    requires com.fasterxml.jackson.core;
+    requires com.fasterxml.jackson.databind;
+    requires com.fasterxml.jackson.annotation;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
 
@@ -15,6 +18,7 @@ module org.elasticsearch.application {
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;
+    requires json.schema.validator;
 
     exports org.elasticsearch.xpack.application.analytics;
     exports org.elasticsearch.xpack.application.analytics.action;

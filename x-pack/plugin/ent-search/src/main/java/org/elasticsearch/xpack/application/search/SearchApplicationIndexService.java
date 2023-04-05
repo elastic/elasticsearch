@@ -33,6 +33,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -186,24 +187,11 @@ public class SearchApplicationIndexService {
         }
     }
 
-    /**
-     * Gets the {@link SearchApplication} from the index if present, or delegate a {@link ResourceNotFoundException} failure to the provided
-     * listener if not.
-     *
-     * @param resourceName The resource name.
-     * @param listener The action listener to invoke on response/failure.
-     */
-    public void getSearchApplication(String resourceName, ActionListener<SearchApplication> listener) {
-        final GetRequest getRequest = new GetRequest(SEARCH_APPLICATION_ALIAS_NAME).id(resourceName).realtime(true);
-        clientWithOrigin.get(getRequest, new DelegatingIndexNotFoundActionListener<>(resourceName, listener, (l, getResponse) -> {
-            if (getResponse.isExists() == false) {
-                l.onFailure(new ResourceNotFoundException(resourceName));
-                return;
-            }
-            final BytesReference source = getResponse.getSourceInternal();
-            final SearchApplication res = parseSearchApplicationBinaryFromSource(source);
-            l.onResponse(res);
-        }));
+    static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in) throws IOException, ValidationException {
+        TransportVersion version = TransportVersion.readVersion(in);
+        assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
+        in.setTransportVersion(version);
+        return new SearchApplication(in);
     }
 
     private static String getSearchAliasName(SearchApplication app) {
@@ -423,6 +411,30 @@ public class SearchApplicationIndexService {
         );
     }
 
+    /**
+     * Gets the {@link SearchApplication} from the index if present, or delegate a {@link ResourceNotFoundException} failure to the provided
+     * listener if not.
+     *
+     * @param resourceName The resource name.
+     * @param listener The action listener to invoke on response/failure.
+     */
+    public void getSearchApplication(String resourceName, ActionListener<SearchApplication> listener) {
+        final GetRequest getRequest = new GetRequest(SEARCH_APPLICATION_ALIAS_NAME).id(resourceName).realtime(true);
+        clientWithOrigin.get(getRequest, new DelegatingIndexNotFoundActionListener<>(resourceName, listener, (l, getResponse) -> {
+            if (getResponse.isExists() == false) {
+                l.onFailure(new ResourceNotFoundException(resourceName));
+                return;
+            }
+            try {
+                final BytesReference source = getResponse.getSourceInternal();
+                final SearchApplication res = parseSearchApplicationBinaryFromSource(source);
+                l.onResponse(res);
+            } catch (Exception e) {
+                l.onFailure(e);
+            }
+        }));
+    }
+
     private SearchApplication parseSearchApplicationBinaryFromSource(BytesReference source) {
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
             ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser);
@@ -453,14 +465,9 @@ public class SearchApplicationIndexService {
             throw new ElasticsearchParseException("[" + SearchApplication.BINARY_CONTENT_FIELD.getPreferredName() + "] field is missing");
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
+        } catch (ValidationException e) {
+            throw new ElasticsearchParseException("Invalid Search Application: " + source.utf8ToString(), e);
         }
-    }
-
-    static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in) throws IOException {
-        TransportVersion version = TransportVersion.readVersion(in);
-        assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
-        in.setTransportVersion(version);
-        return new SearchApplication(in);
     }
 
     static void writeSearchApplicationBinaryWithVersion(SearchApplication app, OutputStream os, Version minNodeVersion) throws IOException {

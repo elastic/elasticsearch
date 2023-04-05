@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
@@ -31,6 +32,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.search.SearchApplication;
+import org.elasticsearch.xpack.application.search.SearchApplicationTemplate;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -78,10 +81,8 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
     @Override
     protected void doExecute(QuerySearchApplicationAction.Request request, ActionListener<SearchResponse> listener) {
         systemIndexService.getSearchApplication(request.name(), listener.delegateFailure((l, searchApplication) -> {
-            final Script script = searchApplication.searchApplicationTemplate().script();
-
             try {
-                final SearchSourceBuilder sourceBuilder = renderTemplate(script, mergeTemplateParams(request, script));
+                final SearchSourceBuilder sourceBuilder = renderTemplate(searchApplication, request);
                 SearchRequest searchRequest = new SearchRequest(searchApplication.indices()).source(sourceBuilder);
 
                 client.execute(
@@ -89,8 +90,8 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
                     searchRequest,
                     listener.delegateFailure((l2, searchResponse) -> l2.onResponse(searchResponse))
                 );
-            } catch (IOException e) {
-                l.onFailure(e);
+            } catch (Exception e) {
+                listener.onFailure(e);
             }
         }));
     }
@@ -102,8 +103,17 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
         return mergedTemplateParams;
     }
 
-    private SearchSourceBuilder renderTemplate(Script script, Map<String, Object> templateParams) throws IOException {
-        TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(templateParams);
+    private SearchSourceBuilder renderTemplate(SearchApplication searchApplication, QuerySearchApplicationAction.Request request)
+        throws IOException, ValidationException {
+
+        final SearchApplicationTemplate template = searchApplication.searchApplicationTemplate();
+        final Map<String, Object> queryParams = request.queryParams();
+        final Script script = template.script();
+
+        template.validateTemplateParams(queryParams);
+
+        TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT)
+            .newInstance(mergeTemplateParams(request, script));
         String requestSource = compiledTemplate.execute();
 
         XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)

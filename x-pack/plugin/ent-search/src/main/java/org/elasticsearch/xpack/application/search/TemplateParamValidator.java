@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.search;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.networknt.schema.JsonSchema;
@@ -26,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -54,16 +56,7 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
             // Create a new Schema with "properties" node based on the dictionary content
             final ObjectNode schemaJsonNode = OBJECT_MAPPER.createObjectNode();
             schemaJsonNode.set(PROPERTIES_NODE, OBJECT_MAPPER.readTree(dictionaryContent));
-            final Set<ValidationMessage> validationMessages = META_SCHEMA.validate(schemaJsonNode);
-
-            if (validationMessages.isEmpty() == false) {
-                ValidationException validationException = new ValidationException();
-                for (ValidationMessage validationMessage : validationMessages) {
-                    validationException.addValidationError(validationMessage.getMessage());
-                }
-
-                throw validationException;
-            }
+            validateWithSchema(META_SCHEMA, schemaJsonNode);
 
             this.jsonSchema = SCHEMA_FACTORY.getSchema(schemaJsonNode);
         } catch (JsonProcessingException e) {
@@ -73,6 +66,22 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
 
     public TemplateParamValidator(XContentBuilder xContentBuilder) {
         this(Strings.toString(xContentBuilder));
+    }
+
+    private static void validateWithSchema(JsonSchema jsonSchema, JsonNode jsonNode) {
+        final Set<ValidationMessage> validationMessages = jsonSchema.validate(jsonNode);
+        if (validationMessages.isEmpty() == false) {
+            ValidationException validationException = new ValidationException();
+            for (ValidationMessage message : validationMessages) {
+                validationException.addValidationError(message.getMessage());
+            }
+
+            throw validationException;
+        }
+    }
+
+    public void validate(Map<String, Object> templateParams) throws ValidationException {
+        validateWithSchema(this.jsonSchema, OBJECT_MAPPER.valueToTree(templateParams));
     }
 
     @Override

@@ -212,7 +212,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         return setting.get(Settings.EMPTY);
     }
 
-    // Updating the cluster state involves up to the following number of delays:
+    // Updating the cluster state involves the following delays:
     // 1. submit the task to the master service
     // 2. state publisher task on master
     // 3. master sends out PublishRequests to nodes
@@ -221,7 +221,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     // 6. nodes apply committed cluster state
     // 7. master receives ApplyCommitResponses
     // 8. apply committed state on master (last one to apply cluster state)
-    public static final int CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS = 8;
+    // 9. complete the publication listener back on the master service thread
+    public static final int CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS = 9;
     public static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS * DEFAULT_DELAY_VARIABILITY;
 
     private static final int ELECTION_RETRIES = 10;

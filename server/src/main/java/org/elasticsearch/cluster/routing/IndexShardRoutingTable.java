@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.ResponseCollectorService;
@@ -198,19 +199,23 @@ public class IndexShardRoutingTable {
      * its random within the active shards, and initializing shards are the last to iterate through.
      */
     public ShardIterator activeInitializingShardsRandomIt() {
-        return activeInitializingShardsIt(shuffler.nextSeed());
+        return activeInitializingShardsIt(shuffler.nextSeed(), null);
+    }
+
+    public ShardIterator activeInitializingShardsRandomIt(@Nullable Map<String, ShardSlowStart> shardSlowStartByAllocationId) {
+        return activeInitializingShardsIt(shuffler.nextSeed(), shardSlowStartByAllocationId);
     }
 
     /**
      * Returns an iterator over active and initializing shards. Making sure though that
      * its random within the active shards, and initializing shards are the last to iterate through.
      */
-    public ShardIterator activeInitializingShardsIt(int seed) {
-        if (allInitializingShards.isEmpty()) {
-            return new PlainShardIterator(shardId, shuffler.shuffle(activeShards, seed));
-        }
+    public ShardIterator activeInitializingShardsIt(int seed, @Nullable Map<String, ShardSlowStart> shardSlowStartByAllocationId) {
+        List<ShardRouting> shuffled = shuffler.shuffle(activeShards, seed);
+        Tuple<List<ShardRouting>, List<ShardRouting>> tuple = applySlowStart(shuffled, shardSlowStartByAllocationId);
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
-        ordered.addAll(shuffler.shuffle(activeShards, seed));
+        ordered.addAll(tuple.v1());
+        ordered.addAll(tuple.v2());
         ordered.addAll(allInitializingShards);
         return new PlainShardIterator(shardId, ordered);
     }
@@ -222,19 +227,25 @@ public class IndexShardRoutingTable {
      */
     public ShardIterator activeInitializingShardsRankedIt(
         @Nullable ResponseCollectorService collector,
-        @Nullable Map<String, Long> nodeSearchCounts
+        @Nullable Map<String, Long> nodeSearchCounts,
+        @Nullable Map<String, ShardSlowStart> shardSlowStartByAllocationId
     ) {
         final int seed = shuffler.nextSeed();
+        List<ShardRouting> shuffled = shuffler.shuffle(activeShards, seed);
+        Tuple<List<ShardRouting>, List<ShardRouting>> tuple = applySlowStart(shuffled, shardSlowStartByAllocationId);
+        List<ShardRouting> rankedActiveShards = rankShardsAndUpdateStats(tuple.v1(), collector, nodeSearchCounts);
+        ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        ordered.addAll(rankedActiveShards);
+        if (tuple.v2().isEmpty() == false) {
+            ordered.addAll(tuple.v2());
+            adjustStatsForSlowedShards(tuple.v2(), collector, ordered.get(0).currentNodeId());
+        }
         if (allInitializingShards.isEmpty()) {
             return new PlainShardIterator(
                 shardId,
-                rankShardsAndUpdateStats(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts)
+                ordered
             );
         }
-
-        ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
-        List<ShardRouting> rankedActiveShards = rankShardsAndUpdateStats(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts);
-        ordered.addAll(rankedActiveShards);
         List<ShardRouting> rankedInitializingShards = rankShardsAndUpdateStats(allInitializingShards, collector, nodeSearchCounts);
         ordered.addAll(rankedInitializingShards);
         return new PlainShardIterator(shardId, ordered);
@@ -314,6 +325,21 @@ public class IndexShardRoutingTable {
         }
     }
 
+    private static void adjustStatsForSlowedShards(
+        final List<ShardRouting> shards,
+        final ResponseCollectorService collector,
+        final String minNodeId
+        ) {
+        if (collector == null) {
+            return;
+        }
+        final Set<String> nodeIds = getAllNodeIds(shards);
+        nodeIds.add(minNodeId);
+        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = getNodeStats(nodeIds, collector);
+        Optional<ResponseCollectorService.ComputedNodeStats> maybeMinStats = nodeStats.get(minNodeId);
+        maybeMinStats.ifPresent(minStats -> adjustStats(collector, nodeStats, minNodeId, minStats));
+    }
+
     private static List<ShardRouting> rankShardsAndUpdateStats(
         List<ShardRouting> shards,
         final ResponseCollectorService collector,
@@ -388,6 +414,28 @@ public class IndexShardRoutingTable {
                 }
             }
         }
+    }
+
+    private Tuple<List<ShardRouting>, List<ShardRouting>> applySlowStart(
+        List<ShardRouting> activeShards,
+        @Nullable Map<String, ShardSlowStart> shardSlowStartByAllocationId
+    ) {
+        if (shardSlowStartByAllocationId == null || shardSlowStartByAllocationId.isEmpty()) {
+            return Tuple.tuple(activeShards, List.of());
+        }
+        long currentNanoTime = System.nanoTime();
+        ArrayList<ShardRouting> shards = new ArrayList<>();
+        ArrayList<ShardRouting> slowedShards = new ArrayList<>();
+        for (ShardRouting shard : activeShards) {
+            ShardSlowStart shardSlowStart = shardSlowStartByAllocationId.getOrDefault(
+                Tuple.tuple(shard.shardId(), shard.allocationId().getId()), null);
+            if (shardSlowStart != null && shardSlowStart.slowed(currentNanoTime)) {
+                slowedShards.add(shard);
+            } else {
+                shards.add(shard);
+            }
+        }
+        return Tuple.tuple(shards, slowedShards);
     }
 
     /**

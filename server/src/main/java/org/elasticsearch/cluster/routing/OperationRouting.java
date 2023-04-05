@@ -8,7 +8,9 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -18,6 +20,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.ResponseCollectorService;
@@ -25,12 +28,14 @@ import org.elasticsearch.node.ResponseCollectorService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-public class OperationRouting {
+public class OperationRouting implements ClusterStateApplier {
 
     public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING = Setting.boolSetting(
         "cluster.routing.use_adaptive_replica_selection",
@@ -42,10 +47,29 @@ public class OperationRouting {
     private boolean useAdaptiveReplicaSelection;
     private final boolean isStateless;
 
+    public static final Setting<TimeValue> SHARD_SLOW_START_DURATION_SETTING = Setting.positiveTimeSetting(
+        "index.routing.slow_start.duration",
+        TimeValue.timeValueMillis(0),
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
+    );
+
+    public static final Setting<Double> SHARD_SLOW_START_AGGRESSION_SETTING = Setting.doubleSetting(
+        "index.routing.slow_start.aggression",
+        1.0,
+        0.1,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
+    );
+
+    private final AtomicReference<Map<String, ShardSlowStart>> shardSlowStartByAllocationId;
+
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         this.isStateless = DiscoveryNode.isStateless(settings);
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
+        this.shardSlowStartByAllocationId = new AtomicReference<>();
+        this.shardSlowStartByAllocationId.set(new HashMap<>());
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
@@ -170,7 +194,7 @@ public class OperationRouting {
         @Nullable Map<String, Long> nodeCounts
     ) {
         if (preference == null || preference.isEmpty()) {
-            return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
+            return shardRoutings(indexShard, collectorService, nodeCounts);
         }
         if (preference.charAt(0) == '_') {
             Preference preferenceType = Preference.parse(preference);
@@ -197,7 +221,7 @@ public class OperationRouting {
                 }
                 // no more preference
                 if (index == -1 || index == preference.length() - 1) {
-                    return shardRoutings(indexShard, nodes, collectorService, nodeCounts);
+                    return shardRoutings(indexShard, collectorService, nodeCounts);
                 } else {
                     // update the preference and continue
                     preference = preference.substring(index + 1);
@@ -225,19 +249,18 @@ public class OperationRouting {
         }
         // if not, then use it as the index
         int routingHash = 31 * Murmur3HashFunction.hash(preference) + indexShard.shardId.hashCode();
-        return indexShard.activeInitializingShardsIt(routingHash);
+        return indexShard.activeInitializingShardsIt(routingHash, shardSlowStartByAllocationId.get());
     }
 
     private ShardIterator shardRoutings(
         IndexShardRoutingTable indexShard,
-        DiscoveryNodes nodes,
         @Nullable ResponseCollectorService collectorService,
         @Nullable Map<String, Long> nodeCounts
     ) {
         if (useAdaptiveReplicaSelection) {
-            return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts);
+            return indexShard.activeInitializingShardsRankedIt(collectorService, nodeCounts, shardSlowStartByAllocationId.get());
         } else {
-            return indexShard.activeInitializingShardsRandomIt();
+            return indexShard.activeInitializingShardsRandomIt(shardSlowStartByAllocationId.get());
         }
     }
 
@@ -260,5 +283,45 @@ public class OperationRouting {
     public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
         IndexMetadata indexMetadata = indexMetadata(clusterState, index);
         return new ShardId(indexMetadata.getIndex(), IndexRouting.fromIndexMetadata(indexMetadata).getShard(id, routing));
+    }
+
+    @Override
+    public void applyClusterState(ClusterChangedEvent event) {
+        if (event.routingTableChanged()) {
+            Map<String, ShardSlowStart> previous = shardSlowStartByAllocationId.get();
+            Map<String, ShardSlowStart> current = new HashMap<>();
+            long currentNanoTime = System.nanoTime();
+            for (Map.Entry<String, ShardSlowStart> entry : previous.entrySet()) {
+                if (entry.getValue().finished(currentNanoTime) == false) {
+                    current.put(entry.getKey(), entry.getValue());
+                }
+            }
+            for (IndexRoutingTable indexRoutingTable : event.state().getRoutingTable().indicesRouting().values()) {
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    IndexShardRoutingTable indexShard = indexRoutingTable.shard(i);
+                    for (int j=0; j < indexShard.size(); j++) {
+                        ShardRouting shard = indexShard.shard(j);
+                        if (shard.started()) {
+                            ShardRouting prev = event.previousState().getRoutingTable()
+                                .getByAllocationId(shard.shardId(), shard.allocationId().getId());
+                            if (prev == null || prev.initializing()) {
+                                IndexMetadata metadata = indexMetadata(event.state(), shard.index().getName());
+                                if (SHARD_SLOW_START_DURATION_SETTING.get(metadata.getSettings()).nanos() > 0) {
+                                    current.put(
+                                        shard.allocationId().getId(),
+                                        new ShardSlowStart(
+                                            System.nanoTime(),
+                                            SHARD_SLOW_START_DURATION_SETTING.get(metadata.getSettings()).nanos(),
+                                            SHARD_SLOW_START_AGGRESSION_SETTING.get(metadata.getSettings())
+                                        )
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            shardSlowStartByAllocationId.set(current);
+        }
     }
 }

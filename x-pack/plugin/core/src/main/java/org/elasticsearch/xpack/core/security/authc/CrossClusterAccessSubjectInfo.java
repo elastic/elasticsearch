@@ -87,13 +87,17 @@ public final class CrossClusterAccessSubjectInfo {
     public CrossClusterAccessSubjectInfo cleanWithValidation() {
         // Need to do this first, since otherwise `copyWithFilteredMetadataFields` may fail with a confusing error message for unsupported
         // types
-        ensureSupportedSubjectType();
-        final var cleanCopy = new CrossClusterAccessSubjectInfo(
-            authentication.copyWithFilteredMetadataFields(AUTHENTICATION_METADATA_FIELDS_TO_KEEP),
-            roleDescriptorsBytesList
+        ensureSupportedAuthenticationSubjectType();
+        final Authentication authenticationWithCleanMetadata = authentication.maybeCopyWithFilteredMetadataFields(
+            AUTHENTICATION_METADATA_FIELDS_TO_KEEP
         );
-        cleanCopy.validate();
-        return cleanCopy;
+        final boolean isNoop = authentication == authenticationWithCleanMetadata;
+        // If nothing changed, no need to copy
+        final var maybeNewSubjectInfo = isNoop
+            ? this
+            : new CrossClusterAccessSubjectInfo(authenticationWithCleanMetadata, roleDescriptorsBytesList);
+        maybeNewSubjectInfo.validate();
+        return maybeNewSubjectInfo;
     }
 
     public List<RoleDescriptorsBytes> getRoleDescriptorsBytesList() {
@@ -178,7 +182,7 @@ public final class CrossClusterAccessSubjectInfo {
         return Collections.unmodifiableMap(copy);
     }
 
-    private void ensureSupportedSubjectType() {
+    private void ensureSupportedAuthenticationSubjectType() {
         final Subject effectiveSubject = authentication.getEffectiveSubject();
         if (false == effectiveSubject.getType().equals(Subject.Type.USER)
             && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)
@@ -194,7 +198,7 @@ public final class CrossClusterAccessSubjectInfo {
     }
 
     private void validate() {
-        ensureSupportedSubjectType();
+        ensureSupportedAuthenticationSubjectType();
         authentication.checkConsistency();
         final User user = authentication.getEffectiveSubject().getUser();
         if (CrossClusterAccessUser.is(user)) {

@@ -945,7 +945,7 @@ public class AuthenticationTests extends ESTestCase {
             AuthenticationField.API_KEY_CREATOR_REALM_NAME,
             "field_to_keep"
         );
-        final Map<String, Object> actualMetadata = authentication.copyWithFilteredMetadataFields(fieldsToKeep)
+        final Map<String, Object> actualMetadata = authentication.maybeCopyWithFilteredMetadataFields(fieldsToKeep)
             .getAuthenticatingSubject()
             .getMetadata();
 

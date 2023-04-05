@@ -287,18 +287,10 @@ public final class Authentication implements ToXContentObject {
      * Creates a copy of this Authentication instance, but only with metadata entries specified by `fieldsToKeep`.
      * All other entries are removed from the copy's metadata.
      *
-     * If the instance's metadata already conforms to the specified field-set, no copy is performed.
+     * If the instance's metadata already conforms to the specified fields, no copy is performed and this instance is returned.
      */
-    public Authentication copyWithFilteredMetadataFields(final Set<String> fieldsToKeep) {
+    public Authentication maybeCopyWithFilteredMetadataFields(final Set<String> fieldsToKeep) {
         Objects.requireNonNull(fieldsToKeep);
-        // Ensure that we don't attempt to remove required reserved fields
-        assert false == isApiKey() || fieldsToKeep.contains(AuthenticationField.API_KEY_ID_KEY)
-            : "API key authentication metadata requires this";
-        assert false == isServiceAccount()
-            || (fieldsToKeep.contains(ServiceAccountSettings.TOKEN_NAME_FIELD)
-                && fieldsToKeep.contains(ServiceAccountSettings.TOKEN_SOURCE_FIELD))
-            : "Service account authentication metadata requires this";
-
         final Map<String, Object> metadataCopy = new HashMap<>(getAuthenticatingSubject().getMetadata());
         final boolean isNoop = false == metadataCopy.keySet().retainAll(fieldsToKeep);
         // If no keys were removed, no need to copy authentication instance
@@ -307,8 +299,8 @@ public final class Authentication implements ToXContentObject {
         }
         logger.trace(
             () -> Strings.format(
-                "Authentication metadata [%s] contained fields other than [%s]. These were removed.",
-                getAuthenticatingSubject().getMetadata(),
+                "Authentication metadata [%s] contains fields other than [%s]. These will be removed in the copy.",
+                getAuthenticatingSubject().getMetadata().keySet(),
                 fieldsToKeep
             )
         );

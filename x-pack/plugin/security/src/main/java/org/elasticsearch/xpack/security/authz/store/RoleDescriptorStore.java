@@ -163,14 +163,6 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         listener.onResponse(rolesRetrievalResult);
     }
 
-    private static boolean hasPrivilegesOtherThanIndex(RoleDescriptor roleDescriptor) {
-        return roleDescriptor.hasClusterPrivileges()
-            || roleDescriptor.hasConfigurableClusterPrivileges()
-            || roleDescriptor.hasApplicationPrivileges()
-            || roleDescriptor.hasRunAs()
-            || roleDescriptor.hasRemoteIndicesPrivileges();
-    }
-
     private void resolveRoleNames(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {
         roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
             logDeprecatedRoles(rolesRetrievalResult.getRoleDescriptors());

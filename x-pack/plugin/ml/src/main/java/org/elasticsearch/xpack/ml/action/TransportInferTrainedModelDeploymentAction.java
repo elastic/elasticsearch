@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.deployment.NlpInferenceInput;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
-import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -42,8 +41,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
     public TransportInferTrainedModelDeploymentAction(
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters,
-        TrainedModelProvider provider
+        ActionFilters actionFilters
     ) {
         super(
             InferTrainedModelDeploymentAction.NAME,
@@ -72,7 +70,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             throw new ElasticsearchStatusException(
                 "Unable to find deployment task for model [{}] please stop and start the deployment or try again momentarily",
                 RestStatus.NOT_FOUND,
-                request.getModelId()
+                request.getId()
             );
         } else {
             assert tasks.size() == 1;

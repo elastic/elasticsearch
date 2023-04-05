@@ -387,3 +387,56 @@ setup:
         model_id: test_model
         include: definition_status
   - match: { trained_model_configs.0.fully_defined: true }
+
+---
+"Test start and stop multiple deployments":
+  - skip:
+      features: allowed_warnings
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        deployment_id: test_model_for_search
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+  - match: {assignment.task_parameters.model_id: test_model}
+  - match: {assignment.task_parameters.deployment_id: test_model_for_search}
+  - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: "test_model_for_search"
+        body: >
+          {
+            "docs": [
+              { "input": "words" }
+            ]
+          }
+
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        deployment_id: test_model_for_ingest
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+  - match: {assignment.task_parameters.model_id: test_model}
+  - match: {assignment.task_parameters.deployment_id: test_model_for_ingest}
+  - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
+      ml.infer_trained_model:
+        model_id: "test_model_for_ingest"
+        body: >
+          {
+            "docs": [
+              { "input": "words" }
+            ]
+          }
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model_for_search
+  - match: { stopped: true }
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model_for_ingest
+  - match: { stopped: true }

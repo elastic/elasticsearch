@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -54,7 +55,7 @@ import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelActio
 import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getReferencedModelKeys;
 
 /**
- * Class for transporting stop trained model deloyment requests.
+ * Class for transporting stop trained model deployment requests.
  *
  * NOTE: this class gets routed to each individual deployment running on the nodes. This way when the request returns, we are assured
  * that the model is not running any longer on any node.
@@ -114,79 +115,64 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
 
         logger.debug(() -> format("[%s] Received request to undeploy%s", request.getId(), request.isForce() ? " (force)" : ""));
 
-        ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelsResponse -> {
-            List<TrainedModelConfig> models = getModelsResponse.getResources().results();
-            if (models.isEmpty()) {
-                listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
+        // TODO check for alias
+        // TODO model or deployment?
+        Optional<TrainedModelAssignment> maybeAssignment = TrainedModelAssignmentMetadata.assignmentForDeploymentId(
+            clusterService.state(),
+            request.getId()
+        );
+
+        if (maybeAssignment.isEmpty()) {
+            listener.onFailure(ExceptionsHelper.missingModelDeployment(request.getId()));
+            return;
+        }
+
+        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+        Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
+
+        if (request.isForce() == false) {
+            if (referencedModels.contains(request.getId())) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Cannot stop deployment [{}] as it is referenced by ingest processors; "
+                            + "use force to stop the deployment",
+                        RestStatus.CONFLICT,
+                        request.getId()
+                    )
+                );
                 return;
             }
-            if (models.size() > 1) {
-                listener.onFailure(ExceptionsHelper.badRequestException("cannot undeploy multiple models at the same time"));
+            List<String> modelAliases = getModelAliases(state, request.getId());
+            Optional<String> referencedModelAlias = modelAliases.stream().filter(referencedModels::contains).findFirst();
+            if (referencedModelAlias.isPresent()) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Cannot stop deployment [{}] as it has a model_alias [{}] that is still referenced"
+                            + " by ingest processors; use force to stop the deployment",
+                        RestStatus.CONFLICT,
+                        request.getId(),
+                        referencedModelAlias.get()
+                    )
+                );
                 return;
             }
+        }
 
-            Optional<TrainedModelAssignment> maybeAssignment = TrainedModelAssignmentMetadata.assignmentForDeploymentId(
-                clusterService.state(),
-                models.get(0).getModelId()
-            );
-
-            if (maybeAssignment.isEmpty()) {
-                listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
-                return;
-            }
-            final String modelId = models.get(0).getModelId();
-
-            IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-            Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
-
-            if (request.isForce() == false) {
-                if (referencedModels.contains(modelId)) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            "Cannot stop deployment for model [{}] as it is referenced by ingest processors; "
-                                + "use force to stop the deployment",
-                            RestStatus.CONFLICT,
-                            modelId
-                        )
-                    );
-                    return;
-                }
-                List<String> modelAliases = getModelAliases(state, modelId);
-                Optional<String> referencedModelAlias = modelAliases.stream().filter(referencedModels::contains).findFirst();
-                if (referencedModelAlias.isPresent()) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            "Cannot stop deployment for model [{}] as it has a model_alias [{}] that is still referenced"
-                                + " by ingest processors; use force to stop the deployment",
-                            RestStatus.CONFLICT,
-                            modelId,
-                            referencedModelAlias.get()
-                        )
-                    );
-                    return;
-                }
-            }
-
-            // NOTE, should only run on Master node
-            assert clusterService.localNode().isMasterNode();
-            trainedModelAssignmentClusterService.setModelAssignmentToStopping(
-                modelId,
-                ActionListener.wrap(
-                    setToStopping -> normalUndeploy(task, models.get(0).getModelId(), maybeAssignment.get(), request, listener),
-                    failure -> {
-                        if (ExceptionsHelper.unwrapCause(failure) instanceof ResourceNotFoundException) {
-                            listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
-                            return;
-                        }
-                        listener.onFailure(failure);
+        // NOTE, should only run on Master node
+        assert clusterService.localNode().isMasterNode();
+        trainedModelAssignmentClusterService.setModelAssignmentToStopping(
+            request.getId(),
+            ActionListener.wrap(
+                setToStopping -> normalUndeploy(task, request.getId(), maybeAssignment.get(), request, listener),
+                failure -> {
+                    if (ExceptionsHelper.unwrapCause(failure) instanceof ResourceNotFoundException) {
+                        listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
+                        return;
                     }
-                )
-            );
-        }, listener::onFailure);
-
-        GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(request.getId(), null, Collections.emptySet());
-        getModelRequest.setAllowNoResources(request.isAllowNoMatch());
-        client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
+                    listener.onFailure(failure);
+                }
+            )
+        );
     }
 
     private void redirectToMasterNode(

@@ -87,7 +87,7 @@ public final class DomainSplitFunction {
     static {
         try (
             var stream = DomainSplitFunction.class.getClassLoader()
-                .getResourceAsStream("org/elasticsearch/xpack/ml/transforms/exact.properties")
+                .getResourceAsStream("org/elasticsearch/xpack/ml/utils/exact.properties")
         ) {
             exact = Streams.readAllLines(stream)
                 .stream()

@@ -800,6 +800,7 @@ public class Node implements Closeable {
             final MetadataUpgrader metadataUpgrader = new MetadataUpgrader(indexTemplateMetadataUpgraders);
             final IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
                 settings,
+                clusterService,
                 xContentRegistry,
                 indicesModule.getMapperRegistry(),
                 settingsModule.getIndexScopedSettings(),

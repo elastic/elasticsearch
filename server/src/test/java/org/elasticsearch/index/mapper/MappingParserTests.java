@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -17,6 +18,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
@@ -29,10 +31,10 @@ import java.util.Map;
 public class MappingParserTests extends MapperServiceTestCase {
 
     private static MappingParser createMappingParser(Settings settings) {
-        return createMappingParser(settings, Version.CURRENT);
+        return createMappingParser(settings, Version.CURRENT, TransportVersion.CURRENT);
     }
 
-    private static MappingParser createMappingParser(Settings settings, Version version) {
+    private static MappingParser createMappingParser(Settings settings, Version version, TransportVersion transportVersion) {
         ScriptService scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
         IndexSettings indexSettings = createIndexSettings(version, settings);
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
@@ -43,6 +45,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexSettings.getIndexVersionCreated(),
+            () -> transportVersion,
             () -> {
                 throw new UnsupportedOperationException();
             },
@@ -312,21 +315,26 @@ public class MappingParserTests extends MapperServiceTestCase {
 
     public void testBlankFieldNameBefore8_6_0() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.V_8_5_0);
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersion.V_8_5_0
+        );
         {
             XContentBuilder builder = mapping(b -> b.startObject(" ").field("type", randomFieldType()).endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version);
+            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
             Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
             assertNotNull(mapping.getRoot().getMapper(" "));
         }
         {
             XContentBuilder builder = mapping(b -> b.startObject("top. .foo").field("type", randomFieldType()).endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version);
+            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
             Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
             assertNotNull(((ObjectMapper) mapping.getRoot().getMapper("top")).getMapper(" "));
         }
         {
             XContentBuilder builder = mappingNoSubobjects(b -> b.startObject(" ").field("type", "keyword").endObject());
-            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version);
+            MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);
             Mapping mapping = mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
             assertNotNull(mapping.getRoot().getMapper(" "));
         }

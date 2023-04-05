@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Req
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.NodeAttributes;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.transform.transforms.TransformHealth;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
@@ -247,7 +246,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             null,
             task.getStats(),
             checkpointingInfo == null ? TransformCheckpointingInfo.EMPTY : checkpointingInfo,
-            TransformHealthChecker.checkTransform(task)
+            TransformHealthChecker.checkTransform(task, transformState.getAuthState())
         );
     }
 
@@ -359,7 +358,11 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                                 null,
                                 stat.getTransformStats(),
                                 checkpointingInfo,
-                                TransformHealthChecker.checkUnassignedTransform(stat.getId(), clusterState)
+                                TransformHealthChecker.checkUnassignedTransform(
+                                    stat.getId(),
+                                    clusterState,
+                                    stat.getTransformState().getAuthState()
+                                )
                             )
                         );
                     } else {
@@ -371,7 +374,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                                 null,
                                 stat.getTransformStats(),
                                 checkpointingInfo,
-                                TransformHealth.GREEN
+                                TransformHealthChecker.checkTransform(stat.getTransformState().getAuthState())
                             )
                         );
                     }

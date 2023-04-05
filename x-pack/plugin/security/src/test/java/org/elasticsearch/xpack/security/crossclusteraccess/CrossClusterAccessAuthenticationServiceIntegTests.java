@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -112,33 +111,6 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                 msg -> assertThat(
                     msg,
                     equalTo("received cross cluster request from an unexpected internal user [" + internalUser.principal() + "]")
-                )
-            );
-        }
-
-        try (var ignored = threadContext.stashContext()) {
-            new CrossClusterAccessHeaders(
-                encodedCrossClusterAccessApiKey,
-                AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
-                    new RoleDescriptorsIntersection(
-                        randomValueOtherThanMany(
-                            rd -> false == (rd.hasClusterPrivileges()
-                                || rd.hasApplicationPrivileges()
-                                || rd.hasConfigurableClusterPrivileges()
-                                || rd.hasRunAs()
-                                || rd.hasRemoteIndicesPrivileges()),
-                            () -> RoleDescriptorTests.randomRoleDescriptor()
-                        )
-                    )
-                )
-            ).writeToContext(threadContext);
-            authenticateAndAssertExpectedErrorMessage(
-                service,
-                msg -> assertThat(
-                    msg,
-                    containsString(
-                        "role descriptor for cross cluster access can only contain index privileges but other privileges found for subject"
-                    )
                 )
             );
         }

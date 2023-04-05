@@ -138,11 +138,22 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         ActionListener<RolesRetrievalResult> listener
     ) {
         final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
+        for (RoleDescriptor roleDescriptor : roleDescriptors) {
+            if (hasPrivilegesOtherThanIndex(roleDescriptor)) {
+                final String message = "Role descriptor for cross cluster access can only contain index privileges "
+                    + "but other privileges found for subject ["
+                    + crossClusterAccessRoleReference.getUserPrincipal()
+                    + "]";
+                logger.debug("{}. Invalid role descriptor: [{}]", message, roleDescriptor);
+                listener.onFailure(new IllegalArgumentException(message));
+                return;
+            }
+        }
         if (roleDescriptors.isEmpty()) {
             logger.debug(
                 () -> "Cross cluster access role reference ["
                     + crossClusterAccessRoleReference.id()
-                    + "] resolved to an empty role descriptor set."
+                    + "] resolved to an empty role descriptor set"
             );
             listener.onResponse(RolesRetrievalResult.EMPTY);
             return;
@@ -150,6 +161,14 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
         listener.onResponse(rolesRetrievalResult);
+    }
+
+    private static boolean hasPrivilegesOtherThanIndex(RoleDescriptor roleDescriptor) {
+        return roleDescriptor.hasClusterPrivileges()
+            || roleDescriptor.hasConfigurableClusterPrivileges()
+            || roleDescriptor.hasApplicationPrivileges()
+            || roleDescriptor.hasRunAs()
+            || roleDescriptor.hasRemoteIndicesPrivileges();
     }
 
     private void resolveRoleNames(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {

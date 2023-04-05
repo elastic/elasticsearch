@@ -112,7 +112,7 @@ public class TransformHealthCheckerTests extends ESTestCase {
     private static void withIdStateAndContext(TransformTask task, String transformId, TransformContext context) {
         when(task.getTransformId()).thenReturn(transformId);
         when(task.getState()).thenReturn(
-            new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 0, "", null, null, false)
+            new TransformState(TransformTaskState.STARTED, IndexerState.INDEXING, null, 0, "", null, null, false, null)
         );
         when(task.getContext()).thenReturn(context);
     }

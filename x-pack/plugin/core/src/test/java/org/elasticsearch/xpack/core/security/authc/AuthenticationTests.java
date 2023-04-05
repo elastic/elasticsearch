@@ -927,7 +927,7 @@ public class AuthenticationTests extends ESTestCase {
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.V_7_17_0,
-            Authentication.VERSION_REALM_DOMAINS
+            TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
         );
         final Authentication authentication = AuthenticationTestHelper.builder()
             .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`

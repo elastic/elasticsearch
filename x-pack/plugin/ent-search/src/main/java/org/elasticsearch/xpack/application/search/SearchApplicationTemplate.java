@@ -41,9 +41,9 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
             if (MustacheScriptEngine.NAME.equals(script.getLang()) == false) {
                 throw new IllegalArgumentException("only [" + MustacheScriptEngine.NAME + "] scripting language is supported");
             }
-            if (script.getType().getId() != ScriptType.INLINE.getId()) {
-                throw new IllegalArgumentException("only [" + ScriptType.INLINE.getName() + "] script type is supported");
-            }
+        }
+        if (script != null && script.getType().getId() != ScriptType.INLINE.getId()) {
+            throw new IllegalArgumentException("only [" + ScriptType.INLINE.getName() + "] script type is supported");
         }
 
         this.script = script;

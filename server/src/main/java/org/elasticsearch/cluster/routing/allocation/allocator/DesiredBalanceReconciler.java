@@ -60,37 +60,39 @@ public class DesiredBalanceReconciler {
     }
 
     void run() {
+        try (var ignored = allocation.withReconcilingFlag()) {
 
-        logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
+            logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
 
-        if (routingNodes.size() == 0) {
-            // no data nodes, so fail allocation to report red health
-            failAllocationOfNewPrimaries(allocation);
-            logger.trace("no nodes available, nothing to reconcile");
-            return;
+            if (routingNodes.size() == 0) {
+                // no data nodes, so fail allocation to report red health
+                failAllocationOfNewPrimaries(allocation);
+                logger.trace("no nodes available, nothing to reconcile");
+                return;
+            }
+
+            if (desiredBalance.assignments().isEmpty()) {
+                // no desired state yet but it is on its way and we'll reroute again when it is ready
+                logger.trace("desired balance is empty, nothing to reconcile");
+                return;
+            }
+
+            // compute next moves towards current desired balance:
+
+            // 1. allocate unassigned shards first
+            logger.trace("Reconciler#allocateUnassigned");
+            allocateUnassigned();
+            assert allocateUnassignedInvariant();
+
+            // 2. move any shards that cannot remain where they are
+            logger.trace("Reconciler#moveShards");
+            moveShards();
+            // 3. move any other shards that are desired elsewhere
+            logger.trace("Reconciler#balance");
+            balance();
+
+            logger.debug("Reconciliation is complete");
         }
-
-        if (desiredBalance.assignments().isEmpty()) {
-            // no desired state yet but it is on its way and we'll reroute again when it is ready
-            logger.trace("desired balance is empty, nothing to reconcile");
-            return;
-        }
-
-        // compute next moves towards current desired balance:
-
-        // 1. allocate unassigned shards first
-        logger.trace("Reconciler#allocateUnassigned");
-        allocateUnassigned();
-        assert allocateUnassignedInvariant();
-
-        // 2. move any shards that cannot remain where they are
-        logger.trace("Reconciler#moveShards");
-        moveShards();
-        // 3. move any other shards that are desired elsewhere
-        logger.trace("Reconciler#balance");
-        balance();
-
-        logger.debug("Reconciliation is complete");
     }
 
     private boolean allocateUnassignedInvariant() {

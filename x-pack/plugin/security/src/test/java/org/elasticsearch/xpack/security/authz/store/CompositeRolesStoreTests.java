@@ -2515,7 +2515,25 @@ public class CompositeRolesStoreTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
         );
-        assertThat(e1.getMessage(), containsString("system user and we should never try to get its role descriptors"));
+        assertThat(
+            e1.getMessage(),
+            equalTo("the user [" + SystemUser.NAME + "] is the system user and we should never try to get its role descriptors")
+        );
+
+        final Subject subject2 = mock(Subject.class);
+        when(subject2.getUser()).thenReturn(CrossClusterAccessUser.INSTANCE);
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> compositeRolesStore.getRoleDescriptorsList(subject2, new PlainActionFuture<>())
+        );
+        assertThat(
+            e2.getMessage(),
+            equalTo(
+                "the user ["
+                    + CrossClusterAccessUser.NAME
+                    + "] is the cross cluster access user and we should never try to get its role descriptors"
+            )
+        );
 
         for (var userAndDescriptor : List.of(
             new Tuple<>(XPackUser.INSTANCE, XPackUser.ROLE_DESCRIPTOR),
@@ -2524,9 +2542,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new Tuple<>(SecurityProfileUser.INSTANCE, SecurityProfileUser.ROLE_DESCRIPTOR)
         )) {
             User internalUser = userAndDescriptor.v1();
-            when(subject.getUser()).thenReturn(internalUser);
+            when(subject2.getUser()).thenReturn(internalUser);
             final PlainActionFuture<Collection<Set<RoleDescriptor>>> future = new PlainActionFuture<>();
-            compositeRolesStore.getRoleDescriptorsList(subject, future);
+            compositeRolesStore.getRoleDescriptorsList(subject2, future);
             RoleDescriptor expectedRoleDescriptor = userAndDescriptor.v2();
             assertThat(future.actionGet(), equalTo(List.of(Set.of(expectedRoleDescriptor))));
         }

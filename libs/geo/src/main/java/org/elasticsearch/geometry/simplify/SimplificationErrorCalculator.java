@@ -8,6 +8,8 @@
 
 package org.elasticsearch.geometry.simplify;
 
+import org.apache.lucene.util.SloppyMath;
+
 import java.util.Locale;
 
 public interface SimplificationErrorCalculator {
@@ -21,13 +23,17 @@ public interface SimplificationErrorCalculator {
 
     static SimplificationErrorCalculator byName(String calculatorName) {
         return switch (calculatorName.toLowerCase(Locale.ROOT)) {
+            case "cartesiantrianglearea" -> new CartesianTriangleAreaCalculator();
             case "trianglearea" -> new TriangleAreaCalculator();
             case "frecheterror" -> new FrechetErrorCalculator();
             default -> throw new IllegalArgumentException("Unknown geometry simplification error calculator: " + calculatorName);
         };
     }
 
-    class TriangleAreaCalculator implements SimplificationErrorCalculator {
+    /**
+     * Calculate the triangle area using cartesian coordinates as described at https://en.wikipedia.org/wiki/Area_of_a_triangle
+     */
+    class CartesianTriangleAreaCalculator implements SimplificationErrorCalculator {
 
         @Override
         public double calculateError(PointLike left, PointLike middle, PointLike right) {
@@ -36,6 +42,29 @@ public interface SimplificationErrorCalculator {
             double xc = right.getX() - left.getX();
             double yc = right.getY() - left.getY();
             return 0.5 * Math.abs(xb * yc - xc * yb);
+        }
+    }
+
+    /**
+     * Calculate the triangle area using geographic coordinates and Herons formula (side lengths)
+     * as described at https://en.wikipedia.org/wiki/Area_of_a_triangle
+     */
+    class TriangleAreaCalculator implements SimplificationErrorCalculator {
+
+        @Override
+        public double calculateError(PointLike left, PointLike middle, PointLike right) {
+            // Calculate side lengths using approximate haversine
+            double a = distance(left, right);
+            double b = distance(right, middle);
+            double c = distance(middle, left);
+            // semi-perimeter
+            double s = 0.5 * ( a + b + c);  // Semi-perimeter
+            // Herons formula
+            return Math.sqrt(s * (s - a) * (s - b) * (s - c));
+        }
+
+        private double distance(PointLike a, PointLike b) {
+            return SloppyMath.haversinMeters(a.getY(), a.getX(), b.getY(), b.getX());
         }
     }
 

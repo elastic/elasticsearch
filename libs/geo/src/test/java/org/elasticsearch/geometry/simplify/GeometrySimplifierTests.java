@@ -8,10 +8,12 @@
 
 package org.elasticsearch.geometry.simplify;
 
+import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.utils.CircleUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.BufferedReader;
@@ -317,31 +319,27 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         }
     }
 
-    private Line makeCircularLine(int maxPoints, double centerX, double centerY, double radius) {
+    private Line makeCircularLine(int maxPoints, double centerX, double centerY, double radiusDegrees) {
         int length = maxPoints * 10;
+        double radiusMeters = 40000000 * radiusDegrees / 360;
+        var polygon = CircleUtils.createRegularGeoShapePolygon(new Circle(centerX, centerY, radiusMeters), length);
+        var ring = polygon.getPolygon();
         double[] x = new double[length];
         double[] y = new double[length];
         for (int i = 0; i < length; i++) {
-            x[i] = centerX + radius * Math.cos(Math.toRadians(360.0 * i / length));
-            y[i] = centerY + radius * Math.sin(Math.toRadians(360.0 * i / length));
+            x[i] = ring.getX(i);
+            y[i] = ring.getY(i);
         }
         Line line = new Line(x, y);
-        assertPointsOnCircle(centerX, centerY, radius, line);
+        assertPointsOnCircle(centerX, centerY, radiusDegrees, line);
         return line;
     }
 
-    private Polygon makeCircularPolygon(int maxPoints, double centerX, double centerY, double radius) {
+    private Polygon makeCircularPolygon(int maxPoints, double centerX, double centerY, double radiusDegrees) {
         int length = maxPoints * 10;
-        double[] x = new double[length + 1];
-        double[] y = new double[length + 1];
-        for (int i = 0; i < length; i++) {
-            x[i] = centerX + radius * Math.cos(Math.toRadians(360.0 * i / length));
-            y[i] = centerY + radius * Math.sin(Math.toRadians(360.0 * i / length));
-        }
-        x[length] = x[0];
-        y[length] = y[0];
-        Polygon polygon = new Polygon(new LinearRing(x, y));
-        assertPointsOnCircle(centerX, centerY, radius, polygon);
+        double radiusMeters = 40000000 * radiusDegrees / 360;
+        var polygon = CircleUtils.createRegularGeoShapePolygon(new Circle(centerX, centerY, radiusMeters), length);
+        assertPointsOnCircle(centerX, centerY, radiusDegrees, polygon);
         return polygon;
     }
 
@@ -440,12 +438,23 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
     }
 
     private void assertPointsOnCircle(double centerX, double centerY, double radius, double[] x, double[] y) {
+        double radiusMeters = radius * 40000000 / 360;
+        double delta = radiusMeters / 1e7;
         for (int i = 0; i < x.length; i++) {
-            double dx = x[i] - centerX;
-            double dy = y[i] - centerY;
-            double pRadius = Math.sqrt(dx * dx + dy * dy);
-            String onLine = "Expect point (" + x[i] + "," + y[i] + ") to lie on circle with radius " + radius;
-            assertThat(onLine, pRadius, closeTo(radius, 1e-10));
+            double pRadius = slowHaversin(centerY, centerX, y[i], x[i]);
+            String onLine = "Expect point (" + x[i] + "," + y[i] + ") to lie on circle with radius " + radiusMeters;
+            assertThat(onLine, pRadius, closeTo(radiusMeters, delta));
         }
+    }
+
+    // simple incorporation of the wikipedia formula
+    // Improved method implementation for better performance can be found in `SloppyMath.haversinMeters` which
+    // is included in `org.apache.lucene:lucene-core`.
+    // Do not use this method for performance critical cases
+    private static double slowHaversin(double lat1, double lon1, double lat2, double lon2) {
+        double h1 = (1 - StrictMath.cos(StrictMath.toRadians(lat2) - StrictMath.toRadians(lat1))) / 2;
+        double h2 = (1 - StrictMath.cos(StrictMath.toRadians(lon2) - StrictMath.toRadians(lon1))) / 2;
+        double h = h1 + StrictMath.cos(StrictMath.toRadians(lat1)) * StrictMath.cos(StrictMath.toRadians(lat2)) * h2;
+        return 2 * 6371008.7714 * StrictMath.asin(Math.min(1, Math.sqrt(h)));
     }
 }

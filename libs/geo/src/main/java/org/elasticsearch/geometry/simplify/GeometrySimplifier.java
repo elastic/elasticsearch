@@ -44,6 +44,7 @@ public abstract class GeometrySimplifier<T extends Geometry> {
      */
     public void reset() {
         this.length = 0;
+        this.queue.clear();
     }
 
     /**

@@ -13,6 +13,7 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-geo'
   }
+  implementation "org.apache.lucene:lucene-core:${versions.lucene}"
 }
 
 tasks.named('forbiddenApisMain').configure {

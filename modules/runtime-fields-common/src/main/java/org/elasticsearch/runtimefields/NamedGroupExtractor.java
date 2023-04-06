@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -99,17 +100,14 @@ public interface NamedGroupExtractor {
                     try {
                         // Try to collect warnings up front and refuse to compile the expression if there are any
                         List<String> warnings = new ArrayList<>();
-                        new Grok(Grok.getBuiltinPatterns(false), pattern, watchdog, warnings::add).match("__nomatch__");
+                        new Grok(GrokBuiltinPatterns.legacyPatterns(), pattern, watchdog, warnings::add).match("__nomatch__");
                         if (false == warnings.isEmpty()) {
                             throw new IllegalArgumentException("emitted warnings: " + warnings);
                         }
 
-                        return new Grok(
-                            Grok.getBuiltinPatterns(false),
-                            pattern,
-                            watchdog,
-                            w -> { throw new IllegalArgumentException("grok [" + pattern + "] emitted a warning: " + w); }
-                        );
+                        return new Grok(GrokBuiltinPatterns.legacyPatterns(), pattern, watchdog, w -> {
+                            throw new IllegalArgumentException("grok [" + pattern + "] emitted a warning: " + w);
+                        });
                     } catch (RuntimeException e) {
                         throw new IllegalArgumentException("error compiling grok pattern [" + pattern + "]: " + e.getMessage(), e);
                     }

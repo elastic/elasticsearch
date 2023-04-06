@@ -1,5 +1,5 @@
 apply plugin: 'elasticsearch.java'
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.internal-testclusters'
 
 import org.elasticsearch.gradle.testclusters.RunTask
@@ -41,7 +41,9 @@ def runTaskCluster = testClusters.register('runTask') {
 }
 
 tasks.named('javaRestTest').configure {
-  onlyIf { serviceAccountFile && BuildParams.inFipsJvm == false }
+  onlyIf("FIPS mode disabled and service accoutn file available") {
+      serviceAccountFile && BuildParams.inFipsJvm == false
+  }
 
   testLogging {
     showStandardStreams = true

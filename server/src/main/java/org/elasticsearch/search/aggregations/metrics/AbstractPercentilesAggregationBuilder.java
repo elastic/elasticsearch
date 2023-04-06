@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -146,7 +146,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         this.valuesField = valuesField;
         values = in.readDoubleArray();
         keyed = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
             percentilesConfig = (PercentilesConfig) in.readOptionalWriteable((Reader<Writeable>) PercentilesConfig::fromStream);
         } else {
             int numberOfSignificantValueDigits = in.readVInt();
@@ -165,7 +165,7 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(values);
         out.writeBoolean(keyed);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_8_0)) {
             out.writeOptionalWriteable(percentilesConfig);
         } else {
             // Legacy method serialized both SigFigs and compression, even though we only need one. So we need

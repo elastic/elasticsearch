@@ -130,6 +130,7 @@ public class DatafeedRunnerTests extends ESTestCase {
         when(datafeedJob.stop()).thenReturn(true);
         when(datafeedJob.getJobId()).thenReturn(job.getId());
         when(datafeedJob.getMaxEmptySearches()).thenReturn(null);
+        when(datafeedJob.numberOfSearchesIn24Hours()).thenReturn(24L);
         datafeedJobBuilder = mock(DatafeedJobBuilder.class);
         doAnswer(invocationOnMock -> {
             ActionListener<DatafeedJob> listener = (ActionListener<DatafeedJob>) invocationOnMock.getArguments()[2];

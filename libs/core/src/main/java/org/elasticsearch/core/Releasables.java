@@ -10,7 +10,8 @@ package org.elasticsearch.core;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** Utility methods to work with {@link Releasable}s. */
 public enum Releasables {
@@ -89,23 +90,79 @@ public enum Releasables {
      *  </pre>
      */
     public static Releasable wrap(final Iterable<Releasable> releasables) {
-        return () -> close(releasables);
+        return new Releasable() {
+            @Override
+            public void close() {
+                Releasables.close(releasables);
+            }
+
+            @Override
+            public String toString() {
+                return "wrapped[" + releasables + "]";
+            }
+        };
     }
 
     /** @see #wrap(Iterable) */
     public static Releasable wrap(final Releasable... releasables) {
-        return () -> close(releasables);
+        return new Releasable() {
+            @Override
+            public void close() {
+                Releasables.close(releasables);
+            }
+
+            @Override
+            public String toString() {
+                return "wrapped" + Arrays.toString(releasables);
+            }
+        };
     }
 
     /**
-     * Wraps a {@link Releasable} such that its {@link Releasable#close()} method can be called multiple times without double releasing.
+     * Wraps a {@link Releasable} such that its {@link Releasable#close()} method can be called multiple times without double-releasing.
      */
     public static Releasable releaseOnce(final Releasable releasable) {
-        final AtomicBoolean released = new AtomicBoolean(false);
-        return () -> {
-            if (released.compareAndSet(false, true)) {
-                releasable.close();
+        final var ref = new AtomicReference<>(releasable);
+        return new Releasable() {
+            @Override
+            public void close() {
+                final var acquired = ref.getAndSet(null);
+                if (acquired != null) {
+                    acquired.close();
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "releaseOnce[" + ref.get() + "]";
             }
         };
+    }
+
+    public static Releasable assertOnce(final Releasable delegate) {
+        if (Assertions.ENABLED) {
+            return new Releasable() {
+                // if complete, records the stack trace which first completed it
+                private final AtomicReference<Exception> firstCompletion = new AtomicReference<>();
+
+                private void assertFirstRun() {
+                    var previousRun = firstCompletion.compareAndExchange(null, new Exception(delegate.toString()));
+                    assert previousRun == null : previousRun; // reports the stack traces of both completions
+                }
+
+                @Override
+                public void close() {
+                    assertFirstRun();
+                    delegate.close();
+                }
+
+                @Override
+                public String toString() {
+                    return delegate.toString();
+                }
+            };
+        } else {
+            return delegate;
+        }
     }
 }

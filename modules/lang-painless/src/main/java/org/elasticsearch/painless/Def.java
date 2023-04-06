@@ -8,6 +8,8 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.painless.api.ValueIterator;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
@@ -24,6 +26,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -46,90 +49,6 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
  */
 public final class Def {
 
-    // TODO: Once Java has a factory for those in java.lang.invoke.MethodHandles, use it:
-
-    /** Helper class for isolating MethodHandles and methods to get the length of arrays
-     * (to emulate a "arraystore" bytecode using MethodHandles).
-     * See: https://bugs.openjdk.java.net/browse/JDK-8156915
-     */
-    @SuppressWarnings("unused") // getArrayLength() methods are are actually used, javac just does not know :)
-    private static final class ArrayLengthHelper {
-        private static final MethodHandles.Lookup PRIVATE_METHOD_HANDLES_LOOKUP = MethodHandles.lookup();
-
-        private static final Map<Class<?>, MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
-            Stream.of(
-                boolean[].class,
-                byte[].class,
-                short[].class,
-                int[].class,
-                long[].class,
-                char[].class,
-                float[].class,
-                double[].class,
-                Object[].class
-            ).collect(Collectors.toMap(Function.identity(), type -> {
-                try {
-                    return PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(
-                        PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass(),
-                        "getArrayLength",
-                        MethodType.methodType(int.class, type)
-                    );
-                } catch (ReflectiveOperationException e) {
-                    throw new AssertionError(e);
-                }
-            }))
-        );
-
-        private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
-
-        static int getArrayLength(final boolean[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final byte[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final short[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final int[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final long[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final char[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final float[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final double[] array) {
-            return array.length;
-        }
-
-        static int getArrayLength(final Object[] array) {
-            return array.length;
-        }
-
-        static MethodHandle arrayLengthGetter(Class<?> arrayType) {
-            if (arrayType.isArray() == false) {
-                throw new IllegalArgumentException("type must be an array");
-            }
-            return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType))
-                ? ARRAY_TYPE_MH_MAPPING.get(arrayType)
-                : OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
-        }
-
-        private ArrayLengthHelper() {}
-    }
-
     /** pointer to Map.get(Object) */
     private static final MethodHandle MAP_GET;
     /** pointer to Map.put(Object,Object) */
@@ -138,26 +57,29 @@ public final class Def {
     private static final MethodHandle LIST_GET;
     /** pointer to List.set(int,Object) */
     private static final MethodHandle LIST_SET;
-    /** pointer to Iterable.iterator() */
-    private static final MethodHandle ITERATOR;
+    /** pointer to new ObjectIterator(Iterable.iterator()) */
+    private static final MethodHandle OBJECT_ITERATOR;
     /** pointer to {@link Def#mapIndexNormalize}. */
     private static final MethodHandle MAP_INDEX_NORMALIZE;
     /** pointer to {@link Def#listIndexNormalize}. */
     private static final MethodHandle LIST_INDEX_NORMALIZE;
-    /** factory for arraylength MethodHandle (intrinsic) from Java 9 (pkg-private for tests) */
-    static final MethodHandle JAVA9_ARRAY_LENGTH_MH_FACTORY;
+    /** factory for arraylength MethodHandle (intrinsic) */
+    private static final MethodHandle ARRAY_LENGTH;
 
     public static final Map<Class<?>, MethodHandle> DEF_TO_BOXED_TYPE_IMPLICIT_CAST;
 
     static {
-        final MethodHandles.Lookup methodHandlesLookup = MethodHandles.publicLookup();
+        final MethodHandles.Lookup methodHandlesLookup = MethodHandles.lookup();
 
         try {
             MAP_GET = methodHandlesLookup.findVirtual(Map.class, "get", MethodType.methodType(Object.class, Object.class));
             MAP_PUT = methodHandlesLookup.findVirtual(Map.class, "put", MethodType.methodType(Object.class, Object.class, Object.class));
             LIST_GET = methodHandlesLookup.findVirtual(List.class, "get", MethodType.methodType(Object.class, int.class));
             LIST_SET = methodHandlesLookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
-            ITERATOR = methodHandlesLookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class));
+            OBJECT_ITERATOR = MethodHandles.filterReturnValue(
+                methodHandlesLookup.findVirtual(Iterable.class, "iterator", MethodType.methodType(Iterator.class)),
+                methodHandlesLookup.findConstructor(ObjectIterator.class, MethodType.methodType(void.class, Iterator.class))
+            );
             MAP_INDEX_NORMALIZE = methodHandlesLookup.findStatic(
                 Def.class,
                 "mapIndexNormalize",
@@ -168,23 +90,14 @@ public final class Def {
                 "listIndexNormalize",
                 MethodType.methodType(int.class, List.class, int.class)
             );
-        } catch (final ReflectiveOperationException roe) {
-            throw new AssertionError(roe);
-        }
-
-        // lookup up the factory for arraylength MethodHandle (intrinsic) from Java 9:
-        // https://bugs.openjdk.java.net/browse/JDK-8156915
-        MethodHandle arrayLengthMHFactory;
-        try {
-            arrayLengthMHFactory = methodHandlesLookup.findStatic(
+            ARRAY_LENGTH = methodHandlesLookup.findStatic(
                 MethodHandles.class,
                 "arrayLength",
                 MethodType.methodType(MethodHandle.class, Class.class)
             );
-        } catch (final ReflectiveOperationException roe) {
-            arrayLengthMHFactory = null;
+        } catch (ReflectiveOperationException roe) {
+            throw new AssertionError(roe);
         }
-        JAVA9_ARRAY_LENGTH_MH_FACTORY = arrayLengthMHFactory;
 
         Map<Class<?>, MethodHandle> defToBoxedTypeImplicitCast = new HashMap<>();
 
@@ -232,15 +145,11 @@ public final class Def {
 
     /** Returns an array length getter MethodHandle for the given array type */
     static MethodHandle arrayLengthGetter(Class<?> arrayType) {
-        if (JAVA9_ARRAY_LENGTH_MH_FACTORY != null) {
-            try {
-                return (MethodHandle) JAVA9_ARRAY_LENGTH_MH_FACTORY.invokeExact(arrayType);
-            } catch (Throwable t) {
-                rethrow(t);
-                throw new AssertionError(t);
-            }
-        } else {
-            return ArrayLengthHelper.arrayLengthGetter(arrayType);
+        try {
+            return (MethodHandle) ARRAY_LENGTH.invokeExact(arrayType);
+        } catch (Throwable t) {
+            rethrow(t);
+            throw new AssertionError(t);
         }
     }
 
@@ -658,9 +567,129 @@ public final class Def {
         );
     }
 
+    private static ClassCastException castException(Class<?> sourceClass, Class<?> targetClass, Boolean implicit) {
+        return new ClassCastException(
+            Strings.format(
+                "cannot %scast def [%s] to %s",
+                implicit != null ? (implicit ? "implicitly " : "explicitly ") : "",
+                PainlessLookupUtility.typeToUnboxedType(sourceClass).getCanonicalName(),
+                targetClass.getCanonicalName()
+            )
+        );
+    }
+
+    private abstract static class BaseIterator<T> implements ValueIterator<T> {
+        @Override
+        public boolean nextBoolean() {
+            Object next = next();
+            try {
+                return (boolean) next;
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), boolean.class, null);
+            }
+        }
+
+        @Override
+        public byte nextByte() {
+            Object next = next();
+            try {
+                return ((Number) next).byteValue();
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), byte.class, null);
+            }
+        }
+
+        @Override
+        public short nextShort() {
+            Object next = next();
+            try {
+                return ((Number) next).shortValue();
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), short.class, null);
+            }
+        }
+
+        @Override
+        public char nextChar() {
+            Object next = next();
+            try {
+                return (char) next;
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), char.class, null);
+            }
+        }
+
+        @Override
+        public int nextInt() {
+            Object next = next();
+            try {
+                return ((Number) next).intValue();
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), int.class, null);
+            }
+        }
+
+        @Override
+        public long nextLong() {
+            Object next = next();
+            try {
+                return ((Number) next).longValue();
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), long.class, null);
+            }
+        }
+
+        @Override
+        public float nextFloat() {
+            Object next = next();
+            try {
+                return ((Number) next).floatValue();
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), float.class, null);
+            }
+        }
+
+        @Override
+        public double nextDouble() {
+            Object next = next();
+            try {
+                return ((Number) next).doubleValue();
+            } catch (ClassCastException e) {
+                throw castException(next.getClass(), double.class, null);
+            }
+        }
+    }
+
+    private static class ObjectIterator<T> extends BaseIterator<T> {
+        private final Iterator<T> iterator;
+
+        ObjectIterator(Iterator<T> iterator) {
+            this.iterator = iterator;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return iterator.hasNext();
+        }
+
+        @Override
+        public T next() {
+            return iterator.next();
+        }
+
+        @Override
+        public void remove() {
+            iterator.remove();
+        }
+
+        @Override
+        public void forEachRemaining(Consumer<? super T> action) {
+            iterator.forEachRemaining(action);
+        }
+    }
+
     /** Helper class for isolating MethodHandles and methods to get iterators over arrays
-     * (to emulate "enhanced for loop" using MethodHandles). These cause boxing, and are not as efficient
-     * as they could be, but works.
+     * (to emulate "enhanced for loop" using MethodHandles).
      */
     @SuppressWarnings("unused") // iterator() methods are are actually used, javac just does not know :)
     private static final class ArrayIteratorHelper {
@@ -682,7 +711,7 @@ public final class Def {
                     return PRIVATE_METHOD_HANDLES_LOOKUP.findStatic(
                         PRIVATE_METHOD_HANDLES_LOOKUP.lookupClass(),
                         "iterator",
-                        MethodType.methodType(Iterator.class, type)
+                        MethodType.methodType(ValueIterator.class, type)
                     );
                 } catch (ReflectiveOperationException e) {
                     throw new AssertionError(e);
@@ -692,120 +721,335 @@ public final class Def {
 
         private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
 
-        static Iterator<Boolean> iterator(final boolean[] array) {
-            return new Iterator<Boolean>() {
+        static ValueIterator<Boolean> iterator(final boolean[] array) {
+            return new BaseIterator<Boolean>() {
                 int index = 0;
 
                 @Override
                 public boolean hasNext() {
                     return index < array.length;
+                }
+
+                @Override
+                public boolean nextBoolean() {
+                    return array[index++];
                 }
 
                 @Override
                 public Boolean next() {
-                    return array[index++];
+                    return nextBoolean();
                 }
             };
         }
 
-        static Iterator<Byte> iterator(final byte[] array) {
-            return new Iterator<Byte>() {
+        static ValueIterator<Byte> iterator(final byte[] array) {
+            return new BaseIterator<Byte>() {
                 int index = 0;
 
                 @Override
                 public boolean hasNext() {
                     return index < array.length;
+                }
+
+                @Override
+                public byte nextByte() {
+                    return array[index++];
+                }
+
+                @Override
+                public short nextShort() {
+                    return nextByte();
+                }
+
+                @Override
+                public char nextChar() {
+                    return (char) nextByte();
+                }
+
+                @Override
+                public int nextInt() {
+                    return nextByte();
+                }
+
+                @Override
+                public long nextLong() {
+                    return nextByte();
+                }
+
+                @Override
+                public float nextFloat() {
+                    return nextByte();
+                }
+
+                @Override
+                public double nextDouble() {
+                    return nextByte();
                 }
 
                 @Override
                 public Byte next() {
-                    return array[index++];
+                    return nextByte();
                 }
             };
         }
 
-        static Iterator<Short> iterator(final short[] array) {
-            return new Iterator<Short>() {
+        static ValueIterator<Short> iterator(final short[] array) {
+            return new BaseIterator<Short>() {
                 int index = 0;
 
                 @Override
                 public boolean hasNext() {
                     return index < array.length;
+                }
+
+                @Override
+                public byte nextByte() {
+                    return (byte) nextShort();
+                }
+
+                @Override
+                public short nextShort() {
+                    return array[index++];
+                }
+
+                @Override
+                public char nextChar() {
+                    return (char) nextShort();
+                }
+
+                @Override
+                public int nextInt() {
+                    return nextShort();
+                }
+
+                @Override
+                public long nextLong() {
+                    return nextShort();
+                }
+
+                @Override
+                public float nextFloat() {
+                    return nextShort();
+                }
+
+                @Override
+                public double nextDouble() {
+                    return nextShort();
                 }
 
                 @Override
                 public Short next() {
-                    return array[index++];
+                    return nextShort();
                 }
             };
         }
 
-        static Iterator<Integer> iterator(final int[] array) {
-            return new Iterator<Integer>() {
+        static ValueIterator<Integer> iterator(final int[] array) {
+            return new BaseIterator<Integer>() {
                 int index = 0;
 
                 @Override
                 public boolean hasNext() {
                     return index < array.length;
+                }
+
+                @Override
+                public byte nextByte() {
+                    return (byte) nextInt();
+                }
+
+                @Override
+                public short nextShort() {
+                    return (short) nextInt();
+                }
+
+                @Override
+                public char nextChar() {
+                    return (char) nextInt();
+                }
+
+                @Override
+                public int nextInt() {
+                    return array[index++];
+                }
+
+                @Override
+                public long nextLong() {
+                    return nextInt();
+                }
+
+                @Override
+                public float nextFloat() {
+                    return nextInt();
+                }
+
+                @Override
+                public double nextDouble() {
+                    return nextInt();
                 }
 
                 @Override
                 public Integer next() {
-                    return array[index++];
+                    return nextInt();
                 }
             };
         }
 
-        static Iterator<Long> iterator(final long[] array) {
-            return new Iterator<Long>() {
+        static ValueIterator<Long> iterator(final long[] array) {
+            return new BaseIterator<Long>() {
                 int index = 0;
 
                 @Override
                 public boolean hasNext() {
                     return index < array.length;
+                }
+
+                @Override
+                public byte nextByte() {
+                    return (byte) nextLong();
+                }
+
+                @Override
+                public short nextShort() {
+                    return (short) nextLong();
+                }
+
+                @Override
+                public char nextChar() {
+                    return (char) nextLong();
+                }
+
+                @Override
+                public int nextInt() {
+                    return (int) nextLong();
+                }
+
+                @Override
+                public long nextLong() {
+                    return array[index++];
+                }
+
+                @Override
+                public float nextFloat() {
+                    return nextLong();
+                }
+
+                @Override
+                public double nextDouble() {
+                    return nextLong();
                 }
 
                 @Override
                 public Long next() {
-                    return array[index++];
+                    return nextLong();
                 }
             };
         }
 
-        static Iterator<Character> iterator(final char[] array) {
-            return new Iterator<Character>() {
+        static ValueIterator<Character> iterator(final char[] array) {
+            return new BaseIterator<Character>() {
                 int index = 0;
 
                 @Override
                 public boolean hasNext() {
                     return index < array.length;
+                }
+
+                @Override
+                public byte nextByte() {
+                    return (byte) nextChar();
+                }
+
+                @Override
+                public short nextShort() {
+                    return (short) nextChar();
+                }
+
+                @Override
+                public char nextChar() {
+                    return array[index++];
+                }
+
+                @Override
+                public int nextInt() {
+                    return nextChar();
+                }
+
+                @Override
+                public long nextLong() {
+                    return nextChar();
+                }
+
+                @Override
+                public float nextFloat() {
+                    return nextChar();
+                }
+
+                @Override
+                public double nextDouble() {
+                    return nextChar();
                 }
 
                 @Override
                 public Character next() {
-                    return array[index++];
+                    return nextChar();
                 }
             };
         }
 
-        static Iterator<Float> iterator(final float[] array) {
-            return new Iterator<Float>() {
+        static ValueIterator<Float> iterator(final float[] array) {
+            return new BaseIterator<Float>() {
                 int index = 0;
 
                 @Override
                 public boolean hasNext() {
                     return index < array.length;
+                }
+
+                @Override
+                public byte nextByte() {
+                    return (byte) nextFloat();
+                }
+
+                @Override
+                public short nextShort() {
+                    return (short) nextFloat();
+                }
+
+                @Override
+                public char nextChar() {
+                    return (char) nextFloat();
+                }
+
+                @Override
+                public int nextInt() {
+                    return (int) nextFloat();
+                }
+
+                @Override
+                public long nextLong() {
+                    return (long) nextFloat();
+                }
+
+                @Override
+                public float nextFloat() {
+                    return array[index++];
+                }
+
+                @Override
+                public double nextDouble() {
+                    return nextFloat();
                 }
 
                 @Override
                 public Float next() {
-                    return array[index++];
+                    return nextFloat();
                 }
             };
         }
 
-        static Iterator<Double> iterator(final double[] array) {
-            return new Iterator<Double>() {
+        static ValueIterator<Double> iterator(final double[] array) {
+            return new BaseIterator<Double>() {
                 int index = 0;
 
                 @Override
@@ -814,14 +1058,49 @@ public final class Def {
                 }
 
                 @Override
-                public Double next() {
+                public byte nextByte() {
+                    return (byte) nextDouble();
+                }
+
+                @Override
+                public short nextShort() {
+                    return (short) nextDouble();
+                }
+
+                @Override
+                public char nextChar() {
+                    return (char) nextDouble();
+                }
+
+                @Override
+                public int nextInt() {
+                    return (int) nextDouble();
+                }
+
+                @Override
+                public long nextLong() {
+                    return (long) nextDouble();
+                }
+
+                @Override
+                public float nextFloat() {
+                    return (float) nextDouble();
+                }
+
+                @Override
+                public double nextDouble() {
                     return array[index++];
+                }
+
+                @Override
+                public Double next() {
+                    return nextDouble();
                 }
             };
         }
 
-        static Iterator<Object> iterator(final Object[] array) {
-            return new Iterator<Object>() {
+        static ValueIterator<Object> iterator(final Object[] array) {
+            return new BaseIterator<Object>() {
                 int index = 0;
 
                 @Override
@@ -840,9 +1119,8 @@ public final class Def {
             if (arrayType.isArray() == false) {
                 throw new IllegalArgumentException("type must be an array");
             }
-            return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType))
-                ? ARRAY_TYPE_MH_MAPPING.get(arrayType)
-                : OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
+            MethodHandle iterator = ARRAY_TYPE_MH_MAPPING.get(arrayType);
+            return iterator != null ? iterator : OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
         }
 
         private ArrayIteratorHelper() {}
@@ -855,7 +1133,7 @@ public final class Def {
      */
     static MethodHandle lookupIterator(Class<?> receiverClass) {
         if (Iterable.class.isAssignableFrom(receiverClass)) {
-            return ITERATOR;
+            return OBJECT_ITERATOR;
         } else if (receiverClass.isArray()) {
             return ArrayIteratorHelper.newIterator(receiverClass);
         } else {
@@ -869,13 +1147,7 @@ public final class Def {
         if (value instanceof Boolean) {
             return (boolean) value;
         } else {
-            throw new ClassCastException(
-                "cannot cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + boolean.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), boolean.class, null);
         }
     }
 
@@ -883,13 +1155,7 @@ public final class Def {
         if (value instanceof Byte) {
             return (byte) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + byte.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), byte.class, true);
         }
     }
 
@@ -899,13 +1165,7 @@ public final class Def {
         } else if (value instanceof Short) {
             return (short) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + short.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), short.class, true);
         }
     }
 
@@ -913,13 +1173,7 @@ public final class Def {
         if (value instanceof Character) {
             return (char) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + char.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), char.class, true);
         }
     }
 
@@ -933,13 +1187,7 @@ public final class Def {
         } else if (value instanceof Integer) {
             return (int) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + int.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), int.class, true);
         }
     }
 
@@ -955,13 +1203,7 @@ public final class Def {
         } else if (value instanceof Long) {
             return (long) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + long.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), long.class, true);
         }
     }
 
@@ -979,13 +1221,7 @@ public final class Def {
         } else if (value instanceof Float) {
             return (float) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + float.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), float.class, true);
         }
     }
 
@@ -1005,13 +1241,7 @@ public final class Def {
         } else if (value instanceof Double) {
             return (double) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + double.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), double.class, true);
         }
     }
 
@@ -1026,13 +1256,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).byteValue();
             } else {
-                throw new ClassCastException(
-                    "cannot explicitly cast "
-                        + "def ["
-                        + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                        + "] to "
-                        + byte.class.getCanonicalName()
-                );
+                throw castException(value.getClass(), byte.class, false);
             }
     }
 
@@ -1047,13 +1271,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).shortValue();
             } else {
-                throw new ClassCastException(
-                    "cannot explicitly cast "
-                        + "def ["
-                        + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                        + "] to "
-                        + short.class.getCanonicalName()
-                );
+                throw castException(value.getClass(), short.class, false);
             }
     }
 
@@ -1070,13 +1288,7 @@ public final class Def {
             || value instanceof Double) {
                 return (char) ((Number) value).intValue();
             } else {
-                throw new ClassCastException(
-                    "cannot explicitly cast "
-                        + "def ["
-                        + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                        + "] to "
-                        + char.class.getCanonicalName()
-                );
+                throw castException(value.getClass(), char.class, false);
             }
     }
 
@@ -1091,13 +1303,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).intValue();
             } else {
-                throw new ClassCastException(
-                    "cannot explicitly cast "
-                        + "def ["
-                        + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                        + "] to "
-                        + int.class.getCanonicalName()
-                );
+                throw castException(value.getClass(), int.class, false);
             }
     }
 
@@ -1112,13 +1318,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).longValue();
             } else {
-                throw new ClassCastException(
-                    "cannot explicitly cast "
-                        + "def ["
-                        + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                        + "] to "
-                        + long.class.getCanonicalName()
-                );
+                throw castException(value.getClass(), long.class, false);
             }
     }
 
@@ -1133,13 +1333,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).floatValue();
             } else {
-                throw new ClassCastException(
-                    "cannot explicitly cast "
-                        + "float ["
-                        + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                        + "] to "
-                        + byte.class.getCanonicalName()
-                );
+                throw castException(value.getClass(), float.class, false);
             }
     }
 
@@ -1154,13 +1348,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).doubleValue();
             } else {
-                throw new ClassCastException(
-                    "cannot explicitly cast "
-                        + "def ["
-                        + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                        + "] to "
-                        + byte.class.getCanonicalName()
-                );
+                throw castException(value.getClass(), byte.class, false);
             }
     }
 
@@ -1172,13 +1360,7 @@ public final class Def {
         } else if (value instanceof Boolean) {
             return (Boolean) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + Boolean.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), Boolean.class, false);
         }
     }
 
@@ -1188,13 +1370,7 @@ public final class Def {
         } else if (value instanceof Byte) {
             return (Byte) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + Byte.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), Byte.class, false);
         }
     }
 
@@ -1206,13 +1382,7 @@ public final class Def {
         } else if (value instanceof Short) {
             return (Short) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + Short.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), Short.class, false);
         }
     }
 
@@ -1222,13 +1392,7 @@ public final class Def {
         } else if (value instanceof Character) {
             return (Character) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + Character.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), Character.class, false);
         }
     }
 
@@ -1244,13 +1408,7 @@ public final class Def {
         } else if (value instanceof Integer) {
             return (Integer) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + Integer.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), Integer.class, false);
         }
     }
 
@@ -1268,13 +1426,7 @@ public final class Def {
         } else if (value instanceof Long) {
             return (Long) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + Long.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), Long.class, false);
         }
     }
 
@@ -1294,13 +1446,7 @@ public final class Def {
         } else if (value instanceof Float) {
             return (Float) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + Float.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), Float.class, false);
         }
     }
 
@@ -1322,13 +1468,7 @@ public final class Def {
         } else if (value instanceof Double) {
             return (Double) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + Double.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), Double.class, false);
         }
     }
 
@@ -1345,13 +1485,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).byteValue();
             } else {
-                throw new ClassCastException(
-                    "cannot explicitly cast "
-                        + "def ["
-                        + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                        + "] to "
-                        + Byte.class.getCanonicalName()
-                );
+                throw castException(value.getClass(), Byte.class, false);
             }
     }
 
@@ -1368,13 +1502,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).shortValue();
             } else {
-                throw new ClassCastException(
-                    "cannot explicitly cast "
-                        + "def ["
-                        + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                        + "] to "
-                        + Short.class.getCanonicalName()
-                );
+                throw castException(value.getClass(), Short.class, false);
             }
     }
 
@@ -1393,13 +1521,7 @@ public final class Def {
             || value instanceof Double) {
                 return (char) ((Number) value).intValue();
             } else {
-                throw new ClassCastException(
-                    "cannot explicitly cast "
-                        + "def ["
-                        + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                        + "] to "
-                        + Character.class.getCanonicalName()
-                );
+                throw castException(value.getClass(), Character.class, false);
             }
     }
 
@@ -1416,13 +1538,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).intValue();
             } else {
-                throw new ClassCastException(
-                    "cannot explicitly cast "
-                        + "def ["
-                        + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                        + "] to "
-                        + Integer.class.getCanonicalName()
-                );
+                throw castException(value.getClass(), Integer.class, false);
             }
     }
 
@@ -1439,13 +1555,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).longValue();
             } else {
-                throw new ClassCastException(
-                    "cannot explicitly cast "
-                        + "def ["
-                        + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                        + "] to "
-                        + Long.class.getCanonicalName()
-                );
+                throw castException(value.getClass(), Long.class, false);
             }
     }
 
@@ -1462,13 +1572,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).floatValue();
             } else {
-                throw new ClassCastException(
-                    "cannot explicitly cast "
-                        + "def ["
-                        + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                        + "] to "
-                        + Float.class.getCanonicalName()
-                );
+                throw castException(value.getClass(), Float.class, false);
             }
     }
 
@@ -1485,13 +1589,7 @@ public final class Def {
             || value instanceof Double) {
                 return ((Number) value).doubleValue();
             } else {
-                throw new ClassCastException(
-                    "cannot explicitly cast "
-                        + "def ["
-                        + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                        + "] to "
-                        + Double.class.getCanonicalName()
-                );
+                throw castException(value.getClass(), Double.class, false);
             }
     }
 
@@ -1501,13 +1599,7 @@ public final class Def {
         } else if (value instanceof String) {
             return (String) value;
         } else {
-            throw new ClassCastException(
-                "cannot implicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + String.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), String.class, true);
         }
     }
 
@@ -1519,13 +1611,7 @@ public final class Def {
         } else if (value instanceof String) {
             return (String) value;
         } else {
-            throw new ClassCastException(
-                "cannot explicitly cast "
-                    + "def ["
-                    + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName()
-                    + "] to "
-                    + String.class.getCanonicalName()
-            );
+            throw castException(value.getClass(), String.class, false);
         }
     }
 
@@ -1616,9 +1702,8 @@ public final class Def {
             if (arrayType.isArray() == false) {
                 throw new IllegalArgumentException("type must be an array");
             }
-            return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType))
-                ? ARRAY_TYPE_MH_MAPPING.get(arrayType)
-                : OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
+            MethodHandle handle = ARRAY_TYPE_MH_MAPPING.get(arrayType);
+            return handle != null ? handle : OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
         }
 
         private ArrayIndexNormalizeHelper() {}

@@ -19,8 +19,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.core.IsEqual.equalTo;
 
 public class DateFormatTests extends ESTestCase {
 

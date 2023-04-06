@@ -9,8 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -28,25 +27,15 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     public static class Defaults {
         public static final String NAME = IgnoredFieldMapper.NAME;
-
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setStored(true);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
     }
+
+    public static final IgnoredFieldType FIELD_TYPE = new IgnoredFieldType();
 
     private static final IgnoredFieldMapper INSTANCE = new IgnoredFieldMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     public static final class IgnoredFieldType extends StringFieldType {
-
-        public static final IgnoredFieldType INSTANCE = new IgnoredFieldType();
 
         private IgnoredFieldType() {
             super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
@@ -73,13 +62,13 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     }
 
     private IgnoredFieldMapper() {
-        super(IgnoredFieldType.INSTANCE);
+        super(FIELD_TYPE);
     }
 
     @Override
     public void postParse(DocumentParserContext context) {
         for (String field : context.getIgnoredFields()) {
-            context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
+            context.doc().add(new StringField(NAME, field, Field.Store.YES));
         }
     }
 
@@ -88,4 +77,8 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
+    }
 }

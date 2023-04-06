@@ -24,11 +24,12 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
@@ -109,7 +110,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             // we do this by default in core, but for watcher this isn't needed and only adds noise.
             .put("index.store.mock.check_index_on_close", false)
             // watcher settings that should work despite randomization
@@ -633,7 +634,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         public void trigger(String watchId, int times, TimeValue timeValue) throws Exception {
             assertBusy(() -> {
                 long triggeredCount = schedulers.stream().filter(scheduler -> scheduler.trigger(watchId, times, timeValue)).count();
-                String msg = formatted("watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
+                String msg = Strings.format("watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
                 if (triggeredCount > 1) {
                     logger.warn(msg);
                 }

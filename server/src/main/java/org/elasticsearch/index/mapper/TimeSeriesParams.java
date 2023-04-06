@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.function.Function;
 
 /**
@@ -22,18 +23,53 @@ public final class TimeSeriesParams {
 
     private TimeSeriesParams() {}
 
+    /**
+     * There are various types of metric used in time-series aggregations and downsampling.
+     * Each supports different field types and different calculations.
+     * Two of these, the COUNTER and GAUGE apply to most numerical types, mapping a single number,
+     * while the POSITION metric applies only to geo_point and therefor a pair of numbers (lat,lon).
+     * To simplify code that depends on this difference, we use the parameter `scalar==true` for
+     * single number metrics, and `false` for the POSITION metric.
+     */
     public enum MetricType {
-        gauge(new String[] { "max", "min", "value_count", "sum" }),
-        counter(new String[] { "last_value" });
+        GAUGE(new String[] { "max", "min", "value_count", "sum" }),
+        COUNTER(new String[] { "last_value" }),
+        POSITION(new String[] {}, false);
 
         private final String[] supportedAggs;
+        private final boolean scalar;
 
         MetricType(String[] supportedAggs) {
-            this.supportedAggs = supportedAggs;
+            this(supportedAggs, true);
         }
 
+        MetricType(String[] supportedAggs, boolean scalar) {
+            this.supportedAggs = supportedAggs;
+            this.scalar = scalar;
+        }
+
+        /** list of aggregations supported for downsampling this metric */
         public String[] supportedAggs() {
             return supportedAggs;
+        }
+
+        /** an array of metrics representing simple numerical values, like GAUGE and COUNTER */
+        public static MetricType[] scalar() {
+            return Arrays.stream(MetricType.values()).filter(m -> m.scalar).toArray(MetricType[]::new);
+        }
+
+        @Override
+        public final String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        public static MetricType fromString(String value) {
+            for (MetricType metricType : values()) {
+                if (metricType.toString().equals(value)) {
+                    return metricType;
+                }
+            }
+            throw new IllegalArgumentException("No enum constant MetricType." + value);
         }
     }
 

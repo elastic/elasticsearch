@@ -60,6 +60,11 @@ public class WeightedAvgAggregationBuilderTests extends AbstractXContentSerializ
     }
 
     @Override
+    protected WeightedAvgAggregationBuilder mutateInstance(WeightedAvgAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<WeightedAvgAggregationBuilder> instanceReader() {
         return WeightedAvgAggregationBuilder::new;
     }

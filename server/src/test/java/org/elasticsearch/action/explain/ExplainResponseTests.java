@@ -67,6 +67,11 @@ public class ExplainResponseTests extends AbstractXContentSerializingTestCase<Ex
     }
 
     @Override
+    protected ExplainResponse mutateInstance(ExplainResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return field -> field.equals("get") || field.startsWith("get.fields") || field.startsWith("get._source");
     }

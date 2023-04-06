@@ -52,8 +52,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.Matchers.contains;
@@ -219,7 +217,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> waiting for batched deletes to finish");
         final PlainActionFuture<Collection<AcknowledgedResponse>> allDeletesDone = new PlainActionFuture<>();
-        final ActionListener<AcknowledgedResponse> deletesListener = new GroupedActionListener<>(allDeletesDone, deleteFutures.size());
+        final ActionListener<AcknowledgedResponse> deletesListener = new GroupedActionListener<>(deleteFutures.size(), allDeletesDone);
         for (StepListener<AcknowledgedResponse> deleteFuture : deleteFutures) {
             deleteFuture.addListener(deletesListener);
         }
@@ -568,7 +566,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createRepository(repoName, "mock");
 
         final String testIndex = "index-one";
-        createIndex(testIndex, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 1).build());
+        createIndex(testIndex, 1, 1);
         ensureYellow(testIndex);
         indexDoc(testIndex, "some_id", "foo", "bar");
 
@@ -1303,15 +1301,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final int limitToTest = randomIntBetween(1, 3);
         final List<String> snapshotNames = createNSnapshots(repoName, limitToTest + 1);
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.getKey(), limitToTest).build()
-                )
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put(SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.getKey(), limitToTest));
 
         blockNodeOnAnyFiles(repoName, masterName);
         int blockedSnapshots = 0;

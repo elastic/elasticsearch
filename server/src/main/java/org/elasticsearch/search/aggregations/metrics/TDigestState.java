@@ -61,6 +61,15 @@ public class TDigestState extends AVLTreeDigest {
         if (compression != that.compression) {
             return false;
         }
+        if (this.getMax() != that.getMax()) {
+            return false;
+        }
+        if (this.getMin() != that.getMin()) {
+            return false;
+        }
+        if (this.isRecording() != that.isRecording()) {
+            return false;
+        }
         Iterator<? extends Centroid> thisCentroids = centroids().iterator();
         Iterator<? extends Centroid> thatCentroids = that.centroids().iterator();
         while (thisCentroids.hasNext()) {
@@ -78,12 +87,14 @@ public class TDigestState extends AVLTreeDigest {
 
     @Override
     public int hashCode() {
-        int h = getClass().hashCode();
-        h = 31 * h + Double.hashCode(compression);
+        int h = 31 * Double.hashCode(compression);
         for (Centroid centroid : centroids()) {
             h = 31 * h + Double.hashCode(centroid.mean());
             h = 31 * h + centroid.count();
         }
+        h = 31 * h + Double.hashCode(getMax());
+        h = 31 * h + Double.hashCode(getMin());
+        h = 31 * h + Boolean.hashCode(isRecording());
         return h;
     }
 }

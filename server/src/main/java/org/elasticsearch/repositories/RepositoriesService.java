@@ -318,7 +318,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
 
         // Trying to create the new repository on master to make sure it works
-        closeRepository(createRepository(newRepositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists));
+        closeRepository(createRepository(newRepositoryMetadata));
     }
 
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
@@ -755,6 +755,25 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             logger.warn(() -> format("failed to create repository [%s][%s]", repositoryMetadata.type(), repositoryMetadata.name()), e);
             throw new RepositoryException(repositoryMetadata.name(), "failed to create repository", e);
         }
+    }
+
+    /**
+     * Creates a repository holder.
+     *
+     * <p>WARNING: This method is intended for expert only usage mainly in plugins/modules. Please take note of the following:</p>
+     *
+     * <ul>
+     *     <li>This method does not register the repository (e.g., in the cluster state).</li>
+     *     <li>This method starts the repository. The repository should be closed after use.</li>
+     *     <li>The repository metadata should be associated to an already registered non-internal repository type and factory pair.</li>
+     * </ul>
+     *
+     * @param repositoryMetadata the repository metadata
+     * @return the started repository
+     * @throws RepositoryException if repository type is not registered
+     */
+    public Repository createRepository(RepositoryMetadata repositoryMetadata) {
+        return createRepository(repositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
     }
 
     private static Repository throwRepositoryTypeDoesNotExists(RepositoryMetadata repositoryMetadata) {

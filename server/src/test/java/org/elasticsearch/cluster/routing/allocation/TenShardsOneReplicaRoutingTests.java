@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -53,7 +54,9 @@ public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
@@ -143,10 +146,16 @@ public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(10));
-        assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED, RELOCATING), equalTo(10));
         assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), lessThan(10));
-        assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED, RELOCATING), equalTo(10));
+        assertThat(
+            routingNodes.node("node1").numberOfShardsWithState(STARTED) + routingNodes.node("node1").numberOfShardsWithState(RELOCATING),
+            equalTo(10)
+        );
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), lessThan(10));
+        assertThat(
+            routingNodes.node("node2").numberOfShardsWithState(STARTED) + routingNodes.node("node2").numberOfShardsWithState(RELOCATING),
+            equalTo(10)
+        );
         assertThat(routingNodes.node("node3").numberOfShardsWithState(INITIALIZING), equalTo(6));
 
         logger.info("Start the shards on node 3");

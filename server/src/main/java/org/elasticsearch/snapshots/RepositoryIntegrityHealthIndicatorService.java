@@ -72,7 +72,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
+    public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         var snapshotMetadata = clusterService.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
         if (snapshotMetadata.repositories().isEmpty()) {
@@ -133,7 +133,12 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 )
                 : HealthIndicatorDetails.EMPTY,
             impacts,
-            List.of(new Diagnosis(CORRUPTED_REPOSITORY, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corrupted))))
+            List.of(
+                new Diagnosis(
+                    CORRUPTED_REPOSITORY,
+                    List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, limitSize(corrupted, maxAffectedResourcesCount)))
+                )
+            )
         );
     }
 

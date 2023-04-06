@@ -23,6 +23,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -48,7 +49,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -60,6 +60,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.mockito.Mockito.mock;
 
 public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends ESTestCase {
 
@@ -187,7 +188,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             index,
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
         );
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, mock(BitsetFilterCache.Listener.class));
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
@@ -202,7 +203,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             bitsetFilterCache,
             indexFieldDataLookup,
             null,
-            null,
+            MappingLookup.EMPTY,
             null,
             scriptService,
             parserConfig(),

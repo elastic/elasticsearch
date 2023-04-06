@@ -14,11 +14,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
-import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -91,14 +90,9 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         ensureGreen("test");
         internalCluster().startNode();
         // do a second round with longer delay to make sure it happens
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(
-                    Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))
-                )
-                .get()
+        updateIndexSettings(
+            Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100)),
+            "test"
         );
         internalCluster().stopNode(findNodeWithShard());
         ensureGreen("test");
@@ -109,6 +103,10 @@ public class DelayedAllocationIT extends ESIntegTestCase {
      * allocation to a very small value, it kicks the allocation of the unassigned shard
      * even though the node it was hosted on will not come back.
      */
+    @TestLogging(
+        value = "org.elasticsearch.cluster.routing.allocation.allocator:TRACE",
+        reason = "https://github.com/elastic/elasticsearch/issues/93470"
+    )
     public void testDelayedAllocationChangeWithSettingTo100ms() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
@@ -127,14 +125,10 @@ public class DelayedAllocationIT extends ESIntegTestCase {
             )
         );
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(
-                    Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))
-                )
-                .get()
+        logger.info("Setting shorter allocation delay");
+        updateIndexSettings(
+            Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100)),
+            "test"
         );
         ensureGreen("test");
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(0));
@@ -163,14 +157,9 @@ public class DelayedAllocationIT extends ESIntegTestCase {
             )
         );
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(
-                    Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(0))
-                )
-                .get()
+        updateIndexSettings(
+            Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(0)),
+            "test"
         );
         ensureGreen("test");
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(0));
@@ -191,7 +180,6 @@ public class DelayedAllocationIT extends ESIntegTestCase {
     private String findNodeWithShard() {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
-        Collections.shuffle(startedShards, random());
-        return state.nodes().get(startedShards.get(0).currentNodeId()).getName();
+        return state.nodes().get(randomFrom(startedShards).currentNodeId()).getName();
     }
 }

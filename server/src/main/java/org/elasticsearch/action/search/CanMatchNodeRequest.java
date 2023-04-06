@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -151,7 +151,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         searchType = SearchType.fromId(in.readByte());
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types no longer relevant so ignore
             String[] types = in.readStringArray();
             if (types.length > 0) {
@@ -177,7 +177,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         out.writeOptionalWriteable(source);
         indicesOptions.writeIndicesOptions(out);
         out.writeByte(searchType.id());
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }

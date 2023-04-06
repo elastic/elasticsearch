@@ -32,10 +32,18 @@ public class TaskAssertions {
     private TaskAssertions() {}
 
     public static void awaitTaskWithPrefix(String actionPrefix) throws Exception {
+        awaitTaskWithPrefix(actionPrefix, internalCluster().getInstances(TransportService.class));
+    }
+
+    public static void awaitTaskWithPrefixOnMaster(String actionPrefix) throws Exception {
+        awaitTaskWithPrefix(actionPrefix, List.of(internalCluster().getCurrentMasterNodeInstance(TransportService.class)));
+    }
+
+    private static void awaitTaskWithPrefix(String actionPrefix, Iterable<TransportService> transportServiceInstances) throws Exception {
         logger.info("--> waiting for task with prefix [{}] to start", actionPrefix);
 
         assertBusy(() -> {
-            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            for (TransportService transportService : transportServiceInstances) {
                 List<Task> matchingTasks = transportService.getTaskManager()
                     .getTasks()
                     .values()
@@ -61,12 +69,13 @@ public class TaskAssertions {
                 assertTrue(taskManager.assertCancellableTaskConsistency());
                 for (CancellableTask cancellableTask : taskManager.getCancellableTasks().values()) {
                     if (cancellableTask.getAction().startsWith(actionPrefix)) {
-                        logger.trace("--> found task with prefix [{}] marked as cancelled: [{}]", actionPrefix, cancellableTask);
+                        logger.trace("--> found task with prefix [{}]: [{}]", actionPrefix, cancellableTask);
                         foundTask = true;
                         assertTrue(
                             "task " + cancellableTask.getId() + "/" + cancellableTask.getAction() + " not cancelled",
                             cancellableTask.isCancelled()
                         );
+                        logger.trace("--> Task with prefix [{}] is marked as cancelled: [{}]", actionPrefix, cancellableTask);
                     }
                 }
             }

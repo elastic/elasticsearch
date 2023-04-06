@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
@@ -161,7 +161,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private class AsyncRefresh {
 
         private final List<ActionListener<ClusterInfo>> thisRefreshListeners;
-        private final CountDown countDown = new CountDown(2);
+        private final RefCountingRunnable fetchRefs = new RefCountingRunnable(this::callListeners);
 
         AsyncRefresh(List<ActionListener<ClusterInfo>> thisRefreshListeners) {
             this.thisRefreshListeners = thisRefreshListeners;
@@ -177,15 +177,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 return;
             }
 
-            assert countDown.isCountedDown() == false;
             logger.trace("starting async refresh");
 
-            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                fetchNodeStats();
-            }
-
-            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                fetchIndicesStats();
+            try (var ignoredRefs = fetchRefs) {
+                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                    fetchNodeStats();
+                }
+                try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                    fetchIndicesStats();
+                }
             }
         }
 
@@ -200,10 +200,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 .stats(
                     indicesStatsRequest,
                     new ThreadedActionListener<>(
-                        logger,
-                        threadPool,
-                        ThreadPool.Names.MANAGEMENT,
-                        ActionListener.runAfter(new ActionListener<>() {
+                        threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                        ActionListener.releaseAfter(new ActionListener<>() {
                             @Override
                             public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                                 logger.trace("received indices stats response");
@@ -211,7 +209,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 if (indicesStatsResponse.getShardFailures().length > 0) {
                                     final Set<String> failedNodeIds = new HashSet<>();
                                     for (final var shardFailure : indicesStatsResponse.getShardFailures()) {
-                                        if (shardFailure.getCause()instanceof final FailedNodeException failedNodeException) {
+                                        if (shardFailure.getCause() instanceof final FailedNodeException failedNodeException) {
                                             if (failedNodeIds.add(failedNodeException.nodeId())) {
                                                 logger.warn(
                                                     () -> format(
@@ -277,8 +275,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 }
                                 indicesStatsSummary = IndicesStatsSummary.EMPTY;
                             }
-                        }, this::onStatsProcessed),
-                        false
+                        }, fetchRefs.acquire())
                     )
                 );
         }
@@ -288,7 +285,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             nodesStatsRequest.clear();
             nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FS.metricName());
             nodesStatsRequest.timeout(fetchTimeout);
-            client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.runAfter(new ActionListener<>() {
+            client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(NodesStatsResponse nodesStatsResponse) {
                     logger.trace("received node stats response");
@@ -318,18 +315,12 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     leastAvailableSpaceUsages = Map.of();
                     mostAvailableSpaceUsages = Map.of();
                 }
-            }, this::onStatsProcessed));
-        }
-
-        private void onStatsProcessed() {
-            if (countDown.countDown()) {
-                logger.trace("stats all received, computing cluster info and notifying listeners");
-                callListeners();
-            }
+            }, fetchRefs.acquire()));
         }
 
         private void callListeners() {
             try {
+                logger.trace("stats all received, computing cluster info and notifying listeners");
                 final ClusterInfo clusterInfo = getClusterInfo();
                 boolean anyListeners = false;
                 for (final Consumer<ClusterInfo> listener : listeners) {
@@ -394,7 +385,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private class RefreshScheduler {
 
         ActionListener<ClusterInfo> getListener() {
-            return ActionListener.wrap(() -> {
+            return ActionListener.running(() -> {
                 if (shouldRefresh()) {
                     threadPool.scheduleUnlessShuttingDown(updateFrequency, ThreadPool.Names.SAME, () -> {
                         if (shouldRefresh()) {

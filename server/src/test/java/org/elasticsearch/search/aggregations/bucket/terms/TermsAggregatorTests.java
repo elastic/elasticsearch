@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LongPoint;
@@ -19,6 +20,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -44,6 +46,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -60,7 +63,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -112,7 +115,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -178,6 +180,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 
+    @Override
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder, AggregationContext context)
         throws IOException {
         try {
@@ -217,43 +220,45 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         // We do not use LuceneTestCase.newSearcher because we need a DirectoryReader
         IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-
-        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.STRING)
-            .field("string");
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string");
 
-        TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
-        GlobalOrdinalsStringTermsAggregator globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
-        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("dense"));
+        try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
+            TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.STRING)
+                .field("string");
 
-        // Infers depth_first because the maxOrd is 0 which is less than the size
-        aggregationBuilder.subAggregation(AggregationBuilders.cardinality("card").field("string"));
-        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
-        globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
-        assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
-        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap using single bucket ords"));
+            TermsAggregator aggregator = createAggregator(aggregationBuilder, context);
+            assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
+            GlobalOrdinalsStringTermsAggregator globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+            assertThat(globalAgg.descriptCollectionStrategy(), equalTo("dense"));
 
-        aggregationBuilder.collectMode(Aggregator.SubAggCollectionMode.DEPTH_FIRST);
-        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
-        globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
-        assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
-        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap using single bucket ords"));
+            // Infers depth_first because the maxOrd is 0 which is less than the size
+            aggregationBuilder.subAggregation(AggregationBuilders.cardinality("card").field("string"));
+            aggregator = createAggregator(aggregationBuilder, context);
+            assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
+            globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+            assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
+            assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap using single bucket ords"));
 
-        aggregationBuilder.collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
-        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
-        globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
-        assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.BREADTH_FIRST));
-        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("dense"));
+            aggregationBuilder.collectMode(Aggregator.SubAggCollectionMode.DEPTH_FIRST);
+            aggregator = createAggregator(aggregationBuilder, context);
+            assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
+            globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+            assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
+            assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap using single bucket ords"));
 
-        aggregationBuilder.order(BucketOrder.aggregation("card", true));
-        aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
-        globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
-        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap using single bucket ords"));
+            aggregationBuilder.collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
+            aggregator = createAggregator(aggregationBuilder, context);
+            assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
+            globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+            assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.BREADTH_FIRST));
+            assertThat(globalAgg.descriptCollectionStrategy(), equalTo("dense"));
+
+            aggregationBuilder.order(BucketOrder.aggregation("card", true));
+            aggregator = createAggregator(aggregationBuilder, context);
+            assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
+            globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
+            assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap using single bucket ords"));
+        }
 
         indexReader.close();
         directory.close();
@@ -328,7 +333,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
              */
             List<List<? extends IndexableField>> docs = new ArrayList<>();
             for (int i = 0; i < TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200; i++) {
-                String s = formatted("b%03d", i);
+                String s = Strings.format("b%03d", i);
                 docs.add(doc(fieldType, s));
                 if (i % 100 == 7) {
                     docs.add(doc(fieldType, s));
@@ -362,7 +367,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
              */
             List<List<? extends IndexableField>> docs = new ArrayList<>();
             for (int i = 0; i < TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200; i++) {
-                String s = formatted("b%03d", i);
+                String s = Strings.format("b%03d", i);
                 List<IndexableField> doc = doc(kft, s);
                 doc.add(new SortedNumericDocValuesField("long", i));
                 docs.add(doc);
@@ -372,7 +377,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             List<String> expected = LongStream.range(
                 TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 210,
                 TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200
-            ).mapToObj(l -> formatted("b%03d", l)).collect(toList());
+            ).mapToObj(l -> Strings.format("b%03d", l)).collect(toList());
             Collections.reverse(expected);
             assertThat(result.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(expected));
         }, new AggTestConfig(aggregationBuilder, kft, lft));
@@ -392,9 +397,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             .subAggregation(new TermsAggregationBuilder("sub").field("string2").shardSize(500));
         withIndex(iw -> {
             for (int i1 = 0; i1 < 1000; i1++) {
-                String s1 = formatted("b%03d", i1);
+                String s1 = Strings.format("b%03d", i1);
                 for (int i2 = 0; i2 < 50; i2++) {
-                    String s2 = formatted("b%03d", i2);
+                    String s2 = Strings.format("b%03d", i2);
                     List<IndexableField> doc = new ArrayList<>();
                     doc.addAll(doc(s1ft, s1));
                     doc.addAll(doc(s2ft, s2));
@@ -649,17 +654,20 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     private List<IndexableField> doc(MappedFieldType ft1, MappedFieldType ft2, String f1v1, String f1v2, String f2v) {
+        FieldType fieldType1 = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
+        if (ft1.isIndexed() == false) {
+            fieldType1.setIndexOptions(IndexOptions.NONE);
+        }
+        fieldType1.freeze();
+        FieldType fieldType2 = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
+        if (ft2.isIndexed() == false) {
+            fieldType2.setIndexOptions(IndexOptions.NONE);
+        }
+        fieldType2.freeze();
         List<IndexableField> doc = new ArrayList<IndexableField>();
-        doc.add(new SortedSetDocValuesField(ft1.name(), new BytesRef(f1v1)));
-        doc.add(new SortedSetDocValuesField(ft1.name(), new BytesRef(f1v2)));
-        if (ft1.isIndexed()) {
-            doc.add(new KeywordField(ft1.name(), new BytesRef(f1v1), KeywordFieldMapper.Defaults.FIELD_TYPE));
-            doc.add(new KeywordField(ft1.name(), new BytesRef(f1v2), KeywordFieldMapper.Defaults.FIELD_TYPE));
-        }
-        doc.add(new SortedDocValuesField(ft2.name(), new BytesRef(f2v)));
-        if (ft2.isIndexed()) {
-            doc.add(new KeywordField(ft2.name(), new BytesRef(f2v), KeywordFieldMapper.Defaults.FIELD_TYPE));
-        }
+        doc.add(new KeywordField(ft1.name(), new BytesRef(f1v1), fieldType1));
+        doc.add(new KeywordField(ft1.name(), new BytesRef(f1v2), fieldType1));
+        doc.add(new KeywordField(ft2.name(), new BytesRef(f2v), fieldType2));
         return doc;
     }
 
@@ -701,12 +709,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         .includeExclude(new IncludeExclude(null, null, new TreeSet<>(Set.of(new BytesRef("0"), new BytesRef("5"))), null))
                         .field("long_field")
                         .order(BucketOrder.key(true));
-                    AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
-                    TermsAggregator aggregator = createAggregator(aggregationBuilder, context);
-                    aggregator.preCollection();
-                    indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-                    aggregator.postCollection();
-                    Terms result = reduce(aggregationBuilder, aggregator, context.bigArrays());
+                    Terms result = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
                     assertEquals(2, result.getBuckets().size());
                     assertEquals(0L, result.getBuckets().get(0).getKey());
                     assertEquals(1L, result.getBuckets().get(0).getDocCount());
@@ -719,12 +722,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         .includeExclude(new IncludeExclude(null, null, null, new TreeSet<>(Set.of(new BytesRef("0"), new BytesRef("5")))))
                         .field("long_field")
                         .order(BucketOrder.key(true));
-                    context = createAggregationContext(indexSearcher, null, fieldType);
-                    aggregator = createAggregator(aggregationBuilder, context);
-                    aggregator.preCollection();
-                    indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-                    aggregator.postCollection();
-                    result = reduce(aggregationBuilder, aggregator, context.bigArrays());
+                    result = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
                     assertEquals(4, result.getBuckets().size());
                     assertEquals(1L, result.getBuckets().get(0).getKey());
                     assertEquals(1L, result.getBuckets().get(0).getDocCount());
@@ -744,12 +742,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         )
                         .field("double_field")
                         .order(BucketOrder.key(true));
-                    context = createAggregationContext(indexSearcher, null, fieldType);
-                    aggregator = createAggregator(aggregationBuilder, context);
-                    aggregator.preCollection();
-                    indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-                    aggregator.postCollection();
-                    result = reduce(aggregationBuilder, aggregator, context.bigArrays());
+                    result = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
                     assertEquals(2, result.getBuckets().size());
                     assertEquals(0.0, result.getBuckets().get(0).getKey());
                     assertEquals(1L, result.getBuckets().get(0).getDocCount());
@@ -764,12 +757,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         )
                         .field("double_field")
                         .order(BucketOrder.key(true));
-                    context = createAggregationContext(indexSearcher, null, fieldType);
-                    aggregator = createAggregator(aggregationBuilder, context);
-                    aggregator.preCollection();
-                    indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-                    aggregator.postCollection();
-                    result = reduce(aggregationBuilder, aggregator, context.bigArrays());
+                    result = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
+
                     assertEquals(4, result.getBuckets().size());
                     assertEquals(1.0, result.getBuckets().get(0).getKey());
                     assertEquals(1L, result.getBuckets().get(0).getDocCount());
@@ -795,7 +784,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 result.add(new SortedDocValuesField("field", new BytesRef(val)));
             }
             if (fieldType.isIndexed()) {
-                result.add(new KeywordField("field", new BytesRef(val), KeywordFieldMapper.Defaults.FIELD_TYPE));
+                result.add(new StringField("field", new BytesRef(val), Field.Store.NO));
             }
             return result;
         };
@@ -939,12 +928,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         .field("field")
                         .order(bucketOrder);
 
-                    AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType);
-                    Aggregator aggregator = createAggregator(aggregationBuilder, context);
-                    aggregator.preCollection();
-                    indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-                    aggregator.postCollection();
-                    Terms result = reduce(aggregationBuilder, aggregator, context.bigArrays());
+                    Terms result = searchAndReduce(
+                        indexSearcher,
+                        new AggTestConfig(aggregationBuilder, fieldType).withSplitLeavesIntoSeperateAggregators(false)
+                    );
                     assertEquals(size, result.getBuckets().size());
                     for (int i = 0; i < size; i++) {
                         Map.Entry<T, Integer> expected = expectedBuckets.get(i);
@@ -967,12 +954,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
                                 .field("field")
                         );
-                        context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType, filterFieldType);
-                        aggregator = createAggregator(aggregationBuilder, context);
-                        aggregator.preCollection();
-                        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-                        aggregator.postCollection();
-                        result = ((Filter) reduce(aggregationBuilder, aggregator, context.bigArrays())).getAggregations().get("_name2");
+                        result = ((Filter) searchAndReduce(
+                            indexSearcher,
+                            new AggTestConfig(aggregationBuilder, fieldType, filterFieldType).withSplitLeavesIntoSeperateAggregators(false)
+                        )).getAggregations().get("_name2");
                         int expectedFilteredCounts = 0;
                         for (Integer count : filteredCounts.values()) {
                             if (count > 0) {
@@ -1047,12 +1032,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         .subAggregation(AggregationBuilders.max("_max").field("value"));
 
                     MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
-                    AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType, fieldType2);
-                    Aggregator aggregator = createAggregator(aggregationBuilder, context);
-                    aggregator.preCollection();
-                    indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-                    aggregator.postCollection();
-                    Terms result = reduce(aggregationBuilder, aggregator, context.bigArrays());
+                    Terms result = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType, fieldType2));
                     assertEquals(size, result.getBuckets().size());
                     for (int i = 0; i < size; i++) {
                         Map.Entry<T, Long> expected = expectedBuckets.get(i);
@@ -1074,32 +1054,17 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.STRING)
                         .field("string");
-                    AggregationContext context = createAggregationContext(indexSearcher, null, fieldType1);
-                    Aggregator aggregator = createAggregator(aggregationBuilder, context);
-                    aggregator.preCollection();
-                    indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-                    aggregator.postCollection();
-                    Terms result = reduce(aggregationBuilder, aggregator, context.bigArrays());
+                    Terms result = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType1));
                     assertEquals("_name", result.getName());
                     assertEquals(0, result.getBuckets().size());
 
                     aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.LONG).field("long");
-                    context = createAggregationContext(indexSearcher, null, fieldType2);
-                    aggregator = createAggregator(aggregationBuilder, context);
-                    aggregator.preCollection();
-                    indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-                    aggregator.postCollection();
-                    result = reduce(aggregationBuilder, aggregator, context.bigArrays());
+                    result = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType2));
                     assertEquals("_name", result.getName());
                     assertEquals(0, result.getBuckets().size());
 
                     aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.DOUBLE).field("double");
-                    context = createAggregationContext(indexSearcher, null, fieldType3);
-                    aggregator = createAggregator(aggregationBuilder, context);
-                    aggregator.preCollection();
-                    indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-                    aggregator.postCollection();
-                    result = reduce(aggregationBuilder, aggregator, context.bigArrays());
+                    result = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType3));
                     assertEquals("_name", result.getName());
                     assertEquals(0, result.getBuckets().size());
                 }
@@ -1117,12 +1082,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     for (int i = 0; i < fieldNames.length; i++) {
                         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(valueTypes[i])
                             .field(fieldNames[i]);
-                        AggregationContext context = createAggregationContext(indexSearcher, null);
-                        Aggregator aggregator = createAggregator(aggregationBuilder, context);
-                        aggregator.preCollection();
-                        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-                        aggregator.postCollection();
-                        Terms result = reduce(aggregationBuilder, aggregator, context.bigArrays());
+                        Terms result = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder));
                         assertEquals("_name", result.getName());
                         assertEquals(0, result.getBuckets().size());
                         assertFalse(AggregationInspectionHelper.hasValue((InternalTerms<?, ?>) result));
@@ -1153,12 +1113,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(valueTypes[i])
                             .field(fieldNames[i])
                             .missing(missingValues[i]);
-                        AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType1);
-                        Aggregator aggregator = createAggregator(aggregationBuilder, context);
-                        aggregator.preCollection();
-                        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-                        aggregator.postCollection();
-                        Terms result = reduce(aggregationBuilder, aggregator, context.bigArrays());
+                        Terms result = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType1));
                         assertEquals("_name", result.getName());
                         assertEquals(1, result.getBuckets().size());
                         assertEquals(missingValues[i], result.getBuckets().get(0).getKey());
@@ -1185,7 +1140,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field(fieldName);
-                    expectThrows(IllegalArgumentException.class, () -> { createAggregator(aggregationBuilder, indexSearcher, fieldType); });
+                    expectThrows(
+                        IllegalArgumentException.class,
+                        () -> { searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType)); }
+                    );
                 }
             }
         }
@@ -1203,7 +1161,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field(field);
-                    expectThrows(IllegalArgumentException.class, () -> { createAggregator(aggregationBuilder, indexSearcher, fieldType); });
+                    expectThrows(
+                        IllegalArgumentException.class,
+                        () -> { searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType)); }
+                    );
                 }
             }
         }
@@ -1269,12 +1230,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 .field("field2")
                                 .order(BucketOrder.key(true))
                         );
-                    AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType1, fieldType2);
-                    Aggregator aggregator = createAggregator(aggregationBuilder, context);
-                    aggregator.preCollection();
-                    indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
-                    aggregator.postCollection();
-                    Terms result = reduce(aggregationBuilder, aggregator, context.bigArrays());
+                    Terms result = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType1, fieldType2));
                     assertEquals(3, result.getBuckets().size());
                     assertEquals("a", result.getBuckets().get(0).getKeyAsString());
                     assertEquals(1L, result.getBuckets().get(0).getDocCount());
@@ -1543,7 +1499,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 List.of(
                     new SortedNumericDocValuesField("n", 1),
                     new LongPoint("n", 1),
-                    new SortedSetDocValuesField("str", new BytesRef("sheep")),
                     new Field("str", new BytesRef("sheep"), KeywordFieldMapper.Defaults.FIELD_TYPE)
                 )
             );
@@ -1552,8 +1507,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 List.of(
                     new SortedNumericDocValuesField("n", 1),
                     new LongPoint("n", 1),
-                    new SortedSetDocValuesField("str", new BytesRef("cow")),
-                    new Field("str", new BytesRef("sheep"), KeywordFieldMapper.Defaults.FIELD_TYPE)
+                    new Field("str", new BytesRef("cow"), KeywordFieldMapper.Defaults.FIELD_TYPE)
                 )
             );
         },
@@ -1796,7 +1750,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     AggregationExecutionException e = expectThrows(
                         AggregationExecutionException.class,
-                        () -> createAggregator(termsAgg, indexSearcher, fieldType)
+                        () -> searchAndReduce(indexSearcher, new AggTestConfig(termsAgg, fieldType))
                     );
                     assertEquals(
                         "Invalid aggregation order path [script]. The provided aggregation [script] "
@@ -1965,24 +1919,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     public void testWithFilterAndPreciseSize() throws IOException {
         KeywordFieldType kft = new KeywordFieldType("k", true, true, Collections.emptyMap());
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
-            iw.addDocument(
-                List.of(
-                    new Field("k", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
-                    new SortedSetDocValuesField("k", new BytesRef("a"))
-                )
-            );
-            iw.addDocument(
-                List.of(
-                    new Field("k", new BytesRef("b"), KeywordFieldMapper.Defaults.FIELD_TYPE),
-                    new SortedSetDocValuesField("k", new BytesRef("b"))
-                )
-            );
-            iw.addDocument(
-                List.of(
-                    new Field("k", new BytesRef("c"), KeywordFieldMapper.Defaults.FIELD_TYPE),
-                    new SortedSetDocValuesField("k", new BytesRef("c"))
-                )
-            );
+            iw.addDocument(List.of(new Field("k", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE)));
+            iw.addDocument(List.of(new Field("k", new BytesRef("b"), KeywordFieldMapper.Defaults.FIELD_TYPE)));
+            iw.addDocument(List.of(new Field("k", new BytesRef("c"), KeywordFieldMapper.Defaults.FIELD_TYPE)));
         };
         TermsAggregationBuilder builder = new TermsAggregationBuilder("k").field("k");
         /*
@@ -2042,8 +1981,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
      */
     public void testRuntimeFieldTopLevelNotOptimized() throws IOException {
         long totalDocs = 500;
-        SearchLookup lookup = new SearchLookup(s -> null, (ft, l, ftd) -> null, new SourceLookup.ReaderSourceProvider());
-        StringFieldScript.LeafFactory scriptFactory = ctx -> new StringFieldScript("dummy", Map.of(), lookup, ctx) {
+        SearchLookup lookup = new SearchLookup(s -> null, (ft, l, ftd) -> null, (ctx, doc) -> null);
+        StringFieldScript.LeafFactory scriptFactory = ctx -> new StringFieldScript("dummy", Map.of(), lookup, OnScriptError.FAIL, ctx) {
             @Override
             public void execute() {
                 emit("cat");
@@ -2054,9 +1993,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         debugTestCase(new TermsAggregationBuilder("t").field("k"), query, iw -> {
             for (int d = 0; d < totalDocs; d++) {
                 BytesRef value = values[d % values.length];
-                iw.addDocument(
-                    List.of(new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE), new SortedSetDocValuesField("k", value))
-                );
+                iw.addDocument(List.of(new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE)));
             }
         }, (StringTerms r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(
@@ -2092,10 +2029,11 @@ public class TermsAggregatorTests extends AggregatorTestCase {
      */
     public void testRuntimeFieldTermsNotOptimized() throws IOException {
         long totalDocs = 500;
-        StringFieldScript.Factory scriptFactory = (fieldName, params, lookup) -> ctx -> new StringFieldScript(
+        StringFieldScript.Factory scriptFactory = (fieldName, params, lookup, onScriptError) -> ctx -> new StringFieldScript(
             fieldName,
             Map.of(),
             lookup,
+            OnScriptError.FAIL,
             ctx
         ) {
             @Override
@@ -2105,13 +2043,11 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         };
         BytesRef[] values = new BytesRef[] { new BytesRef("stuff"), new BytesRef("more_stuff"), new BytesRef("other_stuff"), };
         MappedFieldType keywordFt = new KeywordFieldType("k", true, true, Collections.emptyMap());
-        MappedFieldType dummyFt = new KeywordScriptFieldType("dummy", scriptFactory, new Script("test"), Map.of());
+        MappedFieldType dummyFt = new KeywordScriptFieldType("dummy", scriptFactory, new Script("test"), Map.of(), OnScriptError.FAIL);
         debugTestCase(new TermsAggregationBuilder("t").field("dummy"), new MatchAllDocsQuery(), iw -> {
             for (int d = 0; d < totalDocs; d++) {
                 BytesRef value = values[d % values.length];
-                iw.addDocument(
-                    List.of(new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE), new SortedSetDocValuesField("k", value))
-                );
+                iw.addDocument(List.of(new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE)));
             }
         }, (StringTerms r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(
@@ -2147,7 +2083,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             for (int d = 0; d < totalDocs; d++) {
                 List<IndexableField> doc = new ArrayList<>();
                 doc.add(new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE));
-                doc.add(new SortedSetDocValuesField("k", value));
                 if (hasDocCountField) {
                     int count = between(1, 100);
                     totalCount[0] += count;
@@ -2188,7 +2123,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 BytesRef value = values[d % values.length];
                 List<IndexableField> doc = new ArrayList<>();
                 doc.add(new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE));
-                doc.add(new SortedSetDocValuesField("k", value));
                 if (hasDocCountField) {
                     int count = between(1, 100);
                     totalCounts[d % totalCounts.length] += count;
@@ -2236,15 +2170,15 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
         for (int nestedValue : nestedValues) {
             Document document = new Document();
-            document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-            document.add(new Field(NestedPathFieldMapper.NAME, "nested_object", NestedPathFieldMapper.Defaults.FIELD_TYPE));
+            document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO));
+            document.add(new StringField(NestedPathFieldMapper.NAME, "nested_object", Field.Store.NO));
             document.add(new SortedNumericDocValuesField("nested_value", nestedValue));
             documents.add(document);
         }
 
         LuceneDocument document = new LuceneDocument();
-        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
-        document.add(new Field(NestedPathFieldMapper.NAME, "docs", NestedPathFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.YES));
+        document.add(new StringField(NestedPathFieldMapper.NAME, "docs", Field.Store.NO));
         document.add(new SortedNumericDocValuesField("value", value));
         sequenceIDFields.addFields(document);
         documents.add(document);
@@ -2263,18 +2197,18 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
         for (int i = 0; i < tags.length; i++) {
             List<IndexableField> document = new ArrayList<>();
-            document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO));
 
-            document.add(new Field(NestedPathFieldMapper.NAME, "nested_object", NestedPathFieldMapper.Defaults.FIELD_TYPE));
+            document.add(new StringField(NestedPathFieldMapper.NAME, "nested_object", Field.Store.NO));
             document.add(new SortedDocValuesField("tag", new BytesRef(tags[i])));
             document.add(new SortedNumericDocValuesField("number", nestedValues[i]));
             documents.add(document);
         }
 
         LuceneDocument document = new LuceneDocument();
-        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.YES));
         document.addAll(doc(animalFieldType, animal));
-        document.add(new Field(NestedPathFieldMapper.NAME, "docs", NestedPathFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new StringField(NestedPathFieldMapper.NAME, "docs", Field.Store.NO));
         sequenceIDFields.addFields(document);
         documents.add(document);
 
@@ -2321,11 +2255,14 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     private InternalAggregation buildInternalAggregation(TermsAggregationBuilder builder, MappedFieldType fieldType, IndexSearcher searcher)
         throws IOException {
+        /*
         TermsAggregator aggregator = createAggregator(builder, searcher, fieldType);
         aggregator.preCollection();
         searcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
         return aggregator.buildTopLevel();
+         */
+        return searchAndReduce(searcher, new AggTestConfig(builder, fieldType));
     }
 
     private <T extends InternalAggregation> T reduce(AggregationBuilder builder, Aggregator agg, BigArrays bigArrays) throws IOException {

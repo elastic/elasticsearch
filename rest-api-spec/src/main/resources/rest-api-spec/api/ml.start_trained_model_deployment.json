@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/start-trained-model-deployment.html",
       "description":"Start a trained model deployment."
     },
-    "stability":"beta",
+    "stability":"stable",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"],

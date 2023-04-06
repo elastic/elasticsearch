@@ -191,7 +191,6 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             "logs-" + randomAlphaOfLengthBetween(1, 20),
             "metrics-" + randomAlphaOfLengthBetween(1, 20),
             "traces-" + randomAlphaOfLengthBetween(1, 20),
-            "synthetics-" + randomAlphaOfLengthBetween(1, 20),
             ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(1, 20),
             ".logs-endpoint.action.responses-" + randomAlphaOfLengthBetween(1, 20)
         ).stream().map(this::mockIndexAbstraction).forEach(index -> {
@@ -206,6 +205,21 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(index), is(false));
             assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(false));
             assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
+        });
+
+        List.of("synthetics-" + randomAlphaOfLengthBetween(1, 20)).stream().map(this::mockIndexAbstraction).forEach(index -> {
+            assertThat(role.indices().allowedIndicesMatcher(AutoPutMappingAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
         });
 

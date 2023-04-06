@@ -11,8 +11,6 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 public class RelocationFailureInfoTests extends AbstractWireSerializingTestCase<RelocationFailureInfo> {
 
     @Override
@@ -26,7 +24,7 @@ public class RelocationFailureInfoTests extends AbstractWireSerializingTestCase<
     }
 
     @Override
-    protected RelocationFailureInfo mutateInstance(RelocationFailureInfo instance) throws IOException {
+    protected RelocationFailureInfo mutateInstance(RelocationFailureInfo instance) {
         return new RelocationFailureInfo(instance.failedRelocations() + 1);
     }
 }

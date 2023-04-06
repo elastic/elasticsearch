@@ -140,6 +140,12 @@ stored in the keystore are marked as "secure"; the other settings belong in the
   set by the Azure client (known as 5 minutes). This setting can be defined
   globally, per account, or both.
 
+`endpoint`::
+  The Azure endpoint to connect to. It must include the protocol used to connect to Azure.
+
+`secondary_endpoint`::
+  The Azure secondary endpoint to connect to. It must include the protocol used to connect to Azure.
+
 [[repository-azure-repository-settings]]
 ==== Repository settings
 

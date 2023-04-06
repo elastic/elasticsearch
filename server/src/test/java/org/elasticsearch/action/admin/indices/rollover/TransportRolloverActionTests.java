@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -353,7 +354,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             mockThreadPool,
             mockCreateIndexService,
             mdIndexAliasesService,
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            WriteLoadForecaster.DEFAULT
         );
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mockTransportService,
@@ -370,7 +372,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         // (primaries from only write index is considered)
         PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
         RolloverRequest rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
-        rolloverRequest.addMaxIndexDocsCondition(500L);
+        rolloverRequest.setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(500L).build());
         rolloverRequest.dryRun(true);
         transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
 
@@ -386,7 +388,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         // (primaries from only write index is considered)
         future = new PlainActionFuture<>();
         rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
-        rolloverRequest.addMaxIndexDocsCondition(300L);
+        rolloverRequest.setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(300L).build());
         rolloverRequest.dryRun(true);
         transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
 
@@ -476,7 +478,8 @@ public class TransportRolloverActionTests extends ESTestCase {
                     shardId,
                     primary,
                     primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                    ShardRouting.Role.DEFAULT
                 );
                 shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                 shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);

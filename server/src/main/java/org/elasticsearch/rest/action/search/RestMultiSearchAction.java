@@ -24,9 +24,12 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -38,6 +41,7 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestMultiSearchAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]"
@@ -46,9 +50,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Set.of(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
 
     private final boolean allowExplicitIndex;
+    private final SearchUsageHolder searchUsageHolder;
 
-    public RestMultiSearchAction(Settings settings) {
+    public RestMultiSearchAction(Settings settings, SearchUsageHolder searchUsageHolder) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
+        this.searchUsageHolder = searchUsageHolder;
     }
 
     @Override
@@ -70,7 +76,12 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final MultiSearchRequest multiSearchRequest = parseRequest(request, client.getNamedWriteableRegistry(), allowExplicitIndex);
+        final MultiSearchRequest multiSearchRequest = parseRequest(
+            request,
+            client.getNamedWriteableRegistry(),
+            allowExplicitIndex,
+            searchUsageHolder
+        );
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancellableClient.execute(MultiSearchAction.INSTANCE, multiSearchRequest, new RestToXContentListener<>(channel));
@@ -83,9 +94,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
     public static MultiSearchRequest parseRequest(
         RestRequest restRequest,
         NamedWriteableRegistry namedWriteableRegistry,
-        boolean allowExplicitIndex
+        boolean allowExplicitIndex,
+        SearchUsageHolder searchUsageHolder
     ) throws IOException {
-        return parseRequest(restRequest, namedWriteableRegistry, allowExplicitIndex, (k, v, r) -> false);
+        return parseRequest(restRequest, namedWriteableRegistry, allowExplicitIndex, searchUsageHolder, (k, v, r) -> false);
     }
 
     /**
@@ -96,6 +108,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         RestRequest restRequest,
         NamedWriteableRegistry namedWriteableRegistry,
         boolean allowExplicitIndex,
+        SearchUsageHolder searchUsageHolder,
         TriFunction<String, Object, SearchRequest, Boolean> extraParamParser
     ) throws IOException {
         if (restRequest.getRestApiVersion() == RestApiVersion.V_7 && restRequest.hasParam("type")) {
@@ -124,7 +137,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         }
 
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
-            searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
+            searchRequest.source(new SearchSourceBuilder().parseXContent(parser, false, searchUsageHolder));
             RestSearchAction.validateSearchRequest(restRequest, searchRequest);
             if (searchRequest.pointInTimeBuilder() != null) {
                 RestSearchAction.preparePointInTime(searchRequest, restRequest, namedWriteableRegistry);

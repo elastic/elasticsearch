@@ -1365,7 +1365,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         String source = builder.toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            SearchResponse response = client().prepareSearch("idx").setSource(SearchSourceBuilder.fromXContent(parser, true)).get();
+            SearchResponse response = client().prepareSearch("idx").setSource(new SearchSourceBuilder().parseXContent(parser, true)).get();
 
             assertSearchResponse(response);
             LongTerms terms = response.getAggregations().get("terms");
@@ -1379,7 +1379,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidValueType)) {
             XContentParseException ex = expectThrows(
                 XContentParseException.class,
-                () -> client().prepareSearch("idx").setSource(SearchSourceBuilder.fromXContent(parser, true)).get()
+                () -> client().prepareSearch("idx").setSource(new SearchSourceBuilder().parseXContent(parser, true)).get()
             );
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(ex.getCause().getMessage(), containsString("Unknown value type [foobar]"));

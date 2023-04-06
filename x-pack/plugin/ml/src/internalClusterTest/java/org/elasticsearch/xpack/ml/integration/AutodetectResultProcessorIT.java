@@ -110,6 +110,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -143,7 +145,9 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     public void createComponents() throws Exception {
         Settings.Builder builder = Settings.builder()
             .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class));
+        // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
+        // AnomalyDetectionAuditor constructor. Instead we generate a random boolean value for that purpose.
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class), randomBoolean());
         jobResultsProvider = new JobResultsProvider(client(), builder.build(), TestIndexNameExpressionResolver.newInstance());
         renormalizer = mock(Renormalizer.class);
         process = mock(AutodetectProcess.class);
@@ -372,7 +376,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
         assertEquals(quantiles, persistedQuantiles.get());
-        verify(renormalizer).renormalize(quantiles);
+        verify(renormalizer).renormalize(eq(quantiles), any(Runnable.class));
     }
 
     public void testParseQuantiles_GivenRenormalizationIsDisabled() throws Exception {
@@ -389,7 +393,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
         assertEquals(quantiles, persistedQuantiles.get());
-        verify(renormalizer, never()).renormalize(quantiles);
+        verify(renormalizer, never()).renormalize(any(), any());
     }
 
     public void testDeleteInterimResults() throws Exception {

@@ -52,12 +52,19 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
 
     void onFatalUncaught(final String threadName, final Throwable t) {
         final String message = "fatal error in thread [" + threadName + "], exiting";
-        logger.error(message, t);
+        logErrorMessage(t, message);
     }
 
     void onNonFatalUncaught(final String threadName, final Throwable t) {
         final String message = "uncaught exception in thread [" + threadName + "]";
-        logger.error(message, t);
+        logErrorMessage(t, message);
+    }
+
+    private void logErrorMessage(Throwable t, String message) {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            logger.error(message, t);
+            return null;
+        });
     }
 
     void halt(int status) {

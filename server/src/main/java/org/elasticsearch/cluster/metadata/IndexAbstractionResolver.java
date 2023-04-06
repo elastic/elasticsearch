@@ -14,11 +14,11 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class IndexAbstractionResolver {
 
@@ -29,29 +29,11 @@ public class IndexAbstractionResolver {
     }
 
     public List<String> resolveIndexAbstractions(
-        String[] indices,
-        IndicesOptions indicesOptions,
-        Metadata metadata,
-        boolean includeDataStreams
-    ) {
-        return resolveIndexAbstractions(Arrays.asList(indices), indicesOptions, metadata, includeDataStreams);
-    }
-
-    public List<String> resolveIndexAbstractions(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         Metadata metadata,
-        boolean includeDataStreams
-    ) {
-        Set<String> availableIndexAbstractions = metadata.getIndicesLookup().keySet();
-        return resolveIndexAbstractions(indices, indicesOptions, metadata, availableIndexAbstractions, includeDataStreams);
-    }
-
-    public List<String> resolveIndexAbstractions(
-        Iterable<String> indices,
-        IndicesOptions indicesOptions,
-        Metadata metadata,
-        Collection<String> availableIndexAbstractions,
+        Supplier<Set<String>> allAuthorizedAndAvailable,
+        Predicate<String> isAuthorized,
         boolean includeDataStreams
     ) {
         List<String> finalIndices = new ArrayList<>();
@@ -72,7 +54,7 @@ public class IndexAbstractionResolver {
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : availableIndexAbstractions) {
+                for (String authorizedIndex : allAuthorizedAndAvailable.get()) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
                             indexAbstraction,
@@ -100,7 +82,10 @@ public class IndexAbstractionResolver {
             } else {
                 if (minus) {
                     finalIndices.remove(indexAbstraction);
-                } else if (indicesOptions.ignoreUnavailable() == false || availableIndexAbstractions.contains(indexAbstraction)) {
+                } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction)) {
+                    // Unauthorized names are considered unavailable, so if `ignoreUnavailable` is `true` they should be silently
+                    // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
+                    // handler, see: https://github.com/elastic/elasticsearch/issues/90215
                     finalIndices.add(indexAbstraction);
                 }
             }

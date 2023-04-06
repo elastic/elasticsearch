@@ -19,9 +19,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -41,10 +41,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -307,20 +309,20 @@ public class XPackPlugin extends XPackClientPlugin
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         List<Object> components = new ArrayList<>();
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
-        setLicenseService(
-            new LicenseService(settings, threadPool, clusterService, getClock(), environment, resourceWatcherService, getLicenseState())
-        );
+        LicenseService licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
+        setLicenseService(licenseService);
 
         setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
-        components.add(getLicenseService());
+        components.add(new PluginComponentBinding<>(LicenseService.MutableLicenseService.class, licenseService));
+        components.add(new PluginComponentBinding<>(LicenseService.class, licenseService));
         components.add(getLicenseState());
 
         return components;
@@ -339,6 +341,8 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class));
         actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class));
+        actions.add(new ActionHandler<>(XPackUsageFeatureAction.HEALTH, HealthApiUsageTransportAction.class));
+        actions.add(new ActionHandler<>(XPackUsageFeatureAction.REMOTE_CLUSTERS, RemoteClusterUsageTransportAction.class));
         return actions;
     }
 
@@ -447,11 +451,17 @@ public class XPackPlugin extends XPackClientPlugin
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        if (DiscoveryNode.isStateless(settings)) {
+            return List.of();
+        }
         return Collections.singleton(DataTierAllocationDecider.INSTANCE);
     }
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
+        if (DiscoveryNode.isStateless(settings)) {
+            return List.of();
+        }
         return Collections.singleton(new DataTier.DefaultHotAllocationSettingProvider());
     }
 
@@ -461,6 +471,7 @@ public class XPackPlugin extends XPackClientPlugin
      */
     private SSLService createSSLService(Environment environment, ResourceWatcherService resourceWatcherService) {
         final Map<String, SslConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment);
+        // Must construct the reloader before the SSL service so that we don't miss any config changes, see #54867
         final SSLConfigurationReloader reloader = new SSLConfigurationReloader(resourceWatcherService, sslConfigurations.values());
         final SSLService sslService = new SSLService(environment, sslConfigurations);
         reloader.setSSLService(sslService);

@@ -1,0 +1,22 @@
+{
+  "priority" : 2147483647,
+  "version" : ${xpack.ml.version.id},
+  "index_patterns" : [
+    ".ml-stats-*"
+  ],
+  "template": {
+    "settings": {
+      "index" : {
+        "number_of_shards" : "1",
+        "auto_expand_replicas" : "0-1",
+        "hidden": true
+      }
+    },
+    "mappings" : ${xpack.ml.stats.mappings},
+    "aliases" : {}
+  },
+  "_meta" : {
+    "description": "index template for ML stats indices",
+    "managed": true
+  }
+}

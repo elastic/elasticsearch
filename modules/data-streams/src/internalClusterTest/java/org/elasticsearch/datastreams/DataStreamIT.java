@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -59,10 +60,13 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataStats;
+import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -76,9 +80,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.shard.IndexWriteLoad;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -99,10 +101,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -744,7 +749,14 @@ public class DataStreamIT extends ESIntegTestCase {
             equalTo(
                 Map.of(
                     "logs-foobar",
-                    List.of(new DataStreamAlias("foo", List.of("logs-foobar"), null, Map.of("term", Map.of("type", Map.of("value", "y")))))
+                    List.of(
+                        new DataStreamAlias(
+                            "foo",
+                            List.of("logs-foobar"),
+                            null,
+                            Map.of("logs-foobar", Map.of("term", Map.of("type", Map.of("value", "y"))))
+                        )
+                    )
                 )
             )
         );
@@ -769,7 +781,14 @@ public class DataStreamIT extends ESIntegTestCase {
             equalTo(
                 Map.of(
                     "logs-foobar",
-                    List.of(new DataStreamAlias("foo", List.of("logs-foobar"), null, Map.of("term", Map.of("type", Map.of("value", "x")))))
+                    List.of(
+                        new DataStreamAlias(
+                            "foo",
+                            List.of("logs-foobar"),
+                            null,
+                            Map.of("logs-foobar", Map.of("term", Map.of("type", Map.of("value", "x"))))
+                        )
+                    )
                 )
             )
         );
@@ -788,17 +807,17 @@ public class DataStreamIT extends ESIntegTestCase {
         String alias = randomAlphaOfLength(4);
         String[] dataStreams = Arrays.stream(generateRandomStringArray(16, 4, false, false))
             .map(s -> "log-" + s.toLowerCase(Locale.ROOT))
+            .distinct()
             .toArray(String[]::new);
         for (String dataStream : dataStreams) {
             CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStream);
             client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
         }
-        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias)
-            .indices(dataStreams)
-            .filter(Map.of("term", Map.of("type", Map.of("value", "y"))));
+        Map<String, Object> indexFilters = Map.of("term", Map.of("type", Map.of("value", "y")));
+        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStreams).filter(indexFilters);
         assertAcked(client().admin().indices().aliases(new IndicesAliasesRequest().addAliasAction(addAction)).actionGet());
 
-        addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStreams[0]).writeIndex(true);
+        addAction = new AliasActions(AliasActions.Type.ADD).aliases(alias).indices(dataStreams[0]).filter(indexFilters).writeIndex(true);
         assertAcked(client().admin().indices().aliases(new IndicesAliasesRequest().addAliasAction(addAction)).actionGet());
 
         GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
@@ -813,7 +832,16 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(result.get(0).getName(), equalTo(alias));
         assertThat(result.get(0).getDataStreams(), containsInAnyOrder(dataStreams));
         assertThat(result.get(0).getWriteDataStream(), equalTo(dataStreams[0]));
-        assertThat(result.get(0).getFilter().string(), equalTo("{\"term\":{\"type\":{\"value\":\"y\"}}}"));
+        for (String dataStream : dataStreams) {
+            assertThat(
+                result.stream()
+                    .map(resultAlias -> resultAlias.getFilter(dataStream))
+                    .filter(Objects::nonNull)
+                    .map(CompressedXContent::string)
+                    .collect(Collectors.toSet()),
+                containsInAnyOrder("{\"term\":{\"type\":{\"value\":\"y\"}}}")
+            );
+        }
     }
 
     public void testDataSteamAliasWithMalformedFilter() throws Exception {
@@ -1110,11 +1138,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("1"));
         assertThat(getSettingsResponse.getSetting(backingIndex2, "index.number_of_replicas"), equalTo("1"));
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("logs-foobar")
-            .setSettings(Settings.builder().put("index.number_of_replicas", 0))
-            .get();
+        setReplicaCount(0, "logs-foobar");
         getSettingsResponse = client().admin().indices().prepareGetSettings("logs-foobar").get();
         assertThat(getSettingsResponse.getIndexToSettings().size(), equalTo(2));
         assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("0"));
@@ -1259,10 +1283,11 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, is((long) numDocsBar + numDocsFoo + numDocsRolledFoo));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94481")
     public void testGetDataStream() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maximumNumberOfReplicas() + 2).build();
-        putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null);
-
+        DataLifecycle lifecycle = new DataLifecycle(randomMillisUpToYear9999());
+        putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null, null, lifecycle);
         int numDocsFoo = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo);
 
@@ -1276,6 +1301,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(metricsFooDataStream.getDataStreamStatus(), is(ClusterHealthStatus.YELLOW));
         assertThat(metricsFooDataStream.getIndexTemplate(), is("template_for_foo"));
         assertThat(metricsFooDataStream.getIlmPolicy(), is(nullValue()));
+        assertThat(metricsFooDataStream.getDataStream().getLifecycle(), is(lifecycle));
     }
 
     private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping, Map<?, ?> expectedMapping) {
@@ -1293,7 +1319,7 @@ public class DataStreamIT extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         IndexRequest indexRequest = new IndexRequest(dataStreamName).opType("create").source("{}", XContentType.JSON);
-        Exception e = expectThrows(MapperParsingException.class, () -> client().index(indexRequest).actionGet());
+        Exception e = expectThrows(Exception.class, () -> client().index(indexRequest).actionGet());
         assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
     }
 
@@ -1305,7 +1331,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         IndexRequest indexRequest = new IndexRequest(dataStreamName).opType("create")
             .source("{\"@timestamp\": [\"2020-12-12\",\"2022-12-12\"]}", XContentType.JSON);
-        Exception e = expectThrows(MapperParsingException.class, () -> client().index(indexRequest).actionGet());
+        Exception e = expectThrows(Exception.class, () -> client().index(indexRequest).actionGet());
         assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] encountered multiple values"));
     }
 
@@ -1481,7 +1507,11 @@ public class DataStreamIT extends ESIntegTestCase {
                 logger.info("--> [{}] waiting for all the other threads before starting", i);
                 barrier.await();
                 while (running.get()) {
-                    RolloverResponse resp = client().admin().indices().prepareRolloverIndex(dsName).addMaxIndexDocsCondition(2).get();
+                    RolloverResponse resp = client().admin()
+                        .indices()
+                        .prepareRolloverIndex(dsName)
+                        .setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L))
+                        .get();
                     if (resp.isRolledOver()) {
                         logger.info("--> thread [{}] successfully rolled over: {}", i, Strings.toString(resp));
                         assertThat(resp.getOldIndex(), backingIndexEqualTo("potato-biscuit", 1));
@@ -1623,7 +1653,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 List.of("my-*"),
                 null,
                 null,
-                Map.of("my-alias", AliasMetadata.builder("my-alias").build())
+                Map.of("my-alias", AliasMetadata.builder("my-alias").build()),
+                null
             );
             var request = new CreateDataStreamAction.Request("my-ds");
             assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
@@ -1658,7 +1689,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 List.of("logs-*"),
                 null,
                 null,
-                Map.of("logs", AliasMetadata.builder("logs").build())
+                Map.of("logs", AliasMetadata.builder("logs").build()),
+                null
             );
 
             var request = new CreateDataStreamAction.Request("logs-es");
@@ -1694,7 +1726,8 @@ public class DataStreamIT extends ESIntegTestCase {
                     List.of("logs-*"),
                     null,
                     null,
-                    Map.of("logs", AliasMetadata.builder("logs").build())
+                    Map.of("logs", AliasMetadata.builder("logs").build()),
+                    null
                 )
             );
             assertThat(
@@ -1769,7 +1802,8 @@ public class DataStreamIT extends ESIntegTestCase {
                         original.isReplicated(),
                         original.isSystem(),
                         original.isAllowCustomRouting(),
-                        original.getIndexMode()
+                        original.getIndexMode(),
+                        original.getLifecycle()
                     );
                     brokenDataStreamHolder.set(broken);
                     return ClusterState.builder(currentState)
@@ -2010,7 +2044,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertEquals(searchResponse.getTotalShards(), 4);
     }
 
-    public void testWriteIndexWriteLoadIsStoredAfterRollover() throws Exception {
+    public void testWriteIndexWriteLoadAndAvgShardSizeIsStoredAfterRollover() throws Exception {
         final String dataStreamName = "logs-es";
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(0, 1);
@@ -2022,6 +2056,221 @@ public class DataStreamIT extends ESIntegTestCase {
         final var request = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
 
+        indexDocsAndEnsureThereIsCapturedWriteLoad(dataStreamName);
+
+        assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
+        final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+
+        for (Index index : dataStream.getIndices()) {
+            final IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            final IndexMetadataStats metadataStats = indexMetadata.getStats();
+
+            if (index.equals(dataStream.getWriteIndex()) == false) {
+                assertThat(metadataStats, is(notNullValue()));
+
+                final var averageShardSize = metadataStats.averageShardSize();
+                assertThat(averageShardSize.getAverageSizeInBytes(), is(greaterThan(0L)));
+
+                final IndexWriteLoad indexWriteLoad = metadataStats.writeLoad();
+                for (int shardId = 0; shardId < numberOfShards; shardId++) {
+                    assertThat(indexWriteLoad.getWriteLoadForShard(shardId).getAsDouble(), is(greaterThanOrEqualTo(0.0)));
+                    assertThat(indexWriteLoad.getUptimeInMillisForShard(shardId).getAsLong(), is(greaterThan(0L)));
+                }
+            } else {
+                assertThat(metadataStats, is(nullValue()));
+            }
+        }
+    }
+
+    public void testWriteLoadAndAvgShardSizeIsStoredInABestEffort() throws Exception {
+        // This test simulates the scenario where some nodes fail to respond
+        // to the IndicesStatsRequest and therefore only a partial view of the
+        // write-index write-load is stored during rollover.
+        // In this test we simulate the following scenario:
+        // - The DataStream template is configured to have 2 shards and 1 replica
+        // - There's an allocation rule to allocate the data stream nodes in 4 particular nodes
+        // - We want to simulate two possible cases here:
+        // - All the assigned nodes for shard 0 will fail to respond to the IndicesStatsRequest
+        // - Only the shard 1 replica will respond successfully to the IndicesStatsRequest ensuring that we fall back in that case
+        // (only if it's not co-located with some other shard copies)
+
+        final List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(4);
+        final String dataStreamName = "logs-es";
+
+        final var indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes))
+            .build();
+        DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
+        ensureGreen(dataStreamName);
+
+        indexDocsAndEnsureThereIsCapturedWriteLoad(dataStreamName);
+
+        final ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        final DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
+        final IndexRoutingTable currentDataStreamWriteIndexRoutingTable = clusterStateBeforeRollover.routingTable()
+            .index(dataStreamBeforeRollover.getWriteIndex());
+
+        final Set<String> failingIndicesStatsNodeIds = new HashSet<>();
+        for (ShardRouting shardRouting : currentDataStreamWriteIndexRoutingTable.shard(0).assignedShards()) {
+            failingIndicesStatsNodeIds.add(shardRouting.currentNodeId());
+        }
+        failingIndicesStatsNodeIds.add(currentDataStreamWriteIndexRoutingTable.shard(1).primaryShard().currentNodeId());
+        final String shard1ReplicaNodeId = currentDataStreamWriteIndexRoutingTable.shard(1).replicaShards().get(0).currentNodeId();
+        final boolean shard1ReplicaIsAllocatedInAReachableNode = failingIndicesStatsNodeIds.contains(shard1ReplicaNodeId) == false;
+
+        for (String nodeId : failingIndicesStatsNodeIds) {
+            String nodeName = clusterStateBeforeRollover.nodes().resolveNode(nodeId).getName();
+            MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeName);
+            transportService.addRequestHandlingBehavior(
+                IndicesStatsAction.NAME + "[n]",
+                (handler, request, channel, task) -> channel.sendResponse(new RuntimeException("Unable to get stats"))
+            );
+        }
+
+        logger.info(
+            "--> Node IDs failing to respond to stats requests {}, shard 1 replica routing {}",
+            failingIndicesStatsNodeIds,
+            currentDataStreamWriteIndexRoutingTable.shard(1).replicaShards().get(0)
+        );
+
+        assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
+        final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+
+        for (Index index : dataStream.getIndices()) {
+            final IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            final IndexMetadataStats metadataStats = indexMetadata.getStats();
+
+            // If all the shards are co-located within the failing nodes, no stats will be stored during rollover
+            if (index.equals(dataStream.getWriteIndex()) == false && shard1ReplicaIsAllocatedInAReachableNode) {
+                assertThat("Expected stats for index " + index, metadataStats, is(notNullValue()));
+
+                final IndexWriteLoad indexWriteLoad = metadataStats.writeLoad();
+                // All stats request performed against nodes holding the shard 0 failed
+                assertThat(indexWriteLoad.getWriteLoadForShard(0).isPresent(), is(false));
+                assertThat(indexWriteLoad.getUptimeInMillisForShard(0).isPresent(), is(false));
+
+                // At least one of the shard 1 copies responded with stats
+                assertThat(indexWriteLoad.getWriteLoadForShard(1).getAsDouble(), is(greaterThanOrEqualTo(0.0)));
+                assertThat(indexWriteLoad.getUptimeInMillisForShard(1).getAsLong(), is(greaterThan(0L)));
+
+                final var averageShardSize = metadataStats.averageShardSize();
+                assertThat(averageShardSize.numberOfShards(), is(equalTo(1)));
+
+                assertThat(averageShardSize.getAverageSizeInBytes(), is(greaterThan(0L)));
+            } else {
+                assertThat(metadataStats, is(nullValue()));
+            }
+        }
+    }
+
+    public void testNoShardSizeIsForecastedWhenAllShardStatRequestsFail() throws Exception {
+        final String dataOnlyNode = internalCluster().startDataOnlyNode();
+        final String dataStreamName = "logs-es";
+
+        final var indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.require._name", dataOnlyNode)
+            .build();
+        DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
+
+        for (int i = 0; i < 10; i++) {
+            indexDocs(dataStreamName, randomIntBetween(100, 200));
+        }
+
+        final ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        final DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
+        final String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
+            .index(dataStreamBeforeRollover.getWriteIndex())
+            .shard(0)
+            .primaryShard()
+            .currentNodeId();
+
+        final String nodeName = clusterStateBeforeRollover.nodes().resolveNode(assignedShardNodeId).getName();
+        final MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            nodeName
+        );
+        transportService.addRequestHandlingBehavior(
+            IndicesStatsAction.NAME + "[n]",
+            (handler, request, channel, task) -> channel.sendResponse(new RuntimeException("Unable to get stats"))
+        );
+
+        assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
+
+        final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+        final IndexMetadata currentWriteIndexMetadata = clusterState.metadata().getIndexSafe(dataStream.getWriteIndex());
+
+        // When all shard stats request fail, we cannot forecast the shard size
+        assertThat(currentWriteIndexMetadata.getForecastedShardSizeInBytes().isEmpty(), is(equalTo(true)));
+    }
+
+    public void testShardSizeIsForecastedDuringRollover() throws Exception {
+        final String dataStreamName = "logs-es";
+        final int numberOfShards = randomIntBetween(1, 5);
+        final int numberOfReplicas = randomIntBetween(0, 1);
+        final var indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+            .build();
+        DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
+        final var request = new CreateDataStreamAction.Request(dataStreamName);
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 10; j++) {
+                indexDocs(dataStreamName, randomIntBetween(100, 200));
+            }
+
+            // Ensure that we get a stable size to compare against the expected size
+            assertThat(
+                client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).get().getSuccessfulShards(),
+                is(greaterThanOrEqualTo(numberOfShards))
+            );
+
+            assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
+        }
+
+        final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+
+        final List<String> dataStreamReadIndices = dataStream.getIndices()
+            .stream()
+            .filter(index -> index.equals(dataStream.getWriteIndex()) == false)
+            .map(Index::getName)
+            .toList();
+
+        final IndicesStatsResponse indicesStatsResponse = client().admin()
+            .indices()
+            .prepareStats(dataStreamReadIndices.toArray(new String[dataStreamReadIndices.size()]))
+            .setStore(true)
+            .get();
+        long expectedTotalSizeInBytes = 0;
+        int shardCount = 0;
+        for (ShardStats shard : indicesStatsResponse.getShards()) {
+            if (shard.getShardRouting().primary() == false) {
+                continue;
+            }
+            expectedTotalSizeInBytes += shard.getStats().getDocs().getTotalSizeInBytes();
+            shardCount++;
+        }
+
+        final IndexMetadata writeIndexMetadata = clusterState.metadata().index(dataStream.getWriteIndex());
+        final OptionalLong forecastedShardSizeInBytes = writeIndexMetadata.getForecastedShardSizeInBytes();
+        assertThat(forecastedShardSizeInBytes.isPresent(), is(equalTo(true)));
+        assertThat(forecastedShardSizeInBytes.getAsLong(), is(equalTo(expectedTotalSizeInBytes / shardCount)));
+    }
+
+    private void indexDocsAndEnsureThereIsCapturedWriteLoad(String dataStreamName) throws Exception {
         assertBusy(() -> {
             for (int i = 0; i < 10; i++) {
                 indexDocs(dataStreamName, randomIntBetween(100, 200));
@@ -2040,96 +2289,6 @@ public class DataStreamIT extends ESIntegTestCase {
                 }
             }
         });
-
-        assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
-        final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
-
-        for (Index index : dataStream.getIndices()) {
-            final IndexMetadata indexMetadata = clusterState.metadata().index(index);
-            final IndexWriteLoad indexWriteLoad = indexMetadata.getWriteLoad();
-
-            if (index.equals(dataStream.getWriteIndex()) == false) {
-                assertThat(indexWriteLoad, is(notNullValue()));
-                for (int shardId = 0; shardId < numberOfShards; shardId++) {
-                    assertThat(indexWriteLoad.getWriteLoadForShard(shardId).getAsDouble(), is(greaterThanOrEqualTo(0.0)));
-                    assertThat(indexWriteLoad.getUptimeInMillisForShard(shardId).getAsLong(), is(greaterThan(0L)));
-                }
-            } else {
-                assertThat(indexWriteLoad, is(nullValue()));
-            }
-        }
-    }
-
-    public void testWriteLoadIsStoredInABestEffort() throws Exception {
-        // This test simulates the scenario where some nodes fail to respond
-        // to the IndicesStatsRequest and therefore only a partial view of the
-        // write-index write-load is stored during rollover.
-        // In this test we simulate the following scenario:
-        // - The DataStream template is configured to have 2 shards and 1 replica
-        // - There's an allocation rule to allocate the data stream nodes in 4 particular nodes
-        // - We want to simulate two possible cases here:
-        // - All the assigned nodes for shard 0 will fail to respond to the IndicesStatsRequest
-        // - Only the shard 1 replica will respond successfully to the IndicesStatsRequest ensuring that we fall back in that case
-
-        final List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(4);
-        final String dataStreamName = "logs-es";
-
-        final var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes))
-            .build();
-        DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
-        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
-        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
-
-        for (int i = 0; i < 10; i++) {
-            indexDocs(dataStreamName, randomIntBetween(100, 200));
-        }
-
-        final ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        final DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
-        final IndexRoutingTable currentDataStreamWriteIndexRoutingTable = clusterStateBeforeRollover.routingTable()
-            .index(dataStreamBeforeRollover.getWriteIndex());
-
-        final List<String> failingIndicesStatsNodeIds = new ArrayList<>();
-        for (ShardRouting shardRouting : currentDataStreamWriteIndexRoutingTable.shard(0).assignedShards()) {
-            failingIndicesStatsNodeIds.add(shardRouting.currentNodeId());
-        }
-        failingIndicesStatsNodeIds.add(currentDataStreamWriteIndexRoutingTable.shard(1).primaryShard().currentNodeId());
-
-        for (String nodeId : failingIndicesStatsNodeIds) {
-            String nodeName = clusterStateBeforeRollover.nodes().resolveNode(nodeId).getName();
-            MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeName);
-            transportService.addRequestHandlingBehavior(
-                IndicesStatsAction.NAME + "[n]",
-                (handler, request, channel, task) -> channel.sendResponse(new RuntimeException("Unable to get stats"))
-            );
-        }
-        assertThat(failingIndicesStatsNodeIds.size(), is(equalTo(3)));
-
-        assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
-        final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
-
-        for (Index index : dataStream.getIndices()) {
-            final IndexMetadata indexMetadata = clusterState.metadata().index(index);
-            final IndexWriteLoad indexWriteLoad = indexMetadata.getWriteLoad();
-
-            if (index.equals(dataStream.getWriteIndex()) == false) {
-                assertThat(indexWriteLoad, is(notNullValue()));
-                // All stats request performed against nodes holding the shard 0 failed
-                assertThat(indexWriteLoad.getWriteLoadForShard(0).isPresent(), is(false));
-                assertThat(indexWriteLoad.getUptimeInMillisForShard(0).isPresent(), is(false));
-
-                // At least one of the shard 1 copies responded with stats
-                assertThat(indexWriteLoad.getWriteLoadForShard(1).getAsDouble(), is(greaterThanOrEqualTo(0.0)));
-                assertThat(indexWriteLoad.getUptimeInMillisForShard(1).getAsLong(), is(greaterThan(0L)));
-            } else {
-                assertThat(indexWriteLoad, is(nullValue()));
-            }
-        }
     }
 
     static void putComposableIndexTemplate(
@@ -2139,7 +2298,7 @@ public class DataStreamIT extends ESIntegTestCase {
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata
     ) throws IOException {
-        putComposableIndexTemplate(id, mappings, patterns, settings, metadata, null);
+        putComposableIndexTemplate(id, mappings, patterns, settings, metadata, null, null);
     }
 
     static void putComposableIndexTemplate(
@@ -2148,13 +2307,14 @@ public class DataStreamIT extends ESIntegTestCase {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable Map<String, AliasMetadata> aliases
+        @Nullable Map<String, AliasMetadata> aliases,
+        @Nullable DataLifecycle lifecycle
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             new ComposableIndexTemplate(
                 patterns,
-                new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), aliases),
+                new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), aliases, lifecycle),
                 null,
                 null,
                 null,

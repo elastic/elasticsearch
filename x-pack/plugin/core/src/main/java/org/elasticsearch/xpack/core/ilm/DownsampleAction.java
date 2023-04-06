@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -35,6 +37,7 @@ public class DownsampleAction implements LifecycleAction {
 
     public static final String NAME = "downsample";
     public static final String DOWNSAMPLED_INDEX_PREFIX = "downsample-";
+    public static final String CONDITIONAL_TIME_SERIES_CHECK_KEY = BranchingStep.NAME + "-on-timeseries-check";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
     public static final String GENERATE_DOWNSAMPLE_STEP_NAME = "generate-downsampled-index-name";
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField(DownsampleConfig.FIXED_INTERVAL);
@@ -99,18 +102,31 @@ public class DownsampleAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+        StepKey timeSeriesIndexCheckBranchKey = new StepKey(phase, NAME, CONDITIONAL_TIME_SERIES_CHECK_KEY);
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
         StepKey cleanupRollupIndexKey = new StepKey(phase, NAME, CleanupTargetIndexStep.NAME);
         StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GENERATE_DOWNSAMPLE_STEP_NAME);
-        StepKey rollupKey = new StepKey(phase, NAME, RollupStep.NAME);
+        StepKey rollupKey = new StepKey(phase, NAME, DownsampleStep.NAME);
         StepKey waitForRollupIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey dataStreamCheckBranchingKey = new StepKey(phase, NAME, CONDITIONAL_DATASTREAM_CHECK_KEY);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
         StepKey swapAliasesKey = new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME);
+
+        // If the source index is not a time-series index, we should skip the downsample action completely
+        BranchingStep isTimeSeriesIndexBranchingStep = new BranchingStep(
+            timeSeriesIndexCheckBranchKey,
+            nextStepKey,
+            checkNotWriteIndex,
+            (index, clusterState) -> {
+                IndexMetadata indexMetadata = clusterState.metadata().index(index);
+                assert indexMetadata != null : "invalid cluster metadata. index [" + index.getName() + "] metadata not found";
+                return IndexSettings.MODE.get(indexMetadata.getSettings()) == IndexMode.TIME_SERIES;
+            }
+        );
 
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(
             checkNotWriteIndex,
@@ -126,7 +142,7 @@ public class DownsampleAction implements LifecycleAction {
             readOnlyKey,
             client,
             (indexMetadata) -> IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(indexMetadata.getSettings()),
-            (indexMetadata) -> indexMetadata.getLifecycleExecutionState().rollupIndexName()
+            (indexMetadata) -> indexMetadata.getLifecycleExecutionState().downsampleIndexName()
         );
         // Mark source index as read-only
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateRollupIndexNameKey, client);
@@ -140,7 +156,7 @@ public class DownsampleAction implements LifecycleAction {
         );
 
         // Here is where the actual rollup action takes place
-        RollupStep rollupStep = new RollupStep(rollupKey, waitForRollupIndexKey, client, fixedInterval);
+        DownsampleStep rollupStep = new DownsampleStep(rollupKey, waitForRollupIndexKey, client, fixedInterval);
 
         // Wait until the downsampled index is recovered. We again wait until the configured threshold is breached and
         // if the downsampled index has not successfully recovered until then, we rewind to the "cleanup-rollup-index"
@@ -151,7 +167,7 @@ public class DownsampleAction implements LifecycleAction {
                 waitForRollupIndexKey,
                 copyMetadataKey,
                 ClusterHealthStatus.YELLOW,
-                (indexName, lifecycleState) -> lifecycleState.rollupIndexName()
+                (indexName, lifecycleState) -> lifecycleState.downsampleIndexName()
             ),
             cleanupRollupIndexKey
         );
@@ -159,7 +175,7 @@ public class DownsampleAction implements LifecycleAction {
         CopyExecutionStateStep copyExecutionStateStep = new CopyExecutionStateStep(
             copyMetadataKey,
             dataStreamCheckBranchingKey,
-            (indexName, lifecycleState) -> lifecycleState.rollupIndexName(),
+            (indexName, lifecycleState) -> lifecycleState.downsampleIndexName(),
             nextStepKey
         );
 
@@ -181,7 +197,7 @@ public class DownsampleAction implements LifecycleAction {
         ReplaceDataStreamBackingIndexStep replaceDataStreamBackingIndex = new ReplaceDataStreamBackingIndexStep(
             replaceDataStreamIndexKey,
             deleteIndexKey,
-            (sourceIndexName, lifecycleState) -> lifecycleState.rollupIndexName()
+            (sourceIndexName, lifecycleState) -> lifecycleState.downsampleIndexName()
         );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, nextStepKey, client);
 
@@ -189,11 +205,12 @@ public class DownsampleAction implements LifecycleAction {
             swapAliasesKey,
             nextStepKey,
             client,
-            (indexName, lifecycleState) -> lifecycleState.rollupIndexName(),
+            (indexName, lifecycleState) -> lifecycleState.downsampleIndexName(),
             false
         );
 
         return List.of(
+            isTimeSeriesIndexBranchingStep,
             checkNotWriteIndexStep,
             waitForNoFollowersStep,
             cleanupRollupIndexStep,

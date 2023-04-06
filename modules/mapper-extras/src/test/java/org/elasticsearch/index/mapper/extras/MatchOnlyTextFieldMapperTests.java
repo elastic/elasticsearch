@@ -124,10 +124,10 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals("1234", fields[0].stringValue());
-        IndexableFieldType fieldType = fields[0].fieldType();
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals("1234", fields.get(0).stringValue());
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
         assertTrue(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -245,6 +245,16 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
             return List.of();
         }
+    }
+
+    public void testDocValues() throws IOException {
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "match_only_text")));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
+    }
+
+    public void testDocValuesLoadedFromSynthetic() throws IOException {
+        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> b.field("type", "match_only_text")));
+        assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }
 
     @Override

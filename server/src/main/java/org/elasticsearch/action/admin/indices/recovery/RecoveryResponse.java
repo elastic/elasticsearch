@@ -14,7 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -26,7 +26,7 @@ import java.util.Map;
 /**
  * Information regarding the recovery state of indices and their associated shards.
  */
-public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedToXContent {
+public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedToXContentObject {
 
     private final Map<String, List<RecoveryState>> shardRecoveryStates;
 
@@ -65,7 +65,7 @@ public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedTo
     }
 
     @Override
-    public Iterator<ToXContent> toXContentChunked() {
+    public Iterator<ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
             Iterators.single((b, p) -> b.startObject()),
             shardRecoveryStates.entrySet()

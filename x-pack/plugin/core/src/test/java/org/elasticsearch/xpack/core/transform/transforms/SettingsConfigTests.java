@@ -84,6 +84,11 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     }
 
     @Override
+    protected SettingsConfig mutateInstance(SettingsConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<SettingsConfig> instanceReader() {
         return SettingsConfig::new;
     }

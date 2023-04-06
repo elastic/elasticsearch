@@ -209,7 +209,6 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     context.stateIdentifier(),
                     context.status(),
                     context.getRepositoryMetaVersion(),
-                    context.userMetadata(),
                     context.snapshotStartTime(),
                     context
                 )

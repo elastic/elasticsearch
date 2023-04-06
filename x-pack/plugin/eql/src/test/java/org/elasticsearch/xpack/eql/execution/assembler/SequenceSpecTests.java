@@ -113,7 +113,7 @@ public class SequenceSpecTests extends ESTestCase {
         }
     }
 
-    class TestCriterion extends Criterion<BoxedQueryRequest> {
+    class TestCriterion extends SequenceCriterion {
         private final int ordinal;
         private boolean unused = true;
 
@@ -188,7 +188,8 @@ public class SequenceSpecTests extends ESTestCase {
                 Map<String, DocumentField> documentFields = new HashMap<>();
                 documentFields.put(KEY_FIELD_NAME, new DocumentField(KEY_FIELD_NAME, Collections.singletonList(value.v1())));
                 // save the timestamp both as docId (int) and as id (string)
-                SearchHit searchHit = new SearchHit(entry.getKey(), entry.getKey().toString(), documentFields, null);
+                SearchHit searchHit = new SearchHit(entry.getKey(), entry.getKey().toString());
+                searchHit.addDocumentFields(documentFields, Map.of());
                 hits.add(searchHit);
             }
         }
@@ -230,7 +231,7 @@ public class SequenceSpecTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(new SearchHit(-1, hitRef.id(), null, null));
+                    hits.add(new SearchHit(-1, hitRef.id()));
                 }
                 searchHits.add(hits);
             }
@@ -257,7 +258,7 @@ public class SequenceSpecTests extends ESTestCase {
 
     public void test() throws Exception {
         int stages = events.size();
-        List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(stages);
+        List<SequenceCriterion> criteria = new ArrayList<>(stages);
         // pass the items for each query through the Criterion
         for (int i = 0; i < stages; i++) {
             // set the index as size in the search source

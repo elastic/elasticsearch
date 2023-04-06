@@ -217,15 +217,9 @@ public class Maps {
         Function<T, ? extends K> keyMapper,
         Function<T, ? extends V> valueMapper
     ) {
-        return Collectors.collectingAndThen(
-            Collectors.toMap(
-                keyMapper,
-                valueMapper,
-                (v1, v2) -> { throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")"); },
-                () -> new TreeMap<K, V>()
-            ),
-            Collections::unmodifiableNavigableMap
-        );
+        return Collectors.collectingAndThen(Collectors.toMap(keyMapper, valueMapper, (v1, v2) -> {
+            throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")");
+        }, () -> new TreeMap<K, V>()), Collections::unmodifiableNavigableMap);
     }
 
     /**
@@ -239,15 +233,9 @@ public class Maps {
         Function<T, ? extends K> keyMapper,
         Function<T, ? extends V> valueMapper
     ) {
-        return Collectors.collectingAndThen(
-            Collectors.toMap(
-                keyMapper,
-                valueMapper,
-                (v1, v2) -> { throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")"); },
-                (Supplier<LinkedHashMap<K, V>>) LinkedHashMap::new
-            ),
-            Collections::unmodifiableMap
-        );
+        return Collectors.collectingAndThen(Collectors.toMap(keyMapper, valueMapper, (v1, v2) -> {
+            throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")");
+        }, (Supplier<LinkedHashMap<K, V>>) LinkedHashMap::new), Collections::unmodifiableMap);
     }
 
     /**
@@ -295,7 +283,14 @@ public class Maps {
      * This method creates a copy of the {@code source} map using {@code copyValueFunction} to create a defensive copy of each value.
      */
     public static <K, V> Map<K, V> copyOf(Map<K, V> source, Function<V, V> copyValueFunction) {
-        var copy = Maps.<K, V>newHashMapWithExpectedSize(source.size());
+        return transformValues(source, copyValueFunction);
+    }
+
+    /**
+     * Copy a map and transform it values using supplied function
+     */
+    public static <K, V1, V2> Map<K, V2> transformValues(Map<K, V1> source, Function<V1, V2> copyValueFunction) {
+        var copy = Maps.<K, V2>newHashMapWithExpectedSize(source.size());
         for (var entry : source.entrySet()) {
             copy.put(entry.getKey(), copyValueFunction.apply(entry.getValue()));
         }
@@ -307,7 +302,7 @@ public class Maps {
      * @param key key
      * @param value value
      */
-    public record ImmutableEntry<KType, VType> (KType key, VType value) implements Map.Entry<KType, VType> {
+    public record ImmutableEntry<KType, VType>(KType key, VType value) implements Map.Entry<KType, VType> {
 
         @Override
         public KType getKey() {

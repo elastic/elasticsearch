@@ -315,14 +315,14 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
          * This method is used for serializing templates before storing them in the cluster metadata,
          * and also in the REST layer when returning a deprecated typed response.
          */
-        public static void toXContentWithTypes(
+        public static XContentBuilder toXContentWithTypes(
             IndexTemplateMetadata indexTemplateMetadata,
             XContentBuilder builder,
             ToXContent.Params params
         ) throws IOException {
             builder.startObject(indexTemplateMetadata.name());
             toInnerXContent(indexTemplateMetadata, builder, params, true);
-            builder.endObject();
+            return builder.endObject();
         }
 
         /**

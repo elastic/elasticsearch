@@ -1218,8 +1218,8 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                 "requesting scale up as number of jobs in queues exceeded configured limit and there are no machine learning nodes"
             )
         );
-        assertThat(result.nodeSize(), equalTo(ByteSizeValue.ofGb(1)));
-        assertThat(result.tierSize(), equalTo(ByteSizeValue.ofGb(1)));
+        assertThat(result.nodeSize(), equalTo(ByteSizeValue.ofMb(714)));
+        assertThat(result.tierSize(), equalTo(ByteSizeValue.ofMb(714)));
     }
 
     private MlMemoryAutoscalingDecider buildDecider() {

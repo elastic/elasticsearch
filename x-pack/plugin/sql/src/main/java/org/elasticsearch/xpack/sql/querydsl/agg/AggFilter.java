@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
+import org.elasticsearch.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -14,8 +15,6 @@ import org.elasticsearch.xpack.sql.util.Check;
 
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketSelector;
 
 public class AggFilter extends PipelineAgg {
 
@@ -39,7 +38,7 @@ public class AggFilter extends PipelineAgg {
     @Override
     PipelineAggregationBuilder toBuilder() {
         Script script = scriptTemplate.toPainless();
-        return bucketSelector(name(), aggPaths, script);
+        return new BucketSelectorPipelineAggregationBuilder(name(), aggPaths, script);
     }
 
     @Override

@@ -10,7 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -56,6 +56,7 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -91,6 +92,11 @@ public class TransportSearchIT extends ESIntegTestCase {
             return Collections.singletonList(fetchContext -> new FetchSubPhaseProcessor() {
                 @Override
                 public void setNextReader(LeafReaderContext readerContext) {}
+
+                @Override
+                public StoredFieldsSpec storedFieldsSpec() {
+                    return StoredFieldsSpec.NO_REQUIREMENTS;
+                }
 
                 @Override
                 public void process(FetchSubPhase.HitContext hitContext) {
@@ -370,14 +376,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             // no exception
             client().prepareSearch("test1").get();
 
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Collections.singletonMap(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1 - 1)
-                    )
-            );
+            updateClusterSettings(Settings.builder().put(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1 - 1));
 
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().prepareSearch("test1").get());
             assertThat(
@@ -385,14 +384,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 containsString("Trying to query " + numPrimaries1 + " shards, which is over the limit of " + (numPrimaries1 - 1))
             );
 
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Collections.singletonMap(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1)
-                    )
-            );
+            updateClusterSettings(Settings.builder().put(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1));
 
             // no exception
             client().prepareSearch("test1").get();
@@ -406,12 +398,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             );
 
         } finally {
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(Collections.singletonMap(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), null))
-            );
+            updateClusterSettings(Settings.builder().putNull(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey()));
         }
     }
 
@@ -482,8 +469,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
 
         try {
-            Settings settings = Settings.builder().put("indices.breaker.request.limit", "1b").build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+            updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "1b"));
             final Client client = client();
             assertBusy(() -> {
                 Exception exc = expectThrows(
@@ -522,8 +508,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         } finally {
-            Settings settings = Settings.builder().putNull("indices.breaker.request.limit").build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+            updateClusterSettings(Settings.builder().putNull("indices.breaker.request.limit"));
         }
     }
 
@@ -648,8 +633,8 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.ZERO;
         }
     }
 

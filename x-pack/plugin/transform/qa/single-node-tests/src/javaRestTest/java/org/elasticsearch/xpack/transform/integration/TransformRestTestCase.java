@@ -73,7 +73,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         int hour = 10;
         int min = 10;
         for (int i = 0; i < numDocs; i++) {
-            bulk.append(formatted("""
+            bulk.append(Strings.format("""
                 {"create":{"_index":"%s"}}
                 """, indexName));
             long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % numUsers);
@@ -206,7 +206,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             builder.endObject();
             if (isDataStream) {
                 Request createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template");
-                createCompositeTemplate.setJsonEntity(formatted("""
+                createCompositeTemplate.setJsonEntity(Strings.format("""
                     {
                       "index_patterns": [ "%s" ],
                       "data_stream": {
@@ -252,7 +252,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader) throws IOException {
 
         // Set frequency high for testing
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -311,18 +311,18 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         String config = "{";
 
         if (pipeline != null) {
-            config += formatted("""
+            config += Strings.format("""
                 "dest": {"index":"%s", "pipeline":"%s"},""", transformIndex, pipeline);
         } else {
-            config += formatted("""
+            config += Strings.format("""
                 "dest": {"index":"%s"},""", transformIndex);
         }
 
         if (query != null) {
-            config += formatted("""
+            config += Strings.format("""
                 "source": {"index":"%s", "query":{%s}},""", sourceIndex, query);
         } else {
-            config += formatted("""
+            config += Strings.format("""
                 "source": {"index":"%s"},""", sourceIndex);
         }
 
@@ -360,7 +360,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void createLatestReviewsTransform(String transformId, String transformIndex) throws IOException {
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -400,15 +400,10 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void startTransform(String transformId) throws IOException {
-        startTransform(transformId, null);
+        startTransform(transformId, null, null, null);
     }
 
-    protected void startTransform(String transformId, String authHeader, String... warnings) throws IOException {
-        // start the transform
-        startTransform(transformId, authHeader, null, warnings);
-    }
-
-    protected void startTransform(String transformId, String authHeader, String secondaryAuthHeader, String... warnings)
+    protected void startTransform(String transformId, String authHeader, String secondaryAuthHeader, String from, String... warnings)
         throws IOException {
         // start the transform
         final Request startTransformRequest = createRequestWithSecondaryAuth(
@@ -417,6 +412,9 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             authHeader,
             secondaryAuthHeader
         );
+        if (from != null) {
+            startTransformRequest.addParameter(TransformField.FROM.getPreferredName(), from);
+        }
         if (warnings.length > 0) {
             startTransformRequest.setOptions(expectWarnings(warnings));
         }
@@ -462,7 +460,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         String... warnings
     ) throws Exception {
         // start the transform
-        startTransform(transformId, authHeader, secondaryAuthHeader, warnings);
+        startTransform(transformId, authHeader, secondaryAuthHeader, null, warnings);
         assertTrue(indexExists(transformIndex));
         // wait until the transform has been created and all data is available
         waitForTransformCheckpoint(transformId);
@@ -472,13 +470,18 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void startAndWaitForContinuousTransform(String transformId, String transformIndex, String authHeader) throws Exception {
-        startAndWaitForContinuousTransform(transformId, transformIndex, authHeader, 1L);
+        startAndWaitForContinuousTransform(transformId, transformIndex, authHeader, null, 1L);
     }
 
-    protected void startAndWaitForContinuousTransform(String transformId, String transformIndex, String authHeader, long checkpoint)
-        throws Exception {
+    protected void startAndWaitForContinuousTransform(
+        String transformId,
+        String transformIndex,
+        String authHeader,
+        String from,
+        long checkpoint
+    ) throws Exception {
         // start the transform
-        startTransform(transformId, authHeader, new String[0]);
+        startTransform(transformId, authHeader, null, from, new String[0]);
         assertTrue(indexExists(transformIndex));
         // wait until the transform has been created and all data is available
         waitForTransformCheckpoint(transformId, checkpoint);
@@ -490,6 +493,16 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         resetTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(force));
         Map<String, Object> resetTransformResponse = entityAsMap(client().performRequest(resetTransformRequest));
         assertThat(resetTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+    }
+
+    protected void scheduleNowTransform(String transformId) throws IOException {
+        final Request scheduleNowTransformRequest = createRequestWithAuth(
+            "POST",
+            getTransformEndpoint() + transformId + "/_schedule_now",
+            null
+        );
+        Map<String, Object> scheduleNowTransformResponse = entityAsMap(client().performRequest(scheduleNowTransformRequest));
+        assertThat(scheduleNowTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
     protected Request createRequestWithSecondaryAuth(
@@ -549,6 +562,15 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         return entityAsMap(response);
     }
 
+    protected Map<String, Object> getTransformConfig(String transformId, String authHeader) throws IOException {
+        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId, authHeader);
+        Map<String, Object> transforms = entityAsMap(client().performRequest(getRequest));
+        assertEquals(1, XContentMapValues.extractValue("count", transforms));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> transformConfig = ((List<Map<String, Object>>) transforms.get("transforms")).get(0);
+        return transformConfig;
+    }
+
     protected static String getTransformState(String transformId) throws IOException {
         Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformId);
         return transformStatsAsMap == null ? null : (String) XContentMapValues.extractValue("state", transformStatsAsMap);
@@ -571,8 +593,15 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected static void deleteTransform(String transformId) throws IOException {
+        deleteTransform(transformId, false);
+    }
+
+    protected static void deleteTransform(String transformId, boolean deleteDestIndex) throws IOException {
         Request request = new Request("DELETE", getTransformEndpoint() + transformId);
         request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
+        if (deleteDestIndex) {
+            request.addParameter(TransformField.DELETE_DEST_INDEX.getPreferredName(), Boolean.TRUE.toString());
+        }
         adminClient().performRequest(request);
     }
 
@@ -598,19 +627,19 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
 
         // assert that the transform did not fail
-        assertNotEquals("failed", XContentMapValues.extractValue("state", transformStatsAsMap));
+        assertNotEquals("Stats were: " + transformStatsAsMap, "failed", XContentMapValues.extractValue("state", transformStatsAsMap));
         return (int) XContentMapValues.extractValue("checkpointing.last.checkpoint", transformStatsAsMap);
     }
 
     protected void setupDataAccessRole(String role, String... indices) throws IOException {
         String indicesStr = Arrays.stream(indices).collect(Collectors.joining("\",\"", "\"", "\""));
         Request request = new Request("PUT", "/_security/role/" + role);
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {
               "indices": [
                 {
                   "names": [ %s ],
-                  "privileges": [ "create_index", "read", "write", "view_index_metadata" ]
+                  "privileges": [ "create_index", "delete_index", "read", "write", "view_index_metadata" ]
                 }
               ]
             }""", indicesStr));
@@ -622,7 +651,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
         String rolesStr = roles.stream().collect(Collectors.joining("\",\"", "\"", "\""));
         Request request = new Request("PUT", "/_security/user/" + user);
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {  "password" : "%s",  "roles" : [ %s ]}
             """, password, rolesStr));
         client().performRequest(request);

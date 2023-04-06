@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.UnaryOperator;
 
@@ -166,8 +167,8 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     public RepositoriesMetadata(StreamInput in) throws IOException {
@@ -250,15 +251,11 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         return new RepositoriesMetadata(repository);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        for (RepositoryMetadata repository : repositories) {
-            toXContent(repository, builder, params);
-        }
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return repositories.stream()
+            .map(repository -> (ToXContent) (builder, params) -> toXContent(repository, builder, params))
+            .iterator();
     }
 
     @Override
@@ -273,7 +270,8 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      * @param builder    XContent builder
      * @param params     serialization parameters
      */
-    public static void toXContent(RepositoryMetadata repository, XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public static XContentBuilder toXContent(RepositoryMetadata repository, XContentBuilder builder, ToXContent.Params params)
+        throws IOException {
         builder.startObject(repository.name());
         builder.field("type", repository.type());
         if (repository.uuid().equals(RepositoryData.MISSING_UUID) == false) {
@@ -288,6 +286,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
             builder.field("pending_generation", repository.pendingGeneration());
         }
         builder.endObject();
+        return builder;
     }
 
     @Override

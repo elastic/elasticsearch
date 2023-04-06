@@ -40,7 +40,7 @@ public class JwkValidateUtil {
     private static final Logger LOGGER = LogManager.getLogger(JwkValidateUtil.class);
 
     // Static method for unit testing. No need to construct a complete RealmConfig with all settings.
-    static JwtRealm.JwksAlgs filterJwksAndAlgorithms(final List<JWK> jwks, final List<String> algs) throws SettingsException {
+    static JwkSetLoader.JwksAlgs filterJwksAndAlgorithms(final List<JWK> jwks, final List<String> algs) throws SettingsException {
         LOGGER.trace("JWKs [" + jwks.size() + "] and Algorithms [" + String.join(",", algs) + "] before filters.");
 
         final Predicate<JWK> keyUsePredicate = j -> ((j.getKeyUse() == null) || (KeyUse.SIGNATURE.equals(j.getKeyUse())));
@@ -57,7 +57,7 @@ public class JwkValidateUtil {
         final List<String> algsFiltered = algs.stream().filter(a -> (jwksFiltered.stream().anyMatch(j -> isMatch(j, a)))).toList();
         LOGGER.trace("Algorithms [" + String.join(",", algsFiltered) + "] after remaining JWKs [" + jwksFiltered.size() + "] filter.");
 
-        return new JwtRealm.JwksAlgs(jwksFiltered, algsFiltered);
+        return new JwkSetLoader.JwksAlgs(jwksFiltered, algsFiltered);
     }
 
     /**

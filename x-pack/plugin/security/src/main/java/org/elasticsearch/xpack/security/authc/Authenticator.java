@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -58,7 +59,10 @@ public interface Authenticator {
     void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener);
 
     static SecureString extractCredentialFromAuthorizationHeader(ThreadContext threadContext, String prefix) {
-        String header = threadContext.getHeader("Authorization");
+        return extractCredentialFromHeaderValue(threadContext.getHeader("Authorization"), prefix);
+    }
+
+    static SecureString extractCredentialFromHeaderValue(String header, String prefix) {
         final String prefixWithSpace = prefix + " ";
         if (Strings.hasText(header)
             && header.regionMatches(true, 0, prefixWithSpace, 0, prefixWithSpace.length())
@@ -176,6 +180,12 @@ public interface Authenticator {
         @Override
         public void close() throws IOException {
             authenticationTokens.forEach(AuthenticationToken::clearCredentials);
+        }
+
+        public void addUnsuccessfulMessageToMetadata(final ElasticsearchSecurityException ese) {
+            if (false == getUnsuccessfulMessages().isEmpty()) {
+                ese.addMetadata("es.additional_unsuccessful_credentials", getUnsuccessfulMessages());
+            }
         }
     }
 }

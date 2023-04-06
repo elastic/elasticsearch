@@ -228,7 +228,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             if (routedNodeIdsToRemove.isEmpty() == false) {
                 logger.debug(
                     () -> format(
-                        "[%s] removing routing entries to nodes {} because they have been removed or are shutting down",
+                        "[%s] removing routing entries to nodes %s because they have been removed or are shutting down",
                         assignment.getModelId(),
                         routedNodeIdsToRemove
                     )
@@ -505,7 +505,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
         if (assignment.getNodeRoutingTable().isEmpty()) {
             String msg = "Could not start deployment because no suitable nodes were found, allocation explanation ["
-                + assignment.getReason()
+                + assignment.getReason().orElse("none")
                 + "]";
             logger.warn("[{}] {}", modelId, msg);
             Exception detail = new IllegalStateException(msg);
@@ -809,15 +809,15 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         final PersistentTasksCustomMetadata currentPersistentTasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         Set<String> previousMlTaskIds = findMlProcessTaskIds(previousPersistentTasks);
         Set<String> currentMlTaskIds = findMlProcessTaskIds(currentPersistentTasks);
-        previousMlTaskIds.removeAll(currentMlTaskIds);
         Set<String> stoppedTaskTypes = previousMlTaskIds.stream()
+            .filter(id -> currentMlTaskIds.contains(id) == false) // remove the tasks that are still present. Stopped Ids only.
             .map(previousPersistentTasks::getTask)
             .map(PersistentTasksCustomMetadata.PersistentTask::getTaskName)
             .map(MlTasks::prettyPrintTaskName)
             .collect(Collectors.toSet());
-        if (previousMlTaskIds.size() == 1) {
+        if (stoppedTaskTypes.size() == 1) {
             return Optional.of("ML [" + stoppedTaskTypes.iterator().next() + "] job stopped");
-        } else if (previousMlTaskIds.size() > 1) {
+        } else if (stoppedTaskTypes.size() > 1) {
             return Optional.of("ML " + stoppedTaskTypes + " jobs stopped");
         }
         return Optional.empty();

@@ -2,11 +2,11 @@ import org.elasticsearch.gradle.LazyPropertyMap
 
 Project idpFixtureProject = project(':x-pack:test:idp-fixture')
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation testArtifact(project(xpackModule('core')))
   javaRestTestImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   javaRestTestImplementation "com.google.guava:guava:${versions.jimfs_guava}"
 }
@@ -17,7 +17,9 @@ String outputDir = "${project.buildDir}/generated-resources/${project.name}"
 tasks.register("copyIdpFiles", Sync) {
   dependsOn idpFixtureProject.postProcessFixture
   // Don't attempt to get ephemeral ports when Docker is not available
-  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
+  onlyIf(idpFixtureProject.postProcessFixture.path + " not skipped") {
+    idpFixtureProject.postProcessFixture.state.skipped == false
+  }
   from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml',
     'idp/shibboleth-idp/credentials/sp-signing.key', 'idp/shibboleth-idp/credentials/sp-signing.crt');
   into outputDir
@@ -29,11 +31,11 @@ tasks.register("copyIdpFiles", Sync) {
   }
 }
 
-project.sourceSets.javaRestTest.output.dir(outputDir, builtBy: [copyIdpFiles])
-
 tasks.named("javaRestTest").configure {
-  dependsOn tasks.named("copyIdpFiles")
-  onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
+  classpath += files(tasks.named("copyIdpFiles"))
+  onlyIf(idpFixtureProject.postProcessFixture.path + " not skipped") {
+    idpFixtureProject.postProcessFixture.state.skipped == false
+  }
 }
 
 testClusters.matching { it.name == "javaRestTest" }.configureEach {

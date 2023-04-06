@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -62,7 +62,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             super(in);
             executingPolicies = in.readList(ExecutingPolicy::new);
             coordinatorStats = in.readList(CoordinatorStats::new);
-            cacheStats = in.getVersion().onOrAfter(Version.V_7_16_0) ? in.readList(CacheStats::new) : null;
+            cacheStats = in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0) ? in.readList(CacheStats::new) : null;
         }
 
         public List<ExecutingPolicy> getExecutingPolicies() {
@@ -81,7 +81,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(executingPolicies);
             out.writeList(coordinatorStats);
-            if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
                 out.writeList(cacheStats);
             }
         }

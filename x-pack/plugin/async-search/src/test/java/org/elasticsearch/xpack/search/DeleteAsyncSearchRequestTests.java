@@ -22,4 +22,9 @@ public class DeleteAsyncSearchRequestTests extends AbstractWireSerializingTestCa
     protected DeleteAsyncResultRequest createTestInstance() {
         return new DeleteAsyncResultRequest(randomSearchId());
     }
+
+    @Override
+    protected DeleteAsyncResultRequest mutateInstance(DeleteAsyncResultRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

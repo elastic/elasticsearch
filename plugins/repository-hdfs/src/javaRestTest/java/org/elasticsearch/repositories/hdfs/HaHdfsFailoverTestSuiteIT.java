@@ -22,6 +22,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Assert;
 
@@ -51,9 +52,9 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
         String nn2Port = "10002";
         if (ports.length() > 0) {
             final Path path = PathUtils.get(ports);
-            final List<String> lines = AccessController.doPrivileged(
-                (PrivilegedExceptionAction<List<String>>) () -> { return Files.readAllLines(path); }
-            );
+            final List<String> lines = AccessController.doPrivileged((PrivilegedExceptionAction<List<String>>) () -> {
+                return Files.readAllLines(path);
+            });
             nn1Port = lines.get(0);
             nn2Port = lines.get(1);
         }
@@ -100,7 +101,7 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
         // Create repository
         {
             Request request = new Request("PUT", "/_snapshot/hdfs_ha_repo_read");
-            request.setJsonEntity(formatted("""
+            request.setJsonEntity(Strings.format("""
                 {
                   "type": "hdfs",
                   "settings": {

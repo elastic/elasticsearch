@@ -81,6 +81,11 @@ public class TTestAggregationBuilderTests extends AbstractXContentSerializingTes
     }
 
     @Override
+    protected TTestAggregationBuilder mutateInstance(TTestAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<TTestAggregationBuilder> instanceReader() {
         return TTestAggregationBuilder::new;
     }

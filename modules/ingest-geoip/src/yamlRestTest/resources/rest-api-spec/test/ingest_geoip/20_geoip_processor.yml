@@ -309,3 +309,39 @@
   - match: { _source.geoip.asn: 29518 }
   - match: { _source.geoip.organization_name: "Bredband2 AB" }
   - match: { _source.geoip.network: "89.160.0.0/17" }
+
+---
+"Test simulate with Geoip Processor":
+- do:
+    ingest.put_pipeline:
+      id: "pipeline1"
+      body:  >
+        {
+          "processors": [
+          {
+            "geoip": {
+              "field": "source.ip",
+              "target_field": "source.geo"
+            }
+          }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    ingest.simulate:
+      id: "pipeline1"
+      body:  >
+        {
+          "docs": [
+            {
+              "_source": {
+                "source": {
+                  "ip": "89.160.20.128"
+                }
+              }
+            }
+          ]
+        }
+- length: { docs: 1 }
+- match: { docs.0.doc._source.source.geo.city_name: "Linköping" }

@@ -49,6 +49,7 @@ public class RestDeleteJobAction extends BaseRestHandler {
         deleteJobRequest.setForce(restRequest.paramAsBoolean(CloseJobAction.Request.FORCE.getPreferredName(), deleteJobRequest.isForce()));
         deleteJobRequest.timeout(restRequest.paramAsTime("timeout", deleteJobRequest.timeout()));
         deleteJobRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", deleteJobRequest.masterNodeTimeout()));
+        deleteJobRequest.setDeleteUserAnnotations(restRequest.paramAsBoolean("delete_user_annotations", false));
 
         if (restRequest.paramAsBoolean("wait_for_completion", true)) {
             return channel -> client.execute(DeleteJobAction.INSTANCE, deleteJobRequest, new RestToXContentListener<>(channel));

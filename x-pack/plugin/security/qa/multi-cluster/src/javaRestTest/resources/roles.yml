@@ -1,0 +1,12 @@
+read_remote_shared_logs:
+  remote_indices:
+    - names: [ 'shared-logs' ]
+      privileges: [ 'read', 'read_cross_cluster' ]
+      clusters: [ 'my_*' ]
+
+read_remote_shared_metrics:
+  remote_indices:
+    - names: [ 'shared-metrics' ]
+      privileges: [ 'read', 'read_cross_cluster' ]
+      clusters: [ 'my_*' ]
+

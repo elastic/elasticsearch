@@ -38,6 +38,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final CompressedXContent currentMapping = indexService.mapperService().documentMapper().mappingSource();
 
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
+        final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         // TODO - it will be nice to get a random mapping generator
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
@@ -45,7 +46,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         request.indices(new Index[] { indexService.index() });
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterService.state(),
-            mappingService.putMappingExecutor,
+            putMappingExecutor,
             singleTask(request)
         );
         // the task really was a mapping update
@@ -61,17 +62,18 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
 
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
+        final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
             { "properties": { "field": { "type": "text" }}}""").indices(new Index[] { indexService.index() });
         final var resultingState1 = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterService.state(),
-            mappingService.putMappingExecutor,
+            putMappingExecutor,
             singleTask(request)
         );
         final var resultingState2 = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             resultingState1,
-            mappingService.putMappingExecutor,
+            putMappingExecutor,
             singleTask(request)
         );
         assertSame(resultingState1, resultingState2);
@@ -81,13 +83,14 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
         final long previousVersion = indexService.getMetadata().getMappingVersion();
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
+        final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
             { "properties": { "field": { "type": "text" }}}""");
         request.indices(new Index[] { indexService.index() });
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterService.state(),
-            mappingService.putMappingExecutor,
+            putMappingExecutor,
             singleTask(request)
         );
         assertThat(resultingState.metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion));
@@ -97,24 +100,22 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test").setMapping());
         final long previousVersion = indexService.getMetadata().getMappingVersion();
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
+        final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("{ \"properties\": {}}");
         request.indices(new Index[] { indexService.index() });
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterService.state(),
-            mappingService.putMappingExecutor,
+            putMappingExecutor,
             singleTask(request)
         );
         assertThat(resultingState.metadata().index("test").getMappingVersion(), equalTo(previousVersion));
     }
 
     private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {
-        return Collections.singletonList(
-            new MetadataMappingService.PutMappingClusterStateUpdateTask(
-                request,
-                ActionListener.wrap(() -> { throw new AssertionError("task should not complete publication"); })
-            )
-        );
+        return Collections.singletonList(new MetadataMappingService.PutMappingClusterStateUpdateTask(request, ActionListener.running(() -> {
+            throw new AssertionError("task should not complete publication");
+        })));
     }
 
 }

@@ -14,7 +14,7 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -109,7 +109,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         type = ScriptSortType.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             if (in.readOptionalNamedWriteable(QueryBuilder.class) != null || in.readOptionalString() != null) {
                 throw new IOException(
                     "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, " + "please use [nested] instead"
@@ -125,7 +125,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         type.writeTo(out);
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeOptionalString(null);
             out.writeOptionalNamedWriteable(null);
         }
@@ -219,21 +219,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
 
-        PARSER.declareObject(
-            (b, v) -> {},
-            (p, c) -> {
-                throw new ParsingException(p.getTokenLocation(), "[nested_path] has been removed in favour of the [nested] parameter", c);
-            },
-            NESTED_PATH_FIELD
-        );
+        PARSER.declareObject((b, v) -> {}, (p, c) -> {
+            throw new ParsingException(p.getTokenLocation(), "[nested_path] has been removed in favour of the [nested] parameter", c);
+        }, NESTED_PATH_FIELD);
 
-        PARSER.declareObject(
-            (b, v) -> {},
-            (p, c) -> {
-                throw new ParsingException(p.getTokenLocation(), "[nested_filter] has been removed in favour of the [nested] parameter", c);
-            },
-            NESTED_FILTER_FIELD
-        );
+        PARSER.declareObject((b, v) -> {}, (p, c) -> {
+            throw new ParsingException(p.getTokenLocation(), "[nested_filter] has been removed in favour of the [nested] parameter", c);
+        }, NESTED_FILTER_FIELD);
     }
 
     /**
@@ -458,8 +450,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 
     public enum ScriptSortType implements Writeable {

@@ -82,7 +82,7 @@ public class TermsEnumResponseTests extends AbstractBroadcastResponseTestCase<Te
         TermsEnumResponse response = new TermsEnumResponse(terms, 10, 10, 0, new ArrayList<>(), true);
 
         String output = Strings.toString(response);
-        assertEquals(formatted("""
+        assertEquals(Strings.format("""
             {"_shards":{"total":10,"successful":10,"failed":0},"terms":["%s"],"complete":true}""", s), output);
     }
 }

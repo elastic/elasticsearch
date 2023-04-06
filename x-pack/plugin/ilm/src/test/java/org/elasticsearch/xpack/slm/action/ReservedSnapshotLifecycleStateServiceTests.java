@@ -14,11 +14,13 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
@@ -37,7 +39,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
-import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -81,21 +82,21 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String badPolicyJSON = """
             {
-                "daily-snapshots": {
-                    "no_schedule": "0 1 2 3 4 ?",
-                    "name": "<production-snap-{now/d}>",
-                    "repository": "repo",
-                    "config": {
-                        "indices": ["foo-*", "important"],
-                        "ignore_unavailable": true,
-                        "include_global_state": false
-                    },
-                    "retention": {
-                        "expire_after": "30d",
-                        "min_count": 1,
-                        "max_count": 50
-                    }
+              "daily-snapshots": {
+                "no_schedule": "0 1 2 3 4 ?",
+                "name": "<production-snap-{now/d}>",
+                "repository": "repo",
+                "config": {
+                  "indices": ["foo-*", "important"],
+                  "ignore_unavailable": true,
+                  "include_global_state": false
+                },
+                "retention": {
+                  "expire_after": "30d",
+                  "min_count": 1,
+                  "max_count": 50
                 }
+              }
             }""";
 
         assertEquals(
@@ -127,36 +128,36 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String twoPoliciesJSON = """
             {
-                "daily-snapshots": {
-                    "schedule": "0 1 2 3 4 ?",
-                    "name": "<production-snap-{now/d}>",
-                    "repository": "repo",
-                    "config": {
-                        "indices": ["foo-*", "important"],
-                        "ignore_unavailable": true,
-                        "include_global_state": false
-                    },
-                    "retention": {
-                        "expire_after": "30d",
-                        "min_count": 1,
-                        "max_count": 50
-                    }
+              "daily-snapshots": {
+                "schedule": "0 1 2 3 4 ?",
+                "name": "<production-snap-{now/d}>",
+                "repository": "repo",
+                "config": {
+                  "indices": ["foo-*", "important"],
+                  "ignore_unavailable": true,
+                  "include_global_state": false
                 },
-                "daily-snapshots1": {
-                    "schedule": "0 1 2 3 4 ?",
-                    "name": "<production-snap-{now/d}>",
-                    "repository": "repo",
-                    "config": {
-                        "indices": ["bar-*", "not-important"],
-                        "ignore_unavailable": true,
-                        "include_global_state": false
-                    },
-                    "retention": {
-                        "expire_after": "30d",
-                        "min_count": 1,
-                        "max_count": 50
-                    }
+                "retention": {
+                  "expire_after": "30d",
+                  "min_count": 1,
+                  "max_count": 50
                 }
+              },
+              "daily-snapshots1": {
+                "schedule": "0 1 2 3 4 ?",
+                "name": "<production-snap-{now/d}>",
+                "repository": "repo",
+                "config": {
+                  "indices": ["bar-*", "not-important"],
+                  "ignore_unavailable": true,
+                  "include_global_state": false
+                },
+                "retention": {
+                  "expire_after": "30d",
+                  "min_count": 1,
+                  "max_count": 50
+                }
+              }
             }""";
 
         prevState = updatedState;
@@ -167,21 +168,21 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String onePolicyRemovedJSON = """
             {
-                "daily-snapshots": {
-                    "schedule": "0 1 2 3 4 ?",
-                    "name": "<production-snap-{now/d}>",
-                    "repository": "repo",
-                    "config": {
-                        "indices": ["foo-*", "important"],
-                        "ignore_unavailable": true,
-                        "include_global_state": false
-                    },
-                    "retention": {
-                        "expire_after": "30d",
-                        "min_count": 1,
-                        "max_count": 50
-                    }
+              "daily-snapshots": {
+                "schedule": "0 1 2 3 4 ?",
+                "name": "<production-snap-{now/d}>",
+                "repository": "repo",
+                "config": {
+                  "indices": ["foo-*", "important"],
+                  "ignore_unavailable": true,
+                  "include_global_state": false
+                },
+                "retention": {
+                  "expire_after": "30d",
+                  "min_count": 1,
+                  "max_count": 50
                 }
+              }
             }""";
 
         prevState = updatedState;
@@ -192,21 +193,21 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String onePolicyRenamedJSON = """
             {
-                "daily-snapshots-2": {
-                    "schedule": "0 1 2 3 4 ?",
-                    "name": "<production-snap-{now/d}>",
-                    "repository": "repo",
-                    "config": {
-                        "indices": ["foo-*", "important"],
-                        "ignore_unavailable": true,
-                        "include_global_state": false
-                    },
-                    "retention": {
-                        "expire_after": "30d",
-                        "min_count": 1,
-                        "max_count": 50
-                    }
+              "daily-snapshots-2": {
+                "schedule": "0 1 2 3 4 ?",
+                "name": "<production-snap-{now/d}>",
+                "repository": "repo",
+                "config": {
+                  "indices": ["foo-*", "important"],
+                  "ignore_unavailable": true,
+                  "include_global_state": false
+                },
+                "retention": {
+                  "expire_after": "30d",
+                  "min_count": 1,
+                  "max_count": 50
                 }
+              }
             }""";
 
         prevState = updatedState;
@@ -216,58 +217,60 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         assertThat(slmMetadata.getSnapshotConfigurations().keySet(), containsInAnyOrder("daily-snapshots-2"));
     }
 
-    private void setupTaskMock(ClusterService clusterService, ClusterState state) {
-        doAnswer((Answer<Object>) invocation -> {
-            Object[] args = invocation.getArguments();
+    private void setupTaskMock(ClusterService clusterService) {
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
+        when(clusterService.state()).thenReturn(state);
+        when(clusterService.createTaskQueue(anyString(), any(), any())).thenAnswer(getQueueInvocation -> {
+            Object[] getQueueArgs = getQueueInvocation.getArguments();
+            @SuppressWarnings("unchecked")
+            final MasterServiceTaskQueue<ClusterStateTaskListener> taskQueue = mock(MasterServiceTaskQueue.class);
 
-            if ((args[3] instanceof ReservedStateUpdateTaskExecutor) == false) {
-                fail("Should have gotten a state update task to execute, instead got: " + args[3].getClass().getName());
-            }
+            if ((getQueueArgs[2] instanceof ReservedStateUpdateTaskExecutor executor)) {
+                doAnswer(submitTaskInvocation -> {
+                    Object[] submitTaskArgs = submitTaskInvocation.getArguments();
+                    ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask> context = new ClusterStateTaskExecutor.TaskContext<>() {
+                        @Override
+                        public ReservedStateUpdateTask getTask() {
+                            return (ReservedStateUpdateTask) submitTaskArgs[1];
+                        }
 
-            ReservedStateUpdateTaskExecutor task = (ReservedStateUpdateTaskExecutor) args[3];
+                        @Override
+                        public void success(Runnable onPublicationSuccess) {}
 
-            ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask> context = new ClusterStateTaskExecutor.TaskContext<>() {
-                @Override
-                public ReservedStateUpdateTask getTask() {
-                    return (ReservedStateUpdateTask) args[1];
-                }
+                        @Override
+                        public void success(Consumer<ClusterState> publishedStateConsumer) {}
 
-                @Override
-                public void success(Runnable onPublicationSuccess) {}
+                        @Override
+                        public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
 
-                @Override
-                public void success(Consumer<ClusterState> publishedStateConsumer) {}
+                        @Override
+                        public void success(
+                            Consumer<ClusterState> publishedStateConsumer,
+                            ClusterStateAckListener clusterStateAckListener
+                        ) {}
 
-                @Override
-                public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
+                        @Override
+                        public void onFailure(Exception failure) {
+                            fail("Shouldn't fail here");
+                        }
 
-                @Override
-                public void success(Consumer<ClusterState> publishedStateConsumer, ClusterStateAckListener clusterStateAckListener) {}
-
-                @Override
-                public void onFailure(Exception failure) {
-                    fail("Shouldn't fail here");
-                }
-
-                @Override
-                public Releasable captureResponseHeaders() {
+                        @Override
+                        public Releasable captureResponseHeaders() {
+                            return null;
+                        }
+                    };
+                    executor.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(context), () -> null));
                     return null;
-                }
-            };
-
-            task.execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(state, List.of(context), () -> null));
-
-            return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(), any(), any());
+                }).when(taskQueue).submitTask(anyString(), any(), any());
+            }
+            return taskQueue;
+        });
     }
 
     public void testOperatorControllerFromJSONContent() throws IOException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterService clusterService = mock(ClusterService.class);
-        final ClusterName clusterName = new ClusterName("elasticsearch");
-
-        ClusterState state = ClusterState.builder(clusterName).build();
-        when(clusterService.state()).thenReturn(state);
+        setupTaskMock(clusterService);
 
         var repositoriesService = mock(RepositoriesService.class);
 
@@ -278,55 +281,55 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String testJSON = """
             {
-                 "metadata": {
-                     "version": "1234",
-                     "compatibility": "8.4.0"
-                 },
-                 "state": {
-                     "cluster_settings": {
-                         "indices.recovery.max_bytes_per_sec": "50mb"
-                     },
-                     "snapshot_repositories": {
-                        "repo": {
-                           "type": "fs",
-                           "settings": {
-                              "location": "my_backup_location"
-                           }
-                        }
-                     },
-                     "slm": {
-                        "daily-snapshots": {
-                            "schedule": "0 1 2 3 4 ?",
-                            "name": "<production-snap-{now/d}>",
-                            "repository": "repo",
-                            "config": {
-                                "indices": ["foo-*", "important"],
-                                "ignore_unavailable": true,
-                                "include_global_state": false
-                            },
-                            "retention": {
-                                "expire_after": "30d",
-                                "min_count": 1,
-                                "max_count": 50
-                            }
-                        },
-                        "daily-snapshots1": {
-                            "schedule": "0 1 2 3 4 ?",
-                            "name": "<production-snap-{now/d}>",
-                            "repository": "repo",
-                            "config": {
-                                "indices": ["bar-*", "not-important"],
-                                "ignore_unavailable": true,
-                                "include_global_state": false
-                            },
-                            "retention": {
-                                "expire_after": "30d",
-                                "min_count": 1,
-                                "max_count": 50
-                            }
-                        }
+              "metadata": {
+                "version": "1234",
+                "compatibility": "8.4.0"
+              },
+              "state": {
+                "cluster_settings": {
+                  "indices.recovery.max_bytes_per_sec": "50mb"
+                },
+                "snapshot_repositories": {
+                  "repo": {
+                    "type": "fs",
+                    "settings": {
+                      "location": "my_backup_location"
                     }
-                 }
+                  }
+                },
+                "slm": {
+                  "daily-snapshots": {
+                    "schedule": "0 1 2 3 4 ?",
+                    "name": "<production-snap-{now/d}>",
+                    "repository": "repo",
+                    "config": {
+                      "indices": ["foo-*", "important"],
+                      "ignore_unavailable": true,
+                      "include_global_state": false
+                    },
+                    "retention": {
+                      "expire_after": "30d",
+                      "min_count": 1,
+                      "max_count": 50
+                    }
+                  },
+                  "daily-snapshots1": {
+                    "schedule": "0 1 2 3 4 ?",
+                    "name": "<production-snap-{now/d}>",
+                    "repository": "repo",
+                    "config": {
+                      "indices": ["bar-*", "not-important"],
+                      "ignore_unavailable": true,
+                      "include_global_state": false
+                    },
+                    "retention": {
+                      "expire_after": "30d",
+                      "min_count": 1,
+                      "max_count": 50
+                    }
+                  }
+                }
+              }
             }""";
 
         AtomicReference<Exception> x = new AtomicReference<>();
@@ -349,8 +352,6 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
                 new ReservedRepositoryAction(repositoriesService)
             )
         );
-
-        setupTaskMock(clusterService, state);
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
             controller.process("operator", parser, (e) -> {
@@ -387,19 +388,19 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String json = """
             {
-                "schedule": "0 1 2 3 4 ?",
-                "name": "<production-snap-{now/d}>",
-                "repository": "repo",
-                "config": {
-                    "indices": ["foo-*", "important"],
-                    "ignore_unavailable": true,
-                    "include_global_state": false
-                },
-                "retention": {
-                    "expire_after": "30d",
-                    "min_count": 1,
-                    "max_count": 50
-                }
+              "schedule": "0 1 2 3 4 ?",
+              "name": "<production-snap-{now/d}>",
+              "repository": "repo",
+              "config": {
+                "indices": ["foo-*", "important"],
+                "ignore_unavailable": true,
+                "include_global_state": false
+              },
+              "retention": {
+                "expire_after": "30d",
+                "min_count": 1,
+                "max_count": 50
+              }
             }""";
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {

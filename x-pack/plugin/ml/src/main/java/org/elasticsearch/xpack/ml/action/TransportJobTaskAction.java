@@ -86,9 +86,9 @@ public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Requ
         // the actionlistener's onFailure
         if (tasks.isEmpty()) {
             if (taskOperationFailures.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+                throw ExceptionsHelper.taskOperationFailureToStatusException(taskOperationFailures.get(0));
             } else if (failedNodeExceptions.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+                throw failedNodeExceptions.get(0);
             } else {
                 throw new IllegalStateException("No errors or response");
             }

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeAction;
@@ -216,11 +217,12 @@ public class Querier {
             aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
         }
 
+        var totalHits = response.getHits().getTotalHits();
+        var hits = totalHits != null ? "hits " + totalHits.relation + " " + totalHits.value + ", " : "";
         logger.trace(
-            "Got search response [hits {} {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
+            "Got search response [{}{} aggregations: [{}], {} failed shards, {} skipped shards, "
                 + "{} successful shards, {} total shards, took {}, timed out [{}]]",
-            response.getHits().getTotalHits().relation.toString(),
-            response.getHits().getTotalHits().value,
+            hits,
             aggs.size(),
             aggsNames,
             response.getFailedShards(),
@@ -262,7 +264,7 @@ public class Querier {
      * results back to the client.
      */
     @SuppressWarnings("rawtypes")
-    class LocalAggregationSorterListener extends ActionListener.Delegating<Page, Page> {
+    class LocalAggregationSorterListener extends DelegatingActionListener<Page, Page> {
         // keep the top N entries.
         private final AggSortingQueue data;
         private final AtomicInteger counter = new AtomicInteger();
@@ -669,7 +671,7 @@ public class Querier {
      * Base listener class providing clean-up and exception handling.
      * Handles both search hits and composite-aggs queries.
      */
-    abstract static class BaseActionListener extends ActionListener.Delegating<SearchResponse, Page> {
+    abstract static class BaseActionListener extends DelegatingActionListener<SearchResponse, Page> {
 
         private static final int MAX_WARNING_HEADERS = 20;
 

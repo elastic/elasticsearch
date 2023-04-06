@@ -45,10 +45,19 @@ public class ModuleSupport {
         throw new AssertionError("Utility class, should not be instantiated");
     }
 
-    static ModuleFinder ofSyntheticPluginModule(String name, Path[] jarPaths, Set<String> requires, Set<String> uses) {
+    static ModuleFinder ofSyntheticPluginModule(
+        String name,
+        Path[] jarPaths,
+        Set<String> requires,
+        Set<String> uses,
+        Predicate<String> isPackageInParentLayers
+    ) {
         try {
             return new InMemoryModuleFinder(
-                new InMemoryModuleReference(createModuleDescriptor(name, jarPaths, requires, uses), URI.create("module:/" + name))
+                new InMemoryModuleReference(
+                    createModuleDescriptor(name, jarPaths, requires, uses, isPackageInParentLayers),
+                    URI.create("module:/" + name)
+                )
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -56,8 +65,13 @@ public class ModuleSupport {
     }
 
     @SuppressForbidden(reason = "need access to the jar file")
-    static ModuleDescriptor createModuleDescriptor(String name, Path[] jarPaths, Set<String> requires, Set<String> uses)
-        throws IOException {
+    static ModuleDescriptor createModuleDescriptor(
+        String name,
+        Path[] jarPaths,
+        Set<String> requires,
+        Set<String> uses,
+        Predicate<String> isPackageInParentLayers
+    ) throws IOException {
         var builder = ModuleDescriptor.newOpenModule(name); // open module, for now
         requires.stream().forEach(builder::requires);
         uses.stream().forEach(builder::uses);
@@ -65,7 +79,7 @@ public class ModuleSupport {
         // scan the names of the entries in the JARs
         Set<String> pkgs = new HashSet<>();
         Map<String, List<String>> allBundledProviders = new HashMap<>();
-        Set<String> allBundledServices = new HashSet<>();
+        Set<String> servicesUsedInBundle = new HashSet<>();
         for (Path path : jarPaths) {
             assert path.getFileName().toString().endsWith(".jar") : "expected jars suffix, in path: " + path;
             try (JarFile jf = new JarFile(path.toFile(), true, ZipFile.OPEN_READ, Runtime.version())) {
@@ -74,13 +88,13 @@ public class ModuleSupport {
                 if (moduleInfo != null) {
                     var descriptor = getDescriptorForModularJar(path);
                     pkgs.addAll(descriptor.packages());
-                    allBundledServices.addAll(descriptor.uses());
+                    servicesUsedInBundle.addAll(descriptor.uses());
                     for (ModuleDescriptor.Provides p : descriptor.provides()) {
                         String serviceName = p.service();
                         List<String> providersInModule = p.providers();
 
                         allBundledProviders.compute(serviceName, (k, v) -> createListOrAppend(v, providersInModule));
-                        allBundledServices.add(serviceName);
+                        servicesUsedInBundle.add(serviceName);
                     }
                 } else {
                     var scan = scan(jf);
@@ -92,7 +106,7 @@ public class ModuleSupport {
                         List<String> providersInJar = getProvidersFromServiceFile(jf, serviceFileName);
 
                         allBundledProviders.compute(serviceName, (k, v) -> createListOrAppend(v, providersInJar));
-                        allBundledServices.add(serviceName);
+                        servicesUsedInBundle.add(serviceName);
                     }
                 }
             }
@@ -100,13 +114,21 @@ public class ModuleSupport {
 
         builder.packages(pkgs);
 
-        // the module needs to use all services it provides, for the case of internal use
-        allBundledServices.addAll(allBundledProviders.keySet());
-        // but we don't want to add any services we already got from the parent layer
-        allBundledServices.removeAll(uses);
+        // we don't want to add any services we already got from the parent layer
+        servicesUsedInBundle.removeAll(uses);
 
-        allBundledServices.forEach(builder::uses);
-        allBundledProviders.forEach(builder::provides);
+        // Services that aren't exported in the parent layer or defined in our
+        // bundle. This can happen for optional (compile-time) dependencies
+        Set<String> missingServices = servicesUsedInBundle.stream()
+            .filter(s -> isPackageInParentLayers.test(toPackageName(s, ".").orElseThrow()) == false)
+            .filter(s -> pkgs.contains(toPackageName(s, ".").orElseThrow()) == false)
+            .collect(Collectors.toSet());
+
+        servicesUsedInBundle.stream().filter(s -> missingServices.contains(s) == false).forEach(builder::uses);
+        allBundledProviders.entrySet()
+            .stream()
+            .filter(e -> missingServices.contains(e.getKey()) == false)
+            .forEach(e -> builder.provides(e.getKey(), e.getValue()));
         return builder.build();
     }
 
@@ -246,7 +268,7 @@ public class ModuleSupport {
     @SuppressForbidden(reason = "need access to the jar file")
     private static List<String> getProvidersFromServiceFile(JarFile jf, String sf) throws IOException {
         try (BufferedReader bf = new BufferedReader(new InputStreamReader(jf.getInputStream(jf.getEntry(sf)), StandardCharsets.UTF_8))) {
-            return bf.lines().toList();
+            return bf.lines().filter(Predicate.not(l -> l.startsWith("#"))).filter(Predicate.not(String::isEmpty)).toList();
         }
     }
 

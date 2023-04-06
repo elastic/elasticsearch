@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Supplier;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -102,12 +103,30 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                      Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener) {
+    public void loadAuthorizedIndices(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        Map<String, IndexAbstraction> indicesLookup,
+        ActionListener<AuthorizationEngine.AuthorizedIndices> listener
+    ) {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
-            listener.onResponse(indicesLookup.keySet());
+            listener.onResponse(new AuthorizedIndices() {
+                public Supplier<Set<String>> all() {
+                    return () -> indicesLookup.keySet();
+                }
+                public boolean check(String name) {
+                    return indicesLookup.containsKey(name);
+                }
+            });
         } else {
-            listener.onResponse(Collections.emptySet());
+            listener.onResponse(new AuthorizedIndices() {
+                public Supplier<Set<String>> all() {
+                    return () -> Set.of();
+                }
+                public boolean check(String name) {
+                    return false;
+                }
+            });
         }
     }
 

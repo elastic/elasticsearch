@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.util.ByteUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -189,5 +190,30 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
         // but these reused exceptions have no message or stack trace. This sometimes happens when running this test case.
         // We can assert the exception message if -XX:-OmitStackTraceInFastThrow is set in gradle test task.
         expectThrows(IndexOutOfBoundsException.class, () -> comp.getDoubleLE(17));
+    }
+
+    public void testGetLongLE() {
+        // first long = 2, second long = 44, third long = 512
+        // tag::noformat
+        byte[] data = new byte[] {
+            0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+            0x2C, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+            0x0, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
+        // end::noformat
+
+        byte[] d = new byte[8];
+        ByteUtils.writeLongLE(2, d, 0);
+
+        List<BytesReference> refs = new ArrayList<>();
+        int bytesPerChunk = randomFrom(4, 16);
+        for (int offset = 0; offset < data.length; offset += bytesPerChunk) {
+            int length = Math.min(bytesPerChunk, data.length - offset);
+            refs.add(new BytesArray(data, offset, length));
+        }
+        BytesReference comp = CompositeBytesReference.of(refs.toArray(BytesReference[]::new));
+        assertThat(comp.getLongLE(0), equalTo(2L));
+        assertThat(comp.getLongLE(8), equalTo(44L));
+        assertThat(comp.getLongLE(16), equalTo(512L));
+        expectThrows(IndexOutOfBoundsException.class, () -> comp.getLongLE(17));
     }
 }

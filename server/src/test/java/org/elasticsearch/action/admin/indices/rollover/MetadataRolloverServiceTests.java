@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -275,7 +276,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         String indexEndingInNumbers = indexPrefix + "-" + num;
         assertThat(
             MetadataRolloverService.generateRolloverIndexName(indexEndingInNumbers),
-            equalTo(indexPrefix + "-" + formatted("%06d", num + 1))
+            equalTo(indexPrefix + "-" + Strings.format("%06d", num + 1))
         );
         assertThat(MetadataRolloverService.generateRolloverIndexName("index-name-1"), equalTo("index-name-000002"));
         assertThat(MetadataRolloverService.generateRolloverIndexName("index-name-2"), equalTo("index-name-000003"));
@@ -684,7 +685,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             null,
             createIndexService,
             metadataIndexAliasesService,
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            WriteLoadForecaster.DEFAULT
         );
 
         String newIndexName = useDataStream == false && randomBoolean() ? "logs-index-9" : null;

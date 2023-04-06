@@ -60,6 +60,8 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -192,18 +194,18 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 5)));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "elk")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
         fields = doc.rootDoc().getFields("_ignored");
-        assertEquals(0, fields.length);
+        assertEquals(0, fields.size());
 
         doc = mapper.parse(source(b -> b.field("field", "elasticsearch")));
         fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        assertEquals(0, fields.size());
 
         fields = doc.rootDoc().getFields("_ignored");
-        assertEquals(1, fields.length);
-        assertEquals("field", fields[0].stringValue());
+        assertEquals(1, fields.size());
+        assertEquals("field", fields.get(0).stringValue());
     }
 
     public void testBWCIndexVersion() throws IOException {
@@ -1086,6 +1088,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY);
         return new SearchExecutionContext(
             0,
             0,
@@ -1093,7 +1096,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             bitsetFilterCache,
             indexFieldDataLookup,
             null,
-            null,
+            lookup,
             null,
             null,
             parserConfig(),

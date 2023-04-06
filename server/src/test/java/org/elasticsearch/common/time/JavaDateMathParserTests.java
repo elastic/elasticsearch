@@ -9,6 +9,7 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -403,7 +404,7 @@ public class JavaDateMathParserTests extends ESTestCase {
         long expectedMillis = parser.parse(expected, () -> 0).toEpochMilli();
         if (gotMillis != expectedMillis) {
             ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(gotMillis), ZoneOffset.UTC);
-            fail(formatted("""
+            fail(Strings.format("""
                 Date math not equal
                 Original              : %s
                 Parsed                : %s

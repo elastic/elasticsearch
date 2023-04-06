@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -47,7 +48,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     public static final StartTrainedModelDeploymentAction INSTANCE = new StartTrainedModelDeploymentAction();
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/start";
 
-    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     /**
      * This has been found to be approximately 300MB on linux by manual testing.
@@ -139,10 +140,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             numberOfAllocations = in.readVInt();
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
-            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             }
-            if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
                 this.priority = in.readEnum(Priority.class);
             } else {
                 this.priority = Priority.NORMAL;
@@ -223,10 +224,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeVInt(numberOfAllocations);
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(queueCapacity);
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 out.writeOptionalWriteable(cacheSize);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
                 out.writeEnum(priority);
             }
         }
@@ -447,12 +448,12 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this.threadsPerAllocation = in.readVInt();
             this.numberOfAllocations = in.readVInt();
             this.queueCapacity = in.readVInt();
-            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 this.cacheSize = in.readOptionalWriteable(ByteSizeValue::readFrom);
             } else {
                 this.cacheSize = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
                 this.priority = in.readEnum(Priority.class);
             } else {
                 this.priority = Priority.NORMAL;
@@ -483,10 +484,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(numberOfAllocations);
             out.writeVInt(queueCapacity);
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 out.writeOptionalWriteable(cacheSize);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
                 out.writeEnum(priority);
             }
         }

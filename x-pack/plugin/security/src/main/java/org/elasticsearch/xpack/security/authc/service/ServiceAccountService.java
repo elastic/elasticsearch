@@ -163,7 +163,7 @@ public class ServiceAccountService {
 
     // TODO: No production code usage
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
-        assert authentication.isAuthenticatedWithServiceAccount() : "authentication is not for service account: " + authentication;
+        assert authentication.isServiceAccount() : "authentication is not for service account: " + authentication;
         final String principal = authentication.getEffectiveSubject().getUser().principal();
         getRoleDescriptorForPrincipal(principal, listener);
     }
@@ -203,10 +203,9 @@ public class ServiceAccountService {
     }
 
     private void findIndexTokens(ServiceAccountId accountId, ActionListener<GetServiceAccountCredentialsResponse> listener) {
-        indexServiceAccountTokenStore.findTokensFor(
-            accountId,
-            ActionListener.wrap(indexTokenInfos -> { findFileTokens(indexTokenInfos, accountId, listener); }, listener::onFailure)
-        );
+        indexServiceAccountTokenStore.findTokensFor(accountId, ActionListener.wrap(indexTokenInfos -> {
+            findFileTokens(indexTokenInfos, accountId, listener);
+        }, listener::onFailure));
     }
 
     private void findFileTokens(

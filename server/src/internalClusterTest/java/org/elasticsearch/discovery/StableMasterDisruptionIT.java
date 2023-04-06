@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.GetHealthAction;
@@ -43,7 +44,6 @@ import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
@@ -135,16 +135,24 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
 
     private void assertMasterStability(Client client, HealthStatus expectedStatus, Matcher<String> expectedMatcher) throws Exception {
         assertBusy(() -> {
-            GetHealthAction.Response healthResponse = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true)).get();
+            GetHealthAction.Response healthResponse = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000))
+                .get();
             String debugInformation = xContentToString(healthResponse);
             assertThat(debugInformation, healthResponse.findIndicator("master_is_stable").status(), equalTo(expectedStatus));
             assertThat(debugInformation, healthResponse.findIndicator("master_is_stable").symptom(), expectedMatcher);
         });
     }
 
-    private String xContentToString(ToXContentObject xContent) throws IOException {
+    private String xContentToString(ChunkedToXContent xContent) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
-        xContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        xContent.toXContentChunked(ToXContent.EMPTY_PARAMS).forEachRemaining(xcontent -> {
+            try {
+                xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            } catch (IOException e) {
+                logger.error(e.getMessage(), e);
+                fail(e.getMessage());
+            }
+        });
         return BytesReference.bytes(builder).utf8ToString();
     }
 
@@ -218,6 +226,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
      * following another elected master node. These nodes should reject this cluster state and prevent them from following the stale master.
      */
     public void testStaleMasterNotHijackingMajority() throws Exception {
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
         final List<String> nodes = internalCluster().startNodes(
             3,
             Settings.builder()
@@ -325,6 +334,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
      * @throws Exception
      */
     public void testRepeatedMasterChanges(String expectedMasterStabilitySymptomSubstring) throws Exception {
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
         final List<String> nodes = internalCluster().startNodes(
             3,
             Settings.builder()
@@ -414,6 +424,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
     }
 
     public void testRepeatedNullMasterRecognizedAsGreenIfMasterDoesNotKnowItIsUnstable() throws Exception {
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
         /*
          * In this test we have a single master-eligible node. We pause it repeatedly (simulating a long GC pause for example) so that
          * other nodes decide it is no longer the master. However since there is no other master-eligible node, another node is never

@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 
 public final class InferenceConfigTestScaffolding {
 
-    static Tokenization mutateTokenizationForVersion(Tokenization tokenization, Version version) {
+    static Tokenization mutateTokenizationForVersion(Tokenization tokenization, TransportVersion version) {
         if (tokenization instanceof BertTokenization bertTokenization) {
             return BertTokenizationTests.mutateForVersion(bertTokenization, version);
         } else if (tokenization instanceof MPNetTokenization mpNetTokenization) {

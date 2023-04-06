@@ -46,7 +46,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
-import org.elasticsearch.search.vectors.KnnSearchBuilder;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -128,26 +127,34 @@ public final class SearchPhaseController {
         return new AggregatedDfs(termStatistics, fieldStatistics, aggMaxDoc);
     }
 
-    public static DfsKnnResults mergeKnnResults(SearchRequest request, List<DfsSearchResult> dfsSearchResults) {
+    public static List<DfsKnnResults> mergeKnnResults(SearchRequest request, List<DfsSearchResult> dfsSearchResults) {
         if (request.hasKnnSearch() == false) {
             return null;
         }
 
-        List<TopDocs> topDocs = new ArrayList<>();
-        for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
-            if (dfsSearchResult.knnResults() != null) {
-                ScoreDoc[] scoreDocs = dfsSearchResult.knnResults().scoreDocs();
-                TotalHits totalHits = new TotalHits(scoreDocs.length, Relation.EQUAL_TO);
-
-                TopDocs shardTopDocs = new TopDocs(totalHits, scoreDocs);
-                setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
-                topDocs.add(shardTopDocs);
-            }
+        List<List<TopDocs>> topDocsLists = new ArrayList<>(request.source().knnSearch().size());
+        for (int i = 0; i < request.source().knnSearch().size(); i++) {
+            topDocsLists.add(new ArrayList<>());
         }
 
-        KnnSearchBuilder knnSearch = request.source().knnSearch();
-        TopDocs mergedTopDocs = TopDocs.merge(knnSearch.k(), topDocs.toArray(new TopDocs[0]));
-        return new DfsKnnResults(mergedTopDocs.scoreDocs);
+        for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
+            if (dfsSearchResult.knnResults() != null) {
+                for (int i = 0; i < dfsSearchResult.knnResults().size(); i++) {
+                    DfsKnnResults knnResults = dfsSearchResult.knnResults().get(i);
+                    ScoreDoc[] scoreDocs = knnResults.scoreDocs();
+                    TotalHits totalHits = new TotalHits(scoreDocs.length, Relation.EQUAL_TO);
+                    TopDocs shardTopDocs = new TopDocs(totalHits, scoreDocs);
+                    setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
+                    topDocsLists.get(i).add(shardTopDocs);
+                }
+            }
+        }
+        List<DfsKnnResults> mergedResults = new ArrayList<>(request.source().knnSearch().size());
+        for (int i = 0; i < request.source().knnSearch().size(); i++) {
+            TopDocs mergedTopDocs = TopDocs.merge(request.source().knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
+            mergedResults.add(new DfsKnnResults(mergedTopDocs.scoreDocs));
+        }
+        return mergedResults;
     }
 
     /**

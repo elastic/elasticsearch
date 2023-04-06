@@ -13,7 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,7 +36,7 @@ final class OutboundHandler {
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
 
     private final String nodeName;
-    private final Version version;
+    private final TransportVersion version;
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final Recycler<BytesRef> recycler;
@@ -49,7 +49,7 @@ final class OutboundHandler {
 
     OutboundHandler(
         String nodeName,
-        Version version,
+        TransportVersion version,
         StatsTracker statsTracker,
         ThreadPool threadPool,
         Recycler<BytesRef> recycler,
@@ -84,11 +84,11 @@ final class OutboundHandler {
         final String action,
         final TransportRequest request,
         final TransportRequestOptions options,
-        final Version channelVersion,
+        final TransportVersion transportVersion,
         final Compression.Scheme compressionScheme,
         final boolean isHandshake
     ) throws IOException, TransportException {
-        Version version = Version.min(this.version, channelVersion);
+        TransportVersion version = TransportVersion.min(this.version, transportVersion);
         OutboundMessage.Request message = new OutboundMessage.Request(
             threadPool.getThreadContext(),
             request,
@@ -102,7 +102,7 @@ final class OutboundHandler {
             assert false : "request [" + request + "] has been released already";
             throw new AlreadyClosedException("request [" + request + "] has been released already");
         }
-        sendMessage(channel, message, () -> {
+        sendMessage(channel, message, ResponseStatsConsumer.NONE, () -> {
             try {
                 messageListener.onRequestSent(node, requestId, action, request, options);
             } finally {
@@ -115,18 +115,19 @@ final class OutboundHandler {
      * Sends the response to the given channel. This method should be used to send {@link TransportResponse}
      * objects back to the caller.
      *
-     * @see #sendErrorResponse(Version, TcpChannel, long, String, Exception) for sending error responses
+     * @see #sendErrorResponse for sending error responses
      */
     void sendResponse(
-        final Version nodeVersion,
+        final TransportVersion transportVersion,
         final TcpChannel channel,
         final long requestId,
         final String action,
         final TransportResponse response,
         final Compression.Scheme compressionScheme,
-        final boolean isHandshake
+        final boolean isHandshake,
+        final ResponseStatsConsumer responseStatsConsumer
     ) throws IOException {
-        Version version = Version.min(this.version, nodeVersion);
+        TransportVersion version = TransportVersion.min(this.version, transportVersion);
         OutboundMessage.Response message = new OutboundMessage.Response(
             threadPool.getThreadContext(),
             response,
@@ -135,7 +136,7 @@ final class OutboundHandler {
             isHandshake,
             compressionScheme
         );
-        sendMessage(channel, message, () -> {
+        sendMessage(channel, message, responseStatsConsumer, () -> {
             try {
                 messageListener.onResponseSent(requestId, action, response);
             } finally {
@@ -148,19 +149,25 @@ final class OutboundHandler {
      * Sends back an error response to the caller via the given channel
      */
     void sendErrorResponse(
-        final Version nodeVersion,
+        final TransportVersion transportVersion,
         final TcpChannel channel,
         final long requestId,
         final String action,
+        final ResponseStatsConsumer responseStatsConsumer,
         final Exception error
     ) throws IOException {
-        Version version = Version.min(this.version, nodeVersion);
+        TransportVersion version = TransportVersion.min(this.version, transportVersion);
         RemoteTransportException tx = new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error);
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), tx, version, requestId, false, null);
-        sendMessage(channel, message, () -> messageListener.onResponseSent(requestId, action, error));
+        sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, error));
     }
 
-    private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, Releasable onAfter) throws IOException {
+    private void sendMessage(
+        TcpChannel channel,
+        OutboundMessage networkMessage,
+        ResponseStatsConsumer responseStatsConsumer,
+        Releasable onAfter
+    ) throws IOException {
         final RecyclerBytesStreamOutput byteStreamOutput;
         boolean bufferSuccess = false;
         try {
@@ -185,7 +192,8 @@ final class OutboundHandler {
                 release.close();
             }
         }
-        internalSend(channel, message, networkMessage, ActionListener.wrap(release::close));
+        responseStatsConsumer.addResponseStats(message.length());
+        internalSend(channel, message, networkMessage, ActionListener.running(release::close));
     }
 
     private void internalSend(

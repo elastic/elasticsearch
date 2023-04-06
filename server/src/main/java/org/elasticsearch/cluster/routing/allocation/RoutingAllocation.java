@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -64,6 +65,7 @@ public class RoutingAllocation {
 
     private final long currentNanoTime;
     private final boolean isSimulating;
+    private boolean isReconciling;
 
     private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
@@ -401,13 +403,40 @@ public class RoutingAllocation {
         return isSimulating;
     }
 
+    /**
+     * @return {@code true} if this allocation computation is trying to reconcile towards a previously-computed allocation and therefore
+     *                      path-dependent allocation blockers should be ignored.
+     */
+    public boolean isReconciling() {
+        return isReconciling;
+    }
+
+    /**
+     * Set the {@link #isReconciling} flag, and return a {@link Releasable} which clears it again.
+     */
+    public Releasable withReconcilingFlag() {
+        assert isReconciling == false : "already reconciling";
+        isReconciling = true;
+        return () -> isReconciling = false;
+    }
+
     public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
         assert isSimulating : "Should be called only while simulating";
         this.clusterInfo = clusterInfo;
     }
 
     public RoutingAllocation immutableClone() {
-        return new RoutingAllocation(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+        return new RoutingAllocation(
+            deciders,
+            routingNodesChanged()
+                ? ClusterState.builder(clusterState)
+                    .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
+                    .build()
+                : clusterState,
+            clusterInfo,
+            shardSizeInfo,
+            currentNanoTime
+        );
     }
 
     public RoutingAllocation mutableCloneForSimulation() {

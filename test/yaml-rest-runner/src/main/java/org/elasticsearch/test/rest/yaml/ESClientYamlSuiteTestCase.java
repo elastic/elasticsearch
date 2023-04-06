@@ -238,8 +238,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * @return list of test candidates.
      * @throws Exception
      */
-    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String[] testPaths) throws Exception {
-        String[] paths = testPaths == null ? resolvePathsProperty(REST_TESTS_SUITE, "") : testPaths; // default to all tests under the test root
+    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String[] testPaths)
+        throws Exception {
+        if (testPaths != null && System.getProperty(REST_TESTS_SUITE) != null) {
+            throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
+        }
+
+        // default to all tests under the test root
+        String[] paths = testPaths == null ? resolvePathsProperty(REST_TESTS_SUITE, "") : testPaths;
         Map<String, Set<Path>> yamlSuites = loadSuites(paths);
         List<ClientYamlTestSuite> suites = new ArrayList<>();
         IllegalArgumentException validationException = null;

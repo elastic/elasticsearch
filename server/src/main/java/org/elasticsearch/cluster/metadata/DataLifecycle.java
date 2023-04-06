@@ -136,7 +136,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         }
         if (rolloverConfiguration != null) {
             builder.field(ROLLOVER_FIELD.getPreferredName());
-            rolloverConfiguration.toXContent(builder, params, dataRetention);
+            rolloverConfiguration.evaluateAndConvertToXContent(builder, params, dataRetention);
         }
         builder.endObject();
         return builder;

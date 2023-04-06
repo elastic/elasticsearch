@@ -16,10 +16,8 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,43 +25,11 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.action.admin.indices.rollover.RolloverConditions.MAX_AGE_FIELD;
-import static org.elasticsearch.action.admin.indices.rollover.RolloverConditions.MAX_DOCS_FIELD;
-import static org.elasticsearch.action.admin.indices.rollover.RolloverConditions.MAX_PRIMARY_SHARD_DOCS_FIELD;
-import static org.elasticsearch.action.admin.indices.rollover.RolloverConditions.MAX_PRIMARY_SHARD_SIZE_FIELD;
-import static org.elasticsearch.action.admin.indices.rollover.RolloverConditions.MAX_SIZE_FIELD;
-import static org.elasticsearch.action.admin.indices.rollover.RolloverConditions.MIN_AGE_FIELD;
-import static org.elasticsearch.action.admin.indices.rollover.RolloverConditions.MIN_DOCS_FIELD;
-import static org.elasticsearch.action.admin.indices.rollover.RolloverConditions.MIN_PRIMARY_SHARD_DOCS_FIELD;
-import static org.elasticsearch.action.admin.indices.rollover.RolloverConditions.MIN_PRIMARY_SHARD_SIZE_FIELD;
-import static org.elasticsearch.action.admin.indices.rollover.RolloverConditions.MIN_SIZE_FIELD;
-
 /**
  * This class holds the configuration of the rollover conditions as they are defined in DLM lifecycle. Currently, it can handle automatic
  * configuration for the max index age condition.
  */
 public class RolloverConfiguration implements Writeable, ToXContentObject {
-
-    public static final ObjectParser<ValueParser, Void> PARSER = new ObjectParser<>("rollover_conditions");
-
-    static {
-        PARSER.declareString((valueParser, s) -> valueParser.addMaxIndexAgeCondition(s, MaxAgeCondition.NAME), MAX_AGE_FIELD);
-        PARSER.declareLong(ValueParser::addMaxIndexDocsCondition, MAX_DOCS_FIELD);
-        PARSER.declareString((valueParser, s) -> valueParser.addMaxIndexSizeCondition(s, MaxSizeCondition.NAME), MAX_SIZE_FIELD);
-        PARSER.declareString(
-            (valueParser, s) -> valueParser.addMaxPrimaryShardSizeCondition(s, MaxPrimaryShardSizeCondition.NAME),
-            MAX_PRIMARY_SHARD_SIZE_FIELD
-        );
-        PARSER.declareLong(ValueParser::addMaxPrimaryShardDocsCondition, MAX_PRIMARY_SHARD_DOCS_FIELD);
-        PARSER.declareString((valueParser, s) -> valueParser.addMinIndexAgeCondition(s, MinAgeCondition.NAME), MIN_AGE_FIELD);
-        PARSER.declareLong(ValueParser::addMinIndexDocsCondition, MIN_DOCS_FIELD);
-        PARSER.declareString((valueParser, s) -> valueParser.addMinIndexSizeCondition(s, MinSizeCondition.NAME), MIN_SIZE_FIELD);
-        PARSER.declareString(
-            (valueParser, s) -> valueParser.addMinPrimaryShardSizeCondition(s, MinPrimaryShardSizeCondition.NAME),
-            MIN_PRIMARY_SHARD_SIZE_FIELD
-        );
-        PARSER.declareLong(ValueParser::addMinPrimaryShardDocsCondition, MIN_PRIMARY_SHARD_DOCS_FIELD);
-    }
 
     // The conditions that have concrete values
     private final RolloverConditions concreteConditions;
@@ -85,12 +51,6 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         automaticConditions = in.readSet(StreamInput::readString);
     }
 
-    public static RolloverConfiguration fromXContent(XContentParser parser) throws IOException {
-        ValueParser valueParser = new ValueParser();
-        PARSER.parse(parser, valueParser, null);
-        return valueParser.getRolloverConfiguration();
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeWriteable(concreteConditions);
@@ -108,7 +68,11 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         return builder;
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, TimeValue retention) throws IOException {
+    /**
+     * Evaluates the automatic conditions and converts the whole configuration to XContent.
+     * For the automatic conditions is also adds the suffix [automatic]
+     */
+    public XContentBuilder evaluateAndConvertToXContent(XContentBuilder builder, Params params, TimeValue retention) throws IOException {
         builder.startObject();
         concreteConditions.toXContentFragment(builder, params);
         for (String automaticCondition : automaticConditions) {

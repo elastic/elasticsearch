@@ -8,30 +8,32 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RolloverConfigurationTests extends AbstractXContentSerializingTestCase<RolloverConfiguration> {
+public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<RolloverConfiguration> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -83,11 +85,6 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
     @Override
     protected RolloverConfiguration mutateInstance(RolloverConfiguration instance) {
         return randomValueOtherThan(instance, RolloverConfigurationTests::randomRolloverConditions);
-    }
-
-    @Override
-    protected RolloverConfiguration doParseInstance(XContentParser parser) throws IOException {
-        return RolloverConfiguration.fromXContent(parser);
     }
 
     public void testSameConditionCanOnlyBeAddedOnce() {
@@ -238,24 +235,76 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
         assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(1)), equalTo(TimeValue.timeValueDays(1)));
     }
 
+    public void testToXContent() throws IOException {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint()) {
+            RolloverConfiguration rolloverConfiguration = randomRolloverConditions();
+            rolloverConfiguration.toXContent(builder, EMPTY_PARAMS);
+            Map<String, Object> xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+            RolloverConditions concreteConditions = rolloverConfiguration.getConcreteConditions();
+            if (rolloverConfiguration.getAutomaticConditions().isEmpty()) {
+                if (concreteConditions.getMaxAge() == null) {
+                    assertThat(xContentMap.get("max_age"), nullValue());
+                } else {
+                    assertThat(xContentMap.get("max_age"), is(concreteConditions.getMaxAge().getStringRep()));
+                }
+            } else {
+                assertThat(xContentMap.get("max_age"), is("auto"));
+            }
+            assertThat(xContentMap.get("max_docs"), is(concreteConditions.getMaxDocs()));
+            if (concreteConditions.getMaxSize() == null) {
+                assertThat(xContentMap.get("max_size"), nullValue());
+            } else {
+                assertThat(xContentMap.get("max_size"), is(concreteConditions.getMaxSize().getStringRep()));
+            }
+            assertThat(xContentMap.get("max_primary_shard_docs"), is(concreteConditions.getMaxPrimaryShardDocs()));
+            if (concreteConditions.getMaxPrimaryShardSize() == null) {
+                assertThat(xContentMap.get("max_primary_shard_size"), nullValue());
+            } else {
+                assertThat(xContentMap.get("max_primary_shard_size"), is(concreteConditions.getMaxPrimaryShardSize().getStringRep()));
+            }
+            if (concreteConditions.getMinAge() == null) {
+                assertThat(xContentMap.get("min_age"), nullValue());
+            } else {
+                assertThat(xContentMap.get("min_age"), is(concreteConditions.getMinAge().getStringRep()));
+            }
+            assertThat(xContentMap.get("min_docs"), is(concreteConditions.getMinDocs()));
+            if (concreteConditions.getMinSize() == null) {
+                assertThat(xContentMap.get("min_size"), nullValue());
+            } else {
+                assertThat(xContentMap.get("min_size"), is(concreteConditions.getMinSize().getStringRep()));
+            }
+            assertThat(xContentMap.get("min_primary_shard_docs"), is(concreteConditions.getMinPrimaryShardDocs()));
+            if (concreteConditions.getMinPrimaryShardSize() == null) {
+                assertThat(xContentMap.get("min_primary_shard_size"), nullValue());
+            } else {
+                assertThat(xContentMap.get("min_primary_shard_size"), is(concreteConditions.getMinPrimaryShardSize().getStringRep()));
+            }
+        }
+    }
+
     public void testXContentSerializationWithKnownDataRetention() throws IOException {
-        // Test with automatic condition
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.humanReadable(true);
+        // Test with automatic condition infinite retention
+        try (XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint()) {
             RolloverConfiguration rolloverConfiguration = new RolloverConfiguration(new RolloverConditions(), Set.of(MaxAgeCondition.NAME));
-            rolloverConfiguration.toXContent(builder, ToXContent.EMPTY_PARAMS, null);
-            String serialized = Strings.toString(builder);
-            assertThat(serialized, equalTo("{\"max_age\":\"30d [automatic]\"}"));
+            rolloverConfiguration.evaluateAndConvertToXContent(builder, EMPTY_PARAMS, null);
+            Map<String, Object> xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+            assertThat(xContentMap.get("max_age"), is("30d [automatic]"));
+        }
+        // Test with automatic condition with short retention
+        try (XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint()) {
+            RolloverConfiguration rolloverConfiguration = new RolloverConfiguration(new RolloverConditions(), Set.of(MaxAgeCondition.NAME));
+            rolloverConfiguration.evaluateAndConvertToXContent(builder, EMPTY_PARAMS, TimeValue.timeValueDays(10));
+            Map<String, Object> xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+            assertThat(xContentMap.get("max_age"), is("1d [automatic]"));
         }
         // Test without automatic condition
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.humanReadable(true);
+        try (XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint()) {
             RolloverConfiguration rolloverConfiguration = new RolloverConfiguration(
-                RolloverConditions.newBuilder().addMaxIndexAgeCondition(TimeValue.timeValueDays(7)).build()
+                RolloverConditions.newBuilder().addMaxIndexAgeCondition(TimeValue.timeValueMillis(randomMillisUpToYear9999())).build()
             );
-            rolloverConfiguration.toXContent(builder, ToXContent.EMPTY_PARAMS, null);
-            String serialized = Strings.toString(builder);
-            assertThat(serialized, equalTo("{\"max_age\":\"7d\"}"));
+            rolloverConfiguration.evaluateAndConvertToXContent(builder, EMPTY_PARAMS, null);
+            Map<String, Object> xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+            assertThat(xContentMap.get("max_age"), is(rolloverConfiguration.getConcreteConditions().getMaxAge().getStringRep()));
         }
     }
 

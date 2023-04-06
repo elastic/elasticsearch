@@ -9,7 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -17,23 +16,10 @@ import java.io.IOException;
 /**
  * Thrown after completely failing to connect to any node of the remote cluster.
  */
-public class NoSeedNodeLeftException extends ElasticsearchException implements ElasticsearchWrapperException {
+public class NoSeedNodeLeftException extends ElasticsearchException {
 
     public NoSeedNodeLeftException(String message) {
         super(message);
-    }
-
-    NoSeedNodeLeftException(RemoteConnectionStrategy.ConnectionStrategy connectionStrategy, String clusterName) {
-        this(connectionStrategy, clusterName, null);
-    }
-
-    NoSeedNodeLeftException(RemoteConnectionStrategy.ConnectionStrategy connectionStrategy, String clusterName, Throwable cause) {
-        super(
-            connectionStrategy == RemoteConnectionStrategy.ConnectionStrategy.SNIFF
-                ? "no seed node left for cluster: [" + clusterName + "]"
-                : "Unable to open any proxy connections to cluster [" + clusterName + "]",
-            cause
-        );
     }
 
     public NoSeedNodeLeftException(StreamInput in) throws IOException {

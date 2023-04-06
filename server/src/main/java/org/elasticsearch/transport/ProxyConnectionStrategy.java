@@ -22,12 +22,16 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -244,6 +248,8 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
                 private final AtomicInteger successfulConnections = new AtomicInteger(0);
                 private final CountDown countDown = new CountDown(remaining);
+                // Collecting exceptions during connection but deduplicate them by type and message to avoid excessive error reporting
+                private final Map<Tuple<Class<?>, String>, Exception> exceptions = new ConcurrentHashMap<>();
 
                 @Override
                 public void onResponse(Void v) {
@@ -259,10 +265,11 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
                 @Override
                 public void onFailure(Exception e) {
+                    exceptions.put(new Tuple<>(e.getClass(), e.getMessage()), e);
                     if (countDown.countDown()) {
                         if (attemptNumber >= MAX_CONNECT_ATTEMPTS_PER_RUN && connectionManager.size() == 0) {
                             logger.warn(() -> "failed to open any proxy connections to cluster [" + clusterAlias + "]", e);
-                            finished.onFailure(new NoSeedNodeLeftException(strategyType(), clusterAlias, e));
+                            finished.onFailure(getNoSeedNodeLeftException(exceptions.values()));
                         } else {
                             openConnections(finished, attemptNumber + 1);
                         }
@@ -297,7 +304,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         } else {
             int openConnections = connectionManager.size();
             if (openConnections == 0) {
-                finished.onFailure(new NoSeedNodeLeftException(strategyType(), clusterAlias));
+                finished.onFailure(getNoSeedNodeLeftException(Set.of()));
             } else {
                 logger.debug(
                     "unable to open maximum number of connections [remote cluster: {}, opened: {}, maximum: {}]",
@@ -308,6 +315,14 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                 finished.onResponse(null);
             }
         }
+    }
+
+    private NoSeedNodeLeftException getNoSeedNodeLeftException(Collection<Exception> suppressedExceptions) {
+        final var e = new NoSeedNodeLeftException(
+            "Unable to open any proxy connections to cluster [" + clusterAlias + "] at address [" + address.get() + "]"
+        );
+        suppressedExceptions.forEach(e::addSuppressed);
+        return e;
     }
 
     private static TransportAddress resolveAddress(String address) {

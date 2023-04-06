@@ -36,6 +36,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -242,7 +243,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     }
                 }
                 logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
-                listener.onFailure(new NoSeedNodeLeftException(strategyType(), clusterAlias, e));
+                if (seedNodesSuppliers.hasNext()) {
+                    listener.onFailure(getNoSeedNodeLeftException(Set.of(e)));
+                } else {
+                    listener.onFailure(e);
+                }
             };
 
             final DiscoveryNode seedNode = seedNodesSuppliers.next().get();
@@ -347,8 +352,14 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 onFailure.accept(e);
             });
         } else {
-            listener.onFailure(new NoSeedNodeLeftException(strategyType(), clusterAlias));
+            listener.onFailure(getNoSeedNodeLeftException(Set.of()));
         }
+    }
+
+    private NoSeedNodeLeftException getNoSeedNodeLeftException(Collection<Exception> suppressedExceptions) {
+        final var e = new NoSeedNodeLeftException("no seed node left for cluster: [" + clusterAlias + "]");
+        suppressedExceptions.forEach(e::addSuppressed);
+        return e;
     }
 
     private ConnectionManager.ConnectionValidator getConnectionValidator(DiscoveryNode node) {

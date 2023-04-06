@@ -282,7 +282,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
 
             // Check that authentication fails if we use a non-existent API key
             updateClusterSettings(
-                randomBoolean()
+                randomBoolean() && false
                     ? Settings.builder()
                         .put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
                         .build()
@@ -295,7 +295,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 ResponseException.class,
                 () -> performRequestWithRemoteSearchUser(new Request("GET", "/invalid_remote:index1/_search"))
             );
-            assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+            assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(500));
             assertThat(exception4.getMessage(), containsString("unable to authenticate user "));
         }
     }

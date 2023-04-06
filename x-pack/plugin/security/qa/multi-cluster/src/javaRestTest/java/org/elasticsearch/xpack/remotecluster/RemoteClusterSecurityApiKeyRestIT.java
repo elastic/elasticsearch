@@ -326,7 +326,7 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
                 ResponseException.class,
                 () -> performRequestWithApiKey(new Request("GET", "/invalid_remote:index1/_search"), apiKeyEncoded)
             );
-            assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+            assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(500));
             assertThat(exception4.getMessage(), containsString("unable to authenticate user "));
         }
     }

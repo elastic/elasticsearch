@@ -40,6 +40,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -263,7 +264,7 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
                         exception.getMessage(),
                         allOf(containsString("Unable to open any proxy connections"), containsString('[' + clusterAlias + ']'))
                     );
-                    assertThat(exception.getCause(), instanceOf(ConnectTransportException.class));
+                    assertThat(exception.getSuppressed(), hasItemInArray(instanceOf(ConnectTransportException.class)));
 
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertEquals(0, connectionManager.size());

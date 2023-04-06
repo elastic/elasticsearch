@@ -20,7 +20,6 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 public class UriPartsProcessor extends AbstractProcessor {
 
@@ -69,7 +68,7 @@ public class UriPartsProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         String value = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
 
-        if (null == value) {
+        if (ignoreMissing && null == value) {
             return ingestDocument;
         }
         var uriParts = apply(value);

@@ -30,8 +30,9 @@ module org.elasticsearch.ml {
     opens org.elasticsearch.xpack.ml.utils; // for exact.properties access
 
     provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.xpack.ml.MachineLearningPainlessExtension;
+    provides org.elasticsearch.xpack.autoscaling.AutoscalingExtension with org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingExtension;
 
     exports org.elasticsearch.xpack.ml;
     exports org.elasticsearch.xpack.ml.action;
-    exports org.elasticsearch.xpack.ml.autoscaling to org.elasticsearch.autoscaling;
+    exports org.elasticsearch.xpack.ml.autoscaling;
 }

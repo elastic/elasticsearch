@@ -11,7 +11,6 @@ import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
-import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.FieldSort;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalPlanExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -219,21 +219,20 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                     projectAll.set(FALSE);
                 }
                 if (keepCollecting.get()) {
-                    if (p instanceof DissectExec dissect) {
-                        fieldAttributes.removeAll(dissect.extractedFields());
-                    } else {
-                        p.forEachExpression(NamedExpression.class, ne -> {
-                            var attr = ne.toAttribute();
-                            // filter out aliases declared before the exchange
-                            if (ne instanceof Alias as) {
-                                aliases.put(attr, as.child());
-                                fieldAttributes.remove(attr);
-                            } else {
-                                if (aliases.containsKey(attr) == false) {
-                                    fieldAttributes.add(attr);
-                                }
+                    p.forEachExpression(NamedExpression.class, ne -> {
+                        var attr = ne.toAttribute();
+                        // filter out aliases declared before the exchange
+                        if (ne instanceof Alias as) {
+                            aliases.put(attr, as.child());
+                            fieldAttributes.remove(attr);
+                        } else {
+                            if (aliases.containsKey(attr) == false) {
+                                fieldAttributes.add(attr);
                             }
-                        });
+                        }
+                    });
+                    if (p instanceof RegexExtractExec ree) {
+                        fieldAttributes.removeAll(ree.extractedFields());
                     }
                 }
                 if (p instanceof ExchangeExec exec) {

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
-import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -120,12 +120,18 @@ public class Verifier {
                     }
                 });
             }
-            if (p instanceof Dissect dissect) {
-                Expression expr = dissect.input();
+            if (p instanceof RegexExtract re) {
+                Expression expr = re.input();
                 DataType type = expr.dataType();
                 if (type != DataTypes.KEYWORD) {
                     failures.add(
-                        fail(expr, "Dissect only supports KEYWORD values, found expression [{}] type [{}]", expr.sourceText(), type)
+                        fail(
+                            expr,
+                            "{} only supports KEYWORD values, found expression [{}] type [{}]",
+                            re.getClass().getSimpleName(),
+                            expr.sourceText(),
+                            type
+                        )
                     );
                 }
             }

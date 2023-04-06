@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.ProjectReorder;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -79,6 +80,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitEvalCommand(EsqlBaseParser.EvalCommandContext ctx) {
         return p -> new Eval(source(ctx), p, visitFields(ctx.fields()));
+    }
+
+    @Override
+    public PlanFactory visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) {
+        return p -> {
+            String pattern = visitString(ctx.string()).fold().toString();
+            Grok result = new Grok(source(ctx), p, expression(ctx.primaryExpression()), Grok.pattern(source(ctx), pattern));
+            return result;
+        };
     }
 
     @Override

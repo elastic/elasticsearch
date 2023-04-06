@@ -18,12 +18,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-
-public class Dissect extends UnaryPlan {
-    private final Expression input;
+public class Dissect extends RegexExtract {
     private final Parser parser;
-    List<Attribute> extractedFields;
 
     public record Parser(String pattern, String appendSeparator, DissectParser parser) {
 
@@ -44,15 +40,8 @@ public class Dissect extends UnaryPlan {
     }
 
     public Dissect(Source source, LogicalPlan child, Expression input, Parser parser, List<Attribute> extracted) {
-        super(source, child);
-        this.input = input;
+        super(source, child, input, extracted);
         this.parser = parser;
-        this.extractedFields = extracted;
-    }
-
-    @Override
-    public boolean expressionsResolved() {
-        return input.resolved();
     }
 
     @Override
@@ -66,35 +55,20 @@ public class Dissect extends UnaryPlan {
     }
 
     @Override
-    public List<Attribute> output() {
-        return mergeOutputAttributes(extractedFields, child().output());
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         Dissect dissect = (Dissect) o;
-        return Objects.equals(input, dissect.input)
-            && Objects.equals(parser, dissect.parser)
-            && Objects.equals(extractedFields, dissect.extractedFields);
+        return Objects.equals(parser, dissect.parser);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), input, parser, extractedFields);
-    }
-
-    public Expression input() {
-        return input;
+        return Objects.hash(super.hashCode(), parser);
     }
 
     public Parser parser() {
         return parser;
-    }
-
-    public List<Attribute> extractedFields() {
-        return extractedFields;
     }
 }

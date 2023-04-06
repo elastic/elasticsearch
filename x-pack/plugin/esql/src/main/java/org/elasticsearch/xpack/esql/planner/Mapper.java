@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
@@ -76,6 +78,10 @@ public class Mapper {
 
         if (p instanceof Dissect dissect) {
             return new DissectExec(dissect.source(), map(dissect.child()), dissect.input(), dissect.parser(), dissect.extractedFields());
+        }
+
+        if (p instanceof Grok grok) {
+            return new GrokExec(grok.source(), map(grok.child()), grok.input(), grok.parser(), grok.extractedFields());
         }
 
         if (p instanceof Row row) {

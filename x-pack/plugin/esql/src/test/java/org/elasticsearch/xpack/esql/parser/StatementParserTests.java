@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -490,6 +491,21 @@ public class StatementParserTests extends ESTestCase {
             "from a | dissect foo \"%{bar}\" append_separator=3",
             "Invalid value for dissect append_separator: expected a string, but was [3]"
         );
+    }
+
+    public void testGrokPattern() {
+        LogicalPlan cmd = processingCommand("grok a \"%{WORD:foo}\"");
+        assertEquals(Grok.class, cmd.getClass());
+        Grok dissect = (Grok) cmd;
+        assertEquals("%{WORD:foo}", dissect.parser().pattern());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+
+        ParsingException pe = expectThrows(ParsingException.class, () -> statement("row a = \"foo bar\" | grok a \"%{_invalid_:x}\""));
+        assertThat(
+            pe.getMessage(),
+            containsString("Invalid pattern [%{_invalid_:x}] for grok: Unable to find pattern [_invalid_] in Grok's pattern dictionary")
+        );
+
     }
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {

@@ -1088,6 +1088,14 @@ public class AnalyzerTests extends ESTestCase {
             """, errorMsg);
     }
 
+    public void testUnsupportedFieldsInGrok() {
+        var errorMsg = "Cannot use field [point] with unsupported type [geo_point]";
+        verifyUnsupported("""
+            from test
+            | grok point \"%{WORD:foo}\"
+            """, errorMsg);
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

@@ -533,6 +533,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterGrokCommand(EsqlBaseParser.GrokCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterCommandOptions(EsqlBaseParser.CommandOptionsContext ctx) { }
   /**
    * {@inheritDoc}

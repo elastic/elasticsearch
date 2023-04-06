@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -111,9 +110,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         final var threadContext = new ThreadContext(Settings.EMPTY);
         final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
             CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
-            randomBoolean()
-                ? AuthenticationTestHelper.crossClusterAccessSubjectInfoForInternalUser()
-                : AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(false)
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
         );
         crossClusterAccessHeaders.writeToContext(threadContext);
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
@@ -138,18 +135,9 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         listenerCaptor.getValue().onResponse(apiKeyAuthentication);
         future.get();
 
-        final Authentication remoteAuthentication = crossClusterAccessHeaders.subjectInfo().getAuthentication();
-        final Authentication expectedAuthentication;
-        if (CrossClusterAccessUser.is(remoteAuthentication.getEffectiveSubject().getUser())) {
-            expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(
-                CrossClusterAccessUser.subjectInfo(
-                    remoteAuthentication.getEffectiveSubject().getTransportVersion(),
-                    remoteAuthentication.getEffectiveSubject().getRealm().getNodeName()
-                )
-            );
-        } else {
-            expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(crossClusterAccessHeaders.subjectInfo());
-        }
+        final Authentication expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(
+            crossClusterAccessHeaders.getCleanAndValidatedSubjectInfo()
+        );
         verify(auditableRequest).authenticationSuccess(expectedAuthentication);
         verifyNoMoreInteractions(auditableRequest);
         verify(authcContext).addAuthenticationToken(credentialsArgMatches(crossClusterAccessHeaders.credentials()));

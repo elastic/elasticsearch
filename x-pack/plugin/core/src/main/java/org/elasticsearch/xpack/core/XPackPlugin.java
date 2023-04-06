@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
@@ -124,6 +126,7 @@ public class XPackPlugin extends XPackClientPlugin
 
     public static final String ASYNC_RESULTS_INDEX = ".async-search";
     public static final String XPACK_INSTALLED_NODE_ATTR = "xpack.installed";
+    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
 
     // TODO: clean up this library to not ask for write access to all system properties!
     static {
@@ -495,6 +498,7 @@ public class XPackPlugin extends XPackClientPlugin
             throw new IllegalStateException(MutableLicenseService.class + " may not have multiple implementations");
         } else if (licenseServices.size() == 1) {
             MutableLicenseService licenseService = licenseServices.get(0);
+            logger.debug("Loaded implementation [{}] for interface MutableLicenseService", licenseService.getClass().getCanonicalName());
             setLicenseService(licenseService);
             setLicenseState(
                 new XPackLicenseState(

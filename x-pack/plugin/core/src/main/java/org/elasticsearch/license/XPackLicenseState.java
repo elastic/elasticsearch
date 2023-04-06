@@ -326,10 +326,7 @@ public class XPackLicenseState {
     private volatile XPackLicenseStatus xPackLicenseStatus;
 
     public XPackLicenseState(LongSupplier epochMillisProvider, XPackLicenseStatus xPackLicenseStatus) {
-        this.listeners = new CopyOnWriteArrayList<>();
-        this.usage = new ConcurrentHashMap<>();
-        this.epochMillisProvider = epochMillisProvider;
-        this.xPackLicenseStatus = xPackLicenseStatus;
+        this(new CopyOnWriteArrayList<>(), xPackLicenseStatus, new ConcurrentHashMap<>(), epochMillisProvider);
     }
 
     public XPackLicenseState(LongSupplier epochMillisProvider) {

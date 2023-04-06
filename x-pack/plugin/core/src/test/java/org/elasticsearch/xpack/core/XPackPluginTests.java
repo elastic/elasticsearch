@@ -145,6 +145,26 @@ public class XPackPluginTests extends ESTestCase {
                 return (List<T>) extensions;
             }
         });
+
+        Environment mockEnvironment = mock(Environment.class);
+        when(mockEnvironment.settings()).thenReturn(Settings.builder().build());
+        when(mockEnvironment.configFile()).thenReturn(PathUtils.get(""));
+        // ensure createComponents does not influence the results
+        xpackPlugin.createComponents(
+            null,
+            mock(ClusterService.class),
+            mock(ThreadPool.class),
+            null,
+            null,
+            null,
+            mockEnvironment,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         assertEquals(license, XPackPlugin.getSharedLicenseService().getLicense());
         assertEquals(License.OperationMode.resolve(licenseType), XPackPlugin.getSharedLicenseState().getOperationMode());
     }

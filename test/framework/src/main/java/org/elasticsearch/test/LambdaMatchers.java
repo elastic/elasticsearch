@@ -12,7 +12,10 @@ import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
+import org.hamcrest.TypeSafeMatcher;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -138,5 +141,54 @@ public class LambdaMatchers {
 
     public static <T, U> Matcher<T> transformed(Function<T, U> function, Matcher<U> matcher) {
         return new TransformMatcher<>(matcher, function);
+    }
+
+    private static class ListTransformMatcher<T, U> extends TypeSafeMatcher<Iterable<T>> {
+        private final Matcher<Iterable<? extends U>> matcher;
+        private final Function<T, U> transform;
+
+        private ListTransformMatcher(Matcher<Iterable<? extends U>> matcher, Function<T, U> transform) {
+            this.matcher = matcher;
+            this.transform = transform;
+        }
+
+        @Override
+        protected boolean matchesSafely(Iterable<T> item) {
+            List<U> us = new ArrayList<>();
+            for (T i : item) {
+                try {
+                    us.add(transform.apply(i)); // this might not actually be a T
+                } catch (ClassCastException e) {
+                    return false;
+                }
+            }
+
+            return matcher.matches(us);
+        }
+
+        @Override
+        protected void describeMismatchSafely(Iterable<T> item, Description description) {
+            List<U> us = new ArrayList<>();
+            for (T i : item) {
+                try {
+                    us.add(transform.apply(i)); // this might not actually be a T
+                } catch (ClassCastException e) {
+                    description.appendValue(i).appendText(" is not of the correct type (").appendText(e.getMessage()).appendText(")");
+                    return;
+                }
+            }
+
+            description.appendText("transformed item ");
+            matcher.describeMismatch(us, description);
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("iterable with transformed items to match ").appendDescriptionOf(matcher);
+        }
+    }
+
+    public static <T, U> Matcher<Iterable<T>> transformedItems(Function<T, U> function, Matcher<Iterable<? extends U>> matcher) {
+        return new ListTransformMatcher<>(matcher, function);
     }
 }

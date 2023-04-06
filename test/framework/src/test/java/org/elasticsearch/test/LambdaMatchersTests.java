@@ -18,6 +18,8 @@ import java.util.function.Predicate;
 import static org.elasticsearch.test.LambdaMatchers.everyItemMatches;
 import static org.elasticsearch.test.LambdaMatchers.matches;
 import static org.elasticsearch.test.LambdaMatchers.transformed;
+import static org.elasticsearch.test.LambdaMatchers.transformedItems;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -112,6 +114,20 @@ public class LambdaMatchersTests extends ESTestCase {
 
     public void testTransformDescription() {
         assertDescribeTo(transformed((A a) -> a.str, emptyString()), equalTo("transformed to match an empty string"));
+    }
+
+    public void testListTransformMatcher() {
+        List<A> as = List.of(new A("1"), new A("2"), new A("3"));
+        assertThat(as, transformedItems(a -> a.str, containsInAnyOrder("1", "2", "3")));
+
+        assertMismatch(as, transformedItems(a -> a.str, containsInAnyOrder("1", "2", "4")), equalTo("transformed item not matched: \"3\""));
+    }
+
+    public void testListTransformDescription() {
+        assertDescribeTo(
+            transformedItems((A a) -> a.str, containsInAnyOrder("1")),
+            equalTo("iterable with transformed items to match iterable with items [\"1\"] in any order")
+        );
     }
 
     static <T> void assertMismatch(T v, Matcher<? super T> matcher, Matcher<String> mismatchDescriptionMatcher) {

@@ -58,7 +58,6 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
     // value = "org.elasticsearch.action.bulk.Retry2:trace",
     // reason = "Logging information about locks useful for tracking down deadlock"
     // )
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94941")
     public void testBulkRejectionLoadWithBackoff() throws Throwable {
         boolean rejectedExecutionExpected = false;
         executeBulkRejectionLoad(8, rejectedExecutionExpected);
@@ -128,6 +127,8 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
                     rejectedAfterAllRetries = true;
                 }
                 // ignored, we exceeded the write queue size when dispatching the initial bulk request
+            } else if (ExceptionsHelper.status(failureTuple.v2()) == RestStatus.SERVICE_UNAVAILABLE) {
+                // The test framework throws this at us sometimes
             } else {
                 Throwable t = failureTuple.v2();
                 // we're not expecting any other errors

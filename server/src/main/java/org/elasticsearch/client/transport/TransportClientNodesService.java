@@ -410,50 +410,64 @@ final class TransportClientNodesService implements Closeable {
             HashSet<DiscoveryNode> newNodes = new HashSet<>();
             ArrayList<DiscoveryNode> newFilteredNodes = new ArrayList<>();
             for (DiscoveryNode listedNode : listedNodes) {
-                try (Transport.Connection connection = transportService.openConnection(listedNode, LISTED_NODES_PROFILE)) {
-                    final PlainTransportFuture<LivenessResponse> handler = new PlainTransportFuture<>(
-                        new FutureTransportResponseHandler<LivenessResponse>() {
-                            @Override
-                            public LivenessResponse read(StreamInput in) throws IOException {
-                                return new LivenessResponse(in);
+                transportService.openConnection(listedNode, LISTED_NODES_PROFILE, new ActionListener<Transport.Connection>() {
+                    @Override
+                    public void onResponse(Transport.Connection connection) {
+                        try {
+                            final PlainTransportFuture<LivenessResponse> handler = new PlainTransportFuture<>(
+                                new FutureTransportResponseHandler<LivenessResponse>() {
+                                    @Override
+                                    public LivenessResponse read(StreamInput in) throws IOException {
+                                        return new LivenessResponse(in);
+                                    }
+                                }
+                            );
+                            transportService.sendRequest(
+                                connection,
+                                TransportLivenessAction.NAME,
+                                new LivenessRequest(),
+                                TransportRequestOptions.of(pingTimeout, TransportRequestOptions.Type.STATE),
+                                handler
+                            );
+                            final LivenessResponse livenessResponse = handler.txGet();
+                            if (ignoreClusterName == false && clusterName.equals(livenessResponse.getClusterName()) == false) {
+                                logger.warn("node {} not part of the cluster {}, ignoring...", listedNode, clusterName);
+                                newFilteredNodes.add(listedNode);
+                            } else {
+                                // use discovered information but do keep the original transport address,
+                                // so people can control which address is exactly used.
+                                DiscoveryNode nodeWithInfo = livenessResponse.getDiscoveryNode();
+                                newNodes.add(
+                                    new DiscoveryNode(
+                                        nodeWithInfo.getName(),
+                                        nodeWithInfo.getId(),
+                                        nodeWithInfo.getEphemeralId(),
+                                        nodeWithInfo.getHostName(),
+                                        nodeWithInfo.getHostAddress(),
+                                        listedNode.getAddress(),
+                                        nodeWithInfo.getAttributes(),
+                                        nodeWithInfo.getRoles(),
+                                        nodeWithInfo.getVersion()
+                                    )
+                                );
+                            }
+                        } catch (ConnectTransportException e) {
+                            logger.debug(() -> new ParameterizedMessage("failed to connect to node [{}], ignoring...", listedNode), e);
+                            hostFailureListener.onNodeDisconnected(listedNode, e);
+                        } catch (Exception e) {
+                            logger.info(() -> new ParameterizedMessage("failed to get node info for {}, disconnecting...", listedNode), e);
+                        } finally {
+                            if (connection != null) {
+                                connection.close();
                             }
                         }
-                    );
-                    transportService.sendRequest(
-                        connection,
-                        TransportLivenessAction.NAME,
-                        new LivenessRequest(),
-                        TransportRequestOptions.of(pingTimeout, TransportRequestOptions.Type.STATE),
-                        handler
-                    );
-                    final LivenessResponse livenessResponse = handler.txGet();
-                    if (ignoreClusterName == false && clusterName.equals(livenessResponse.getClusterName()) == false) {
-                        logger.warn("node {} not part of the cluster {}, ignoring...", listedNode, clusterName);
-                        newFilteredNodes.add(listedNode);
-                    } else {
-                        // use discovered information but do keep the original transport address,
-                        // so people can control which address is exactly used.
-                        DiscoveryNode nodeWithInfo = livenessResponse.getDiscoveryNode();
-                        newNodes.add(
-                            new DiscoveryNode(
-                                nodeWithInfo.getName(),
-                                nodeWithInfo.getId(),
-                                nodeWithInfo.getEphemeralId(),
-                                nodeWithInfo.getHostName(),
-                                nodeWithInfo.getHostAddress(),
-                                listedNode.getAddress(),
-                                nodeWithInfo.getAttributes(),
-                                nodeWithInfo.getRoles(),
-                                nodeWithInfo.getVersion()
-                            )
-                        );
                     }
-                } catch (ConnectTransportException e) {
-                    logger.debug(() -> new ParameterizedMessage("failed to connect to node [{}], ignoring...", listedNode), e);
-                    hostFailureListener.onNodeDisconnected(listedNode, e);
-                } catch (Exception e) {
-                    logger.info(() -> new ParameterizedMessage("failed to get node info for {}, disconnecting...", listedNode), e);
-                }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("Unable to open connection", e);
+                    }
+                });
             }
 
             nodes = establishNodeConnections(newNodes);

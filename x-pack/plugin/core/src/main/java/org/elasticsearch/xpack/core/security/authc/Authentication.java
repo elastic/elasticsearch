@@ -293,12 +293,13 @@ public final class Authentication implements ToXContentObject {
         if (fieldsToKeep.isEmpty()) {
             return copyWithEmptyMetadata();
         }
-        final Map<String, Object> metadataCopy = new HashMap<>(getAuthenticatingSubject().getMetadata());
+        final Map<String, Object> metadataCopy = new HashMap<>(authenticatingSubject.getMetadata());
         final boolean metadataChanged = metadataCopy.keySet().retainAll(fieldsToKeep);
         if (logger.isTraceEnabled() && metadataChanged) {
             logger.trace(
-                "Authentication metadata [{}] contains fields other than [{}]. These will be removed in the copy.",
-                getAuthenticatingSubject().getMetadata().keySet(),
+                "Authentication metadata [{}] for subject [{}] contains fields other than [{}]. These will be removed in the copy.",
+                authenticatingSubject.getMetadata().keySet(),
+                authenticatingSubject.getUser().principal(),
                 fieldsToKeep
             );
         }
@@ -306,10 +307,11 @@ public final class Authentication implements ToXContentObject {
     }
 
     public Authentication copyWithEmptyMetadata() {
-        if (logger.isTraceEnabled() && false == getAuthenticatingSubject().getMetadata().isEmpty()) {
+        if (logger.isTraceEnabled() && false == authenticatingSubject.getMetadata().isEmpty()) {
             logger.trace(
-                "Authentication metadata [{}] is not empty. All fields will be removed in the copy.",
-                getAuthenticatingSubject().getMetadata().keySet()
+                "Authentication metadata [{}] for subject [{}] is not empty. All fields will be removed in the copy.",
+                authenticatingSubject.getMetadata().keySet(),
+                authenticatingSubject.getUser().principal()
             );
         }
         return copyWithMetadata(Collections.emptyMap());

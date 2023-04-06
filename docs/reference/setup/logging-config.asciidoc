@@ -272,7 +272,7 @@ and x-opaque-id so that if a feature is repeatedly used, it will not overload th
 This applies to both indexed deprecation logs and logs emitted to log files.
 You can disable the use of `x-opaque-id` in throttling by changing
 `cluster.deprecation_indexing.x_opaque_id_used.enabled` to false,
-see this class {es-rate-limiting-filter-java-doc}[javadoc] for more details.
+refer to this class {es-rate-limiting-filter-java-doc}[javadoc] for more details.
 
 [discrete]
 [[json-logging]]

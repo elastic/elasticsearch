@@ -227,6 +227,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private Map<String, RoleDescriptor> roleMap = new HashMap<>();
     private CompositeRolesStore rolesStore;
+    private FieldPermissionsCache fieldPermissionsCache;
     private OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
     private boolean shouldFailOperatorPrivilegesCheck = false;
     private boolean setFakeOriginatingAction = true;
@@ -234,6 +235,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
+        fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         rolesStore = mock(CompositeRolesStore.class);
         clusterService = mock(ClusterService.class);
         final Settings settings = Settings.builder().put("cluster.remote.other_cluster.seeds", "localhost:9999").build();
@@ -275,6 +277,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
@@ -1511,6 +1514,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
@@ -1557,6 +1561,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
@@ -2680,6 +2685,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(
             Settings.EMPTY,
             rolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),

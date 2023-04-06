@@ -33,9 +33,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (allocation.isReconciling()) {
-            return YES__RECONCILING;
-        } else if (replacementOngoing(allocation) == false) {
+        if (replacementOngoing(allocation) == false) {
             return YES__NO_REPLACEMENTS;
         } else if (replacementFromSourceToTarget(allocation, shardRouting.currentNodeId(), node.node().getName())) {
             return Decision.single(
@@ -46,13 +44,17 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                 node.nodeId()
             );
         } else if (isReplacementSource(allocation, shardRouting.currentNodeId())) {
-            return Decision.single(
-                Decision.Type.NO,
-                NAME,
-                "node [%s] is being replaced, and its shards may only be allocated to the replacement target [%s]",
-                shardRouting.currentNodeId(),
-                getReplacementName(allocation, shardRouting.currentNodeId())
-            );
+            if (allocation.isReconciling()) {
+                return YES__RECONCILING;
+            } else {
+                return Decision.single(
+                    Decision.Type.NO,
+                    NAME,
+                    "node [%s] is being replaced, and its shards may only be allocated to the replacement target [%s]",
+                    shardRouting.currentNodeId(),
+                    getReplacementName(allocation, shardRouting.currentNodeId())
+                );
+            }
         } else if (isReplacementSource(allocation, node.nodeId())) {
             return Decision.single(
                 Decision.Type.NO,

@@ -554,7 +554,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             newTerm,
                             newState.version(),
                             newState.metadata().oldestIndexVersion(),
-                            newState.metadata().clusterUUID()
+                            newState.metadata().clusterUUID(),
+                            newState.metadata().clusterUUIDCommitted()
                         );
                     }
                 }).getMessage(), containsString("simulated"));
@@ -610,7 +611,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             newTerm,
                             newState.version(),
                             newState.metadata().oldestIndexVersion(),
-                            newState.metadata().clusterUUID()
+                            newState.metadata().clusterUUID(),
+                            newState.metadata().clusterUUIDCommitted()
                         );
                     }
                 }).getMessage(), containsString("simulated"));
@@ -1777,15 +1779,17 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[] { dataPath })) {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
             String clusterUUID = UUIDs.randomBase64UUID();
+            boolean clusterUUIDCommitted = randomBoolean();
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-                    .metadata(Metadata.builder().clusterUUID(clusterUUID))
+                    .metadata(Metadata.builder().clusterUUID(clusterUUID).clusterUUIDCommitted(clusterUUIDCommitted))
                     .build();
                 writer.writeFullStateAndCommit(0, clusterState);
             }
 
             var onDiskState = persistedClusterStateService.loadBestOnDiskState();
             assertThat(onDiskState.clusterUUID, is(equalTo(clusterUUID)));
+            assertThat(onDiskState.clusterUUIDCommitted, is(clusterUUIDCommitted));
         }
     }
 

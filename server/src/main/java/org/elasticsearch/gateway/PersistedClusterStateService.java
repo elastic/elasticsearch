@@ -124,6 +124,8 @@ import static org.elasticsearch.core.Strings.format;
  * | LAST_ACCEPTED_VERSION_KEY | "last_accepted_version" | The cluster state version corresponding with the persisted metadata           |
  * | NODE_ID_KEY               | "node_id"               | The (persistent) ID of the node that wrote this metadata                      |
  * | NODE_VERSION_KEY          | "node_version"          | The (ID of the) version of the node that wrote this metadata                  |
+ * | CLUSTER_UUID_KEY          | "cluster_uuid"          | The cluster uuid, null otherwise                                              |
+ * | CLUSTER_UUID_COMMITTED_KEY| "cluster_uuid_committed"| Whether or not the cluster uuid was committed                                 |
  * +---------------------------+-------------------------+-------------------------------------------------------------------------------+
  *
  * (the last-accepted term is recorded in Metadata → CoordinationMetadata so does not need repeating here)
@@ -134,6 +136,7 @@ public class PersistedClusterStateService {
     private static final String LAST_ACCEPTED_VERSION_KEY = "last_accepted_version";
     private static final String NODE_ID_KEY = "node_id";
     private static final String CLUSTER_UUID_KEY = "cluster_uuid";
+    private static final String CLUSTER_UUID_COMMITTED_KEY = "cluster_uuid_committed";
     static final String NODE_VERSION_KEY = "node_version";
     private static final String OLDEST_INDEX_VERSION_KEY = "oldest_index_version";
     public static final String TYPE_FIELD_NAME = "type";
@@ -147,7 +150,9 @@ public class PersistedClusterStateService {
     public static final String LAST_PAGE_FIELD_NAME = "last_page";
     public static final int IS_LAST_PAGE = 1;
     public static final int IS_NOT_LAST_PAGE = 0;
-    private static final int COMMIT_DATA_SIZE = 6;
+    private static final int COMMIT_DATA_SIZE = 7;
+    // We added CLUSTER_UUID_KEY and CLUSTER_UUID_COMMITTED_KEY in 8.8
+    private static final int COMMIT_DATA_SIZE_BEFORE_8_8 = 5;
 
     private static final MergePolicy NO_MERGE_POLICY = noMergePolicy();
     private static final MergePolicy DEFAULT_MERGE_POLICY = defaultMergePolicy();
@@ -286,13 +291,14 @@ public class PersistedClusterStateService {
     }
 
     public static class OnDiskState {
-        private static final OnDiskState NO_ON_DISK_STATE = new OnDiskState(null, null, 0L, 0L, null, Metadata.EMPTY_METADATA);
+        private static final OnDiskState NO_ON_DISK_STATE = new OnDiskState(null, null, 0L, 0L, null, false, Metadata.EMPTY_METADATA);
 
         private final String nodeId;
         private final Path dataPath;
         public final long currentTerm;
         public final long lastAcceptedVersion;
         public final String clusterUUID;
+        public final boolean clusterUUIDCommitted;
         public final Metadata metadata;
 
         private OnDiskState(
@@ -301,6 +307,7 @@ public class PersistedClusterStateService {
             long currentTerm,
             long lastAcceptedVersion,
             String clusterUUID,
+            boolean clusterUUIDCommitted,
             Metadata metadata
         ) {
             this.nodeId = nodeId;
@@ -308,6 +315,7 @@ public class PersistedClusterStateService {
             this.currentTerm = currentTerm;
             this.lastAcceptedVersion = lastAcceptedVersion;
             this.clusterUUID = clusterUUID;
+            this.clusterUUIDCommitted = clusterUUIDCommitted;
             this.metadata = metadata;
         }
 
@@ -316,7 +324,13 @@ public class PersistedClusterStateService {
         }
     }
 
-    public record OnDiskStateMetadata(long currentTerm, long lastAcceptedVersion, String nodeId, String clusterUUID) {}
+    public record OnDiskStateMetadata(
+        long currentTerm,
+        long lastAcceptedVersion,
+        String nodeId,
+        String clusterUUID,
+        boolean clusterUUIDCommitted
+    ) {}
 
     /**
      * Returns the node metadata for the given data paths, and checks if the node ids are unique
@@ -621,6 +635,7 @@ public class PersistedClusterStateService {
             onDiskStateMetadata.currentTerm(),
             onDiskStateMetadata.lastAcceptedVersion(),
             onDiskStateMetadata.clusterUUID(),
+            onDiskStateMetadata.clusterUUIDCommitted(),
             builder.build()
         );
     }
@@ -628,16 +643,20 @@ public class PersistedClusterStateService {
     public OnDiskStateMetadata readOnDiskStateMetadata(DirectoryReader reader) throws IOException {
         final Map<String, String> userData = reader.getIndexCommit().getUserData();
         logger.trace("loaded metadata [{}] from [{}]", userData, reader.directory());
-        assert userData.size() == (userData.containsKey(CLUSTER_UUID_KEY) ? COMMIT_DATA_SIZE : COMMIT_DATA_SIZE - 1) : userData;
         assert userData.get(CURRENT_TERM_KEY) != null;
         assert userData.get(LAST_ACCEPTED_VERSION_KEY) != null;
         assert userData.get(NODE_ID_KEY) != null;
         assert userData.get(NODE_VERSION_KEY) != null;
+        var nodeVersion = Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
+        assert userData.get(CLUSTER_UUID_KEY) != null || nodeVersion.before(Version.V_8_8_0);
+        assert userData.get(CLUSTER_UUID_COMMITTED_KEY) != null || nodeVersion.before(Version.V_8_8_0);
+        assert userData.size() == (nodeVersion.onOrAfter(Version.V_8_8_0) ? COMMIT_DATA_SIZE : COMMIT_DATA_SIZE_BEFORE_8_8) : userData;
         return new OnDiskStateMetadata(
             Long.parseLong(userData.get(CURRENT_TERM_KEY)),
             Long.parseLong(userData.get(LAST_ACCEPTED_VERSION_KEY)),
             userData.get(NODE_ID_KEY),
-            userData.get(CLUSTER_UUID_KEY)
+            userData.get(CLUSTER_UUID_KEY),
+            Boolean.parseBoolean(userData.get(CLUSTER_UUID_COMMITTED_KEY))
         );
     }
 
@@ -807,8 +826,14 @@ public class PersistedClusterStateService {
             indexWriter.getConfig().setMergePolicy(NO_MERGE_POLICY);
         }
 
-        void prepareCommit(String nodeId, long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion, String clusterUUID)
-            throws IOException {
+        void prepareCommit(
+            String nodeId,
+            long currentTerm,
+            long lastAcceptedVersion,
+            Version oldestIndexVersion,
+            String clusterUUID,
+            boolean clusterUUIDCommitted
+        ) throws IOException {
             indexWriter.getConfig().setMergePolicy(DEFAULT_MERGE_POLICY);
             indexWriter.maybeMerge();
 
@@ -819,6 +844,7 @@ public class PersistedClusterStateService {
             commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id));
             commitData.put(NODE_ID_KEY, nodeId);
             commitData.put(CLUSTER_UUID_KEY, clusterUUID);
+            commitData.put(CLUSTER_UUID_COMMITTED_KEY, Boolean.toString(clusterUUIDCommitted));
             indexWriter.setLiveCommitData(commitData.entrySet());
             indexWriter.prepareCommit();
         }
@@ -897,12 +923,14 @@ public class PersistedClusterStateService {
                     metadataIndexWriter.startWrite();
                 }
 
-                final WriterStats stats = overwriteMetadata(clusterState.metadata());
+                Metadata metadata = clusterState.metadata();
+                final WriterStats stats = overwriteMetadata(metadata);
                 commit(
                     currentTerm,
                     clusterState.version(),
-                    clusterState.metadata().oldestIndexVersion(),
-                    clusterState.metadata().clusterUUID()
+                    metadata.oldestIndexVersion(),
+                    metadata.clusterUUID(),
+                    metadata.clusterUUIDCommitted()
                 );
                 fullStateWritten = true;
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
@@ -937,12 +965,14 @@ public class PersistedClusterStateService {
                     metadataIndexWriter.startWrite();
                 }
 
-                final WriterStats stats = updateMetadata(previousClusterState.metadata(), clusterState.metadata());
+                Metadata metadata = clusterState.metadata();
+                final WriterStats stats = updateMetadata(previousClusterState.metadata(), metadata);
                 commit(
                     currentTerm,
                     clusterState.version(),
-                    clusterState.metadata().oldestIndexVersion(),
-                    clusterState.metadata().clusterUUID()
+                    metadata.oldestIndexVersion(),
+                    metadata.clusterUUID(),
+                    metadata.clusterUUIDCommitted()
                 );
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
@@ -1177,16 +1207,23 @@ public class PersistedClusterStateService {
             long currentTerm,
             long lastAcceptedVersion,
             Version oldestIndexVersion,
-            String clusterUUID
+            String clusterUUID,
+            boolean clusterUUIDCommitted
         ) throws IOException {
             ensureOpen();
             ensureFullStateWritten();
-            commit(currentTerm, lastAcceptedVersion, oldestIndexVersion, clusterUUID);
+            commit(currentTerm, lastAcceptedVersion, oldestIndexVersion, clusterUUID, clusterUUIDCommitted);
         }
 
-        void commit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion, String clusterUUID) throws IOException {
+        void commit(
+            long currentTerm,
+            long lastAcceptedVersion,
+            Version oldestIndexVersion,
+            String clusterUUID,
+            boolean clusterUUIDCommitted
+        ) throws IOException {
             ensureOpen();
-            prepareCommit(currentTerm, lastAcceptedVersion, oldestIndexVersion, clusterUUID);
+            prepareCommit(currentTerm, lastAcceptedVersion, oldestIndexVersion, clusterUUID, clusterUUIDCommitted);
             completeCommit();
             assert assertOnCommit();
         }
@@ -1206,12 +1243,24 @@ public class PersistedClusterStateService {
             return true;
         }
 
-        private void prepareCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion, String clusterUUID)
-            throws IOException {
+        private void prepareCommit(
+            long currentTerm,
+            long lastAcceptedVersion,
+            Version oldestIndexVersion,
+            String clusterUUID,
+            boolean clusterUUIDCommitted
+        ) throws IOException {
             boolean prepareCommitSuccess = false;
             try {
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                    metadataIndexWriter.prepareCommit(nodeId, currentTerm, lastAcceptedVersion, oldestIndexVersion, clusterUUID);
+                    metadataIndexWriter.prepareCommit(
+                        nodeId,
+                        currentTerm,
+                        lastAcceptedVersion,
+                        oldestIndexVersion,
+                        clusterUUID,
+                        clusterUUIDCommitted
+                    );
                 }
                 prepareCommitSuccess = true;
             } catch (Exception e) {

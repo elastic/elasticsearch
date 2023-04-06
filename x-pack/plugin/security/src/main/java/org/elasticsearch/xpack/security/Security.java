@@ -170,6 +170,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapper;
@@ -764,6 +765,7 @@ public class Security extends Plugin
             clusterService
         );
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
+        RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
         for (SecurityExtension extension : securityExtensions) {
@@ -916,6 +918,7 @@ public class Security extends Plugin
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             failureHandler,
@@ -1408,10 +1411,7 @@ public class Security extends Plugin
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Collections.singletonMap(
-            SetSecurityUserProcessor.TYPE,
-            new SetSecurityUserProcessor.Factory(securityContext::get, settings)
-        );
+        return Map.of(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(securityContext::get, settings));
     }
 
     @Override

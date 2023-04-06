@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -42,6 +44,7 @@ import java.util.stream.Collectors;
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfoTests.randomRoleDescriptorsIntersection;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -921,6 +924,31 @@ public class AuthenticationTests extends ESTestCase {
             AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY
         );
         assertThat(innerRewritten, equalTo(innerAuthentication.maybeRewriteForOlderVersion(olderVersion)));
+    }
+
+    public void testCopyWithFilteredMetadataFields() {
+        final Map<String, Object> metadataToKeep = ESTestCase.randomMap(
+            0,
+            10,
+            () -> new Tuple<>(ESTestCase.randomAlphaOfLength(20), ESTestCase.randomAlphaOfLength(10))
+        );
+        final Map<String, Object> allMetadata = new HashMap<>(metadataToKeep);
+        allMetadata.putAll(
+            ESTestCase.randomMap(0, 10, () -> new Tuple<>(ESTestCase.randomAlphaOfLength(30), ESTestCase.randomAlphaOfLength(10)))
+        );
+        // Using service account since it allows us to easily specific metadata, but will not fail instantiation if any service-account
+        // specific metadata is missing
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().metadata(Map.copyOf(allMetadata)).build();
+
+        final Set<String> fieldsToKeep = metadataToKeep.keySet();
+        final Map<String, Object> actualMetadata = authentication.copyWithFilteredMetadataFields(fieldsToKeep)
+            .getAuthenticatingSubject()
+            .getMetadata();
+
+        assertThat(actualMetadata, equalTo(metadataToKeep));
+
+        // Test removing all metadata
+        assertThat(authentication.copyWithEmptyMetadata().getAuthenticatingSubject().getMetadata(), is(anEmptyMap()));
     }
 
     public void testMaybeRewriteForOlderVersionErasesDomainForVersionsBeforeDomains() {

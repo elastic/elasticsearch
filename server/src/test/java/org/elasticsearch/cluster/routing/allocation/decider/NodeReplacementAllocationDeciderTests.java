@@ -40,7 +40,6 @@ import java.util.Collections;
 import java.util.HashMap;
 
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase {
@@ -55,7 +54,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         ShardRouting.Role.DEFAULT
     );
     private final ClusterSettings clusterSettings = createBuiltInClusterSettings();
-    private NodeReplacementAllocationDecider decider = new NodeReplacementAllocationDecider();
+    private final NodeReplacementAllocationDecider decider = new NodeReplacementAllocationDecider();
     private final AllocationDeciders allocationDeciders = new AllocationDeciders(
         Arrays.asList(
             decider,
@@ -98,11 +97,11 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
         Decision decision = decider.canAllocate(shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), equalTo(NodeReplacementAllocationDecider.NO_REPLACEMENTS.getExplanation()));
+        assertThat(decision.getExplanation(), equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS.getExplanation()));
 
         decision = decider.canRemain(null, shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), equalTo(NodeReplacementAllocationDecider.NO_REPLACEMENTS.getExplanation()));
+        assertThat(decision.getExplanation(), equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS.getExplanation()));
     }
 
     public void testCanForceAllocate() {
@@ -174,13 +173,13 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
         decision = decider.canRemain(indexMetadata, shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), equalTo("node [" + NODE_B.getId() + "] is not being replaced"));
+        assertEquals(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS, decision);
 
         routingNode = RoutingNodesHelper.routingNode(NODE_C.getId(), NODE_C, shard);
 
         decision = decider.canRemain(indexMetadata, shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), equalTo("node [" + NODE_C.getId() + "] is not being replaced"));
+        assertEquals(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS, decision);
     }
 
     public void testCanAllocateToNeitherSourceNorTarget() {
@@ -225,7 +224,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
         decision = decider.canAllocate(testShard, routingNode, allocation);
         assertThat(decision.getExplanation(), decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), containsString("neither the source nor target node are part of an ongoing node replacement"));
+        assertEquals(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS, decision);
     }
 
     private ClusterState prepareState(ClusterState initialState, String sourceNodeId, String targetNodeName) {

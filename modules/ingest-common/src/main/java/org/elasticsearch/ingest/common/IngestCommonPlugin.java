@@ -28,8 +28,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -55,48 +53,46 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         var matcherWatchdog = createGrokThreadWatchdog(parameters);
         return Map.ofEntries(
-            entry(DateProcessor.TYPE, new DateProcessor.Factory(parameters.scriptService)),
-            entry(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService)),
             entry(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.scriptService)),
-            entry(RenameProcessor.TYPE, new RenameProcessor.Factory(parameters.scriptService)),
-            entry(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.scriptService)),
-            entry(SplitProcessor.TYPE, new SplitProcessor.Factory()),
-            entry(JoinProcessor.TYPE, new JoinProcessor.Factory()),
-            entry(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory()),
-            entry(LowercaseProcessor.TYPE, new LowercaseProcessor.Factory()),
-            entry(TrimProcessor.TYPE, new TrimProcessor.Factory()),
+            entry(BytesProcessor.TYPE, new BytesProcessor.Factory()),
+            entry(CommunityIdProcessor.TYPE, new CommunityIdProcessor.Factory()),
             entry(ConvertProcessor.TYPE, new ConvertProcessor.Factory()),
-            entry(GsubProcessor.TYPE, new GsubProcessor.Factory()),
-            entry(FailProcessor.TYPE, new FailProcessor.Factory(parameters.scriptService)),
-            entry(ForEachProcessor.TYPE, new ForEachProcessor.Factory(parameters.scriptService)),
+            entry(CsvProcessor.TYPE, new CsvProcessor.Factory()),
             entry(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory(parameters.scriptService)),
-            entry(SortProcessor.TYPE, new SortProcessor.Factory()),
-            entry(GrokProcessor.TYPE, new GrokProcessor.Factory(matcherWatchdog)),
-            entry(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService)),
+            entry(DateProcessor.TYPE, new DateProcessor.Factory(parameters.scriptService)),
+            entry(DissectProcessor.TYPE, new DissectProcessor.Factory()),
             entry(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory()),
+            entry(DropProcessor.TYPE, new DropProcessor.Factory()),
+            entry(FailProcessor.TYPE, new FailProcessor.Factory(parameters.scriptService)),
+            entry(FingerprintProcessor.TYPE, new FingerprintProcessor.Factory()),
+            entry(ForEachProcessor.TYPE, new ForEachProcessor.Factory(parameters.scriptService)),
+            entry(GrokProcessor.TYPE, new GrokProcessor.Factory(matcherWatchdog)),
+            entry(GsubProcessor.TYPE, new GsubProcessor.Factory()),
+            entry(HtmlStripProcessor.TYPE, new HtmlStripProcessor.Factory()),
+            entry(JoinProcessor.TYPE, new JoinProcessor.Factory()),
             entry(JsonProcessor.TYPE, new JsonProcessor.Factory()),
             entry(KeyValueProcessor.TYPE, new KeyValueProcessor.Factory(parameters.scriptService)),
-            entry(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory()),
-            entry(BytesProcessor.TYPE, new BytesProcessor.Factory()),
-            entry(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService)),
-            entry(DissectProcessor.TYPE, new DissectProcessor.Factory()),
-            entry(DropProcessor.TYPE, new DropProcessor.Factory()),
-            entry(HtmlStripProcessor.TYPE, new HtmlStripProcessor.Factory()),
-            entry(CsvProcessor.TYPE, new CsvProcessor.Factory()),
-            entry(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory()),
+            entry(LowercaseProcessor.TYPE, new LowercaseProcessor.Factory()),
             entry(NetworkDirectionProcessor.TYPE, new NetworkDirectionProcessor.Factory(parameters.scriptService)),
-            entry(CommunityIdProcessor.TYPE, new CommunityIdProcessor.Factory()),
-            entry(FingerprintProcessor.TYPE, new FingerprintProcessor.Factory()),
+            entry(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService)),
+            entry(RedactProcessor.TYPE, new RedactProcessor.Factory(matcherWatchdog)),
             entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory()),
-            entry(RedactProcessor.TYPE, new RedactProcessor.Factory(matcherWatchdog))
+            entry(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.scriptService)),
+            entry(RenameProcessor.TYPE, new RenameProcessor.Factory(parameters.scriptService)),
+            entry(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService)),
+            entry(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService)),
+            entry(SortProcessor.TYPE, new SortProcessor.Factory()),
+            entry(SplitProcessor.TYPE, new SplitProcessor.Factory()),
+            entry(TrimProcessor.TYPE, new TrimProcessor.Factory()),
+            entry(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory()),
+            entry(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory()),
+            entry(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory())
         );
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.singletonList(
-            new ActionHandler<>(GrokProcessorGetAction.INSTANCE, GrokProcessorGetAction.TransportAction.class)
-        );
+        return List.of(new ActionHandler<>(GrokProcessorGetAction.INSTANCE, GrokProcessorGetAction.TransportAction.class));
     }
 
     @Override
@@ -109,12 +105,12 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return Collections.singletonList(new GrokProcessorGetAction.RestAction());
+        return List.of(new GrokProcessorGetAction.RestAction());
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(WATCHDOG_INTERVAL, WATCHDOG_MAX_EXECUTION_TIME);
+        return List.of(WATCHDOG_INTERVAL, WATCHDOG_MAX_EXECUTION_TIME);
     }
 
     private static MatcherWatchdog createGrokThreadWatchdog(Processor.Parameters parameters) {

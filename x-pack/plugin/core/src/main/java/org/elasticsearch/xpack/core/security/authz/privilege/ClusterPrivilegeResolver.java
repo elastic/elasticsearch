@@ -82,6 +82,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_OIDC_PATTERN = Set.of("cluster:admin/xpack/security/oidc/*");
     private static final Set<String> MANAGE_TOKEN_PATTERN = Set.of("cluster:admin/xpack/security/token/*");
     private static final Set<String> MANAGE_API_KEY_PATTERN = Set.of("cluster:admin/xpack/security/api_key/*");
+    private static final Set<String> MANAGE_BEHAVIORAL_ANALYTICS_PATTERN = Set.of("cluster:admin/xpack/application/analytics/*");
     private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Set.of("cluster:admin/xpack/security/service_account/*");
     private static final Set<String> MANAGE_USER_PROFILE_PATTERN = Set.of("cluster:admin/xpack/security/profile/*");
     private static final Set<String> GRANT_API_KEY_PATTERN = Set.of(GrantApiKeyAction.NAME + "*");
@@ -147,6 +148,9 @@ public class ClusterPrivilegeResolver {
         GetStatusAction.NAME
     );
     private static final Set<String> READ_SLM_PATTERN = Set.of(GetSnapshotLifecycleAction.NAME, GetStatusAction.NAME);
+
+    private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
+
     private static final Set<String> CROSS_CLUSTER_ACCESS_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
         RemoteClusterNodesAction.NAME
@@ -258,6 +262,14 @@ public class ClusterPrivilegeResolver {
 
     public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task", Set.of(CancelTasksAction.NAME + "*"));
 
+    public static final NamedClusterPrivilege MANAGE_SEARCH_APPLICATION = new ActionClusterPrivilege(
+        "manage_search_application",
+        MANAGE_SEARCH_APPLICATION_PATTERN
+    );
+    public static final NamedClusterPrivilege MANAGE_BEHAVIORAL_ANALYTICS = new ActionClusterPrivilege(
+        "manage_behavioral_analytics",
+        MANAGE_BEHAVIORAL_ANALYTICS_PATTERN
+    );
     public static final NamedClusterPrivilege CROSS_CLUSTER_ACCESS = new ActionClusterPrivilege(
         "cross_cluster_access",
         CROSS_CLUSTER_ACCESS_PATTERN
@@ -308,6 +320,8 @@ public class ClusterPrivilegeResolver {
             MANAGE_ENRICH,
             MANAGE_LOGSTASH_PIPELINES,
             CANCEL_TASK,
+            MANAGE_SEARCH_APPLICATION,
+            MANAGE_BEHAVIORAL_ANALYTICS,
             TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_ACCESS : null
         ).filter(Objects::nonNull).toList()
     );

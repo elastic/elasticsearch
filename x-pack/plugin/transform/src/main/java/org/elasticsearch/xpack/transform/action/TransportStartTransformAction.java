@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -24,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
@@ -34,6 +37,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -41,6 +45,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
@@ -48,7 +53,6 @@ import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.time.Clock;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -125,8 +129,8 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     ) {
         TransformNodes.warnIfNoTransformNodes(state);
 
-        final AtomicReference<TransformTaskParams> transformTaskParamsHolder = new AtomicReference<>();
-        final AtomicReference<TransformConfig> transformConfigHolder = new AtomicReference<>();
+        final SetOnce<TransformTaskParams> transformTaskParamsHolder = new SetOnce<>();
+        final SetOnce<TransformConfig> transformConfigHolder = new SetOnce<>();
 
         // <5> Wait for the allocated task's state to STARTED
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams>> newPersistentTaskActionListener = ActionListener
@@ -192,7 +196,16 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         });
 
         // <2> run transform validations
-        ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(config -> {
+        ActionListener<AuthorizationState> fetchAuthStateListener = ActionListener.wrap(authState -> {
+            if (authState != null && HealthStatus.RED.equals(authState.getStatus())) {
+                // AuthorizationState status is RED which means there was permission check error during PUT or _update.
+                // Since this transform is *not* unattended (otherwise authState would be null), we fail immediately.
+                listener.onFailure(new ElasticsearchSecurityException(authState.getLastAuthError(), RestStatus.FORBIDDEN));
+                return;
+            }
+
+            TransformConfig config = transformConfigHolder.get();
+
             ActionRequestValidationException validationException = config.validate(null);
             if (request.from() != null && config.getSyncConfig() == null) {
                 validationException = addValidationError(
@@ -222,7 +235,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                     config.getSource().requiresRemoteCluster()
                 )
             );
-            transformConfigHolder.set(config);
             ClientHelper.executeAsyncWithOrigin(
                 client,
                 ClientHelper.TRANSFORM_ORIGIN,
@@ -232,7 +244,20 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             );
         }, listener::onFailure);
 
-        // <1> Get the config to verify it exists and is valid
+        // <1> Check if there is an auth error stored for this transform
+        ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(config -> {
+            transformConfigHolder.set(config);
+
+            if (Boolean.TRUE.equals(config.getSettings().getUnattended())) {
+                // We do not fail the _start request of the unattended transform due to permission issues,
+                // we just let it run
+                fetchAuthStateListener.onResponse(null);
+            } else {
+                AuthorizationStatePersistenceUtils.fetchAuthState(transformConfigManager, request.getId(), fetchAuthStateListener);
+            }
+        }, listener::onFailure);
+
+        // <0> Get the config to verify it exists and is valid
         transformConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
     }
 

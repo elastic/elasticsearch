@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
@@ -455,7 +456,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             authentication = securityContext.getAuthentication();
         } catch (Exception e) {
             logger.error(() -> format("caught exception while trying to read authentication from request [%s]", request), e);
-            tamperedRequest(requestId, request);
+            tamperedRequest(requestId, request.getHttpRequest());
             throw new ElasticsearchSecurityException("rest request attempted to inject a user", e);
         }
         if (authentication == null) {
@@ -480,7 +481,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
                 .with(REALM_FIELD_NAME, authnRealm)
                 // Not adding domain since "realm" field is considered redundant for bwc purposes
-                .withRestUriAndMethod(request)
+                .withRestUriAndMethod(request.getHttpRequest())
                 .withRequestId(requestId)
                 .withAuthentication(authentication)
                 .withRestOrigin(threadContext)
@@ -539,14 +540,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void anonymousAccessDenied(String requestId, RestRequest request) {
+    public void anonymousAccessDenied(String requestId, HttpPreRequest request) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)
             && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
-                .withRequestBody(request)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
                 .build();
@@ -577,13 +577,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationFailed(String requestId, RestRequest request) {
+    public void authenticationFailed(String requestId, HttpPreRequest request) {
         if (events.contains(AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
-                .withRequestBody(request)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
                 .build();
@@ -610,7 +609,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request) {
+    public void authenticationFailed(String requestId, AuthenticationToken token, HttpPreRequest request) {
         if (events.contains(AUTHENTICATION_FAILED)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), Optional.empty(), Optional.empty())) == false) {
@@ -619,7 +618,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(PRINCIPAL_FIELD_NAME, token.principal())
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
-                .withRequestBody(request)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext);
             if (token instanceof ServiceAccountToken) {
@@ -658,7 +656,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {
+    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, HttpPreRequest request) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty(), Optional.empty())) == false) {
@@ -669,7 +667,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(PRINCIPAL_FIELD_NAME, token.principal())
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
-                .withRequestBody(request)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
                 .build();
@@ -881,13 +878,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void tamperedRequest(String requestId, RestRequest request) {
+    public void tamperedRequest(String requestId, HttpPreRequest request) {
         if (events.contains(TAMPERED_REQUEST) && eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false) {
             new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                 .with(EVENT_ACTION_FIELD_NAME, "tampered_request")
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
-                .withRequestBody(request)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
                 .build();
@@ -1049,7 +1045,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     @Override
-    public void runAsDenied(String requestId, Authentication authentication, RestRequest request, AuthorizationInfo authorizationInfo) {
+    public void runAsDenied(String requestId, Authentication authentication, HttpPreRequest request, AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)
             && eventFilterPolicyRegistry.ignorePredicate()
                 .test(
@@ -1068,7 +1064,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestUriAndMethod(request)
                 .withRunAsSubject(authentication)
                 .withRestOrigin(threadContext)
-                .withRequestBody(request)
                 .withRequestId(requestId)
                 .withThreadContext(threadContext)
                 .build();
@@ -1529,7 +1524,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.endObject();
         }
 
-        LogEntryBuilder withRestUriAndMethod(RestRequest request) {
+        LogEntryBuilder withRestUriAndMethod(HttpPreRequest request) {
             final int queryStringIndex = request.uri().indexOf('?');
             int queryStringLength = request.uri().indexOf('#');
             if (queryStringLength < 0) {

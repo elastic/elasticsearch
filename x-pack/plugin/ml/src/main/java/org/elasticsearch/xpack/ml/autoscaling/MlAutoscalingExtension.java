@@ -16,6 +16,10 @@ import java.util.Collection;
 public class MlAutoscalingExtension implements AutoscalingExtension {
     private final MachineLearning plugin;
 
+    public MlAutoscalingExtension() {
+        this.plugin = null;
+    }
+
     public MlAutoscalingExtension(MachineLearning plugin) {
         this.plugin = plugin;
     }

@@ -21,16 +21,22 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "node_replacement";
 
-    static final Decision NO_REPLACEMENTS = Decision.single(
+    static final Decision YES__RECONCILING = Decision.single(Decision.Type.YES, NAME, "this decider is ignored during reconciliation");
+
+    static final Decision YES__NO_REPLACEMENTS = Decision.single(Decision.Type.YES, NAME, "there are no ongoing node replacements");
+
+    static final Decision YES__NO_APPLICABLE_REPLACEMENTS = Decision.single(
         Decision.Type.YES,
         NAME,
-        "neither the source nor target node are part of an ongoing node replacement (no replacements)"
+        "none of the ongoing node replacements relate to the allocation of this shard"
     );
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        if (replacementOngoing(allocation) == false) {
-            return NO_REPLACEMENTS;
+        if (allocation.isReconciling()) {
+            return YES__RECONCILING;
+        } else if (replacementOngoing(allocation) == false) {
+            return YES__NO_REPLACEMENTS;
         } else if (replacementFromSourceToTarget(allocation, shardRouting.currentNodeId(), node.node().getName())) {
             return Decision.single(
                 Decision.Type.YES,
@@ -68,14 +74,14 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                 shardRouting.currentNodeId()
             );
         } else {
-            return Decision.single(Decision.Type.YES, NAME, "neither the source nor target node are part of an ongoing node replacement");
+            return YES__NO_APPLICABLE_REPLACEMENTS;
         }
     }
 
     @Override
     public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (replacementOngoing(allocation) == false) {
-            return NO_REPLACEMENTS;
+            return YES__NO_REPLACEMENTS;
         } else if (isReplacementSource(allocation, node.nodeId())) {
             return Decision.single(
                 Decision.Type.NO,
@@ -85,14 +91,14 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                 getReplacementName(allocation, node.nodeId())
             );
         } else {
-            return Decision.single(Decision.Type.YES, NAME, "node [%s] is not being replaced", node.nodeId());
+            return YES__NO_APPLICABLE_REPLACEMENTS;
         }
     }
 
     @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
         if (replacementOngoing(allocation) == false) {
-            return NO_REPLACEMENTS;
+            return YES__NO_REPLACEMENTS;
         } else if (isReplacementTargetName(allocation, node.getName())) {
             final SingleNodeShutdownMetadata shutdown = allocation.replacementTargetShutdowns().get(node.getName());
             return Decision.single(
@@ -112,11 +118,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                 getReplacementName(allocation, node.getId())
             );
         } else {
-            return Decision.single(
-                Decision.Type.YES,
-                NAME,
-                "node is not part of a node replacement, so shards may be auto expanded onto it"
-            );
+            return YES__NO_APPLICABLE_REPLACEMENTS;
         }
     }
 

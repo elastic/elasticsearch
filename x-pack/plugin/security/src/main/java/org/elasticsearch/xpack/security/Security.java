@@ -167,6 +167,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapper;
@@ -743,7 +744,7 @@ public class Security extends Plugin
         components.add(privilegeStore);
 
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
-        final FieldPermissionsCache fieldPermissionsCache = FieldPermissionsCache.init(settings);
+        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
         final FileRolesStore fileRolesStore = new FileRolesStore(
             settings,
             environment,
@@ -759,6 +760,7 @@ public class Security extends Plugin
             clusterService
         );
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
+        RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
         for (SecurityExtension extension : securityExtensions) {

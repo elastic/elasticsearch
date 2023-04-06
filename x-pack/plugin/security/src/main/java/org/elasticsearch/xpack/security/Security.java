@@ -78,6 +78,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -1640,27 +1641,26 @@ public class Security extends Plugin
                 sslConfiguration = null;
                 populateClientCertificate = (channel, threadContext) -> {};
             }
-            HttpServerTransport.Dispatcher dispatcherWithContext = HttpServerTransport.Dispatcher.dispatchWithThreadContextWrapper(
-                dispatcher,
-                (restRequest, threadContext) -> {
-                    dispatcherContext.accept(restRequest.getHttpRequest(), threadContext);
-                    populateClientCertificate.accept(restRequest.getHttpChannel(), threadContext);
-                    RemoteHostHeader.process(restRequest, threadContext);
-                }
-            );
             return new Netty4HttpServerTransport(
                 settings,
                 networkService,
                 threadPool,
                 xContentRegistry,
-                dispatcherWithContext,
+                dispatcher,
                 clusterSettings,
                 getNettySharedGroupFactory(settings),
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
                 Netty4HttpHeaderValidator.NOOP_VALIDATOR
-            );
+            ) {
+                @Override
+                protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    dispatcherContext.accept(restRequest.getHttpRequest(), threadContext);
+                    populateClientCertificate.accept(restRequest.getHttpChannel(), threadContext);
+                    RemoteHostHeader.process(restRequest, threadContext);
+                }
+            };
         });
         return httpTransports;
     }

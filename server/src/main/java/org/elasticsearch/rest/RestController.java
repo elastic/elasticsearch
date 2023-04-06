@@ -68,7 +68,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
      */
     static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
 
+    static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER = "X-elastic-internal-origin";
+    static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
     private static final BytesReference FAVICON_RESPONSE;
 
@@ -304,6 +306,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+        threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
         try {
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
@@ -318,6 +321,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     @Override
     public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+        threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
         try {
             final Exception e;
             if (cause == null) {

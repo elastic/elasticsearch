@@ -25,6 +25,7 @@ import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
@@ -102,14 +103,10 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        BiConsumer<HttpPreRequest, ThreadContext> dispatcherContext,
+        BiConsumer<HttpPreRequest, ThreadContext> setDispatchContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
-        HttpServerTransport.Dispatcher dispatcherWithContext = HttpServerTransport.Dispatcher.dispatchWithThreadContextWrapper(
-            dispatcher,
-            (httpPreRequest -> dispatcherContext.accept(httpPreRequest, threadPool.getThreadContext()))
-        );
         return Collections.singletonMap(
             NETTY_HTTP_TRANSPORT_NAME,
             () -> new Netty4HttpServerTransport(
@@ -117,14 +114,19 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                 networkService,
                 threadPool,
                 xContentRegistry,
-                dispatcherWithContext,
+                dispatcher,
                 clusterSettings,
                 getSharedGroupFactory(settings),
                 tracer,
                 TLSConfig.noTLS(),
                 null,
                 null
-            )
+            ) {
+                @Override
+                protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    setDispatchContext.accept(restRequest.getHttpRequest(), threadContext);
+                }
+            }
         );
     }
 

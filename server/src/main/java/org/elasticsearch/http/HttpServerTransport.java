@@ -16,10 +16,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 public interface HttpServerTransport extends LifecycleComponent, ReportingService<HttpInfo> {
 
@@ -27,8 +23,6 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
 
     String HTTP_PROFILE_NAME = ".http";
     String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
-    String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
-    String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
 
     BoundTransportAddress boundAddress();
 
@@ -62,52 +56,5 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
          */
         void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause);
 
-        /**
-         * Returns a new wrapping {@link Dispatcher} that sets the thread context, based on the incoming request, before actually
-         * dispatching the request to be handled.
-         */
-        static Dispatcher dispatchWithThreadContextWrapper(Dispatcher dispatcher, Consumer<HttpPreRequest> setDispatcherContext) {
-            return dispatchWithThreadContextWrapper(
-                dispatcher,
-                (restRequest, threadContext) -> setDispatcherContext.accept(restRequest.getHttpRequest())
-            );
-        };
-
-        /**
-         * Returns a new wrapping {@link Dispatcher} that sets the thread context, based on the incoming request, before actually
-         * dispatching the request to be handled.
-         */
-        static Dispatcher dispatchWithThreadContextWrapper(
-            Dispatcher dispatcher,
-            BiConsumer<RestRequest, ThreadContext> setDispatcherContext
-        ) {
-            return new Dispatcher() {
-                @Override
-                public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-                    threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
-                    populateRequestThreadContext(request, channel, threadContext);
-                    dispatcher.dispatchRequest(request, channel, threadContext);
-                }
-
-                @Override
-                public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                    threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
-                    dispatcher.dispatchBadRequest(channel, threadContext, cause);
-                }
-
-                private void populateRequestThreadContext(RestRequest restRequest, RestChannel channel, ThreadContext threadContext) {
-                    try {
-                        setDispatcherContext.accept(restRequest, threadContext);
-                    } catch (Exception e) {
-                        try {
-                            channel.sendResponse(new RestResponse(channel, e));
-                        } catch (Exception inner) {
-                            inner.addSuppressed(e);
-                            logger.error(() -> "failed to send failure response for uri [" + restRequest.uri() + "]", inner);
-                        }
-                    }
-                }
-            };
-        }
     }
 }

@@ -212,7 +212,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             indexModule.setIndexCommitListener(createIndexCommitListener());
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isPromotableToPrimary()) {
-                    return new IndexDirectory(in);
+                    return new IndexDirectory(in, sharedBlobCacheService.get(), shardRouting.shardId());
                 } else {
                     return in;
                 }
@@ -232,36 +232,35 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             @Override
             public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
                 ActionListener.completeWith(listener, () -> {
-                    if (indexShard.routingEntry().role().isSearchable()) {
-                        final BlobContainer blobContainer = objectStoreService.get()
-                            .getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
-
-                        final Store store = indexShard.store();
-                        store.incRef();
-                        try {
-                            var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
-                            searchDirectory.setBlobContainer(blobContainer);
-                            final Map<String, StoreFileMetadata> commit = ObjectStoreService.findSearchShardFiles(blobContainer);
-                            logger.debug(() -> {
-                                var segments = commit.keySet().stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findFirst();
-                                var shardId = indexShard.shardId();
-                                if (segments.isPresent()) {
-                                    return format("[%s] bootstrapping shard from object store using commit [%s]", shardId, segments.get());
-                                } else {
-                                    return format("[%s] bootstrapping shard from object store using empty commit", shardId);
-                                }
-                            });
-                            searchDirectory.updateCommit(commit);
-                        } finally {
-                            store.decRef();
-                        }
-                    } else {
-                        // TODO assert we only do EmptyStoreRecoverySource / ExistingStoreRecoverySource recovery here
-                        if (indexShard.recoveryState().getRecoverySource() != RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
-                            logger.info("Recovering primary shard [{}] on {}", indexShard.shardId());
-                            var store = indexShard.store();
-                            store.incRef();
-                            try {
+                    final Store store = indexShard.store();
+                    store.incRef();
+                    try {
+                        final var blobStore = objectStoreService.get().getObjectStore();
+                        final var objectStore = blobStore.blobStore();
+                        var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
+                        final ShardId shardId = indexShard.shardId();
+                        final var basePath = blobStore.basePath()
+                            .add("indices")
+                            .add(shardId.getIndex().getUUID())
+                            .add(String.valueOf(shardId.id()));
+                        final Supplier<BlobContainer> containerSupplier = () -> objectStore.blobContainer(
+                            basePath.add(String.valueOf(indexShard.getOperationPrimaryTerm()))
+                        );
+                        searchDirectory.setBlobContainer(containerSupplier);
+                        final Map<String, StoreFileMetadata> commit = ObjectStoreService.findSearchShardFiles(containerSupplier.get());
+                        logger.debug(() -> {
+                            var segments = commit.keySet().stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findFirst();
+                            if (segments.isPresent()) {
+                                return format("[%s] bootstrapping shard from object store using commit [%s]", shardId, segments.get());
+                            } else {
+                                return format("[%s] bootstrapping shard from object store using empty commit", shardId);
+                            }
+                        });
+                        searchDirectory.updateCommit(commit);
+                        if (indexShard.routingEntry().role().isSearchable() == false) {
+                            // TODO assert we only do EmptyStoreRecoverySource / ExistingStoreRecoverySource recovery here
+                            if (indexShard.recoveryState().getRecoverySource() != RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
+                                logger.info("Recovering primary shard [{}] on {}", indexShard.shardId());
                                 Lucene.cleanLuceneIndex(store.directory());
                                 store.createEmpty();
                                 var translogUUID = Translog.createEmptyTranslog(
@@ -271,11 +270,10 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                                     indexShard.getPendingPrimaryTerm()
                                 );
                                 store.associateIndexWithNewTranslog(translogUUID);
-
-                            } finally {
-                                store.decRef();
                             }
                         }
+                    } finally {
+                        store.decRef();
                     }
                     return null;
                 });

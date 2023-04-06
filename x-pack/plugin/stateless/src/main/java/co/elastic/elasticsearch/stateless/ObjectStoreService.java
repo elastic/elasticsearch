@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.lucene.index.IndexFileNames;
@@ -223,8 +224,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         return Objects.requireNonNull(objectStore);
     }
 
-    // package-private for testing
-    BlobContainer getBlobContainer(ShardId shardId, long primaryTerm) {
+    // public for testing
+    public BlobContainer getBlobContainer(ShardId shardId, long primaryTerm) {
         final BlobStoreRepository objectStore = getObjectStore();
         return objectStore.blobStore()
             .blobContainer(
@@ -488,8 +489,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     () -> IOUtils.close(reference, releasable)
                 );
 
-                final BlobContainer blobContainer = getBlobContainer(shardId, reference.getPrimaryTerm());
-
+                final BlobContainer blobContainer = SearchDirectory.unwrapDirectory(reference.getDirectory()).getBlobContainer();
                 final Consumer<FileUploadTask.Result> addResult = r -> {
                     successCount.incrementAndGet();
                     successSize.addAndGet(r.length());

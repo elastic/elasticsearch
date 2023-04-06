@@ -10,6 +10,7 @@ package co.elastic.elasticsearch.stateless.test;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
+import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.utils.TransferableCloseables;
 
@@ -73,7 +74,7 @@ public class FakeStatelessNode implements Closeable {
     public final ClusterService clusterService;
     public final NodeClient client;
     public final ShardPath indexingShardPath;
-    public final Directory indexingDirectory;
+    public final IndexDirectory indexingDirectory;
     public final Store indexingStore;
     public final ShardPath searchShardPath;
     public final Directory searchDirectory;
@@ -126,12 +127,14 @@ public class FakeStatelessNode implements Closeable {
             transport = localCloseables.add(new MockTransport());
             clusterService = localCloseables.add(ClusterServiceUtils.createClusterService(threadPool));
             client = localCloseables.add(new NodeClient(nodeSettings, threadPool));
-            indexingDirectory = localCloseables.add(new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath));
-            indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
             final var nodeEnv = nodeEnvironmentSupplier.apply(nodeSettings);
             localCloseables.add(nodeEnv);
             final var sharedCacheService = new SharedBlobCacheService<FileCacheKey>(nodeEnv, nodeSettings, threadPool);
             localCloseables.add(sharedCacheService);
+            indexingDirectory = localCloseables.add(
+                new IndexDirectory(new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath), sharedCacheService, shardId)
+            );
+            indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
             searchDirectory = localCloseables.add(new SearchDirectory(sharedCacheService, searchShardPath.getShardId()));
             searchStore = localCloseables.add(new Store(shardId, indexSettings, searchDirectory, new DummyShardLock(shardId)));
 
@@ -182,6 +185,7 @@ public class FakeStatelessNode implements Closeable {
 
             objectStoreService = new ObjectStoreService(nodeSettings, () -> repoService, threadPool, clusterService, client);
             objectStoreService.start();
+            indexingDirectory.getSearchDirectory().setBlobContainer(() -> objectStoreService.getBlobContainer(shardId, 1));
 
             closeables = localCloseables.transfer();
         }

@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class SearchDirectory extends BaseDirectory {
@@ -85,7 +86,7 @@ public class SearchDirectory extends BaseDirectory {
 
     private final SharedBlobCacheService<FileCacheKey> cacheService;
 
-    private final SetOnce<BlobContainer> blobContainer = new SetOnce<>();
+    private final SetOnce<Supplier<BlobContainer>> blobContainer = new SetOnce<>();
 
     private final AtomicReference<String> corruptionMarker = new AtomicReference<>();
 
@@ -99,7 +100,7 @@ public class SearchDirectory extends BaseDirectory {
         this.shardId = shardId;
     }
 
-    public void setBlobContainer(BlobContainer blobContainer) {
+    public void setBlobContainer(Supplier<BlobContainer> blobContainer) {
         this.blobContainer.set(blobContainer);
     }
 
@@ -217,7 +218,7 @@ public class SearchDirectory extends BaseDirectory {
             name,
             cacheService.getCacheFile(new FileCacheKey(shardId, name), len),
             context,
-            blobContainer.get(),
+            blobContainer.get().get(),
             cacheService,
             len,
             0
@@ -234,6 +235,10 @@ public class SearchDirectory extends BaseDirectory {
         throw unsupportedException();
     }
 
+    public BlobContainer getBlobContainer() {
+        return blobContainer.get().get();
+    }
+
     private static UnsupportedOperationException unsupportedException() {
         assert false : "this operation is not supported and should have not be called";
         return new UnsupportedOperationException("stateless directory does not support this operation");
@@ -244,6 +249,8 @@ public class SearchDirectory extends BaseDirectory {
         while (dir != null) {
             if (dir instanceof SearchDirectory searchDirectory) {
                 return searchDirectory;
+            } else if (dir instanceof IndexDirectory indexDirectory) {
+                return indexDirectory.getSearchDirectory();
             } else if (dir instanceof FilterDirectory) {
                 dir = ((FilterDirectory) dir).getDelegate();
             } else {

@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -85,6 +86,40 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
     @Override
     protected RolloverConfiguration mutateInstance(RolloverConfiguration instance) {
         return randomValueOtherThan(instance, RolloverConfigurationTests::randomRolloverConditions);
+    }
+
+    public void testConstructorValidation() {
+        {
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> new RolloverConfiguration(RolloverConditions.newBuilder().build(), Set.of("max_docs"))
+            );
+            assertThat(
+                error.getMessage(),
+                equalTo("Invalid automatic configuration for [max_docs], only condition 'max_age' is supported.")
+            );
+        }
+        {
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> new RolloverConfiguration(RolloverConditions.newBuilder().build(), Set.of("max_docs", "max_age"))
+            );
+            assertThat(error.getMessage(), containsString("Invalid automatic configuration for ["));
+        }
+        {
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> new RolloverConfiguration(
+                    RolloverConditions.newBuilder().addMaxIndexAgeCondition(TimeValue.timeValueDays(1)).build(),
+                    Set.of("max_age")
+                )
+            );
+            assertThat(
+                error.getMessage(),
+                equalTo("Invalid configuration for 'max_age' can be either have a value or be automatic but not both.")
+
+            );
+        }
     }
 
     public void testSameConditionCanOnlyBeAddedOnce() {

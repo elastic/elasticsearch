@@ -37,18 +37,35 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     private final Set<String> automaticConditions;
 
     public RolloverConfiguration(RolloverConditions concreteConditions, Set<String> automaticConditions) {
+        validate(concreteConditions, automaticConditions);
         this.concreteConditions = concreteConditions;
         this.automaticConditions = automaticConditions;
     }
 
+    private static void validate(RolloverConditions concreteConditions, Set<String> automaticConditions) {
+        if (automaticConditions.isEmpty()) {
+            return;
+        }
+        // The only supported condition is max_age
+        if (automaticConditions.size() > 1 || automaticConditions.contains(MaxAgeCondition.NAME) == false) {
+            throw new IllegalArgumentException(
+                "Invalid automatic configuration for " + automaticConditions + ", only condition 'max_age' is supported."
+            );
+        }
+        // If max_age is automatic there should be no concrete value provided
+        if (concreteConditions.getMaxAge() != null) {
+            throw new IllegalArgumentException(
+                "Invalid configuration for 'max_age' can be either have a value or be automatic but not both."
+            );
+        }
+    }
+
     public RolloverConfiguration(RolloverConditions concreteConditions) {
-        this.concreteConditions = concreteConditions;
-        this.automaticConditions = Set.of();
+        this(concreteConditions, Set.of());
     }
 
     public RolloverConfiguration(StreamInput in) throws IOException {
-        concreteConditions = new RolloverConditions(in);
-        automaticConditions = in.readSet(StreamInput::readString);
+        this(new RolloverConditions(in), in.readSet(StreamInput::readString));
     }
 
     @Override

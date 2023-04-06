@@ -20,6 +20,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class UriPartsProcessor extends AbstractProcessor {
 
@@ -29,13 +30,23 @@ public class UriPartsProcessor extends AbstractProcessor {
     private final String targetField;
     private final boolean removeIfSuccessful;
     private final boolean keepOriginal;
+    private final boolean ignoreMissing;
 
-    UriPartsProcessor(String tag, String description, String field, String targetField, boolean removeIfSuccessful, boolean keepOriginal) {
+    UriPartsProcessor(
+        String tag,
+        String description,
+        String field,
+        String targetField,
+        boolean removeIfSuccessful,
+        boolean keepOriginal,
+        boolean ignoreMissing
+    ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.removeIfSuccessful = removeIfSuccessful;
         this.keepOriginal = keepOriginal;
+        this.ignoreMissing = ignoreMissing;
     }
 
     public String getField() {
@@ -56,8 +67,11 @@ public class UriPartsProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        String value = ingestDocument.getFieldValue(field, String.class);
+        String value = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
 
+        if (Objects.isNull(value)) {
+            return ingestDocument;
+        }
         var uriParts = apply(value);
         if (keepOriginal) {
             uriParts.put("original", value);
@@ -165,7 +179,8 @@ public class UriPartsProcessor extends AbstractProcessor {
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", "url");
             boolean removeIfSuccessful = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "remove_if_successful", false);
             boolean keepOriginal = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "keep_original", true);
-            return new UriPartsProcessor(processorTag, description, field, targetField, removeIfSuccessful, keepOriginal);
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", true);
+            return new UriPartsProcessor(processorTag, description, field, targetField, removeIfSuccessful, keepOriginal, ignoreMissing);
         }
     }
 }

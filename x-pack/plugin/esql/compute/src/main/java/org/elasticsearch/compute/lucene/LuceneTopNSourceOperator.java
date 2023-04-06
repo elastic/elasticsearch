@@ -218,6 +218,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
                 previousLeafReaderContext = currentLeafReaderContext.leafReaderContext;
             }
 
+            boolean terminatedEarly = false;
             try {
                 currentScorerPos = currentScorer.score(
                     currentLeafCollector,
@@ -227,9 +228,10 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
                 );
             } catch (CollectionTerminatedException cte) {
                 // Lucene terminated early the collection (doing topN for an index that's sorted and the topN uses the same sorting)
+                terminatedEarly = true;
             }
 
-            if (currentScorerPos >= currentLeafReaderContext.maxDoc) {
+            if (currentScorerPos >= currentLeafReaderContext.maxDoc || terminatedEarly) {
                 // we reached the final leaf in this slice/operator, build the single Page this operator should create
                 if (currentLeaf == leaves.size() - 1) {
                     page = buildPage();

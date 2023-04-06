@@ -35,7 +35,8 @@ public class CrossClusterAccessHeadersTests extends ESTestCase {
         expected.writeToContext(ctx);
         final CrossClusterAccessHeaders actual = CrossClusterAccessHeaders.readFromContext(ctx);
 
-        assertThat(actual.subjectInfo(), equalTo(expected.subjectInfo()));
+        assertThat(actual.getSubjectInfo(), equalTo(expected.getSubjectInfo()));
+        assertThat(actual.getCleanAndValidatedSubjectInfo(), equalTo(expected.getCleanAndValidatedSubjectInfo()));
         assertThat(actual.credentials().getId(), equalTo(expected.credentials().getId()));
         assertThat(actual.credentials().getKey().toString(), equalTo(expected.credentials().getKey().toString()));
     }

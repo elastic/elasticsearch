@@ -628,7 +628,7 @@ public class PersistedClusterStateService {
     public OnDiskStateMetadata readOnDiskStateMetadata(DirectoryReader reader) throws IOException {
         final Map<String, String> userData = reader.getIndexCommit().getUserData();
         logger.trace("loaded metadata [{}] from [{}]", userData, reader.directory());
-        assert userData.size() == COMMIT_DATA_SIZE : userData;
+        assert userData.size() == (userData.containsKey(CLUSTER_UUID_KEY) ? COMMIT_DATA_SIZE : COMMIT_DATA_SIZE - 1) : userData;
         assert userData.get(CURRENT_TERM_KEY) != null;
         assert userData.get(LAST_ACCEPTED_VERSION_KEY) != null;
         assert userData.get(NODE_ID_KEY) != null;

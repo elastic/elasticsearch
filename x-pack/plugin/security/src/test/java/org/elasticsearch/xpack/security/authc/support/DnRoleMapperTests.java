@@ -250,10 +250,9 @@ public class DnRoleMapperTests extends ESTestCase {
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
 
-        final ElasticsearchException exception = expectThrows(
-            ElasticsearchException.class,
-            () -> { DnRoleMapper.parseFile(file, logger, "_type", "_name", true); }
-        );
+        final ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> {
+            DnRoleMapper.parseFile(file, logger, "_type", "_name", true);
+        });
         assertThat(exception.getMessage(), containsString(file.toString()));
         assertThat(exception.getMessage(), containsString("does not exist"));
         assertThat(exception.getMessage(), containsString("_name"));

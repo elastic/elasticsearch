@@ -126,12 +126,9 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             // we did not read everything in an optimized fashion, so read the remainder directly
             final long startTimeNanos = stats.currentTimeNanos();
             try (InputStream inputStream = openBlobStream(part, pos + optimizedReadSize, length - optimizedReadSize)) {
-                final int directReadSize = readFully(
-                    inputStream,
-                    b,
-                    length - optimizedReadSize,
-                    () -> { throw new EOFException("Read past EOF at [" + position + "] with length [" + fileInfo.partBytes(part) + "]"); }
-                );
+                final int directReadSize = readFully(inputStream, b, length - optimizedReadSize, () -> {
+                    throw new EOFException("Read past EOF at [" + position + "] with length [" + fileInfo.partBytes(part) + "]");
+                });
                 assert optimizedReadSize + directReadSize == length : optimizedReadSize + " and " + directReadSize + " vs " + length;
                 position += directReadSize;
                 final long endTimeNanos = stats.currentTimeNanos();

@@ -173,7 +173,9 @@ public class SparseFileTrackerTests extends ESTestCase {
         final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(
             range,
             range,
-            ActionListener.wrap(ignored -> assertTrue(wasNotified.compareAndSet(false, true)), e -> { throw new AssertionError(e); })
+            ActionListener.wrap(ignored -> assertTrue(wasNotified.compareAndSet(false, true)), e -> {
+                throw new AssertionError(e);
+            })
         );
         assertThat(gaps, empty());
         assertTrue(wasNotified.get());
@@ -214,10 +216,9 @@ public class SparseFileTrackerTests extends ESTestCase {
 
         if (pending == false) {
             final AtomicBoolean wasNotified = new AtomicBoolean();
-            final ActionListener<Void> listener = ActionListener.wrap(
-                ignored -> assertTrue(wasNotified.compareAndSet(false, true)),
-                e -> { throw new AssertionError(e); }
-            );
+            final ActionListener<Void> listener = ActionListener.wrap(ignored -> assertTrue(wasNotified.compareAndSet(false, true)), e -> {
+                throw new AssertionError(e);
+            });
             final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(range, subRange, listener);
 
             assertTrue(
@@ -245,7 +246,9 @@ public class SparseFileTrackerTests extends ESTestCase {
             final AtomicBoolean waitIfPendingWasNotified = new AtomicBoolean();
             final ActionListener<Void> waitIfPendingListener = ActionListener.wrap(
                 ignored -> assertTrue(waitIfPendingWasNotified.compareAndSet(false, true)),
-                e -> { throw new AssertionError(e); }
+                e -> {
+                    throw new AssertionError(e);
+                }
             );
             assertFalse(sparseFileTracker.waitForRangeIfPending(subRange, waitIfPendingListener));
 
@@ -322,7 +325,9 @@ public class SparseFileTrackerTests extends ESTestCase {
         final List<SparseFileTracker.Gap> gaps = sparseFileTracker.waitForRange(
             range,
             subRange,
-            ActionListener.wrap(ignored -> assertTrue(wasNotified.compareAndSet(false, true)), e -> { throw new AssertionError(e); })
+            ActionListener.wrap(ignored -> assertTrue(wasNotified.compareAndSet(false, true)), e -> {
+                throw new AssertionError(e);
+            })
         );
         assertThat(gaps, empty());
         assertTrue(wasNotified.get());

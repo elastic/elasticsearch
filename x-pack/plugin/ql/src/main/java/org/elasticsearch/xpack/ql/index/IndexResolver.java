@@ -587,21 +587,15 @@ public class IndexResolver {
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
         client.fieldCaps(fieldRequest, wrap(response -> {
-            client.admin()
-                .indices()
-                .getAliases(
-                    createGetAliasesRequest(response, includeFrozen),
-                    wrap(
-                        aliases -> { listener.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases())); },
-                        ex -> {
-                            if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                                listener.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
-                            } else {
-                                listener.onFailure(ex);
-                            }
-                        }
-                    )
-                );
+            client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {
+                listener.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));
+            }, ex -> {
+                if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
+                    listener.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
+                } else {
+                    listener.onFailure(ex);
+                }
+            }));
         }, listener::onFailure));
 
     }

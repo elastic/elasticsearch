@@ -67,6 +67,9 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         .configFile("remote-cluster.key", Resource.fromClasspath("ssl/remote_cluster.key"))
         .configFile("remote-cluster.crt", Resource.fromClasspath("ssl/remote_cluster.crt"))
         .configFile("remote-cluster-ca.crt", Resource.fromClasspath("ssl/remote-cluster-ca.crt"))
+        .configFile("remote-cluster-client.key", Resource.fromClasspath("ssl/remote-cluster-client.key"))
+        .configFile("remote-cluster-client.crt", Resource.fromClasspath("ssl/remote-cluster-client.crt"))
+        .configFile("remote-cluster-client-ca.crt", Resource.fromClasspath("ssl/remote-cluster-client-ca.crt"))
         .user(USER, PASS.toString());
 
     protected static ElasticsearchCluster fulfillingCluster;
@@ -213,4 +216,8 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
     protected static String randomEncodedApiKey() {
         return Base64.getEncoder().encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
     }
+
+    protected record TestClusterConfigProviders(LocalClusterConfigProvider server, LocalClusterConfigProvider client) {}
+
+    protected static TestClusterConfigProviders EMPTY_CONFIG_PROVIDERS = new TestClusterConfigProviders(cluster -> {}, cluster -> {});
 }

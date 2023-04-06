@@ -69,7 +69,7 @@ public class UriPartsProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         String value = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
 
-        if (Objects.isNull(value)) {
+        if (null == value) {
             return ingestDocument;
         }
         var uriParts = apply(value);

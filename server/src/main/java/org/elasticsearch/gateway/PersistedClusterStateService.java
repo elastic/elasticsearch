@@ -137,6 +137,7 @@ public class PersistedClusterStateService {
     private static final String NODE_ID_KEY = "node_id";
     private static final String CLUSTER_UUID_KEY = "cluster_uuid";
     private static final String CLUSTER_UUID_COMMITTED_KEY = "cluster_uuid_committed";
+    private static final String OVERRIDDEN_NODE_VERSION_KEY = "overridden_node_version";
     static final String NODE_VERSION_KEY = "node_version";
     private static final String OLDEST_INDEX_VERSION_KEY = "oldest_index_version";
     public static final String TYPE_FIELD_NAME = "type";
@@ -297,8 +298,10 @@ public class PersistedClusterStateService {
         private final Path dataPath;
         public final long currentTerm;
         public final long lastAcceptedVersion;
+        @Nullable
         public final String clusterUUID;
-        public final boolean clusterUUIDCommitted;
+        @Nullable
+        public final Boolean clusterUUIDCommitted;
         public final Metadata metadata;
 
         private OnDiskState(
@@ -307,7 +310,7 @@ public class PersistedClusterStateService {
             long currentTerm,
             long lastAcceptedVersion,
             String clusterUUID,
-            boolean clusterUUIDCommitted,
+            Boolean clusterUUIDCommitted,
             Metadata metadata
         ) {
             this.nodeId = nodeId;
@@ -328,8 +331,8 @@ public class PersistedClusterStateService {
         long currentTerm,
         long lastAcceptedVersion,
         String nodeId,
-        String clusterUUID,
-        boolean clusterUUIDCommitted
+        @Nullable String clusterUUID,
+        @Nullable Boolean clusterUUIDCommitted
     ) {}
 
     /**
@@ -388,6 +391,7 @@ public class PersistedClusterStateService {
                     try (IndexWriter indexWriter = createIndexWriter(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)), true)) {
                         final Map<String, String> commitData = new HashMap<>(userData);
                         commitData.put(NODE_VERSION_KEY, Integer.toString(newVersion.id));
+                        commitData.put(OVERRIDDEN_NODE_VERSION_KEY, Boolean.toString(true));
                         indexWriter.setLiveCommitData(commitData.entrySet());
                         indexWriter.commit();
                     }
@@ -650,13 +654,14 @@ public class PersistedClusterStateService {
         var nodeVersion = Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
         assert userData.get(CLUSTER_UUID_KEY) != null || nodeVersion.before(Version.V_8_8_0);
         assert userData.get(CLUSTER_UUID_COMMITTED_KEY) != null || nodeVersion.before(Version.V_8_8_0);
-        assert userData.size() == (nodeVersion.onOrAfter(Version.V_8_8_0) ? COMMIT_DATA_SIZE : COMMIT_DATA_SIZE_BEFORE_8_8) : userData;
+        assert userData.get(OVERRIDDEN_NODE_VERSION_KEY) != null
+            || userData.size() == (nodeVersion.onOrAfter(Version.V_8_8_0) ? COMMIT_DATA_SIZE : COMMIT_DATA_SIZE_BEFORE_8_8) : userData;
         return new OnDiskStateMetadata(
             Long.parseLong(userData.get(CURRENT_TERM_KEY)),
             Long.parseLong(userData.get(LAST_ACCEPTED_VERSION_KEY)),
             userData.get(NODE_ID_KEY),
             userData.get(CLUSTER_UUID_KEY),
-            Boolean.parseBoolean(userData.get(CLUSTER_UUID_COMMITTED_KEY))
+            userData.get(CLUSTER_UUID_COMMITTED_KEY) != null ? Boolean.parseBoolean(userData.get(CLUSTER_UUID_COMMITTED_KEY)) : null
         );
     }
 

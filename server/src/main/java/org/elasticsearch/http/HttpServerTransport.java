@@ -8,8 +8,6 @@
 
 package org.elasticsearch.http;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -18,8 +16,6 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 
 public interface HttpServerTransport extends LifecycleComponent, ReportingService<HttpInfo> {
-
-    Logger logger = LogManager.getLogger(HttpServerTransport.class);
 
     String HTTP_PROFILE_NAME = ".http";
     String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";

@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.permission.ApplicationPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
@@ -157,7 +158,7 @@ public class RBACEngineTests extends ESTestCase {
         final LoadAuthorizedIndicesTimeChecker.Factory timerFactory = mock(LoadAuthorizedIndicesTimeChecker.Factory.class);
         when(timerFactory.newTimer(any())).thenReturn(LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER);
         rolesStore = mock(CompositeRolesStore.class);
-        engine = new RBACEngine(Settings.EMPTY, rolesStore, timerFactory);
+        engine = new RBACEngine(Settings.EMPTY, rolesStore, new FieldPermissionsCache(Settings.EMPTY), timerFactory);
     }
 
     public void testResolveAuthorizationInfoForEmptyRolesWithAuthentication() {

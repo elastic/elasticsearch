@@ -28,6 +28,7 @@ import org.elasticsearch.search.rescore.QueryRescorerBuilderTests;
 import org.elasticsearch.search.suggest.SuggestBuilderTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -53,11 +54,16 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         super.setUp();
         searchExtPlugin = new TestSearchExtPlugin();
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.singletonList(searchExtPlugin));
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(IndicesModule.getNamedWriteables());
-        entries.addAll(searchModule.getNamedWriteables());
-        entries.add(new NamedWriteableRegistry.Entry(RankBuilder.class, TestRankBuilder.NAME, TestRankBuilder::new));
-        namedWriteableRegistry = new NamedWriteableRegistry(entries);
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+        namedWriteables.addAll(IndicesModule.getNamedWriteables());
+        namedWriteables.addAll(searchModule.getNamedWriteables());
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankBuilder.class, TestRankBuilder.NAME, TestRankBuilder::new));
+        namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
+        List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
+        namedXContents.addAll(searchModule.getNamedXContents());
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(RankBuilder.class, new ParseField(TestRankBuilder.NAME), TestRankBuilder::fromXContent)
+        );
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 

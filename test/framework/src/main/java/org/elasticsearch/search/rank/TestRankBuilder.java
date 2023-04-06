@@ -14,7 +14,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,6 +27,16 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 public class TestRankBuilder extends RankBuilder<TestRankBuilder> {
 
     public static final String NAME = "rank_test";
+
+    static final ObjectParser<TestRankBuilder, Void> PARSER = new ObjectParser<>(NAME);
+
+    static {
+        PARSER.declareInt(TestRankBuilder::windowSize, WINDOW_SIZE_FIELD);
+    }
+
+    public static TestRankBuilder fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new TestRankBuilder(), null);
+    }
 
     public static TestRankBuilder randomRankBuilder() {
         TestRankBuilder testRankBuilder = new TestRankBuilder();

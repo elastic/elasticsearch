@@ -64,6 +64,10 @@ public class UriPartsProcessor extends AbstractProcessor {
         return keepOriginal;
     }
 
+    public Object getIgnoreMissing() {
+        return ignoreMissing;
+    }
+
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         String value = ingestDocument.getFieldValue(field, String.class, ignoreMissing);

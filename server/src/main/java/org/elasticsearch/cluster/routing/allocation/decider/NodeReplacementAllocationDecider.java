@@ -45,6 +45,8 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             );
         } else if (isReplacementSource(allocation, shardRouting.currentNodeId())) {
             if (allocation.isReconciling()) {
+                // We permit moving shards off the source node during reconcilation so that they can go onto their desired nodes even if
+                // the desired node is different from the replacement target.
                 return YES__RECONCILING;
             }
 

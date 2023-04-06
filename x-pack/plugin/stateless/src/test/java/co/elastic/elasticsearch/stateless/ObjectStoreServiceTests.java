@@ -174,7 +174,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 indexWriter.commit();
             }
 
-            var primaryTerm = randomNonNegativeLong();
+            var primaryTerm = 1;
 
             try (var indexReader = DirectoryReader.open(indexWriter)) {
 
@@ -298,7 +298,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             final var dir = SearchDirectory.unwrapDirectory(testHarness.searchStore.directory());
             final var blobContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, 1);
-            dir.setBlobContainer(blobContainer);
+            dir.setBlobContainer(() -> blobContainer);
             dir.updateCommit(ObjectStoreService.findSearchShardFiles(blobContainer));
 
             if (commitCount > 0) {

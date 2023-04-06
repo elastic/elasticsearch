@@ -19,13 +19,18 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Collection;
 
 public class IndexDirectory extends FilterDirectory {
 
-    public IndexDirectory(Directory in) {
+    private final SearchDirectory searchDirectory;
+
+    public IndexDirectory(Directory in, SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
         super(in);
+        this.searchDirectory = new SearchDirectory(cacheService, shardId);
     }
 
     @Override
@@ -36,5 +41,9 @@ public class IndexDirectory extends FilterDirectory {
     @Override
     public void syncMetaData() {
         // noop, data on local drive need not be safely persisted
+    }
+
+    public SearchDirectory getSearchDirectory() {
+        return searchDirectory;
     }
 }

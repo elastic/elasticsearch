@@ -44,7 +44,7 @@ public class IndexDirectoryTests extends ESTestCase {
         PathUtilsForTesting.installMock(provider.getFileSystem(null));
         final Path path = PathUtils.get(createTempDir().toString());
         try (
-            Directory directory = new IndexDirectory(FSDirectory.open(path));
+            Directory directory = new IndexDirectory(FSDirectory.open(path), null, null);
             IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())
         ) {
             indexWriter.commit();

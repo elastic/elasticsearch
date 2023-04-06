@@ -1597,7 +1597,7 @@ public class Security extends Plugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        BiConsumer<HttpPreRequest, ThreadContext> dispatcherContext,
+        BiConsumer<HttpPreRequest, ThreadContext> setDispatchContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
@@ -1656,7 +1656,7 @@ public class Security extends Plugin
             ) {
                 @Override
                 protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    dispatcherContext.accept(restRequest.getHttpRequest(), threadContext);
+                    setDispatchContext.accept(restRequest.getHttpRequest(), threadContext);
                     populateClientCertificate.accept(restRequest.getHttpChannel(), threadContext);
                     RemoteHostHeader.process(restRequest, threadContext);
                 }

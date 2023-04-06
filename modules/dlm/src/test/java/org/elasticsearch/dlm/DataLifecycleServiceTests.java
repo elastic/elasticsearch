@@ -118,7 +118,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
         setState(clusterService, state);
-        dataLifecycleService.maybeParseOriginationDatesAndRun(clusterService.state());
+        dataLifecycleService.run(clusterService.state());
         assertBusy(() -> assertThat(clientSeenRequests.size(), is(3)));
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
         assertThat(((RolloverRequest) clientSeenRequests.get(0)).getRolloverTarget(), is(dataStreamName));
@@ -131,7 +131,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
         // on the second run the rollover and delete requests should not execute anymore
         // i.e. the count should *remain* 1 for rollover and 2 for deletes
-        dataLifecycleService.maybeParseOriginationDatesAndRun(clusterService.state());
+        dataLifecycleService.run(clusterService.state());
         assertThat(clientSeenRequests.size(), is(3));
     }
 
@@ -151,7 +151,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
         setState(clusterService, state);
-        dataLifecycleService.maybeParseOriginationDatesAndRun(state);
+        dataLifecycleService.run(state);
         assertBusy(() -> assertThat(clientSeenRequests.size(), is(1)));
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
     }
@@ -172,7 +172,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
         setState(clusterService, state);
-        dataLifecycleService.maybeParseOriginationDatesAndRun(state);
+        dataLifecycleService.run(state);
         assertBusy(() -> assertThat(clientSeenRequests.size(), is(1)));
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
     }
@@ -192,7 +192,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         builder.put(dataStream);
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
-        dataLifecycleService.maybeParseOriginationDatesAndRun(state);
+        dataLifecycleService.run(state);
         assertThat(clientSeenRequests.isEmpty(), is(true));
     }
 
@@ -211,7 +211,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         builder.put(dataStream);
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
-        dataLifecycleService.maybeParseOriginationDatesAndRun(state);
+        dataLifecycleService.run(state);
         assertThat(clientSeenRequests.isEmpty(), is(true));
     }
 
@@ -255,7 +255,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         ClusterState stateWithDeletedIndices = newStateBuilder.nodes(buildNodes(nodeId).masterNodeId(nodeId)).build();
         setState(clusterService, stateWithDeletedIndices);
 
-        dataLifecycleService.maybeParseOriginationDatesAndRun(stateWithDeletedIndices);
+        dataLifecycleService.run(stateWithDeletedIndices);
         assertBusy(() -> {
             for (Index deletedIndex : deletedIndices) {
                 assertThat(dataLifecycleService.getErrorStore().getError(deletedIndex.getName()), nullValue());
@@ -296,7 +296,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         }
         ClusterState updatedState = ClusterState.builder(state).metadata(metaBuilder).build();
         setState(clusterService, updatedState);
-        dataLifecycleService.maybeParseOriginationDatesAndRun(updatedState);
+        dataLifecycleService.run(updatedState);
         assertBusy(() -> {
             for (Index index : dataStream.getIndices()) {
                 assertThat(dataLifecycleService.getErrorStore().getError(index.getName()), nullValue());
@@ -308,37 +308,82 @@ public class DataLifecycleServiceTests extends ESTestCase {
     public void testParseOriginationDate() throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
-        Metadata.Builder builder = Metadata.builder();
+        Metadata.Builder metadataBuilder = Metadata.builder();
         DataStream dataStream = createDataStream(
-            builder,
+            metadataBuilder,
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
             new DataLifecycle(TimeValue.timeValueDays(7)),
             now
         );
-        builder.put(dataStream);
 
         String nodeId = "localNode";
         DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
         // we are the master node
         nodesBuilder.masterNodeId(nodeId);
 
-        IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(".ds-" + dataStreamName + "-2022.04.04-000001")
+        setState(clusterService, ClusterState.builder(clusterService.state()).metadata(metadataBuilder).build());
+        // Our retention is 7 days, so 1 year old data ought to be deleted:
+        IndexMetadata yearOldDataIndexMetadata = addIndexToMetadata(
+            TimeValue.timeValueDays(365),
+            dataStream.getName(),
+            clusterService.state().metadata()
+        );
+        dataStream = dataStream.addBackingIndex(clusterService.state().metadata(), yearOldDataIndexMetadata.getIndex());
+        // Our retention is 7 days, so 3-day-old data ought to be kept:
+        IndexMetadata threeDayOldDataIndexMetadata = addIndexToMetadata(
+            TimeValue.timeValueDays(3),
+            dataStream.getName(),
+            clusterService.state().metadata()
+        );
+        dataStream = dataStream.addBackingIndex(clusterService.state().metadata(), threeDayOldDataIndexMetadata.getIndex());
+        // An index whose name we can't parse is ignored, and DLM runs anyway:
+        IndexMetadata oldDataIndexMetadata = addBadlyNamedIndexToMetadata(dataStream.getName(), clusterService.state().metadata());
+        dataStream = dataStream.addBackingIndex(clusterService.state().metadata(), oldDataIndexMetadata.getIndex());
+
+        Metadata.Builder builderWithDataStream = Metadata.builder(clusterService.state().metadata()).put(dataStream);
+        setState(clusterService, ClusterState.builder(clusterService.state()).metadata(builderWithDataStream).build());
+        dataLifecycleService.run(clusterService.state());
+        assertBusy(() -> { assertThat(clientSeenRequests.size(), is(2)); });
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        RolloverRequest rolloverRequest = (RolloverRequest) clientSeenRequests.get(0);
+        assertThat(rolloverRequest.indices()[0], is(dataStream.getName()));
+        assertThat(clientSeenRequests.get(1), instanceOf(DeleteIndexRequest.class));
+        // Since an index we added had a name with a year old date, it gets deleted since its name was parsed as the origination date:
+        DeleteIndexRequest deleteRequest = (DeleteIndexRequest) clientSeenRequests.get(1);
+        assertThat(deleteRequest.indices()[0], is(yearOldDataIndexMetadata.getIndex().getName()));
+    }
+
+    private IndexMetadata addIndexToMetadata(TimeValue age, String dataStreamName, Metadata metadata) {
+        Metadata.Builder metadataBuilder = Metadata.builder(metadata);
+        long epochTimeForOldData = now - age.millis();
+        String oldDataIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, epochTimeForOldData);
+        IndexMetadata.Builder oldDataIndexMetaBuilder = IndexMetadata.builder(oldDataIndexName)
             .settings(settings(Version.CURRENT).put(LIFECYCLE_PARSE_ORIGINATION_DATE, true))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .creationDate(now - 3000L);
-        IndexMetadata newIndexMetadata = indexMetaBuilder.build();
-        builder = builder.put(newIndexMetadata, true);
-        ClusterState state = ClusterState.builder(clusterService.state()).metadata(builder).build();
+        IndexMetadata oldDataIndexMetadata = oldDataIndexMetaBuilder.build();
+        metadataBuilder = metadataBuilder.put(oldDataIndexMetadata, true);
+        ClusterState state = ClusterState.builder(clusterService.state()).metadata(metadataBuilder).build();
         setState(clusterService, state);
-        dataStream = dataStream.addBackingIndex(clusterService.state().metadata(), newIndexMetadata.getIndex());
-        builder = Metadata.builder(clusterService.state().metadata()).put(dataStream);
-        setState(clusterService, ClusterState.builder(clusterService.state()).metadata(builder).build());
-        dataLifecycleService.maybeParseOriginationDatesAndRun(clusterService.state());
-        assertBusy(() -> { assertThat(clientSeenRequests.size(), is(2)); });
+        return oldDataIndexMetadata;
+    }
 
+    private IndexMetadata addBadlyNamedIndexToMetadata(String dataStreamName, Metadata metadata) {
+        Metadata.Builder metadataBuilder = Metadata.builder(metadata);
+        String oldDataIndexName = ".ds-" + dataStreamName + "-2022.14.05-000001";
+        IndexMetadata.Builder oldDataIndexMetaBuilder = IndexMetadata.builder(oldDataIndexName)
+            .settings(settings(Version.CURRENT).put(LIFECYCLE_PARSE_ORIGINATION_DATE, true))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .creationDate(now - 3000L);
+        IndexMetadata oldDataIndexMetadata = oldDataIndexMetaBuilder.build();
+        metadataBuilder = metadataBuilder.put(oldDataIndexMetadata, true);
+        ClusterState state = ClusterState.builder(clusterService.state()).metadata(metadataBuilder).build();
+        setState(clusterService, state);
+        return oldDataIndexMetadata;
     }
 
     private static DiscoveryNodes.Builder buildNodes(String nodeId) {

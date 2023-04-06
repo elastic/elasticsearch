@@ -44,6 +44,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -56,11 +57,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.cluster.metadata.LifecycleOriginationDateParser.parseIndexNameAndExtractDate;
+import static org.elasticsearch.cluster.metadata.LifecycleOriginationDateParser.shouldParseIndexName;
+
 /**
  * This service will implement the needed actions (e.g. rollover, retention) to manage the data streams with a DLM lifecycle configured.
  * It runs on the master node and it schedules a job according to the configured {@link DataLifecycleService#DLM_POLL_INTERVAL_SETTING}.
  */
-public class DataLifecycleService implements ClusterStateListener, Closeable, SchedulerEngine.Listener {
+public class DataLifecycleService implements ClusterStateListener, Closeable, SchedulerEngine.Listener, IndexEventListener {
 
     public static final String DLM_POLL_INTERVAL = "indices.dlm.poll_interval";
     public static final Setting<TimeValue> DLM_POLL_INTERVAL_SETTING = Setting.timeSetting(
@@ -174,22 +178,30 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         if (event.getJobName().equals(DATA_LIFECYCLE_JOB_NAME)) {
             if (this.isMaster) {
                 logger.trace("DLM job triggered: {}, {}, {}", event.getJobName(), event.getScheduledTime(), event.getTriggeredTime());
-                maybeParseOriginationDatesAndRun(clusterService.state());
+                run(clusterService.state());
             }
         }
     }
 
-    void maybeParseOriginationDatesAndRun(ClusterState state) {
+    @Override
+    public void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
+        if (shouldParseIndexName(indexSettings)) {
+            parseIndexNameAndExtractDate(index.getName());
+        }
+    }
+
+    // default visibility for testing purposes
+    void run(ClusterState state) {
         maybeParseOriginationDates(state, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                run(clusterService.state());
+                runDLM(clusterService.state());
             }
 
             @Override
             public void onFailure(Exception e) {
                 logger.warn("Error updating origination dates on indices, running DLM on other indices");
-                run(clusterService.state());
+                runDLM(clusterService.state());
             }
         });
     }
@@ -198,8 +210,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
      * Iterates over the DLM managed data streams and executes the needed operations
      * to satisfy the configured {@link org.elasticsearch.cluster.metadata.DataLifecycle}.
      */
-    // default visibility for testing purposes
-    void run(ClusterState state) {
+    private void runDLM(ClusterState state) {
         for (DataStream dataStream : state.metadata().dataStreams().values()) {
             clearErrorStoreForUnmanagedIndices(dataStream);
             if (dataStream.getLifecycle() == null) {
@@ -240,7 +251,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             Strings.format("Parsing origination dates from index names"),
             new DataLifecycleClusterStateUpdateTask(listener) {
                 @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
+                public ClusterState execute(ClusterState currentState) {
                     List<IndexMetadata.Builder> updatedIndexMetadata = new ArrayList<>();
                     for (DataStream dataStream : state.metadata().dataStreams().values()) {
                         if (dataStream.getLifecycle() == null) {
@@ -281,7 +292,6 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             },
             null
         );
-
     }
 
     /**

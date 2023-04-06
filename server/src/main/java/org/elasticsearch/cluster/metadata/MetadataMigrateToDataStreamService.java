@@ -202,9 +202,21 @@ public class MetadataMigrateToDataStreamService {
         if (removeAlias) {
             imb.removeAlias(dataStreamName);
         }
+        Settings.Builder settingsBuilder = Settings.builder().put(im.getSettings());
+        if (LifecycleOriginationDateParser.shouldParseIndexName(im.getSettings())) {
+            long parsedDate;
+            try {
+                parsedDate = LifecycleOriginationDateParser.parseIndexNameAndExtractDate(im.getIndex().getName());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(Strings.format("Cannot move the index %s into a data stream because the index has the " +
+                    "{} setting "
+                    + "set to true and the index name does not contain a valid date", im.getIndex().getName()), e);
+            }
+            settingsBuilder.put(DataStream.LIFECYCLE_ORIGINATION_DATE, parsedDate);
+        }
 
         b.put(
-            imb.settings(Settings.builder().put(im.getSettings()).put("index.hidden", "true").build())
+            imb.settings(settingsBuilder.put("index.hidden", "true").build())
                 .settingsVersion(im.getSettingsVersion() + 1)
                 .mappingVersion(im.getMappingVersion() + 1)
                 .putMapping(new MappingMetadata(mapper))

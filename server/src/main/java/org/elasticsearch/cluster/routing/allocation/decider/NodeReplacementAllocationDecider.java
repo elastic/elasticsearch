@@ -46,15 +46,15 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         } else if (isReplacementSource(allocation, shardRouting.currentNodeId())) {
             if (allocation.isReconciling()) {
                 return YES__RECONCILING;
-            } else {
-                return Decision.single(
-                    Decision.Type.NO,
-                    NAME,
-                    "node [%s] is being replaced, and its shards may only be allocated to the replacement target [%s]",
-                    shardRouting.currentNodeId(),
-                    getReplacementName(allocation, shardRouting.currentNodeId())
-                );
             }
+
+            return Decision.single(
+                Decision.Type.NO,
+                NAME,
+                "node [%s] is being replaced, and its shards may only be allocated to the replacement target [%s]",
+                shardRouting.currentNodeId(),
+                getReplacementName(allocation, shardRouting.currentNodeId())
+            );
         } else if (isReplacementSource(allocation, node.nodeId())) {
             return Decision.single(
                 Decision.Type.NO,
@@ -65,6 +65,10 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
                 shardRouting.currentNodeId()
             );
         } else if (isReplacementTargetName(allocation, node.node().getName())) {
+            if (allocation.isReconciling() && shardRouting.unassigned() == false) {
+                return YES__RECONCILING;
+            }
+
             final SingleNodeShutdownMetadata shutdown = allocation.replacementTargetShutdowns().get(node.node().getName());
             return Decision.single(
                 Decision.Type.NO,

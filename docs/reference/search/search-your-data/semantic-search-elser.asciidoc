@@ -4,4 +4,7 @@
 <titleabbrev>Semantic search with ELSER</titleabbrev>
 ++++
 
+:keywords: {ml-init}, {stack}, {nlp}, ELSER
+:description: ELSER is a learned sparse ranking model trained by Elastic.
+
 [TBD]

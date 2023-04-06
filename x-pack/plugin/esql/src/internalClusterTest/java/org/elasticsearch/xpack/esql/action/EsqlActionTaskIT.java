@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
@@ -64,6 +65,7 @@ import static org.hamcrest.Matchers.not;
  */
 // TODO: make sure cancellation work across multiple nodes
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false) // ESQL is single node
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/974")
 public class EsqlActionTaskIT extends ESIntegTestCase {
     private static final int COUNT = LuceneSourceOperator.PAGE_SIZE * 5;
 

@@ -32,7 +32,6 @@ import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -68,7 +67,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -126,28 +124,14 @@ public class RestControllerTests extends ESTestCase {
         IOUtils.close(client);
     }
 
-    public void testApplyRelevantHeaders() throws Exception {
+    public void testApplyProductSpecificResponseHeaders() {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        Set<RestHeaderDefinition> headers = new HashSet<>(
-            Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", true))
-        );
         final RestController restController = new RestController(null, null, circuitBreakerService, usageService, tracer, false);
-        // final HttpServerTransport.Dispatcher dispatcherWithContext = HttpServerTransport.Dispatcher.dispatchWithThreadContextWrapper(
-        // restController,
-        // httpPreRequest -> ActionModule.copyRequestHeadersToThreadContext(httpPreRequest, headers, threadContext)
-        // );
-        Map<String, List<String>> restHeaders = new HashMap<>();
-        restHeaders.put("header.1", Collections.singletonList("true"));
-        restHeaders.put("header.2", Collections.singletonList("true"));
-        restHeaders.put("header.3", Collections.singletonList("false"));
-        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
         // context in this test
-        assertEquals("true", threadContext.getHeader("header.1"));
-        assertEquals("true", threadContext.getHeader("header.2"));
-        assertNull(threadContext.getHeader("header.3"));
         List<String> expectedProductResponseHeader = new ArrayList<>();
         expectedProductResponseHeader.add(ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
         assertEquals(expectedProductResponseHeader, threadContext.getResponseHeaders().getOrDefault(ELASTIC_PRODUCT_HTTP_HEADER, null));
@@ -195,33 +179,6 @@ public class RestControllerTests extends ESTestCase {
             eq("GET /"),
             eq(Map.of("http.method", "GET", "http.flavour", "1.1", "http.url", "/"))
         );
-    }
-
-    /**
-     * Check that the REST controller picks up and propagates W3C trace context headers via the {@link ThreadContext}.
-     * @see <a href="https://www.w3.org/TR/trace-context/">Trace Context - W3C Recommendation</a>
-     */
-    public void testTraceParentAndTraceId() {
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-        Set<RestHeaderDefinition> headers = Set.of(new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false));
-        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, tracer, false);
-        // final HttpServerTransport.Dispatcher dispatcherWithContext = HttpServerTransport.Dispatcher.dispatchWithThreadContextWrapper(
-        // restController,
-        // httpPreRequest -> ActionModule.copyRequestHeadersToThreadContext(httpPreRequest, headers, threadContext)
-        // );
-        Map<String, List<String>> restHeaders = new HashMap<>();
-        final String traceParentValue = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
-        restHeaders.put(Task.TRACE_PARENT_HTTP_HEADER, Collections.singletonList(traceParentValue));
-        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
-        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
-
-        restController.dispatchRequest(fakeRequest, channel, threadContext);
-
-        // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
-        // context in this test
-        assertThat(threadContext.getHeader(Task.TRACE_ID), equalTo("0af7651916cd43dd8448eb211c80319c"));
-        assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
-        assertThat(threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParentValue));
     }
 
     public void testRequestWithDisallowedMultiValuedHeaderButSameValues() {

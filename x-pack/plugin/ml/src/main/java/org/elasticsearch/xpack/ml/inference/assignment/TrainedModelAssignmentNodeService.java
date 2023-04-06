@@ -358,7 +358,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                         // This means we don't already have a task and should attempt creating one and starting the model loading
                         // If we don't have a task but are STARTED, this means the cluster state had a started assignment,
                         // the node crashed and then started again
-                        && deploymentIdToTask.containsKey(trainedModelAssignment.getTaskParams().getModelId()) == false
+                        && deploymentIdToTask.containsKey(trainedModelAssignment.getDeploymentId()) == false
                         // If we are in reset mode, don't start loading a new model on this node.
                         && isResetMode == false) {
                         prepareModelToLoad(

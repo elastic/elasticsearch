@@ -324,7 +324,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                         + node.id()
                         + "] to assign ["
                         + allocations
-                        + "] allocations to model ["
+                        + "] allocations to deployment ["
                         + deployment.id()
                         + "]; required threads per allocation ["
                         + deployment.threadsPerAllocation()

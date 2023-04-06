@@ -278,8 +278,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (clusterService.state().nodes().getMinNodeVersion().before(DISTRIBUTED_MODEL_ALLOCATION_VERSION)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "cannot create new assignment for model [{}] while there are nodes older than version [{}]",
+                    "cannot create new assignment [{}] for model [{}] while there are nodes older than version [{}]",
                     RestStatus.CONFLICT,
+                    params.getDeploymentId(),
                     params.getModelId(),
                     DISTRIBUTED_MODEL_ALLOCATION_VERSION
                 )
@@ -290,8 +291,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (MlMetadata.getMlMetadata(clusterService.state()).isResetMode()) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "cannot create new assignment for model [{}] while feature reset is in progress.",
+                    "cannot create new assignment [{}] for model [{}] while feature reset is in progress.",
                     RestStatus.CONFLICT,
+                    params.getDeploymentId(),
                     params.getModelId()
                 )
             );
@@ -351,13 +353,10 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     "model deployment stopped",
                     ActionListener.wrap(
                         metadataAfterRebalance -> logger.debug(
-                            () -> format(
-                                "Successfully rebalanced model deployments after deployment for model [%s] was stopped",
-                                deploymentId
-                            )
+                            () -> format("Successfully rebalanced model deployments after deployment [%s] was stopped", deploymentId)
                         ),
                         e -> logger.error(
-                            format("Failed to rebalance model deployments after deployment for model [%s] was stopped", deploymentId),
+                            format("Failed to rebalance model deployments after deployment [%s] was stopped", deploymentId),
                             e
                         )
                     )
@@ -572,7 +571,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(clusterState);
         final TrainedModelAssignment existingAssignment = metadata.getDeploymentAssignment(deploymentId);
         if (existingAssignment == null) {
-            throw new ResourceNotFoundException("deployment for model with id [{}] not found", deploymentId);
+            throw new ResourceNotFoundException("deployment with id [{}] not found", deploymentId);
         }
         if (existingAssignment.getTaskParams().getNumberOfAllocations() == numberOfAllocations) {
             listener.onResponse(existingAssignment);
@@ -713,18 +712,18 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         listener.onResponse(update(clusterState, builder));
     }
 
-    static ClusterState setToStopping(ClusterState clusterState, String modelId, String reason) {
+    static ClusterState setToStopping(ClusterState clusterState, String deploymentId, String reason) {
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(clusterState);
-        final TrainedModelAssignment existingAssignment = metadata.getDeploymentAssignment(modelId);
+        final TrainedModelAssignment existingAssignment = metadata.getDeploymentAssignment(deploymentId);
         if (existingAssignment == null) {
-            throw new ResourceNotFoundException("assignment for model with id [{}] not found", modelId);
+            throw new ResourceNotFoundException("assignment with id [{}] not found", deploymentId);
         }
         // If we are stopping, don't update anything
         if (existingAssignment.getAssignmentState().equals(AssignmentState.STOPPING)) {
             return clusterState;
         }
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(clusterState);
-        builder.getAssignment(modelId).stopAssignment(reason);
+        builder.getAssignment(deploymentId).stopAssignment(reason);
         return update(clusterState, builder);
     }
 
@@ -746,7 +745,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         }
 
         if (existingAssignment == null) {
-            throw new ResourceNotFoundException("assignment for model with id [{}] not found", deploymentId);
+            throw new ResourceNotFoundException("assignment with id [{}] not found", deploymentId);
         }
         // If we are stopping, don't update anything
         if (existingAssignment.getAssignmentState().equals(AssignmentState.STOPPING)) {
@@ -761,7 +760,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return currentState;
         }
         if (existingAssignment.isRoutedToNode(nodeId) == false) {
-            throw new ResourceNotFoundException("assignment for model with id [{}]] is not routed to node [{}]", deploymentId, nodeId);
+            throw new ResourceNotFoundException("assignment with id [{}]] is not routed to node [{}]", deploymentId, nodeId);
         }
         RoutingInfo routingInfo = existingAssignment.getNodeRoutingTable().get(nodeId);
         builder.getAssignment(deploymentId)
@@ -774,7 +773,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     static ClusterState removeAssignment(ClusterState currentState, String deploymentId) {
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
         if (builder.hasModelDeployment(deploymentId) == false) {
-            throw new ResourceNotFoundException("assignment for model deployment with id [{}] not found", deploymentId);
+            throw new ResourceNotFoundException("assignment for deployment with id [{}] not found", deploymentId);
         }
         logger.debug(() -> format("[%s] removing assignment", deploymentId));
         return update(currentState, builder.removeAssignment(deploymentId));

@@ -394,8 +394,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         String previouslyUsedDeployment = "deployment-4";
 
         givenAssignmentsInClusterStateForModels(
-            List.of(deploymentOne, deploymentTwo, notUsedDeployment),
-            List.of(modelOne, modelTwo, notUsedModel)
+            List.of(deploymentOne, deploymentTwo, previouslyUsedDeployment),
+            List.of(modelOne, modelTwo, previouslyUsedModel)
         );
         ClusterChangedEvent event = new ClusterChangedEvent(
             "testClusterChanged",
@@ -427,7 +427,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                                 )
                                 .addNewAssignment(
                                     previouslyUsedDeployment,
-                                    TrainedModelAssignment.Builder.empty(newParams(previouslyUsedDeployment, modelTwo))
+                                    TrainedModelAssignment.Builder.empty(newParams(previouslyUsedDeployment, previouslyUsedModel))
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                         .updateExistingRoutingEntry(
                                             NODE_ID,
@@ -492,7 +492,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         assertBusy(() -> {
             ArgumentCaptor<TrainedModelDeploymentTask> stoppedTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
             verify(deploymentManager, times(1)).stopDeployment(stoppedTaskCapture.capture());
-            assertThat(stoppedTaskCapture.getAllValues().get(0).getModelId(), equalTo(modelTwo));
+            assertThat(stoppedTaskCapture.getAllValues().get(0).getDeploymentId(), equalTo(deploymentTwo));
         });
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
         ArgumentCaptor<UpdateTrainedModelAssignmentRoutingInfoAction.Request> requestCapture = ArgumentCaptor.forClass(
@@ -516,7 +516,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                             TrainedModelAssignmentMetadata.NAME,
                             TrainedModelAssignmentMetadata.Builder.empty()
                                 .addNewAssignment(
-                                    modelOne,
+                                    deploymentOne,
                                     TrainedModelAssignment.Builder.empty(newParams(deploymentOne, modelOne))
                                         .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                 )

@@ -37,9 +37,9 @@ import static org.elasticsearch.core.Strings.format;
  * Furthermore, the planner preserves at least one allocation for all existing
  * assignments. This way, the new plan will only have new assignments and the
  * transition can happen with minimal impact on performance of started deployments.
- * However, if previously assigned models do not receive any allocation, then we
- * attempt to find a solution that provides at least one allocation to
- * previously assigned models.
+ * However, if previously assigned model deployments do not receive any allocation,
+ * then we attempt to find a solution that provides at least one allocation to
+ * previously assigned model deployments.
  */
 public class AssignmentPlanner {
 
@@ -58,7 +58,7 @@ public class AssignmentPlanner {
     }
 
     public AssignmentPlan computePlan(boolean tryAssigningPreviouslyAssignedModels) {
-        logger.debug(() -> format("Computing plan for nodes = %s; models = %s", nodes, deployments));
+        logger.debug(() -> format("Computing plan for nodes = %s; deployments = %s", nodes, deployments));
 
         AssignmentPlan bestPlan;
         AssignmentPlan planSatisfyingCurrentAssignments = solveSatisfyingCurrentAssignments();
@@ -106,7 +106,7 @@ public class AssignmentPlanner {
     }
 
     private AssignmentPlan solveAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated() {
-        logger.debug(() -> "Attempting to solve assigning at least one allocation to previously assigned models");
+        logger.debug(() -> "Attempting to solve assigning at least one allocation to previously assigned deployments");
         List<AssignmentPlan.Deployment> previouslyAssignedModelsOnly = deployments.stream()
             .filter(m -> m.hasEverBeenAllocated())
             .map(
@@ -168,7 +168,7 @@ public class AssignmentPlanner {
         List<Node> planNodes = preserveAllocations.nodesPreservingAllocations();
         List<AssignmentPlan.Deployment> planDeployments = preserveAllocations.modelsPreservingAllocations();
         logger.trace(() -> format("Nodes after applying allocation preserving strategy = %s", planNodes));
-        logger.trace(() -> format("Models after applying allocation preserving strategy = %s", planDeployments));
+        logger.trace(() -> format("Deployments after applying allocation preserving strategy = %s", planDeployments));
         AssignmentPlan assignmentPlan = new LinearProgrammingPlanSolver(planNodes, planDeployments).solvePlan(false);
         return preserveAllocations.mergePreservedAllocations(assignmentPlan);
     }

@@ -375,7 +375,7 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
                         assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.CONFLICT));
                         assertThat(
                             e.getMessage(),
-                            equalTo("cannot create new assignment for model [new-model] while feature reset is in progress.")
+                            equalTo("cannot create new assignment [new-model] for model [new-model] while feature reset is in progress.")
                         );
                     }
                 ),

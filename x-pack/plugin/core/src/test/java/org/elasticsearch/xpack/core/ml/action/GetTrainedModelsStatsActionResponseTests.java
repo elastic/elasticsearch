@@ -29,7 +29,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
 
     @Override
     protected Response createTestInstance() {
-        int listSize = 1; // randomInt(10);
+        int listSize = randomInt(10);
         List<Response.TrainedModelStats> trainedModelStats = Stream.generate(() -> randomAlphaOfLength(10))
             .limit(listSize)
             .map(

@@ -131,7 +131,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ClusterState state,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) throws Exception {
-        logger.info(() -> "[" + request.getModelId() + "/" + request.getDeploymentId() + "] received deploy request");
+        logger.debug(() -> "[" + request.getDeploymentId() + "] received deploy request for model [" + request.getModelId() + "]");
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
@@ -162,13 +162,16 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ActionListener<CreateTrainedModelAssignmentAction.Response> waitForDeploymentToStart = ActionListener.wrap(
             modelAssignment -> waitForDeploymentState(request.getDeploymentId(), request.getTimeout(), request.getWaitForState(), listener),
             e -> {
-                logger.warn(() -> "[" + request.getModelId() + "] creating new assignment [" + request.getDeploymentId() + "] failed", e);
+                logger.warn(
+                    () -> "[" + request.getDeploymentId() + "] creating new assignment for model [" + request.getModelId() + "] failed",
+                    e
+                );
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
                         "Cannot start deployment [{}] because it has already been started",
                         RestStatus.CONFLICT,
                         e,
-                        request.getModelId()
+                        request.getDeploymentId()
                     );
                 }
                 listener.onFailure(e);

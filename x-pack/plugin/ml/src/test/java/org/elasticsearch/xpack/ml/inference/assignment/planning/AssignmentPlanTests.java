@@ -133,7 +133,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
         assertThat(
             e.getMessage(),
-            equalTo("not enough cores on node [n_1] to assign [5] allocations to model [m_1]; required threads per allocation [1]")
+            equalTo("not enough cores on node [n_1] to assign [5] allocations to deployment [m_1]; required threads per allocation [1]")
         );
     }
 
@@ -146,7 +146,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
         assertThat(
             e.getMessage(),
-            equalTo("not enough cores on node [n_1] to assign [3] allocations to model [m_1]; required threads per allocation [2]")
+            equalTo("not enough cores on node [n_1] to assign [3] allocations to deployment [m_1]; required threads per allocation [2]")
         );
     }
 

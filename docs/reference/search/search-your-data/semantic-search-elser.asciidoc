@@ -1,0 +1,7 @@
+[[semantic-search-elser]]
+== Perform semantic search with ELSER
+++++
+<titleabbrev>Semantic search with ELSER</titleabbrev>
+++++
+
+[TBD]

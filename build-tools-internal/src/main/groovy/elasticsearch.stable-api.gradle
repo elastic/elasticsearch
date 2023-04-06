@@ -33,8 +33,8 @@ BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ex
     if (unreleasedVersion) {
       // For unreleased snapshot versions, build them from source
       "oldJar${baseName}"(files(project(unreleasedVersion.gradleProjectPath).tasks.named(buildBwcTaskName(project.name))))
-    } else if(bwcVersion.onOrAfter('8.7.0')) {
-      //there was a package rename in 8.7.0
+    } else if(bwcVersion.onOrAfter('8.7.0') && project.name.endsWith("elasticsearch-logging")==false) {
+      //there was a package rename in 8.7.0, except for es-logging
       "oldJar${baseName}"("org.elasticsearch.plugin:${project.name}:${bwcVersion}")
     } else {
       // For released versions, download it

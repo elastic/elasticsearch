@@ -1,0 +1,58 @@
+setup:
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+  - do:
+      search_application.put:
+        name: test-search-application-to-delete
+        body:
+          indices: [ "test-index" ]
+
+---
+teardown:
+  - do:
+      search_application.delete:
+        name: test-search-application-to-delete
+        ignore: 404
+
+---
+"Delete Search Application":
+  - do:
+      search_application.delete:
+        name: test-search-application-to-delete
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: "missing"
+      search_application.get:
+        name: test-search-application-to-delete
+
+  - do:
+      indices.exists_alias:
+        name: test-search-application-to-delete
+
+  - is_false: ''
+
+---
+"Delete Search Application - Index does not exist":
+  - do:
+      catch: "missing"
+      search_application.delete:
+        name: test-nonexistent-search-application
+
+---
+"Delete Search Application - Alias does not exist as indices were deleted":
+  - do:
+      indices.delete:
+        index: test-index
+
+      search_application.delete:
+        name: test-search-application-to-delete
+
+  - match: { acknowledged: true }

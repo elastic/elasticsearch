@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
@@ -66,11 +68,13 @@ import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.script.TimeSeries;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportActionStats;
 import org.elasticsearch.transport.TransportStats;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -549,6 +553,46 @@ public class NodeStatsTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            createNodeStats(),
+            randomFrom(ToXContent.EMPTY_PARAMS, new ToXContent.MapParams(Map.of("level", "node"))),
+            nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.NODE)
+        );
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            createNodeStats(),
+            new ToXContent.MapParams(Map.of("level", "indices")),
+            nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.INDICES)
+        );
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            createNodeStats(),
+            new ToXContent.MapParams(Map.of("level", "shards")),
+            nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.SHARDS)
+        );
+    }
+
+    private int expectedChunks(NodeStats nodeStats, NodeStatsLevel level) {
+        return 3 + expectedChunks(nodeStats.getHttp()) + expectedChunks(nodeStats.getIndices(), level) + expectedChunks(
+            nodeStats.getTransport()
+        );
+    }
+
+    private static int expectedChunks(@Nullable HttpStats httpStats) {
+        return httpStats == null ? 0 : 2 + httpStats.getClientStats().size();
+    }
+
+    private static int expectedChunks(@Nullable TransportStats transportStats) {
+        return transportStats == null ? 0 : 3; // only one transport action
+    }
+
+    private static int expectedChunks(@Nullable NodeIndicesStats nodeIndicesStats, NodeStatsLevel level) {
+        return nodeIndicesStats == null ? 0 : switch (level) {
+            case NODE -> 2;
+            case INDICES -> 5; // only one index
+            case SHARDS -> 9; // only one shard
+        };
     }
 
     private static CommonStats createIndexLevelCommonStats() {

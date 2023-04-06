@@ -32,7 +32,7 @@ public class GeoPointField extends DocValueField {
             throw new IllegalStateException("Unexpected values for a geo_point field: " + Arrays.toString(value));
         }
 
-        if (value[0]instanceof String stringValue) {
+        if (value[0] instanceof String stringValue) {
             value[0] = handleString(stringValue);
         } else {
             throw new IllegalStateException("Unexpected value type for a geo_point field: " + value[0].getClass());

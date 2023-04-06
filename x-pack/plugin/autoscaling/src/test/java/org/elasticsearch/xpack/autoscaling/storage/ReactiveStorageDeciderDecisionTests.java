@@ -60,16 +60,17 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
 import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
+import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -193,7 +194,6 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         assertThat(state, sameInstance(lastState));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93817")
     public void testStoragePreventsMove() {
         // this test moves shards to warm nodes and then checks that the reactive decider can calculate the storage necessary to move them
         // back to hot nodes.
@@ -218,7 +218,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         do {
             startRandomShards();
             // all of the relevant replicas are assigned too.
-        } while (state.getRoutingNodes().unassigned().stream().map(ShardRouting::shardId).anyMatch(warmShards::contains));
+        } while (haveNonEmptyIntersection(shardIds(state.getRoutingNodes().unassigned()), warmShards)
+            || haveNonEmptyIntersection(
+                shardIds(RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.INITIALIZING)),
+                warmShards
+            ));
 
         // relocate warm shards to warm nodes and start them
         withRoutingAllocation(
@@ -526,7 +530,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
             // replicas before primaries, since replicas can be reinit'ed, resulting in a new ShardRouting instance.
             shards.stream()
-                .filter(Predicate.not(ShardRouting::primary))
+                .filter(not(ShardRouting::primary))
                 .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE));
             shards.stream()
                 .filter(ShardRouting::primary)
@@ -682,6 +686,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     static DiscoveryNode newDataNode(DiscoveryNodeRole role, String nodeName) {
         return new DiscoveryNode(
+            nodeName,
             nodeName,
             UUIDs.randomBase64UUID(),
             buildNewFakeTransportAddress(),

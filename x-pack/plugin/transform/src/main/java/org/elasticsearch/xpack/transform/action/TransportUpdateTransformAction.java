@@ -34,12 +34,14 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
@@ -138,14 +140,18 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     false, // dryRun
                     true, // checkAccess
                     request.getTimeout(),
-                    ActionListener.wrap(updateResponse -> {
-                        TransformConfig updatedConfig = updateResponse.getConfig();
+                    ActionListener.wrap(updateResult -> {
+                        TransformConfig originalConfig = configAndVersion.v1();
+                        TransformConfig updatedConfig = updateResult.getConfig();
+                        AuthorizationState authState = updateResult.getAuthState();
                         auditor.info(updatedConfig.getId(), "Updated transform.");
-                        logger.debug("[{}] Updated transform [{}]", updatedConfig.getId(), updateResponse.getStatus());
+                        logger.debug("[{}] Updated transform [{}]", updatedConfig.getId(), updateResult.getStatus());
 
                         checkTransformConfigAndLogWarnings(updatedConfig);
 
-                        if (update.changesSettings(configAndVersion.v1())) {
+                        boolean updateChangesSettings = update.changesSettings(originalConfig);
+                        boolean updateChangesHeaders = update.changesHeaders(originalConfig);
+                        if (updateChangesSettings || updateChangesHeaders) {
                             PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
                                 request.getId(),
                                 clusterState
@@ -187,11 +193,21 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
 
                                 request.setNodes(transformTask.getExecutorNode());
                                 request.setConfig(updatedConfig);
+                                request.setAuthState(authState);
                                 super.doExecute(task, request, taskUpdateListener);
                                 return;
+                            } else if (updateChangesHeaders) {
+                                AuthorizationStatePersistenceUtils.persistAuthState(
+                                    settings,
+                                    transformConfigManager,
+                                    updatedConfig.getId(),
+                                    authState,
+                                    ActionListener.wrap(aVoid -> listener.onResponse(new Response(updatedConfig)), listener::onFailure)
+                                );
                             }
+                        } else {
+                            listener.onResponse(new Response(updatedConfig));
                         }
-                        listener.onResponse(new Response(updatedConfig));
                     }, listener::onFailure)
                 ),
                 listener::onFailure
@@ -211,8 +227,8 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
 
     @Override
     protected void taskOperation(Task actionTask, Request request, TransformTask transformTask, ActionListener<Response> listener) {
-        // apply the settings
         transformTask.applyNewSettings(request.getConfig().getSettings());
+        transformTask.applyNewAuthState(request.getAuthState());
         listener.onResponse(new Response(request.getConfig()));
     }
 

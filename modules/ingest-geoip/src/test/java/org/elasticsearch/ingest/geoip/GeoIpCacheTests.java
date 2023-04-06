@@ -51,11 +51,9 @@ public class GeoIpCacheTests extends ESTestCase {
         GeoIpCache cache = new GeoIpCache(1);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> cache.putIfAbsent(
-                InetAddresses.forString("127.0.0.1"),
-                "path/to/db",
-                ip -> { throw new IllegalArgumentException("bad"); }
-            )
+            () -> cache.putIfAbsent(InetAddresses.forString("127.0.0.1"), "path/to/db", ip -> {
+                throw new IllegalArgumentException("bad");
+            })
         );
         assertEquals("bad", ex.getMessage());
     }

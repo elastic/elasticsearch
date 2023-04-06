@@ -61,7 +61,9 @@ public class FieldCapabilitiesFailure implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<FieldCapabilitiesFailure, Void> PARSER = new ConstructingObjectParser<>(
         "field_capabilities_failure",
         true,
-        a -> { return new FieldCapabilitiesFailure(((List<String>) a[0]).toArray(String[]::new), (Exception) a[1]); }
+        a -> {
+            return new FieldCapabilitiesFailure(((List<String>) a[0]).toArray(String[]::new), (Exception) a[1]);
+        }
     );
 
     static {

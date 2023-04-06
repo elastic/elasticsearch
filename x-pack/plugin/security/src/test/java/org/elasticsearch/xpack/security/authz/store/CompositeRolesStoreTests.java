@@ -2520,11 +2520,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
             equalTo("the user [" + SystemUser.NAME + "] is the system user and we should never try to get its role descriptors")
         );
 
-        final Subject subject2 = mock(Subject.class);
-        when(subject2.getUser()).thenReturn(CrossClusterAccessUser.INSTANCE);
+        when(subject.getUser()).thenReturn(CrossClusterAccessUser.INSTANCE);
         final IllegalArgumentException e2 = expectThrows(
             IllegalArgumentException.class,
-            () -> compositeRolesStore.getRoleDescriptorsList(subject2, new PlainActionFuture<>())
+            () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
         );
         assertThat(
             e2.getMessage(),
@@ -2542,9 +2541,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new Tuple<>(SecurityProfileUser.INSTANCE, SecurityProfileUser.ROLE_DESCRIPTOR)
         )) {
             User internalUser = userAndDescriptor.v1();
-            when(subject2.getUser()).thenReturn(internalUser);
+            when(subject.getUser()).thenReturn(internalUser);
             final PlainActionFuture<Collection<Set<RoleDescriptor>>> future = new PlainActionFuture<>();
-            compositeRolesStore.getRoleDescriptorsList(subject2, future);
+            compositeRolesStore.getRoleDescriptorsList(subject, future);
             RoleDescriptor expectedRoleDescriptor = userAndDescriptor.v2();
             assertThat(future.actionGet(), equalTo(List.of(Set.of(expectedRoleDescriptor))));
         }

@@ -164,8 +164,8 @@ public class XPackPlugin extends XPackClientPlugin
     protected final Licensing licensing;
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
-    private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
     // non-final to allow for testing
+    private static SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
     private static SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static SetOnce<LicenseService> licenseService = new SetOnce<>();
 
@@ -176,6 +176,7 @@ public class XPackPlugin extends XPackClientPlugin
         this.settings = settings;
         licenseState = new SetOnce<>();
         licenseService = new SetOnce<>();
+        epochMillisSupplier = new SetOnce<>();
 
         this.licensing = new Licensing(settings);
     }

@@ -61,6 +61,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
@@ -649,7 +650,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 // so let's ignore deleted indices
                 continue;
             }
-            TimeValue indexLifecycleDate = getCreationOrRolloverDate(name, indexMetadata);
+            TimeValue indexLifecycleDate = getCreationOrRolloverDate(name, indexMetadata, index.equals(getWriteIndex()));
             long nowMillis = nowSupplier.getAsLong();
             if (nowMillis >= indexLifecycleDate.getMillis() + age.getMillis()) {
                 if (indicesPredicate == null || indicesPredicate.test(indexMetadata)) {
@@ -693,12 +694,20 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * rollover target. If the index has not been rolled over for the provided
      * data stream name we return the index creation date.
      */
-    static TimeValue getCreationOrRolloverDate(String dataStreamName, IndexMetadata index) {
+    static TimeValue getCreationOrRolloverDate(String dataStreamName, IndexMetadata index, boolean isWriteIndex) {
+        /*
+         * If it exists, the origination date is used in place of the creation date or the rollover date. The only exception is if the
+         * index is the write index and has not been rolled over yet -- in that case the creation date is used.
+         */
+        Long originationDate = index.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, null);
         RolloverInfo rolloverInfo = index.getRolloverInfos().get(dataStreamName);
         if (rolloverInfo != null) {
-            return TimeValue.timeValueMillis(rolloverInfo.getTime());
-        } else {
+            return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, rolloverInfo::getTime));
+        } else if (isWriteIndex) {
             return TimeValue.timeValueMillis(index.getCreationDate());
+        } else {
+            // We use the origination date as the creation date if it exists
+            return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, index::getCreationDate));
         }
     }
 

@@ -17,7 +17,7 @@ public class MlAutoscalingExtension implements AutoscalingExtension {
     private final MachineLearning plugin;
 
     public MlAutoscalingExtension() {
-        this.plugin = null;
+        throw new IllegalStateException("Provider must be constructed using PluginsService");
     }
 
     public MlAutoscalingExtension(MachineLearning plugin) {

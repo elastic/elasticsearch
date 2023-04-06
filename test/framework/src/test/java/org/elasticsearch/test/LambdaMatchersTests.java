@@ -18,7 +18,10 @@ import java.util.function.Predicate;
 import static org.elasticsearch.test.LambdaMatchers.everyItemMatches;
 import static org.elasticsearch.test.LambdaMatchers.matches;
 import static org.elasticsearch.test.LambdaMatchers.transformed;
+import static org.elasticsearch.test.LambdaMatchers.transformedArrayItems;
 import static org.elasticsearch.test.LambdaMatchers.transformedItems;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -127,6 +130,24 @@ public class LambdaMatchersTests extends ESTestCase {
         assertDescribeTo(
             transformedItems((A a) -> a.str, containsInAnyOrder("1")),
             equalTo("iterable with transformed items to match iterable with items [\"1\"] in any order")
+        );
+    }
+
+    public void testArrayTransformMatcher() {
+        A[] as = new A[] { new A("1"), new A("2"), new A("3") };
+        assertThat(as, transformedArrayItems(a -> a.str, arrayContaining("1", "2", "3")));
+
+        assertMismatch(
+            as,
+            transformedArrayItems(a -> a.str, arrayContainingInAnyOrder("1", "2", "4")),
+            equalTo("transformed item not matched: \"3\"")
+        );
+    }
+
+    public void testArrayTransformDescription() {
+        assertDescribeTo(
+            transformedArrayItems((A a) -> a.str, arrayContainingInAnyOrder("1")),
+            equalTo("array with transformed items to match [\"1\"] in any order")
         );
     }
 

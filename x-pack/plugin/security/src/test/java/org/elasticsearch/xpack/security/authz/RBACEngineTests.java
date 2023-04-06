@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -118,7 +119,7 @@ public class RBACEngineTests extends ESTestCase {
     public void createEngine() {
         final LoadAuthorizedIndicesTimeChecker.Factory timerFactory = mock(LoadAuthorizedIndicesTimeChecker.Factory.class);
         when(timerFactory.newTimer(any())).thenReturn(LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER);
-        engine = new RBACEngine(Settings.EMPTY, mock(CompositeRolesStore.class), timerFactory);
+        engine = new RBACEngine(Settings.EMPTY, mock(CompositeRolesStore.class), new FieldPermissionsCache(Settings.EMPTY), timerFactory);
     }
 
     public void testSameUserPermission() {

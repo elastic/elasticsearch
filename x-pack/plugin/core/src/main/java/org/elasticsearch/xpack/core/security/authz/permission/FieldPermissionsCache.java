@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
@@ -48,6 +49,10 @@ public final class FieldPermissionsCache {
             .build();
     }
 
+    public Cache.CacheStats getCacheStats() {
+        return cache.stats();
+    }
+
     /**
      * Gets a {@link FieldPermissions} instance that corresponds to the granted and denied parameters. The instance may come from the cache
      * or if it gets created, the instance will be cached
@@ -67,7 +72,11 @@ public final class FieldPermissionsCache {
                 (key) -> new FieldPermissions(key, FieldPermissions.initializePermittedFieldsAutomaton(key))
             );
         } catch (ExecutionException e) {
-            throw new ElasticsearchException("unable to compute field permissions", e);
+            if (e.getCause() instanceof ElasticsearchException) {
+                throw (ElasticsearchException) e.getCause();
+            } else {
+                throw new ElasticsearchSecurityException("unable to compute field permissions", e);
+            }
         }
     }
 

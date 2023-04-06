@@ -915,6 +915,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         }
                     }
                 }
+
+                @Override
+                public String toString() {
+                    return "term change heartbeat listener";
+                }
             })
         );
 

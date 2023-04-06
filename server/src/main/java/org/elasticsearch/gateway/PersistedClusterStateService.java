@@ -532,7 +532,7 @@ public class PersistedClusterStateService {
         return bestOnDiskState;
     }
 
-    private OnDiskState loadOnDiskState(Path dataPath, DirectoryReader reader) throws IOException {
+    public OnDiskState loadOnDiskState(Path dataPath, DirectoryReader reader) throws IOException {
         final IndexSearcher searcher = new IndexSearcher(reader);
         searcher.setQueryCache(null);
 

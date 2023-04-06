@@ -56,7 +56,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
         AuthorizationInfo authorizationInfo,
         ActionListener<Void> listener
     ) {
-        if (requestInfo.getRequest()instanceof IndicesAliasesRequest request) {
+        if (requestInfo.getRequest() instanceof IndicesAliasesRequest request) {
             final AuditTrail auditTrail = auditTrailService.get();
             final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
             final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);

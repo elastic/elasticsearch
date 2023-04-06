@@ -49,12 +49,9 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
         )
     );
     static {
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> LifecyclePolicyMetadata.parse(p, n),
-            v -> { throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported"); },
-            POLICIES_FIELD
-        );
+        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> LifecyclePolicyMetadata.parse(p, n), v -> {
+            throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported");
+        }, POLICIES_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), OPERATION_MODE_FIELD);
     }
 

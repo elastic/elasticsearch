@@ -33,5 +33,5 @@ module org.elasticsearch.ml {
 
     exports org.elasticsearch.xpack.ml;
     exports org.elasticsearch.xpack.ml.action;
-    exports org.elasticsearch.xpack.ml.autoscaling;
+    exports org.elasticsearch.xpack.ml.autoscaling to org.elasticsearch.autoscaling;
 }

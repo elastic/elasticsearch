@@ -17,14 +17,10 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-
 @Experimental
-public class DissectExec extends UnaryExec {
+public class DissectExec extends RegexExtractExec {
 
-    private final Expression inputExpression;
     private final Dissect.Parser parser;
-    List<Attribute> extractedAttributes;
 
     public DissectExec(
         Source source,
@@ -33,25 +29,18 @@ public class DissectExec extends UnaryExec {
         Dissect.Parser parser,
         List<Attribute> extractedAttributes
     ) {
-        super(source, child);
-        this.inputExpression = inputExpression;
+        super(source, child, inputExpression, extractedAttributes);
         this.parser = parser;
-        this.extractedAttributes = extractedAttributes;
-    }
-
-    @Override
-    public List<Attribute> output() {
-        return mergeOutputAttributes(extractedAttributes, child().output());
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new DissectExec(source(), newChild, inputExpression, parser, extractedAttributes);
+        return new DissectExec(source(), newChild, inputExpression, parser, extractedFields);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, DissectExec::new, child(), inputExpression, parser, extractedAttributes);
+        return NodeInfo.create(this, DissectExec::new, child(), inputExpression, parser, extractedFields);
     }
 
     @Override
@@ -60,25 +49,15 @@ public class DissectExec extends UnaryExec {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         DissectExec that = (DissectExec) o;
-        return Objects.equals(inputExpression, that.inputExpression)
-            && Objects.equals(parser, that.parser)
-            && Objects.equals(extractedAttributes, that.extractedAttributes);
+        return Objects.equals(parser, that.parser);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), inputExpression, parser, extractedAttributes);
-    }
-
-    public Expression inputExpression() {
-        return inputExpression;
+        return Objects.hash(super.hashCode(), parser);
     }
 
     public Dissect.Parser parser() {
         return parser;
-    }
-
-    public List<Attribute> extractedFields() {
-        return extractedAttributes;
     }
 }

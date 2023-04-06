@@ -478,6 +478,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitDissectCommand(EsqlBaseParser.DissectCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#grokCommand}.
+   * @param ctx the parse tree
+   */
+  void enterGrokCommand(EsqlBaseParser.GrokCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#grokCommand}.
+   * @param ctx the parse tree
+   */
+  void exitGrokCommand(EsqlBaseParser.GrokCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#commandOptions}.
    * @param ctx the parse tree
    */

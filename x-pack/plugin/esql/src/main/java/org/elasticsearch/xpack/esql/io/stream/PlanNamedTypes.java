@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect.Parser;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -147,6 +149,7 @@ public final class PlanNamedTypes {
             of(PhysicalPlan.class, ExchangeExec.class, PlanNamedTypes::writeExchangeExec, PlanNamedTypes::readExchangeExec),
             of(PhysicalPlan.class, FieldExtractExec.class, PlanNamedTypes::writeFieldExtractExec, PlanNamedTypes::readFieldExtractExec),
             of(PhysicalPlan.class, FilterExec.class, PlanNamedTypes::writeFilterExec, PlanNamedTypes::readFilterExec),
+            of(PhysicalPlan.class, GrokExec.class, PlanNamedTypes::writeGrokExec, PlanNamedTypes::readGrokExec),
             of(PhysicalPlan.class, LimitExec.class, PlanNamedTypes::writeLimitExec, PlanNamedTypes::readLimitExec),
             of(PhysicalPlan.class, OrderExec.class, PlanNamedTypes::writeOrderExec, PlanNamedTypes::readOrderExec),
             of(PhysicalPlan.class, ProjectExec.class, PlanNamedTypes::writeProjectExec, PlanNamedTypes::readProjectExec),
@@ -324,6 +327,23 @@ public final class PlanNamedTypes {
     static void writeFilterExec(PlanStreamOutput out, FilterExec filterExec) throws IOException {
         out.writePhysicalPlanNode(filterExec.child());
         out.writeExpression(filterExec.condition());
+    }
+
+    static GrokExec readGrokExec(PlanStreamInput in) throws IOException {
+        return new GrokExec(
+            Source.EMPTY,
+            in.readPhysicalPlanNode(),
+            in.readExpression(),
+            Grok.pattern(Source.EMPTY, in.readString()),
+            in.readList(readerFromPlanReader(PlanStreamInput::readAttribute))
+        );
+    }
+
+    static void writeGrokExec(PlanStreamOutput out, GrokExec grokExec) throws IOException {
+        out.writePhysicalPlanNode(grokExec.child());
+        out.writeExpression(grokExec.inputExpression());
+        out.writeString(grokExec.pattern().pattern());
+        out.writeCollection(grokExec.extractedFields(), writerFromPlanWriter(PlanStreamOutput::writeAttribute));
     }
 
     static LimitExec readLimitExec(PlanStreamInput in) throws IOException {

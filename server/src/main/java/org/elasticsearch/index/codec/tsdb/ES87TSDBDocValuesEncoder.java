@@ -125,8 +125,7 @@ public class ES87TSDBDocValuesEncoder {
             or |= l;
         }
 
-        final int bitsPerValue = or == 0 ? 0 : PackedInts.unsignedBitsRequired(or);
-
+        int bitsPerValue = or == 0 ? 0 : DocValuesForUtil.roundBits(PackedInts.unsignedBitsRequired(or));
         out.writeVInt((bitsPerValue << tokenBits) | token);
         if (bitsPerValue > 0) {
             forUtil.encode(in, bitsPerValue, out);

@@ -755,6 +755,7 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(results.values(), contains(anyOf(contains(42.0, 1L), contains(44.0, 2L))));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/980")
     public void testFromLimit() {
         EsqlQueryResponse results = run("from test | project data | limit 2");
         logger.info(results);

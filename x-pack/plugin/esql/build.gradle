@@ -18,6 +18,7 @@ dependencies {
   implementation project('compute')
   implementation project('compute:ann')
   implementation project(':libs:elasticsearch-dissect')
+  implementation project(':libs:elasticsearch-grok')
   annotationProcessor project('compute:gen')
 
   testImplementation project('qa:testFixtures')

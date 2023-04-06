@@ -20,10 +20,8 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.Executor;
 
 /**
@@ -146,29 +144,28 @@ public final class ExchangeService {
                 ActionListener<ExchangeResponse> wrappedListener = ActionListener.notifyOnce(listener);
                 CancellableTask cancellableTask = (CancellableTask) task;
                 cancellableTask.addListener(() -> cancellableTask.notifyIfCancelled(wrappedListener));
-                pendingListeners.computeIfAbsent(exchangeId, k -> new PendingListener()).addListener(wrappedListener);
+                PendingListener pendingListener = pendingListeners.computeIfAbsent(exchangeId, k -> new PendingListener());
+                pendingListener.addListener(wrappedListener);
                 // If the data-node request arrived while we were adding the listener to the pending list, we must complete the pending
                 // listeners with the newly created sink handler.
                 sinkHandler = sinks.get(exchangeId);
                 if (sinkHandler != null) {
-                    final PendingListener pendingListener = pendingListeners.remove(exchangeId);
-                    if (pendingListener != null) {
-                        pendingListener.onReady(sinkHandler);
-                    }
+                    pendingListener.onReady(sinkHandler);
                 }
             }
         }
     }
 
     static final class PendingListener {
-        private final List<ActionListener<ExchangeResponse>> listeners = Collections.synchronizedList(new ArrayList<>());
+        private final Queue<ActionListener<ExchangeResponse>> listeners = ConcurrentCollections.newQueue();
 
         void addListener(ActionListener<ExchangeResponse> listener) {
             listeners.add(listener);
         }
 
         void onReady(ExchangeSinkHandler handler) {
-            for (var listener : listeners) {
+            ActionListener<ExchangeResponse> listener;
+            while ((listener = listeners.poll()) != null) {
                 handler.fetchPageAsync(false, listener);
             }
         }

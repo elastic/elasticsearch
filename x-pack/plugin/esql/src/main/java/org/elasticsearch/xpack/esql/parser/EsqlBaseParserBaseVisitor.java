@@ -319,6 +319,13 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitGrokCommand(EsqlBaseParser.GrokCommandContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitCommandOptions(EsqlBaseParser.CommandOptionsContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}

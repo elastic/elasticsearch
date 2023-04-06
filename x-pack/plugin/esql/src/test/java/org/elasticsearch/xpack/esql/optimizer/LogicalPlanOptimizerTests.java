@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -239,7 +240,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Filter fb = new Filter(EMPTY, project, conditionB);
 
         Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
-        assertEquals(new Project(EMPTY, combinedFilter, projections), new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb));
+        assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb));
     }
 
     // from ... | where a > 1 | stats count(1) by b | where count(1) >= 3 and b < 2
@@ -449,6 +450,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(dissect.extractedFields(), contains(new ReferenceAttribute(Source.EMPTY, "y", DataTypes.KEYWORD)));
     }
 
+    public void testPushDownGrokPastProject() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | rename x = first_name
+            | project x
+            | grok x "%{WORD:y}"
+            """);
+
+        var project = as(plan, Project.class);
+        var grok = as(project.child(), Grok.class);
+        assertThat(grok.extractedFields(), contains(new ReferenceAttribute(Source.EMPTY, "y", DataTypes.KEYWORD)));
+    }
+
     public void testPushDownFilterPastProjectUsingEval() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -483,6 +497,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(dissect.child(), EsRelation.class);
     }
 
+    public void testPushDownFilterPastProjectUsingGrok() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | grok first_name "%{WORD:y}"
+            | rename x = y
+            | project x
+            | where x == "foo"
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var attr = filter.condition().collect(Attribute.class::isInstance).stream().findFirst().get();
+        assertThat(as(attr, ReferenceAttribute.class).name(), is("y"));
+        var grok = as(filter.child(), Grok.class);
+        as(grok.child(), EsRelation.class);
+    }
+
     public void testPushDownLimitPastEval() {
         LogicalPlan plan = optimizedPlan("""
             from test
@@ -501,6 +533,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var dissect = as(plan, Dissect.class);
         as(dissect.child(), Limit.class);
+    }
+
+    public void testPushDownLimitPastGrok() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | grok first_name "%{WORD:y}"
+            | limit 10""");
+
+        var grok = as(plan, Grok.class);
+        as(grok.child(), Limit.class);
     }
 
     public void testPushDownLimitPastProject() {
@@ -645,6 +687,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("x", "emp_no"));
         var dissect = as(orderBy.child(), Dissect.class);
         as(dissect.child(), EsRelation.class);
+    }
+
+    public void testCombineOrderByThroughGrok() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | grok first_name "%{WORD:x}"
+            | sort x""");
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        assertThat(orderBy.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList(), contains("x", "emp_no"));
+        var grok = as(orderBy.child(), Grok.class);
+        as(grok.child(), EsRelation.class);
     }
 
     public void testCombineOrderByThroughProject() {

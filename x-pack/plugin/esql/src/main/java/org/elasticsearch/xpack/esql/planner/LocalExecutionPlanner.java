@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -149,6 +151,8 @@ public class LocalExecutionPlanner {
             return planEval(eval, context);
         } else if (node instanceof DissectExec dissect) {
             return planDissect(dissect, context);
+        } else if (node instanceof GrokExec grok) {
+            return planGrok(grok, context);
         } else if (node instanceof ProjectExec project) {
             return planProject(project, context);
         } else if (node instanceof FilterExec filter) {
@@ -336,22 +340,54 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planDissect(DissectExec dissect, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(dissect.child(), context);
-        Layout.Builder layout = source.layout.builder();
-        for (NamedExpression namedExpression : dissect.extractedFields()) {
-            layout.appendChannel(namedExpression.toAttribute().id());
+        Layout.Builder layoutBuilder = source.layout.builder();
+        for (Attribute attr : dissect.extractedFields()) {
+            layoutBuilder.appendChannel(attr.id());
         }
         final Expression expr = dissect.inputExpression();
         String[] attributeNames = Expressions.names(dissect.extractedFields()).toArray(new String[0]);
         ElementType[] types = new ElementType[dissect.extractedFields().size()];
         Arrays.fill(types, ElementType.BYTES_REF);
 
+        Layout layout = layoutBuilder.build();
         source = source.with(
             new StringExtractOperator.StringExtractOperatorFactory(
                 attributeNames,
-                EvalMapper.toEvaluator(expr, layout.build()),
+                EvalMapper.toEvaluator(expr, layout),
                 () -> (input) -> dissect.parser().parser().parse(input)
             ),
-            layout.build()
+            layout
+        );
+        return source;
+    }
+
+    private PhysicalOperation planGrok(GrokExec grok, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(grok.child(), context);
+        Layout.Builder layoutBuilder = source.layout.builder();
+        List<Attribute> extractedFields = grok.extractedFields();
+        for (Attribute attr : extractedFields) {
+            layoutBuilder.appendChannel(attr.id());
+        }
+
+        Map<String, Integer> fieldToPos = new HashMap<>(extractedFields.size());
+        Map<String, ElementType> fieldToType = new HashMap<>(extractedFields.size());
+        ElementType[] types = new ElementType[extractedFields.size()];
+        for (int i = 0; i < extractedFields.size(); i++) {
+            Attribute extractedField = extractedFields.get(i);
+            ElementType type = toElementType(extractedField.dataType());
+            fieldToPos.put(extractedField.name(), i);
+            fieldToType.put(extractedField.name(), type);
+            types[i] = type;
+        }
+
+        Layout layout = layoutBuilder.build();
+        source = source.with(
+            new ColumnExtractOperator.Factory(
+                types,
+                EvalMapper.toEvaluator(grok.inputExpression(), layout),
+                () -> new GrokEvaluatorExtracter(grok.pattern().grok(), grok.pattern().pattern(), fieldToPos, fieldToType)
+            ),
+            layout
         );
         return source;
     }

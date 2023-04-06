@@ -37,6 +37,7 @@ processingCommand
     | dropCommand
     | renameCommand
     | dissectCommand
+    | grokCommand
     ;
 
 whereCommand
@@ -156,6 +157,10 @@ renameClause:
 
 dissectCommand
     : DISSECT primaryExpression string commandOptions?
+    ;
+
+grokCommand
+    : GROK primaryExpression string
     ;
 
 commandOptions

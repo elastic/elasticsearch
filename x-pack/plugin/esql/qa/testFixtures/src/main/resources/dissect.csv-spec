@@ -133,3 +133,17 @@ from test | sort emp_no asc | eval full_name = concat(first_name, " ", last_name
 full_name:keyword | emp_no:keyword | b:keyword
 Bezalel Simmel    | Bezalel        | Simmel 
 ;
+
+
+# for now it calculates only based on the first value
+multivalueInput
+from test | where emp_no <= 10006 | dissect job_positions "%{a} %{b} %{c}" | sort emp_no | project emp_no, a, b, c;
+
+emp_no:integer | a:keyword | b:keyword | c:keyword
+10001          | null      | null      | null
+10002          | Senior    | Team      | Lead
+10003          | null      | null      | null
+10004          | Head      | Human     | Resources
+10005          | null      | null      | null 
+10006          | Principal | Support   | Engineer
+;

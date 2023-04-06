@@ -72,7 +72,7 @@ public final class FieldPermissionsCache {
                 (key) -> new FieldPermissions(key, FieldPermissions.initializePermittedFieldsAutomaton(key))
             );
         } catch (ExecutionException e) {
-            if (e.getCause() instanceof ElasticsearchException es) {
+            if (e.getCause()instanceof ElasticsearchException es) {
                 throw es;
             } else {
                 throw new ElasticsearchSecurityException("unable to compute field permissions", e);

@@ -209,6 +209,16 @@ public class UriPartsProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("unable to parse URI [" + uri + "]"));
     }
 
+    public void testNullValue() {
+        Map<String, Object> source = new HashMap<>();
+        source.put("field", null);
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
+
+        UriPartsProcessor processor = new UriPartsProcessor(null, null, "field", "url", true, false, false);
+
+        expectThrows(NullPointerException.class, () -> processor.execute(input));
+    }
+
     public void testMissingField() {
         Map<String, Object> source = new HashMap<>();
         IngestDocument input = TestIngestDocument.withDefaultVersion(source);

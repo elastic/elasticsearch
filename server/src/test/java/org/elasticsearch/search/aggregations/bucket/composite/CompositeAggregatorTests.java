@@ -57,7 +57,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -189,7 +188,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("keyword")),
             dataset,
             () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped"))),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Only aggregate on unmapped field, missing bucket => one null bucket with all values
@@ -216,7 +217,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 "name",
                 Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true))
             ).aggregateAfter(Collections.singletonMap("unmapped", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Mapped field first, then unmapped, no missing bucket => no results
@@ -230,7 +233,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped")
                 )
             ),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Mapped + unmapped, include missing => 3 buckets
@@ -284,7 +289,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true).missingOrder(MissingOrder.FIRST)
                 )
             ).aggregateAfter(Collections.singletonMap("unmapped", "cat")),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Unmapped field, number after key, unmapped sorts after, include unmapped => 1 bucket
@@ -315,7 +322,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true).missingOrder(MissingOrder.FIRST)
                 )
             ).aggregateAfter(Collections.singletonMap("unmapped", 42)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
     }
@@ -338,7 +347,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             dataset,
             () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped")))
                 .aggregateAfter(Collections.singletonMap("unmapped", 42)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
     }
 
@@ -594,7 +605,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("long")),
             dataset,
             () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped"))),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -619,7 +632,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 "name",
                 Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true))
             ).aggregateAfter(Collections.singletonMap("unmapped", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -632,7 +647,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped")
                 )
             ),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -777,13 +794,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             // Root docs
             LuceneDocument root;
             root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("1"), Field.Store.YES));
             sequenceIDFields.addFields(root);
             root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
             documents.add(root);
 
             root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("2"), Field.Store.YES));
             root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
             sequenceIDFields.addFields(root);
             documents.add(root);
@@ -836,13 +853,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             // Root docs
             LuceneDocument root;
             root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("1"), Field.Store.YES));
             sequenceIDFields.addFields(root);
             root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
             documents.add(root);
 
             root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("2"), Field.Store.YES));
             root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
             sequenceIDFields.addFields(root);
             documents.add(root);
@@ -1608,7 +1625,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                         .order(SortOrder.ASC)
                 )
             ).aggregateAfter(createAfterKey("keyword", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -1692,7 +1711,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                         .order(SortOrder.ASC)
                 )
             ).aggregateAfter(createAfterKey("hist", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -3750,8 +3771,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     private Document createNestedDocument(String id, String nestedPath, Object... rawFields) {
         assert rawFields.length % 2 == 0;
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-        doc.add(new Field(NestedPathFieldMapper.NAME, nestedPath, NestedPathFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO));
+        doc.add(new StringField(NestedPathFieldMapper.NAME, nestedPath, Field.Store.NO));
         Object[] fields = new Object[rawFields.length];
         for (int i = 0; i < fields.length; i += 2) {
             assert rawFields[i] instanceof String;

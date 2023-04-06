@@ -418,7 +418,11 @@ public class RoleDescriptorTests extends ESTestCase {
         final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(
             RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES
         );
-        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(random(), versionBeforeRemoteIndices);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_17_0,
+            versionBeforeRemoteIndices
+        );
         final BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
 
@@ -875,6 +879,21 @@ public class RoleDescriptorTests extends ESTestCase {
         } else {
             assertTrue(roleDescriptor.isEmpty());
         }
+    }
+
+    public void testHasPrivilegesOtherThanIndex() {
+        assertThat(
+            new RoleDescriptor("name", null, randomBoolean() ? null : randomIndicesPrivileges(1, 5), null, null, null, null, null, null)
+                .hasPrivilegesOtherThanIndex(),
+            is(false)
+        );
+        final RoleDescriptor roleDescriptor = randomRoleDescriptor();
+        final boolean expected = roleDescriptor.hasClusterPrivileges()
+            || roleDescriptor.hasConfigurableClusterPrivileges()
+            || roleDescriptor.hasApplicationPrivileges()
+            || roleDescriptor.hasRunAs()
+            || roleDescriptor.hasRemoteIndicesPrivileges();
+        assertThat(roleDescriptor.hasPrivilegesOtherThanIndex(), equalTo(expected));
     }
 
     public static List<RoleDescriptor> randomUniquelyNamedRoleDescriptors(int minSize, int maxSize) {

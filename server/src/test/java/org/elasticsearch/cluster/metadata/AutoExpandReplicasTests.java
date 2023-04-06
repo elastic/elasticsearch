@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -194,7 +195,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                     nodesToAdd.add(createNode(DiscoveryNodeRole.DATA_ROLE));
                 }
 
-                state = cluster.joinNodesAndBecomeMaster(state, nodesToAdd);
+                state = cluster.joinNodesAndBecomeMaster(state, nodesToAdd, TransportVersion.CURRENT);
                 postTable = state.routingTable().index("index").shard(0);
             }
 
@@ -232,7 +233,12 @@ public class AutoExpandReplicasTests extends ESTestCase {
             ); // local node is the master
             allNodes.add(localNode);
             allNodes.add(oldNode);
-            ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[0]));
+            ClusterState state = ClusterStateCreationUtils.state(
+                localNode,
+                localNode,
+                allNodes.toArray(new DiscoveryNode[0]),
+                TransportVersion.V_7_0_0
+            );
 
             CreateIndexRequest request = new CreateIndexRequest(
                 "index",
@@ -253,7 +259,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                                                                                                                              // is the
                                                                                                                              // master
 
-            state = cluster.addNode(state, newNode);
+            state = cluster.addNode(state, newNode, TransportVersion.V_7_6_0);
 
             // use allocation filtering
             state = cluster.updateSettings(

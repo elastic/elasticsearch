@@ -20,15 +20,11 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -39,17 +35,6 @@ public class CrossClusterAccessAuthenticationService {
 
     public static final Version VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION = Version.V_8_8_0;
 
-    public static final RoleDescriptor CROSS_CLUSTER_INTERNAL_ROLE = new RoleDescriptor(
-        "_cross_cluster_internal",
-        new String[] { "cross_cluster_access" },
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-    );
     private static final Logger logger = LogManager.getLogger(CrossClusterAccessAuthenticationService.class);
 
     private final ClusterService clusterService;
@@ -94,7 +79,7 @@ public class CrossClusterAccessAuthenticationService {
             return;
         }
 
-        // This is ensured by the RemoteAccessServerTransportFilter -- validating the internal consistency here
+        // This is ensured by CrossClusterAccessServerTransportFilter -- validating for internal consistency here
         assert threadContext.getHeaders().keySet().stream().noneMatch(ClientHelper.SECURITY_HEADER_FILTERS::contains);
         try (
             ThreadContext.StoredContext ignored = threadContext.newStoredContext(
@@ -115,39 +100,12 @@ public class CrossClusterAccessAuthenticationService {
                     try {
                         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = crossClusterAccessHeaders.subjectInfo();
                         validate(crossClusterAccessSubjectInfo);
-                        writeAuthToContext(
-                            authcContext,
-                            authentication.toCrossClusterAccess(maybeRewriteForSystemUser(crossClusterAccessSubjectInfo)),
-                            listener
-                        );
+                        writeAuthToContext(authcContext, authentication.toCrossClusterAccess(crossClusterAccessSubjectInfo), listener);
                     } catch (Exception ex) {
                         withRequestProcessingFailure(authcContext, ex, listener);
                     }
                 }, listener::onFailure))
             );
-        }
-    }
-
-    private static CrossClusterAccessSubjectInfo maybeRewriteForSystemUser(
-        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo
-    ) throws IOException {
-        final Subject receivedEffectiveSubject = crossClusterAccessSubjectInfo.getAuthentication().getEffectiveSubject();
-        final User user = receivedEffectiveSubject.getUser();
-        if (SystemUser.is(user)) {
-            return new CrossClusterAccessSubjectInfo(
-                Authentication.newInternalAuthentication(
-                    SystemUser.INSTANCE,
-                    receivedEffectiveSubject.getTransportVersion(),
-                    receivedEffectiveSubject.getRealm().getNodeName()
-                ),
-                new RoleDescriptorsIntersection(CROSS_CLUSTER_INTERNAL_ROLE)
-            );
-        } else if (User.isInternal(user)) {
-            throw new IllegalArgumentException(
-                "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
-            );
-        } else {
-            return crossClusterAccessSubjectInfo;
         }
     }
 
@@ -160,7 +118,8 @@ public class CrossClusterAccessAuthenticationService {
         authentication.checkConsistency();
         final Subject effectiveSubject = authentication.getEffectiveSubject();
         if (false == effectiveSubject.getType().equals(Subject.Type.USER)
-            && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)) {
+            && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)
+            && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)) {
             throw new IllegalArgumentException(
                 "subject ["
                     + effectiveSubject.getUser().principal()
@@ -170,24 +129,19 @@ public class CrossClusterAccessAuthenticationService {
             );
         }
 
-        for (CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes : crossClusterAccessSubjectInfo
-            .getRoleDescriptorsBytesList()) {
-            final Set<RoleDescriptor> roleDescriptors = roleDescriptorsBytes.toRoleDescriptors();
-            for (RoleDescriptor roleDescriptor : roleDescriptors) {
-                final boolean privilegesOtherThanIndex = roleDescriptor.hasClusterPrivileges()
-                    || roleDescriptor.hasConfigurableClusterPrivileges()
-                    || roleDescriptor.hasApplicationPrivileges()
-                    || roleDescriptor.hasRunAs()
-                    || roleDescriptor.hasRemoteIndicesPrivileges();
-                if (privilegesOtherThanIndex) {
-                    throw new IllegalArgumentException(
-                        "role descriptor for cross cluster access can only contain index privileges "
-                            + "but other privileges found for subject ["
-                            + effectiveSubject.getUser().principal()
-                            + "]"
-                    );
-                }
+        final User user = effectiveSubject.getUser();
+        if (CrossClusterAccessUser.is(user)) {
+            if (false == crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()) {
+                logger.warn(
+                    "Received non-empty role descriptors bytes list for internal cross cluster access user. "
+                        + "These will be ignored during authorization."
+                );
+                assert false : "role descriptors bytes list for internal cross cluster access user must be empty";
             }
+        } else if (User.isInternal(user)) {
+            throw new IllegalArgumentException(
+                "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
+            );
         }
     }
 
@@ -216,11 +170,14 @@ public class CrossClusterAccessAuthenticationService {
             authentication.writeToContext(context.getThreadContext());
             context.getRequest().authenticationSuccess(authentication);
         } catch (Exception e) {
-            logger.debug(() -> format("Failed to store authentication [%s] for request [%s]", authentication, context.getRequest()), e);
+            logger.debug(
+                () -> format("Failed to store authentication [%s] for cross cluster request [%s]", authentication, context.getRequest()),
+                e
+            );
             withRequestProcessingFailure(context, e, listener);
             return;
         }
-        logger.trace("Established authentication [{}] for request [{}]", authentication, context.getRequest());
+        logger.trace("Established authentication [{}] for cross cluster request [{}]", authentication, context.getRequest());
         listener.onResponse(authentication);
     }
 }

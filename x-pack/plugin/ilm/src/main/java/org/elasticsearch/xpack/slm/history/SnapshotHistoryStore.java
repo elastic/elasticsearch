@@ -83,14 +83,12 @@ public class SnapshotHistoryStore {
                     SLM_HISTORY_DATA_STREAM,
                     item
                 );
-            },
-                exception -> {
-                    logger.error(
-                        () -> format("failed to index snapshot history item in data stream [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),
-                        exception
-                    );
-                }
-            ));
+            }, exception -> {
+                logger.error(
+                    () -> format("failed to index snapshot history item in data stream [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),
+                    exception
+                );
+            }));
         } catch (IOException exception) {
             logger.error(
                 () -> format("failed to index snapshot history item in data stream [%s]: [%s]", SLM_HISTORY_DATA_STREAM, item),

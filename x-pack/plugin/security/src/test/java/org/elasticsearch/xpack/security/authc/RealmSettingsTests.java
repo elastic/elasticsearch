@@ -330,10 +330,9 @@ public class RealmSettingsTests extends ESTestCase {
 
         if (useTrustStore) {
             builder.put("truststore.path", randomAlphaOfLengthBetween(8, 32));
-            SecuritySettingsSource.addSecureSettings(
-                builder,
-                secureSettings -> { secureSettings.setString("truststore.secure_password", randomAlphaOfLength(8)); }
-            );
+            SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
+                secureSettings.setString("truststore.secure_password", randomAlphaOfLength(8));
+            });
             builder.put("truststore.algorithm", randomAlphaOfLengthBetween(6, 10));
         } else {
             builder.putList("certificate_authorities", generateRandomStringArray(5, 32, false, false));

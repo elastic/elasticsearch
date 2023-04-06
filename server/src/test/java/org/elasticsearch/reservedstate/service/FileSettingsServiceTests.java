@@ -318,7 +318,6 @@ public class FileSettingsServiceTests extends ESTestCase {
         deadThreadLatch.countDown();
     }
 
-    @SuppressWarnings("unchecked")
     public void testStopWorksIfProcessingDidntReturnYet() throws Exception {
         var spiedController = spy(controller);
         var service = new FileSettingsService(clusterService, spiedController, env);
@@ -329,7 +328,12 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<ReservedStateChunk>) invocation -> {
             // allow the other thread to continue, but hold on a bit to avoid
             // completing the task immediately in the main watcher loop
-            Thread.sleep(1_000);
+            try {
+                Thread.sleep(1_000);
+            } catch (InterruptedException e) {
+                // pass it on
+                Thread.currentThread().interrupt();
+            }
             processFileLatch.countDown();
             new Thread(() -> {
                 // Simulate a thread that never allows the completion to complete

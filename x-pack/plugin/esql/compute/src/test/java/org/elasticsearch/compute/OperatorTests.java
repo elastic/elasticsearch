@@ -26,6 +26,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
@@ -52,6 +54,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
@@ -64,6 +67,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
@@ -81,6 +85,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.junit.After;
 import org.junit.Before;
 
@@ -143,6 +148,55 @@ public class OperatorTests extends ESTestCase {
                     driver.run();
                 }
                 assertEquals(limit, rowCount.get());
+            }
+        }
+    }
+
+    public void testLuceneTopNSourceOperator() throws IOException {
+        final int numDocs = randomIntBetween(10_000, 100_000);
+        final int pageSize = randomIntBetween(1_000, 100_000);
+        final int limit = randomIntBetween(1, pageSize);
+        String fieldName = "value";
+
+        try (Directory dir = newDirectory(); RandomIndexWriter w = writeTestDocs(dir, numDocs, fieldName, null)) {
+            ValuesSource vs = new ValuesSource.Numeric.FieldData(
+                new SortedNumericIndexFieldData(
+                    fieldName,
+                    IndexNumericFieldData.NumericType.LONG,
+                    IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
+                    null
+                )
+            );
+            try (IndexReader reader = w.getReader()) {
+                AtomicInteger rowCount = new AtomicInteger();
+                Sort sort = new Sort(new SortField(fieldName, SortField.Type.LONG));
+                Holder<Long> expectedValue = new Holder<>(0L);
+
+                try (
+                    Driver driver = new Driver(
+                        new LuceneTopNSourceOperator(reader, 0, sort, new MatchAllDocsQuery(), pageSize, limit),
+                        List.of(
+                            new ValuesSourceReaderOperator(
+                                List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, ElementType.LONG, reader)),
+                                0
+                            ),
+                            new TopNOperator(limit, List.of(new TopNOperator.SortOrder(1, true, true)))
+                        ),
+                        new PageConsumerOperator(page -> {
+                            rowCount.addAndGet(page.getPositionCount());
+                            for (int i = 0; i < page.getPositionCount(); i++) {
+                                LongBlock longValuesBlock = page.getBlock(1);
+                                long expected = expectedValue.get();
+                                assertEquals(expected, longValuesBlock.getLong(i));
+                                expectedValue.set(expected + 1);
+                            }
+                        }),
+                        () -> {}
+                    )
+                ) {
+                    driver.run();
+                }
+                assertEquals(Math.min(limit, numDocs), rowCount.get());
             }
         }
     }

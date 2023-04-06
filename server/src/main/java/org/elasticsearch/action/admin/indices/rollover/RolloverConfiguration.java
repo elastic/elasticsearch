@@ -48,27 +48,21 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareString((valueParser, s) -> valueParser.addMaxIndexAgeCondition(s, MaxAgeCondition.NAME), MAX_AGE_FIELD);
-        PARSER.declareString((valueParser, s) -> valueParser.addMaxIndexDocsCondition(s, MaxDocsCondition.NAME), MAX_DOCS_FIELD);
+        PARSER.declareLong(ValueParser::addMaxIndexDocsCondition, MAX_DOCS_FIELD);
         PARSER.declareString((valueParser, s) -> valueParser.addMaxIndexSizeCondition(s, MaxSizeCondition.NAME), MAX_SIZE_FIELD);
         PARSER.declareString(
             (valueParser, s) -> valueParser.addMaxPrimaryShardSizeCondition(s, MaxPrimaryShardSizeCondition.NAME),
             MAX_PRIMARY_SHARD_SIZE_FIELD
         );
-        PARSER.declareString(
-            (valueParser, s) -> valueParser.addMaxPrimaryShardDocsCondition(s, MaxPrimaryShardDocsCondition.NAME),
-            MAX_PRIMARY_SHARD_DOCS_FIELD
-        );
+        PARSER.declareLong(ValueParser::addMaxPrimaryShardDocsCondition, MAX_PRIMARY_SHARD_DOCS_FIELD);
         PARSER.declareString((valueParser, s) -> valueParser.addMinIndexAgeCondition(s, MinAgeCondition.NAME), MIN_AGE_FIELD);
-        PARSER.declareString((valueParser, s) -> valueParser.addMinIndexDocsCondition(s, MinDocsCondition.NAME), MIN_DOCS_FIELD);
+        PARSER.declareLong(ValueParser::addMinIndexDocsCondition, MIN_DOCS_FIELD);
         PARSER.declareString((valueParser, s) -> valueParser.addMinIndexSizeCondition(s, MinSizeCondition.NAME), MIN_SIZE_FIELD);
         PARSER.declareString(
             (valueParser, s) -> valueParser.addMinPrimaryShardSizeCondition(s, MinPrimaryShardSizeCondition.NAME),
             MIN_PRIMARY_SHARD_SIZE_FIELD
         );
-        PARSER.declareString(
-            (valueParser, s) -> valueParser.addMinPrimaryShardDocsCondition(s, MinPrimaryShardDocsCondition.NAME),
-            MIN_PRIMARY_SHARD_DOCS_FIELD
-        );
+        PARSER.declareLong(ValueParser::addMinPrimaryShardDocsCondition, MIN_PRIMARY_SHARD_DOCS_FIELD);
     }
 
     // The conditions that have concrete values
@@ -106,9 +100,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        for (Condition<?> condition : concreteConditions.getConditions().values()) {
-            builder.field(condition.name, condition.valueToHumanReadableString());
-        }
+        concreteConditions.toXContentFragment(builder, params);
         for (String automaticCondition : automaticConditions) {
             builder.field(automaticCondition, "auto");
         }
@@ -116,17 +108,11 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         return builder;
     }
 
-    /**
-     * This version of the toXContent method takes into consideration the retention and creates an XContent object
-     * where the automatic values are evaluated and have the label [automatic]
-     */
-    public XContentBuilder toXContent(XContentBuilder builder, Params ignored, TimeValue retention) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, TimeValue retention) throws IOException {
         builder.startObject();
-        for (Condition<?> condition : concreteConditions.getConditions().values()) {
-            builder.field(condition.name, condition.valueToHumanReadableString());
-        }
+        concreteConditions.toXContentFragment(builder, params);
         for (String automaticCondition : automaticConditions) {
-            builder.field(automaticCondition, evaluateMaxAgeCondition(retention).getStringRep() + " [automatic]");
+            builder.field(automaticCondition, evaluateMaxAgeCondition(retention) + " [automatic]");
         }
         builder.endObject();
         return builder;
@@ -225,7 +211,6 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
      * Parses and keeps track of the condition values during parsing
      */
     public static class ValueParser {
-        private static final String AUTO = "auto";
         private final RolloverConditions.Builder concreteConditions = RolloverConditions.newBuilder();
         private final Set<String> automatic = new HashSet<>();
         Set<String> encounteredConditions = new HashSet<>();
@@ -237,7 +222,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
             if (value != null) {
                 String condition = MaxAgeCondition.NAME;
                 checkForDuplicatesAndAdd(condition, () -> {
-                    if (value.equals(AUTO)) {
+                    if (value.equals("auto")) {
                         automatic.add(condition);
                     } else {
                         concreteConditions.addMaxIndexAgeCondition(TimeValue.parseTimeValue(value, setting));
@@ -251,12 +236,16 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
          * Parses and adds max index docs condition
          */
         public ValueParser addMaxIndexDocsCondition(String value, String setting) {
-            if (value != null) {
+            return addMaxIndexDocsCondition(parseLong(value, setting));
+        }
+
+        /**
+         * Adds max index docs condition
+         */
+        public ValueParser addMaxIndexDocsCondition(Long maxDocs) {
+            if (maxDocs != null) {
                 String condition = MaxDocsCondition.NAME;
-                if (value.equals(AUTO)) {
-                    throw new SettingsException("Condition '" + condition + "' does not support automatic configuration.");
-                }
-                checkForDuplicatesAndAdd(condition, () -> concreteConditions.addMaxIndexDocsCondition(parseLong(value, setting)));
+                checkForDuplicatesAndAdd(condition, () -> concreteConditions.addMaxIndexDocsCondition(maxDocs));
             }
             return this;
         }
@@ -267,9 +256,6 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         public ValueParser addMaxIndexSizeCondition(String value, String setting) {
             if (value != null) {
                 String condition = MaxSizeCondition.NAME;
-                if (value.equals(AUTO)) {
-                    throw new SettingsException("Condition '" + condition + "' does not support automatic configuration.");
-                }
                 checkForDuplicatesAndAdd(
                     condition,
                     () -> concreteConditions.addMaxIndexSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting))
@@ -284,9 +270,6 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         public ValueParser addMaxPrimaryShardSizeCondition(String value, String setting) {
             if (value != null) {
                 String condition = MaxPrimaryShardSizeCondition.NAME;
-                if (value.equals(AUTO)) {
-                    throw new SettingsException("Condition '" + condition + "' does not support automatic configuration.");
-                }
                 checkForDuplicatesAndAdd(
                     condition,
                     () -> concreteConditions.addMaxPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting))
@@ -299,12 +282,16 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
          * Parses and adds max primary shard doc count
          */
         public ValueParser addMaxPrimaryShardDocsCondition(String value, String setting) {
-            if (value != null) {
+            return addMaxPrimaryShardDocsCondition(parseLong(value, setting));
+        }
+
+        /**
+         * Adds max primary shard doc count
+         */
+        public ValueParser addMaxPrimaryShardDocsCondition(Long maxDocs) {
+            if (maxDocs != null) {
                 String condition = MaxPrimaryShardDocsCondition.NAME;
-                if (value.equals(AUTO)) {
-                    throw new SettingsException("Condition '" + condition + "' does not support automatic configuration.");
-                }
-                checkForDuplicatesAndAdd(condition, () -> concreteConditions.addMaxPrimaryShardDocsCondition(parseLong(value, setting)));
+                checkForDuplicatesAndAdd(condition, () -> concreteConditions.addMaxPrimaryShardDocsCondition(maxDocs));
             }
             return this;
         }
@@ -315,9 +302,6 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         public ValueParser addMinIndexAgeCondition(String value, String setting) {
             if (value != null) {
                 String condition = MinAgeCondition.NAME;
-                if (value.equals(AUTO)) {
-                    throw new SettingsException("Condition '" + condition + "' does not support automatic configuration.");
-                }
                 checkForDuplicatesAndAdd(
                     condition,
                     () -> concreteConditions.addMinIndexAgeCondition(TimeValue.parseTimeValue(value, setting))
@@ -330,12 +314,16 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
          * Parses and adds the min index docs count condition
          */
         public ValueParser addMinIndexDocsCondition(String value, String setting) {
-            if (value != null) {
+            return addMinIndexDocsCondition(parseLong(value, setting));
+        }
+
+        /**
+         * Adds the min index docs count condition
+         */
+        public ValueParser addMinIndexDocsCondition(Long minDocs) {
+            if (minDocs != null) {
                 String condition = MinDocsCondition.NAME;
-                if (value.equals(AUTO)) {
-                    throw new SettingsException("Condition '" + condition + "' does not support automatic configuration.");
-                }
-                checkForDuplicatesAndAdd(condition, () -> concreteConditions.addMinIndexDocsCondition(parseLong(value, setting)));
+                checkForDuplicatesAndAdd(condition, () -> concreteConditions.addMinIndexDocsCondition(minDocs));
             }
             return this;
         }
@@ -346,9 +334,6 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         public ValueParser addMinIndexSizeCondition(String value, String setting) {
             if (value != null) {
                 String condition = MinSizeCondition.NAME;
-                if (value.equals(AUTO)) {
-                    throw new SettingsException("Condition '" + condition + "' does not support automatic configuration.");
-                }
                 checkForDuplicatesAndAdd(
                     condition,
                     () -> concreteConditions.addMinIndexSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting))
@@ -363,9 +348,6 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
         public ValueParser addMinPrimaryShardSizeCondition(String value, String setting) {
             if (value != null) {
                 String condition = MinPrimaryShardSizeCondition.NAME;
-                if (value.equals(AUTO)) {
-                    throw new SettingsException("Condition '" + condition + "' does not support automatic configuration.");
-                }
                 checkForDuplicatesAndAdd(
                     condition,
                     () -> concreteConditions.addMinPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting))
@@ -378,19 +360,23 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
          * Parses and adds the max primary shard doc count
          */
         public ValueParser addMinPrimaryShardDocsCondition(String value, String setting) {
-            if (value != null) {
+            return addMinPrimaryShardDocsCondition(parseLong(value, setting));
+        }
+
+        /**
+         * Adds the max primary shard doc count
+         */
+        public ValueParser addMinPrimaryShardDocsCondition(Long minDocs) {
+            if (minDocs != null) {
                 String condition = MinPrimaryShardDocsCondition.NAME;
-                if (value.equals(AUTO)) {
-                    throw new SettingsException("Condition '" + condition + "' does not support automatic configuration.");
-                }
-                checkForDuplicatesAndAdd(condition, () -> concreteConditions.addMinPrimaryShardDocsCondition(parseLong(value, setting)));
+                checkForDuplicatesAndAdd(condition, () -> concreteConditions.addMinPrimaryShardDocsCondition(minDocs));
             }
             return this;
         }
 
         public void checkForDuplicatesAndAdd(String condition, Runnable parseAndAdd) {
             if (encounteredConditions.contains(condition)) {
-                throw new SettingsException(condition + " condition is already set");
+                throw new IllegalArgumentException(condition + " condition is already set");
             }
             parseAndAdd.run();
             encounteredConditions.add(condition);

@@ -94,7 +94,7 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
         RolloverConfiguration.ValueParser valueParser = new RolloverConfiguration.ValueParser();
         Consumer<RolloverConfiguration.ValueParser> rolloverRequestConsumer = randomFrom(conditionsGenerator);
         rolloverRequestConsumer.accept(valueParser);
-        expectThrows(SettingsException.class, () -> rolloverRequestConsumer.accept(valueParser));
+        expectThrows(IllegalArgumentException.class, () -> rolloverRequestConsumer.accept(valueParser));
     }
 
     public void testClusterSettingParsing() {
@@ -215,11 +215,6 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
             "Invalid value 'one' in setting 'invalid-number-setting', the value is expected to be of type long",
             numberFormat.getMessage()
         );
-        SettingsException nonAutomaticCondition = expectThrows(
-            SettingsException.class,
-            () -> RolloverConfiguration.parseSetting("max_docs=auto", "automatic-max-docs")
-        );
-        assertEquals("Condition 'max_docs' does not support automatic configuration.", nonAutomaticCondition.getMessage());
     }
 
     public void testConcreteRolloverConditionCalculation() {
@@ -241,74 +236,6 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
         assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(90)), equalTo(TimeValue.timeValueDays(7)));
         assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(14)), equalTo(TimeValue.timeValueDays(1)));
         assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(1)), equalTo(TimeValue.timeValueDays(1)));
-    }
-
-    public void testAutomaticConfiguration() {
-        RolloverConfiguration.ValueParser valueParser = new RolloverConfiguration.ValueParser();
-        // Supported
-        valueParser.addMaxIndexAgeCondition("auto", "supported");
-
-        // Not supported
-        {
-            SettingsException error = expectThrows(
-                SettingsException.class,
-                () -> valueParser.addMaxIndexDocsCondition("auto", "supported")
-            );
-            assertEquals("Condition 'max_docs' does not support automatic configuration.", error.getMessage());
-        }
-        {
-            SettingsException error = expectThrows(
-                SettingsException.class,
-                () -> valueParser.addMaxIndexSizeCondition("auto", "supported")
-            );
-            assertEquals("Condition 'max_size' does not support automatic configuration.", error.getMessage());
-        }
-        {
-            SettingsException error = expectThrows(
-                SettingsException.class,
-                () -> valueParser.addMaxPrimaryShardSizeCondition("auto", "supported")
-            );
-            assertEquals("Condition 'max_primary_shard_size' does not support automatic configuration.", error.getMessage());
-        }
-        {
-            SettingsException error = expectThrows(
-                SettingsException.class,
-                () -> valueParser.addMaxPrimaryShardDocsCondition("auto", "supported")
-            );
-            assertEquals("Condition 'max_primary_shard_docs' does not support automatic configuration.", error.getMessage());
-        }
-        {
-            SettingsException error = expectThrows(SettingsException.class, () -> valueParser.addMinIndexAgeCondition("auto", "supported"));
-            assertEquals("Condition 'min_age' does not support automatic configuration.", error.getMessage());
-        }
-        {
-            SettingsException error = expectThrows(
-                SettingsException.class,
-                () -> valueParser.addMinIndexDocsCondition("auto", "supported")
-            );
-            assertEquals("Condition 'min_docs' does not support automatic configuration.", error.getMessage());
-        }
-        {
-            SettingsException error = expectThrows(
-                SettingsException.class,
-                () -> valueParser.addMinIndexSizeCondition("auto", "supported")
-            );
-            assertEquals("Condition 'min_size' does not support automatic configuration.", error.getMessage());
-        }
-        {
-            SettingsException error = expectThrows(
-                SettingsException.class,
-                () -> valueParser.addMinPrimaryShardSizeCondition("auto", "supported")
-            );
-            assertEquals("Condition 'min_primary_shard_size' does not support automatic configuration.", error.getMessage());
-        }
-        {
-            SettingsException error = expectThrows(
-                SettingsException.class,
-                () -> valueParser.addMinPrimaryShardDocsCondition("auto", "supported")
-            );
-            assertEquals("Condition 'min_primary_shard_docs' does not support automatic configuration.", error.getMessage());
-        }
     }
 
     public void testXContentSerializationWithKnownDataRetention() throws IOException {
@@ -333,15 +260,15 @@ public class RolloverConfigurationTests extends AbstractXContentSerializingTestC
     }
 
     private static final List<Consumer<RolloverConfiguration.ValueParser>> conditionsGenerator = Arrays.asList(
-        (valueParser) -> valueParser.addMaxIndexDocsCondition(String.valueOf(randomNonNegativeLong()), "test"),
-        (valueParser) -> valueParser.addMaxIndexSizeCondition(randomByteSizeValue().getStringRep(), "test"),
-        (valueParser) -> valueParser.addMaxIndexAgeCondition(randomPositiveTimeValue(), "test"),
-        (valueParser) -> valueParser.addMaxPrimaryShardSizeCondition(randomByteSizeValue().getStringRep(), "test"),
-        (valueParser) -> valueParser.addMaxPrimaryShardDocsCondition(String.valueOf(randomNonNegativeLong()), "test"),
-        (valueParser) -> valueParser.addMinIndexDocsCondition(String.valueOf(randomNonNegativeLong()), "test"),
-        (valueParser) -> valueParser.addMinIndexSizeCondition(randomByteSizeValue().getStringRep(), "test"),
-        (valueParser) -> valueParser.addMinIndexAgeCondition(randomPositiveTimeValue(), "test"),
-        (valueParser) -> valueParser.addMinPrimaryShardSizeCondition(randomByteSizeValue().getStringRep(), "test"),
-        (valueParser) -> valueParser.addMinPrimaryShardDocsCondition(String.valueOf(randomNonNegativeLong()), "test")
+        (builder) -> builder.addMaxIndexDocsCondition(randomNonNegativeLong()),
+        (builder) -> builder.addMaxIndexSizeCondition(randomByteSizeValue().getStringRep(), "test"),
+        (builder) -> builder.addMaxIndexAgeCondition(randomPositiveTimeValue(), "test"),
+        (builder) -> builder.addMaxPrimaryShardSizeCondition(randomByteSizeValue().getStringRep(), "test"),
+        (builder) -> builder.addMaxPrimaryShardDocsCondition(randomNonNegativeLong()),
+        (builder) -> builder.addMinIndexDocsCondition(randomNonNegativeLong()),
+        (builder) -> builder.addMinIndexSizeCondition(randomByteSizeValue().getStringRep(), "test"),
+        (builder) -> builder.addMinIndexAgeCondition(randomPositiveTimeValue(), "test"),
+        (builder) -> builder.addMinPrimaryShardSizeCondition(randomByteSizeValue().getStringRep(), "test"),
+        (builder) -> builder.addMinPrimaryShardDocsCondition(randomNonNegativeLong())
     );
 }

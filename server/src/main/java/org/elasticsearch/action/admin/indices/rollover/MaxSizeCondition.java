@@ -39,11 +39,6 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
     }
 
     @Override
-    public String valueToHumanReadableString() {
-        return value.getStringRep();
-    }
-
-    @Override
     public String getWriteableName() {
         return NAME;
     }

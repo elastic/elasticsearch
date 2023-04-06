@@ -41,11 +41,6 @@ public class MinAgeCondition extends Condition<TimeValue> {
     }
 
     @Override
-    public String valueToHumanReadableString() {
-        return value.getStringRep();
-    }
-
-    @Override
     public String getWriteableName() {
         return NAME;
     }

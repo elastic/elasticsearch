@@ -137,10 +137,10 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                     return;
                 }
 
-                if (inferenceResponse.getInferenceResults().get(0)instanceof TextExpansionResults textExpansionResults) {
+                if (inferenceResponse.getInferenceResults().get(0) instanceof TextExpansionResults textExpansionResults) {
                     textExpansionResultsSupplier.set(textExpansionResults);
                     listener.onResponse(null);
-                } else if (inferenceResponse.getInferenceResults().get(0)instanceof WarningInferenceResults warning) {
+                } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
                     listener.onFailure(new IllegalStateException(warning.getWarning()));
                 } else {
                     listener.onFailure(

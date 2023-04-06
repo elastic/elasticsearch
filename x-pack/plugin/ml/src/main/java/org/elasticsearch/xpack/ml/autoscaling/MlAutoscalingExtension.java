@@ -16,6 +16,10 @@ import java.util.Collection;
 public class MlAutoscalingExtension implements AutoscalingExtension {
     private final MachineLearning plugin;
 
+    public MlAutoscalingExtension() {
+        throw new IllegalStateException("Provider must be constructed using PluginsService");
+    }
+
     public MlAutoscalingExtension(MachineLearning plugin) {
         this.plugin = plugin;
     }

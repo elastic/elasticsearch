@@ -34,7 +34,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -421,7 +421,9 @@ class ClientTransformIndexer extends TransformIndexer {
             client,
             ClosePointInTimeAction.INSTANCE,
             closePitRequest,
-            ActionListener.wrap(response -> { logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit); }, e -> {
+            ActionListener.wrap(response -> {
+                logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit);
+            }, e -> {
                 // note: closing the pit should never throw, even if the pit is invalid
                 logger.error(() -> "[" + getJobId() + "] Failed to close point in time reader", e);
             })
@@ -590,7 +592,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     private static Throwable decorateBulkIndexException(Throwable irrecoverableException) {
-        if (irrecoverableException instanceof MapperParsingException) {
+        if (irrecoverableException instanceof DocumentParsingException) {
             return new TransformException(
                 "Destination index mappings are incompatible with the transform configuration.",
                 irrecoverableException

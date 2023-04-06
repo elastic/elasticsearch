@@ -220,7 +220,26 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * Create parameters for this parameterized test.
      */
     public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry) throws Exception {
-        String[] paths = resolvePathsProperty(REST_TESTS_SUITE, ""); // default to all tests under the test root
+        return createParameters(executeableSectionRegistry, null);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     */
+    public static Iterable<Object[]> createParameters(String[] testPaths) throws Exception {
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY, testPaths);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     *
+     * @param executeableSectionRegistry registry of executable sections
+     * @param testPaths list of paths to explicitly search for tests. If <code>null</code> then include all tests in root path.
+     * @return list of test candidates.
+     * @throws Exception
+     */
+    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String[] testPaths) throws Exception {
+        String[] paths = testPaths == null ? resolvePathsProperty(REST_TESTS_SUITE, "") : testPaths; // default to all tests under the test root
         Map<String, Set<Path>> yamlSuites = loadSuites(paths);
         List<ClientYamlTestSuite> suites = new ArrayList<>();
         IllegalArgumentException validationException = null;
@@ -283,7 +302,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     });
                 } else {
                     path = root.resolve(strPath + ".yml");
-                    assert Files.exists(path);
+                    assert Files.exists(path) : "Path " + path + " does not exist in YAML test root";
                     addSuite(root, path, files);
                 }
             }

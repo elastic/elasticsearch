@@ -95,7 +95,7 @@ public class CrossClusterAccessAuthenticationService {
                     // try-catch so any failure here is wrapped by `withRequestProcessingFailure`, whereas `authenticate` failures are not
                     // we should _not_ wrap `authenticate` failures since this produces duplicate audit events
                     try {
-                        final CrossClusterAccessSubjectInfo subjectInfo = crossClusterAccessHeaders.subjectInfo().cleanWithValidation();
+                        final CrossClusterAccessSubjectInfo subjectInfo = crossClusterAccessHeaders.getCleanAndValidatedSubjectInfo();
                         writeAuthToContext(authcContext, authentication.toCrossClusterAccess(subjectInfo), listener);
                     } catch (Exception ex) {
                         withRequestProcessingFailure(authcContext, ex, listener);

@@ -99,7 +99,7 @@ public class CrossClusterAccessSubjectInfoTests extends ESTestCase {
         assertEntryPresentAndCopy(AuthenticationField.API_KEY_NAME_KEY, authenticationMetadata, expectedMetadata);
 
         final Map<String, Object> actualMetadata = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(authentication)
-            .cleanWithValidation()
+            .cleanAndValidate()
             .getAuthentication()
             .getAuthenticatingSubject()
             .getMetadata();
@@ -119,7 +119,7 @@ public class CrossClusterAccessSubjectInfoTests extends ESTestCase {
         assertEntryPresentAndCopy(ServiceAccountSettings.TOKEN_SOURCE_FIELD, authenticationMetadata, expectedMetadata);
 
         final Map<String, Object> actualMetadata = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(authentication)
-            .cleanWithValidation()
+            .cleanAndValidate()
             .getAuthentication()
             .getAuthenticatingSubject()
             .getMetadata();
@@ -133,7 +133,7 @@ public class CrossClusterAccessSubjectInfoTests extends ESTestCase {
         assertThat(authentication.getAuthenticatingSubject().getMetadata(), equalTo(metadata));
 
         final Map<String, Object> actualMetadata = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(authentication)
-            .cleanWithValidation()
+            .cleanAndValidate()
             .getAuthentication()
             .getAuthenticatingSubject()
             .getMetadata();

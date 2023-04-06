@@ -136,7 +136,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         future.get();
 
         final Authentication expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(
-            crossClusterAccessHeaders.subjectInfo().cleanWithValidation()
+            crossClusterAccessHeaders.getCleanAndValidatedSubjectInfo()
         );
         verify(auditableRequest).authenticationSuccess(expectedAuthentication);
         verifyNoMoreInteractions(auditableRequest);

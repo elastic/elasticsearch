@@ -15,7 +15,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -30,13 +29,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
-import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -126,6 +125,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
+    private final IndexAnalyzers indexAnalyzers;
     private final List<SearchOperationListener> searchOperationListeners;
     private final List<IndexingOperationListener> indexingOperationListeners;
     private final BooleanSupplier allowExpensiveQueries;
@@ -194,9 +194,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.expressionResolver = expressionResolver;
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
+        this.indexAnalyzers = indexAnalyzers;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(
+                clusterService,
                 indexSettings,
                 indexAnalyzers,
                 parserConfiguration,
@@ -359,7 +361,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     bitsetFilterCache,
                     indexCache,
                     indexFieldData,
-                    mapperService,
+                    indexAnalyzers,
                     refreshTask,
                     fsyncTask,
                     trimTranslogTask,
@@ -435,7 +437,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         ShardLock lock = null;
         eventListener.beforeIndexShardCreated(routing, indexSettings);
         try {
-            lock = nodeEnv.shardLock(shardId, "starting shard", TimeUnit.SECONDS.toMillis(5));
+            // Try and acquire the shard lock, but we are on the cluster applier thread so we do not wait if it is unavailable; in that
+            // case, the IndicesClusterStateService will try again (in the background)
+            lock = nodeEnv.shardLock(shardId, "starting shard");
             ShardPath path;
             try {
                 path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
@@ -534,8 +538,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);
             success = true;
             return indexShard;
-        } catch (ShardLockObtainFailedException e) {
-            throw new IOException("failed to obtain in-memory shard lock", e);
         } finally {
             if (success == false) {
                 if (lock != null) {

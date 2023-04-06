@@ -9,6 +9,7 @@
 package org.elasticsearch.benchmark.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -51,17 +52,19 @@ public class MapperServiceFactory {
 
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         MapperService mapperService = new MapperService(
+            () -> TransportVersion.CURRENT,
             indexSettings,
-            new IndexAnalyzers(
+            IndexAnalyzers.of(
                 Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-                Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
-                Map.of()
+                Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
             ),
             XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(ClusterModule.getNamedXWriteables()))
                 .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
             similarityService,
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             new ProvidedIdFieldMapper(() -> true),
             new ScriptCompiler() {
                 @Override

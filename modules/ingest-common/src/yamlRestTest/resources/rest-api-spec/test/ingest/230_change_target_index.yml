@@ -87,11 +87,7 @@ teardown:
       index: foo
       id: "1"
 - match: { _source.a: true }
-# The next is commented out because there's a bug where the final_pipeline is executed twice under certain circumstances
-# (See issue https://github.com/elastic/elasticsearch/issues/83653).
-# TODO: Uncomment after the issue is fixed, and remove the repeated value test of the current behavior
-#- match: { _source.accumulator: [ "non-repeated-value" ] }
-- match: { _source.accumulator: [ "non-repeated-value", "non-repeated-value" ] }
+- match: { _source.accumulator: [ "non-repeated-value" ] }
 
 # only the foo index
 - do:
@@ -150,11 +146,7 @@ teardown:
       index: foo
       id: "1"
 - match: { _source.a: true }
-# The next is commented out because there's a bug where the final_pipeline is executed twice under certain circumstances
-# (See issue https://github.com/elastic/elasticsearch/issues/83653).
-# TODO: Uncomment after the issue is fixed, and remove the repeated value test of the current behavior
-#- match: { _source.accumulator: [ "non-repeated-value" ] }
-- match: { _source.accumulator: [ "non-repeated-value", "non-repeated-value" ] }
+- match: { _source.accumulator: [ "non-repeated-value" ] }
 
 # only the foo index
 - do:

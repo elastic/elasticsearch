@@ -53,7 +53,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -127,7 +126,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -304,7 +302,7 @@ public class ApiKeyService {
             if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
-                    new IllegalStateException(
+                    new IllegalArgumentException(
                         "all nodes must have version ["
                             + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
                             + "] or higher to support remote indices privileges for API keys"
@@ -414,7 +412,7 @@ public class ApiKeyService {
         if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
-                new IllegalStateException(
+                new IllegalArgumentException(
                     "all nodes must have version ["
                         + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
                         + "] or higher to support remote indices privileges for API keys"
@@ -1003,10 +1001,14 @@ public class ApiKeyService {
                                 // move on
                                 validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                             } else {
-                                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                                listener.onResponse(
+                                    AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                                );
                             }
                         } else if (result.verify(credentials.getKey())) { // same key, pass the same result
-                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            listener.onResponse(
+                                AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                            );
                         } else {
                             apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
                             validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener);
@@ -1019,7 +1021,9 @@ public class ApiKeyService {
                             // move on
                             validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                         } else {
-                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            listener.onResponse(
+                                AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                            );
                         }
                     }, listener::onFailure));
                 }
@@ -1029,7 +1033,9 @@ public class ApiKeyService {
                         // move on
                         validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                     } else {
-                        listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                        listener.onResponse(
+                            AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                        );
                     }
                 }, listener::onFailure));
             }
@@ -1038,7 +1044,7 @@ public class ApiKeyService {
 
     // pkg private for testing
     CachedApiKeyHashResult getFromCache(String id) {
-        return apiKeyAuthCache == null ? null : FutureUtils.get(apiKeyAuthCache.get(id), 0L, TimeUnit.MILLISECONDS);
+        return apiKeyAuthCache == null ? null : apiKeyAuthCache.get(id).result();
     }
 
     // pkg private for testing

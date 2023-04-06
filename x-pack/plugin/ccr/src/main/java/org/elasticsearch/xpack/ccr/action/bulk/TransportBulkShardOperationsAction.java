@@ -184,7 +184,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
                 appliedOperations.add(targetOp);
                 location = locationToSync(location, result.getTranslogLocation());
             } else {
-                if (result.getFailure()instanceof final AlreadyProcessedFollowingEngineException failure) {
+                if (result.getFailure() instanceof final AlreadyProcessedFollowingEngineException failure) {
                     // The existing operations below the global checkpoint won't be replicated as they were processed
                     // in every replicas already. However, the existing operations above the global checkpoint will be
                     // replicated to replicas but with the existing primary term (not the current primary term) in order

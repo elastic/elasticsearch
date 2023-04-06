@@ -292,15 +292,6 @@ public class BwcVersions {
 
     public record UnreleasedVersionInfo(Version version, String branch, String gradleProjectPath) {}
 
-    public record VersionPair(Version elasticsearch, Version lucene) implements Comparable<VersionPair> {
-
-        @Override
-        public int compareTo(VersionPair o) {
-            // For ordering purposes, sort by Elasticsearch version
-            return this.elasticsearch.compareTo(o.elasticsearch);
-        }
-    }
-
     /**
      * Determine whether the given version of Elasticsearch is compatible with ML features on the host system.
      *

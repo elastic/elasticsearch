@@ -20,7 +20,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
@@ -197,14 +196,13 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         // create a situation where we temporarily have a bunch of segments until the merges can catch up
         long id = 0;
-        final int rounds = scaledRandomIntBetween(3, 5);
+        final int rounds = scaledRandomIntBetween(5, 9);
         for (int i = 0; i < rounds; ++i) {
             final int numDocs = scaledRandomIntBetween(100, 1000);
             BulkRequestBuilder request = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < numDocs; ++j) {
                 request.add(
-                    Requests.indexRequest(indexName)
-                        .id(Long.toString(id++))
+                    new IndexRequest(indexName).id(Long.toString(id++))
                         .source(jsonBuilder().startObject().field("l", randomLong()).endObject())
                 );
             }
@@ -218,14 +216,11 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         // reactivate merges
         assertAcked(admin().indices().prepareClose(indexName).get());
-        assertAcked(
-            admin().indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
-                        .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "true")
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "true"),
+            indexName
         );
         assertAcked(admin().indices().prepareOpen(indexName).get());
         assertEquals(0, admin().indices().prepareForceMerge(indexName).setFlush(true).get().getFailedShards());

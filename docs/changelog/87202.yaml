@@ -1,6 +1,0 @@
-pr: 87202
-summary: Fix Geotile aggregations on `geo_shapes` for precision 0
-area: Geo
-type: bug
-issues:
- - 87201

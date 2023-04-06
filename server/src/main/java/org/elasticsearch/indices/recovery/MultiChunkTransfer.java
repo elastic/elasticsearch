@@ -9,10 +9,10 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -185,17 +185,7 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
 
     protected abstract void handleError(Source resource, Exception e) throws Exception;
 
-    private static class FileChunkResponseItem<Source> {
-        final long requestSeqId;
-        final Source source;
-        final Exception failure;
-
-        FileChunkResponseItem(long requestSeqId, Source source, Exception failure) {
-            this.requestSeqId = requestSeqId;
-            this.source = source;
-            this.failure = failure;
-        }
-    }
+    private record FileChunkResponseItem<Source>(long requestSeqId, Source source, Exception failure) {}
 
     public interface ChunkRequest {
         /**

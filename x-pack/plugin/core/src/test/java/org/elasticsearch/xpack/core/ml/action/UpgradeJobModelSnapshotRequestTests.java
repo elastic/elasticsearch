@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request;
 
-public class UpgradeJobModelSnapshotRequestTests extends AbstractSerializingTestCase<Request> {
+public class UpgradeJobModelSnapshotRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -21,6 +21,11 @@ public class UpgradeJobModelSnapshotRequestTests extends AbstractSerializingTest
             randomBoolean() ? null : randomTimeValue(),
             randomBoolean() ? null : randomBoolean()
         );
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

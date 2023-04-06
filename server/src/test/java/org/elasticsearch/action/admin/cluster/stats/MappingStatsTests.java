@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -19,7 +20,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -95,7 +97,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     private static final String SCRIPT_4 = scriptAsJSON("params._source.field");
 
     public void testToXContent() {
-        String mapping = MAPPING_TEMPLATE.formatted(SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1);
+        String mapping = Strings.format(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1);
         IndexMetadata meta = IndexMetadata.builder("index").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).build();
@@ -104,6 +106,10 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         assertEquals("""
             {
               "mappings" : {
+                "total_field_count" : 12,
+                "total_deduplicated_field_count" : 6,
+                "total_deduplicated_mapping_size" : "260b",
+                "total_deduplicated_mapping_size_in_bytes" : 260,
                 "field_types" : [
                   {
                     "name" : "dense_vector",
@@ -199,10 +205,19 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testToXContentWithSomeSharedMappings() {
         IndexMetadata meta = IndexMetadata.builder("index")
             .settings(SINGLE_SHARD_NO_REPLICAS)
-            .putMapping(MAPPING_TEMPLATE.formatted(SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1))
+            .putMapping(Strings.format(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1))
             .build();
         // make mappings that are slightly different because we shuffled 2 scripts between fields
-        final String mappingString2 = MAPPING_TEMPLATE.formatted(SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_4, SCRIPT_3, SCRIPT_1);
+        final String mappingString2 = Strings.format(
+            MAPPING_TEMPLATE,
+            SCRIPT_1,
+            SCRIPT_2,
+            SCRIPT_3,
+            SCRIPT_4,
+            SCRIPT_4,
+            SCRIPT_3,
+            SCRIPT_1
+        );
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
         IndexMetadata meta3 = IndexMetadata.builder("index3").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).put(meta3, false).build();
@@ -211,6 +226,10 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         assertEquals("""
             {
               "mappings" : {
+                "total_field_count" : 18,
+                "total_deduplicated_field_count" : 12,
+                "total_deduplicated_mapping_size" : "519b",
+                "total_deduplicated_mapping_size_in_bytes" : 519,
                 "field_types" : [
                   {
                     "name" : "dense_vector",
@@ -328,7 +347,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         if (randomBoolean()) {
             runtimeFieldStats.add(randomRuntimeFieldStats("long"));
         }
-        return new MappingStats(stats, runtimeFieldStats);
+        return new MappingStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), stats, runtimeFieldStats);
     }
 
     private static FieldStats randomFieldStats(String type) {
@@ -368,32 +387,41 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         return stats;
     }
 
+    @SuppressWarnings("OptionalGetWithoutIsPresent")
     @Override
-    protected MappingStats mutateInstance(MappingStats instance) throws IOException {
+    protected MappingStats mutateInstance(MappingStats instance) {
         List<FieldStats> fieldTypes = new ArrayList<>(instance.getFieldTypeStats());
         List<RuntimeFieldStats> runtimeFieldTypes = new ArrayList<>(instance.getRuntimeFieldStats());
-        if (randomBoolean()) {
-            boolean remove = fieldTypes.size() > 0 && randomBoolean();
-            if (remove) {
-                fieldTypes.remove(randomInt(fieldTypes.size() - 1));
+        long totalFieldCount = instance.getTotalFieldCount().getAsLong();
+        long totalDeduplicatedFieldCount = instance.getTotalDeduplicatedFieldCount().getAsLong();
+        long totalMappingSizeBytes = instance.getTotalMappingSizeBytes().getAsLong();
+        switch (between(1, 5)) {
+            case 1 -> {
+                boolean remove = fieldTypes.size() > 0 && randomBoolean();
+                if (remove) {
+                    fieldTypes.remove(randomInt(fieldTypes.size() - 1));
+                }
+                if (remove == false || randomBoolean()) {
+                    FieldStats s = new FieldStats("float");
+                    s.count = 13;
+                    s.indexCount = 2;
+                    fieldTypes.add(s);
+                }
             }
-            if (remove == false || randomBoolean()) {
-                FieldStats s = new FieldStats("float");
-                s.count = 13;
-                s.indexCount = 2;
-                fieldTypes.add(s);
+            case 2 -> {
+                boolean remove = runtimeFieldTypes.size() > 0 && randomBoolean();
+                if (remove) {
+                    runtimeFieldTypes.remove(randomInt(runtimeFieldTypes.size() - 1));
+                }
+                if (remove == false || randomBoolean()) {
+                    runtimeFieldTypes.add(randomRuntimeFieldStats("double"));
+                }
             }
-        } else {
-            boolean remove = runtimeFieldTypes.size() > 0 && randomBoolean();
-            if (remove) {
-                runtimeFieldTypes.remove(randomInt(runtimeFieldTypes.size() - 1));
-            }
-            if (remove == false || randomBoolean()) {
-                runtimeFieldTypes.add(randomRuntimeFieldStats("double"));
-            }
+            case 3 -> totalFieldCount = randomValueOtherThan(totalFieldCount, ESTestCase::randomNonNegativeLong);
+            case 4 -> totalDeduplicatedFieldCount = randomValueOtherThan(totalDeduplicatedFieldCount, ESTestCase::randomNonNegativeLong);
+            case 5 -> totalMappingSizeBytes = randomValueOtherThan(totalMappingSizeBytes, ESTestCase::randomNonNegativeLong);
         }
-
-        return new MappingStats(fieldTypes, runtimeFieldTypes);
+        return new MappingStats(totalFieldCount, totalDeduplicatedFieldCount, totalMappingSizeBytes, fieldTypes, runtimeFieldTypes);
     }
 
     public void testDenseVectorType() {
@@ -486,11 +514,11 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testWriteTo() throws IOException {
         MappingStats instance = createTestInstance();
         BytesStreamOutput out = new BytesStreamOutput();
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        out.setVersion(version);
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        out.setTransportVersion(version);
         instance.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-        in.setVersion(version);
+        in.setTransportVersion(version);
         MappingStats deserialized = new MappingStats(in);
         assertEquals(instance.getFieldTypeStats(), deserialized.getFieldTypeStats());
         assertEquals(instance.getRuntimeFieldStats(), deserialized.getRuntimeFieldStats());

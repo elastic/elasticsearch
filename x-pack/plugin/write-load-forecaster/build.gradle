@@ -1,0 +1,16 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name 'x-pack-write-load-forecaster'
+  description 'x'
+  classname 'org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-write-load-forecaster'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':modules:data-streams')
+}

@@ -21,6 +21,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -87,7 +88,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         }, listener::onFailure);
 
         // Step 1: Search for all the transform configs matching the request.
-        searchResources(request, searchTransformConfigsListener);
+        searchResources(request, new TaskId(clusterService.localNode().getId(), task.getId()), searchTransformConfigsListener);
     }
 
     @Override

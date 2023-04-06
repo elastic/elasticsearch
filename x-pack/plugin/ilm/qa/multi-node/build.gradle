@@ -1,8 +1,6 @@
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -15,9 +13,6 @@ File repoDir = file("$buildDir/testclusters/repo")
 tasks.named("javaRestTest").configure {
   /* To support taking index snapshots, we have to set path.repo setting */
   systemProperty 'tests.path.repo', repoDir
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
 }
 
 testClusters.configureEach {
@@ -42,7 +37,6 @@ testClusters.configureEach {
    * cached time. So the policy's action date is always after the snapshot's start.
    */
   setting 'thread_pool.estimated_time_interval', '0'
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.3.0")
 }
 
 if (BuildParams.inFipsJvm){

@@ -38,6 +38,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -47,7 +48,9 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<NodeStatsMonitoringDoc> {
 
@@ -63,6 +66,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         nodeId = randomAlphaOfLength(5);
         isMaster = randomBoolean();
         nodeStats = mock(NodeStats.class);
+        when(nodeStats.toXContentChunked(any())).thenReturn(Collections.emptyIterator());
         mlockall = randomBoolean();
     }
 
@@ -328,7 +332,20 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
         indicesCommonStats.getStore().add(new StoreStats(++iota, no, no));
 
-        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(++iota, ++iota, ++iota, no, no, no, no, no, false, ++iota);
+        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(
+            ++iota,
+            ++iota,
+            ++iota,
+            no,
+            no,
+            no,
+            no,
+            no,
+            false,
+            ++iota,
+            no,
+            no
+        );
         indicesCommonStats.getIndexing().add(new IndexingStats(indexingStats));
         indicesCommonStats.getQueryCache().add(new QueryCacheStats(++iota, ++iota, ++iota, ++iota, no));
         indicesCommonStats.getRequestCache().add(new RequestCacheStats(++iota, ++iota, ++iota, ++iota));
@@ -343,7 +360,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         segmentsStats.addBitsetMemoryInBytes(++iota);
         indicesCommonStats.getSegments().add(segmentsStats);
 
-        final NodeIndicesStats indices = new NodeIndicesStats(indicesCommonStats, emptyMap());
+        final NodeIndicesStats indices = new NodeIndicesStats(indicesCommonStats, emptyMap(), emptyMap());
 
         // Filesystem
         final FsInfo.DeviceStats ioStatsOne = new FsInfo.DeviceStats(

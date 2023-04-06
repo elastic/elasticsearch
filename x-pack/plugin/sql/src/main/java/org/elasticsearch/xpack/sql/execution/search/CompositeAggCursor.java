@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +20,6 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -136,7 +137,7 @@ public class CompositeAggCursor implements Cursor {
 
         SearchRequest request = prepareRequest(nextQuery, cfg, includeFrozen, indices);
 
-        client.search(request, new ActionListener.Delegating<>(listener) {
+        client.search(request, new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(SearchResponse response) {
                 handle(
@@ -219,7 +220,8 @@ public class CompositeAggCursor implements Cursor {
 
     static boolean couldProducePartialPages(CompositeAggregationBuilder aggregation) {
         for (var agg : aggregation.getPipelineAggregations()) {
-            if (agg instanceof BucketSelectorPipelineAggregationBuilder) {
+            // Use type.equals because there are two copies of BucketSelectorPipelineAggregationBuilder on the classpath
+            if (agg.getType().equals(BucketSelectorPipelineAggregationBuilder.NAME)) {
                 return true;
             }
         }

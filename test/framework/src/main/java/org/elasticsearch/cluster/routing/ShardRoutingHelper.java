@@ -24,7 +24,11 @@ public class ShardRoutingHelper {
     }
 
     public static ShardRouting moveToStarted(ShardRouting routing) {
-        return routing.moveToStarted();
+        return routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+    }
+
+    public static ShardRouting moveToStarted(ShardRouting routing, long expectedShardSize) {
+        return routing.moveToStarted(expectedShardSize);
     }
 
     public static ShardRouting initialize(ShardRouting routing, String nodeId) {
@@ -44,8 +48,10 @@ public class ShardRoutingHelper {
             ShardRoutingState.INITIALIZING,
             recoverySource,
             new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
+            RelocationFailureInfo.NO_FAILURES,
             copy.allocationId(),
-            copy.getExpectedShardSize()
+            copy.getExpectedShardSize(),
+            copy.role()
         );
     }
 
@@ -62,8 +68,10 @@ public class ShardRoutingHelper {
             routing.state(),
             recoverySource,
             routing.unassignedInfo(),
+            routing.relocationFailureInfo(),
             routing.allocationId(),
-            routing.getExpectedShardSize()
+            routing.getExpectedShardSize(),
+            routing.role()
         );
     }
 }

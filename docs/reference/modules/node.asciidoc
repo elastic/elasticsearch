@@ -194,13 +194,6 @@ High availability (HA) clusters require at least three master-eligible nodes, at
 least two of which are not voting-only nodes. Such a cluster will be able to
 elect a master node even if one of the nodes fails.
 
-Since voting-only nodes never act as the cluster's elected master, they may
-require less heap and a less powerful CPU than the true master nodes.
-However all master-eligible nodes, including voting-only nodes, require
-reasonably fast persistent storage and a reliable and low-latency network
-connection to the rest of the cluster, since they are on the critical path for
-<<cluster-state-publishing,publishing cluster state updates>>.
-
 Voting-only master-eligible nodes may also fill other roles in your cluster.
 For instance, a node may be both a data node and a voting-only master-eligible
 node. A _dedicated_ voting-only master-eligible nodes is a voting-only
@@ -211,6 +204,20 @@ dedicated voting-only master-eligible node, set:
 -------------------
 node.roles: [ master, voting_only ]
 -------------------
+
+Since dedicated voting-only nodes never act as the cluster's elected master,
+they may require less heap and a less powerful CPU than the true master nodes.
+However all master-eligible nodes, including voting-only nodes, are on the
+critical path for <<cluster-state-publishing,publishing cluster state
+updates>>. Cluster state updates are usually independent of
+performance-critical workloads such as indexing or searches, but they are
+involved in management activities such as index creation and rollover, mapping
+updates, and recovery after a failure. The performance characteristics of these
+activities are a function of the speed of the storage on each master-eligible
+node, as well as the reliability and latency of the network interconnections
+between the elected master node and the other nodes in the cluster. You must
+therefore ensure that the storage and networking available to the nodes in your
+cluster are good enough to meet your performance goals.
 
 [[data-node]]
 ==== Data node
@@ -457,7 +464,7 @@ The contents of the `path.data` directory must persist across restarts, because
 this is where your data is stored. {es} requires the filesystem to act as if it
 were backed by a local disk, but this means that it will work correctly on
 properly-configured remote block devices (e.g. a SAN) and remote filesystems
-(e.g. NFS) as long the remote storage behaves no differently from local
+(e.g. NFS) as long as the remote storage behaves no differently from local
 storage. You can run multiple {es} nodes on the same filesystem, but each {es}
 node must have its own data path.
 

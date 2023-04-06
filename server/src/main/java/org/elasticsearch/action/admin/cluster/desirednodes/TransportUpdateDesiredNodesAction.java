@@ -8,11 +8,12 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -22,24 +23,25 @@ import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.List;
 import java.util.Locale;
-import java.util.function.BiConsumer;
 
 import static java.lang.String.format;
 
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, UpdateDesiredNodesResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportUpdateDesiredNodesAction.class);
 
     private final DesiredNodesSettingsValidator settingsValidator;
-
-    private final ClusterStateTaskExecutor<UpdateDesiredNodesTask> taskExecutor = new UpdateDesiredNodesExecutor();
+    private final MasterServiceTaskQueue<UpdateDesiredNodesTask> taskQueue;
 
     @Inject
     public TransportUpdateDesiredNodesAction(
@@ -48,7 +50,8 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DesiredNodesSettingsValidator settingsValidator
+        DesiredNodesSettingsValidator settingsValidator,
+        AllocationService allocationService
     ) {
         super(
             UpdateDesiredNodesAction.NAME,
@@ -63,6 +66,11 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             ThreadPool.Names.SAME
         );
         this.settingsValidator = settingsValidator;
+        this.taskQueue = clusterService.createTaskQueue(
+            "update-desired-nodes",
+            Priority.URGENT,
+            new UpdateDesiredNodesExecutor(clusterService.getRerouteService(), allocationService)
+        );
     }
 
     @Override
@@ -75,19 +83,12 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         Task task,
         UpdateDesiredNodesRequest request,
         ClusterState state,
-        ActionListener<UpdateDesiredNodesResponse> listener
+        ActionListener<UpdateDesiredNodesResponse> responseListener
     ) throws Exception {
-        try {
+        ActionListener.run(responseListener, listener -> {
             settingsValidator.validate(request.getNodes());
-            clusterService.submitStateUpdateTask(
-                "update-desired-nodes",
-                new UpdateDesiredNodesTask(request, listener),
-                ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout()),
-                taskExecutor
-            );
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+            taskQueue.submitTask("update-desired-nodes", new UpdateDesiredNodesTask(request, listener), request.masterNodeTimeout());
+        });
     }
 
     @Override
@@ -96,7 +97,9 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         if (request.isCompatibleWithVersion(minNodeVersion) == false) {
             listener.onFailure(
                 new IllegalArgumentException(
-                    "Unable to use processor ranges or floating-point processors in mixed-clusters with nodes in version: " + minNodeVersion
+                    "Unable to use processor ranges, floating-point (with greater precision) processors "
+                        + "in mixed-clusters with nodes in version: "
+                        + minNodeVersion
                 )
             );
             return;
@@ -112,10 +115,15 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     }
 
     static DesiredNodes updateDesiredNodes(DesiredNodes latestDesiredNodes, UpdateDesiredNodesRequest request) {
-        final DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
+        final DesiredNodes proposedDesiredNodes = DesiredNodes.createIncludingStatusFromPreviousVersion(
+            request.getHistoryID(),
+            request.getVersion(),
+            request.getNodes(),
+            latestDesiredNodes
+        );
 
         if (latestDesiredNodes != null) {
-            if (latestDesiredNodes.equals(proposedDesiredNodes)) {
+            if (latestDesiredNodes.equalsWithProcessorsCloseTo(proposedDesiredNodes)) {
                 return latestDesiredNodes;
             }
 
@@ -153,21 +161,38 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     }
 
     private static class UpdateDesiredNodesExecutor implements ClusterStateTaskExecutor<UpdateDesiredNodesTask> {
+        private static final ActionListener<Void> REROUTE_LISTENER = ActionListener.wrap(
+            r -> logger.trace("reroute after desired nodes update completed"),
+            e -> logger.debug("reroute after desired nodes update failed", e)
+        );
 
-        private static final BiConsumer<ActionListener<UpdateDesiredNodesResponse>, ClusterState> SUCCESS_SAME_HISTORY_ID = (l, s) -> l
-            .onResponse(new UpdateDesiredNodesResponse(false));
-        private static final BiConsumer<ActionListener<UpdateDesiredNodesResponse>, ClusterState> SUCCESS_NEW_HISTORY_ID = (l, s) -> l
-            .onResponse(new UpdateDesiredNodesResponse(true));
+        private final RerouteService rerouteService;
+        private final AllocationService allocationService;
+
+        UpdateDesiredNodesExecutor(RerouteService rerouteService, AllocationService allocationService) {
+            this.rerouteService = rerouteService;
+            this.allocationService = allocationService;
+        }
 
         @Override
-        public ClusterState execute(ClusterState currentState, List<TaskContext<UpdateDesiredNodesTask>> taskContexts) throws Exception {
-            final var initialDesiredNodes = DesiredNodesMetadata.fromClusterState(currentState).getLatestDesiredNodes();
+        public ClusterState execute(BatchExecutionContext<UpdateDesiredNodesTask> batchExecutionContext) throws Exception {
+            final var initialState = batchExecutionContext.initialState();
+            final var initialDesiredNodes = DesiredNodesMetadata.fromClusterState(initialState).getLatestDesiredNodes();
             var desiredNodes = initialDesiredNodes;
-            for (final var taskContext : taskContexts) {
-
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                final UpdateDesiredNodesRequest request = taskContext.getTask().request();
+                if (request.isDryRun()) {
+                    try {
+                        updateDesiredNodes(desiredNodes, request);
+                        taskContext.success(() -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(false, true)));
+                    } catch (Exception e) {
+                        taskContext.onFailure(e);
+                    }
+                    continue;
+                }
                 final var previousDesiredNodes = desiredNodes;
-                try {
-                    desiredNodes = updateDesiredNodes(desiredNodes, taskContext.getTask().request());
+                try (var ignored = taskContext.captureResponseHeaders()) {
+                    desiredNodes = updateDesiredNodes(desiredNodes, request);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                     continue;
@@ -175,10 +200,23 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 final var replacedExistingHistoryId = previousDesiredNodes != null
                     && previousDesiredNodes.hasSameHistoryId(desiredNodes) == false;
                 taskContext.success(
-                    () -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId))
+                    () -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId, false))
                 );
             }
-            return desiredNodes == initialDesiredNodes ? currentState : replaceDesiredNodes(currentState, desiredNodes);
+
+            desiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(initialState.nodes(), desiredNodes);
+
+            if (desiredNodes == initialDesiredNodes) {
+                return initialState;
+            } else {
+                final ClusterState withUpdatedDesiredNodes = replaceDesiredNodes(initialState, desiredNodes);
+                return allocationService.adaptAutoExpandReplicas(withUpdatedDesiredNodes);
+            }
+        }
+
+        @Override
+        public void clusterStatePublished(ClusterState newClusterState) {
+            rerouteService.reroute("desired nodes updated", Priority.HIGH, REROUTE_LISTENER);
         }
     }
 }

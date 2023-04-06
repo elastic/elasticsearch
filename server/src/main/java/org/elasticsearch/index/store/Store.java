@@ -40,7 +40,6 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,6 +54,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
@@ -121,6 +121,19 @@ import static org.elasticsearch.index.engine.Engine.ES_VERSION;
  * </pre>
  */
 public class Store extends AbstractIndexShardComponent implements Closeable, RefCounted {
+
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     * TODO: Remove in 9.0
+     */
+    @Deprecated
+    public static final Setting<Boolean> FORCE_RAM_TERM_DICT = Setting.boolSetting(
+        "index.force_memory_term_dictionary",
+        false,
+        Property.IndexScope,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    );
+
     static final String CODEC = "store";
     static final int CORRUPTED_MARKER_CODEC_VERSION = 2;
     // public is for test purposes
@@ -451,6 +464,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return MetadataSnapshot.loadFromIndexCommit(null, dir, logger);
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
+        } catch (CorruptIndexException ex) {
+            logger.info(() -> format("%s: corrupted", shardId), ex);
         } catch (FileNotFoundException | NoSuchFileException ex) {
             logger.info("Failed to open / find files while reading metadata snapshot", ex);
         } catch (ShardLockObtainFailedException ex) {
@@ -1424,7 +1439,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 output.writeBytes(ref.bytes, ref.offset, ref.length);
                 CodecUtil.writeFooter(output);
             } catch (IOException | ImmutableDirectoryException ex) {
-                logger.warn("Can't mark store as corrupted", ex);
+                if (exception != null) {
+                    ex.addSuppressed(exception);
+                }
+                if (ex instanceof ImmutableDirectoryException) {
+                    logger.debug("Can't mark store with an immutable directory as corrupted", ex);
+                } else {
+                    logger.warn("Can't mark store as corrupted", ex);
+                }
             }
             directory().sync(Collections.singleton(corruptionMarkerName));
         }

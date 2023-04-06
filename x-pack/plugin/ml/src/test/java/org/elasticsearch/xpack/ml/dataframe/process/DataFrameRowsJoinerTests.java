@@ -309,7 +309,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     }
 
     private static SearchHit newHit(String json) {
-        SearchHit hit = new SearchHit(randomInt(), randomAlphaOfLength(10), Collections.emptyMap(), Collections.emptyMap());
+        SearchHit hit = new SearchHit(randomInt(), randomAlphaOfLength(10));
         hit.sourceRef(new BytesArray(json));
         return hit;
     }

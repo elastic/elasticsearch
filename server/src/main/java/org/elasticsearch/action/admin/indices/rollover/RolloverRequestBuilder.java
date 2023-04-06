@@ -12,8 +12,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 
 public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<RolloverRequest, RolloverResponse, RolloverRequestBuilder> {
     public RolloverRequestBuilder(ElasticsearchClient client, RolloverAction action) {
@@ -30,28 +28,13 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
         return this;
     }
 
-    public RolloverRequestBuilder addMaxIndexAgeCondition(TimeValue age) {
-        this.request.addMaxIndexAgeCondition(age);
+    public RolloverRequestBuilder setConditions(RolloverConditions rolloverConditions) {
+        this.request.setConditions(rolloverConditions);
         return this;
     }
 
-    public RolloverRequestBuilder addMaxIndexDocsCondition(long docs) {
-        this.request.addMaxIndexDocsCondition(docs);
-        return this;
-    }
-
-    public RolloverRequestBuilder addMaxIndexSizeCondition(ByteSizeValue size) {
-        this.request.addMaxIndexSizeCondition(size);
-        return this;
-    }
-
-    public RolloverRequestBuilder addMaxPrimaryShardSizeCondition(ByteSizeValue size) {
-        this.request.addMaxPrimaryShardSizeCondition(size);
-        return this;
-    }
-
-    public RolloverRequestBuilder addMaxPrimaryShardDocsCondition(long docs) {
-        this.request.addMaxPrimaryShardDocsCondition(docs);
+    public RolloverRequestBuilder setConditions(RolloverConditions.Builder rolloverConditions) {
+        this.request.setConditions(rolloverConditions.build());
         return this;
     }
 

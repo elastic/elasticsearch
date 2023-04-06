@@ -27,6 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.convert;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
@@ -44,16 +45,16 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
      */
     static final String NAME = "f";
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean arrayLeniency) {
-        super(name, dataType, zoneId, arrayLeniency);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, MultiValueSupport multiValueSupport) {
+        super(name, dataType, zoneId, multiValueSupport);
     }
 
     public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId) {
         super(name, dataType, zoneId);
     }
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName, boolean arrayLeniency) {
-        super(name, dataType, zoneId, hitName, arrayLeniency);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName, MultiValueSupport multiValueSupport) {
+        super(name, dataType, zoneId, hitName, multiValueSupport);
     }
 
     public FieldHitExtractor(StreamInput in) throws IOException {
@@ -132,6 +133,9 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
             // Unsigned longs can be returned either as such (for values exceeding long range) or as longs. Value conversion is needed
             // since its later processing will be type dependent. (ex.: negation of UL is only "safe" for 0 values)
             return convert(values, UNSIGNED_LONG);
+        }
+        if (dataType == VERSION) {
+            return convert(values, VERSION);
         }
 
         return null;

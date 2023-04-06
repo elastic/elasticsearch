@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.watcher.rest.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -61,7 +60,7 @@ public class RestAckWatchAction extends BaseRestHandler {
         return channel -> client.execute(AckWatchAction.INSTANCE, ackWatchRequest, new RestBuilderListener<AckWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(AckWatchResponse response, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(
+                return new RestResponse(
                     RestStatus.OK,
                     builder.startObject()
                         .field(WatchField.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)

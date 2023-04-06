@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,10 +55,12 @@ import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static java.util.function.Predicate.not;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAction<
@@ -160,10 +163,12 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
         if (securityContext != null) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 final String username = securityContext.getUser().principal();
-                RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(preparedForPutConfig.getSource().getIndex())
-                    .privileges("read")
-                    .build();
+                // DFA doesn't support CCS, but if it did it would need this filter, so it's safest to have the filter
+                // in place even though it's a no-op.
+                // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
+                final String[] sourceIndices = Arrays.stream(preparedForPutConfig.getSource().getIndex())
+                    .filter(not(RemoteClusterLicenseChecker::isRemoteIndex))
+                    .toArray(String[]::new);
                 RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                     .indices(preparedForPutConfig.getDest().getIndex())
                     .privileges("read", "index", "create_index")
@@ -173,7 +178,17 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
                 privRequest.username(username);
                 privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
-                privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
+                RoleDescriptor.IndicesPrivileges[] indicesPrivileges;
+                if (sourceIndices.length > 0) {
+                    RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+                        .indices(sourceIndices)
+                        .privileges("read")
+                        .build();
+                    indicesPrivileges = new RoleDescriptor.IndicesPrivileges[] { sourceIndexPrivileges, destIndexPrivileges };
+                } else {
+                    indicesPrivileges = new RoleDescriptor.IndicesPrivileges[] { destIndexPrivileges };
+                }
+                privRequest.indexPrivileges(indicesPrivileges);
 
                 ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
                     r -> handlePrivsResponse(username, preparedForPutConfig, r, masterNodeTimeout, listener),
@@ -188,7 +203,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 threadPool.getThreadContext().getHeaders(),
                 masterNodeTimeout,
                 ActionListener.wrap(
-                    unused -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(preparedForPutConfig)),
+                    finalConfig -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)),
                     listener::onFailure
                 )
             );
@@ -208,7 +223,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 threadPool.getThreadContext().getHeaders(),
                 masterNodeTimeout,
                 ActionListener.wrap(
-                    unused -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
+                    finalConfig -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)),
                     listener::onFailure
                 )
             );
@@ -238,10 +253,18 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
         TimeValue masterNodeTimeout,
         ActionListener<DataFrameAnalyticsConfig> listener
     ) {
+        ActionListener<DataFrameAnalyticsConfig> auditingListener = ActionListener.wrap(finalConfig -> {
+            auditor.info(
+                finalConfig.getId(),
+                Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATED, finalConfig.getAnalysis().getWriteableName())
+            );
+            listener.onResponse(finalConfig);
+        }, listener::onFailure);
+
         ClusterState clusterState = clusterService.state();
         if (clusterState == null) {
             logger.warn("Cannot update doc mapping because clusterState == null");
-            configProvider.put(config, headers, masterNodeTimeout, listener);
+            configProvider.put(config, headers, masterNodeTimeout, auditingListener);
             return;
         }
         ElasticsearchMappings.addDocMappingIfMissing(
@@ -250,13 +273,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             client,
             clusterState,
             masterNodeTimeout,
-            ActionListener.wrap(unused -> configProvider.put(config, headers, masterNodeTimeout, ActionListener.wrap(indexResponse -> {
-                auditor.info(
-                    config.getId(),
-                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATED, config.getAnalysis().getWriteableName())
-                );
-                listener.onResponse(config);
-            }, listener::onFailure)), listener::onFailure)
+            ActionListener.wrap(unused -> configProvider.put(config, headers, masterNodeTimeout, auditingListener), listener::onFailure)
         );
     }
 

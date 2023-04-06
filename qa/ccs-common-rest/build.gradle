@@ -1,20 +1,4 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
-
-
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
-
-
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 // This subproject copies a subset of the rest-api-spec rest tests and runs them in a slightly
 // modified way on two clusters connected via CCS. All operations except searches and a few other
@@ -26,73 +10,37 @@ apply plugin: 'elasticsearch.rest-resources'
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'count', 'cluster', 'index', 'indices', 'field_caps', 'msearch',
-      'search', 'async_search', 'graph', '*_point_in_time', 'info', 'scroll', 'clear_scroll'
+    include '_common', 'bulk', 'count', 'cluster', 'field_caps', 'knn_search', 'index', 'indices', 'msearch',
+      'search', 'async_search', 'graph', '*_point_in_time', 'info', 'scroll', 'clear_scroll', 'search_mvt', 'eql', 'sql'
   }
   restTests {
     includeCore 'field_caps', 'msearch', 'search', 'suggest', 'scroll', "indices.resolve_index"
-    includeXpack 'async_search'
+    includeXpack 'async_search', 'vector-tile', 'sql'
   }
 }
 
-def remoteCluster = testClusters.register("ccs-remote") {
-  numberOfNodes = 2
-  setting 'node.roles', '[data,ingest,master]'
+dependencies {
+  clusterModules project(':x-pack:plugin:async-search')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:aggregations')
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':x-pack:plugin:analytics')
+  clusterModules project(':x-pack:plugin:vector-tile')
+  clusterModules project(':modules:legacy-geo')
+  clusterModules project(':x-pack:plugin:eql')
+  clusterModules project(':x-pack:plugin:sql')
 }
 
-def localCluster = testClusters.register("ccs-local") {
-  setting 'node.roles', '[data,ingest,master,remote_cluster_client]'
-  setting 'cluster.remote.connections_per_cluster', '1'
-  setting 'cluster.remote.remote_cluster.seeds',
-    { "\"${remoteCluster.get().getAllTransportPortURI().get(0)}\"" }
-}
-
-testClusters.configureEach {
-  setting 'xpack.security.enabled', 'false'
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-}
-
-// the following task is needed to make sure the remote cluster is running before the local cluster
-// gets configured with the remotes cluster seed
-tasks.register('startRemoteCluster', DefaultTestClustersTask) {
-  useCluster remoteCluster
-  doLast {
-    clusters.each { c ->
-      print "Remote cluster transport uri for ccs configuration is: "
-      println c.getAllTransportPortURI().get(0)
-    }
-  }
-}
-
-tasks.register("ccs-remote", RestIntegTestTask) {
-  mustRunAfter("precommit")
-  dependsOn startRemoteCluster
-
-  useCluster remoteCluster
-  useCluster localCluster
-
+tasks.named("yamlRestTest") {
   systemProperty 'tests.rest.blacklist',
     [
       'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', // terms lookup query with index
       'search/170_terms_query/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', // terms lookup query with index
-      'search/350_point_in_time/basic', // [indices] cannot be used with point in time
-      'search/350_point_in_time/point-in-time with slicing', // [indices] cannot be used with point in time
-      'search/350_point_in_time/msearch', // [indices] cannot be used with point in time
-      'search/350_point_in_time/wildcard', // [indices] cannot be used with point in time
       'search.aggregation/220_filters_bucket/cache busting', // node_selector?
       'search.aggregation/220_filters_bucket/cache hits', // node_selector?
       'search.aggregation/50_filter/Standard queries get cached',
       'search.aggregation/50_filter/Terms lookup gets cached', // terms lookup by "index" doesn't seem to work correctly
       'search.aggregation/70_adjacency_matrix/Terms lookup', // terms lookup by "index" doesn't seem to work correctly
-      'async_search/20-with-poin-in-time/Async search with point in time' // [indices] cannot be used with point in time
     ].join(',')
-
-
-  doFirst {
-    println "Remote cluster endpoints are: ${-> remoteCluster.get().allHttpSocketURI.join(",")}"
-    println "Local cluster endpoints are: ${-> localCluster.get().allHttpSocketURI.join(",")}"
-    nonInputProperties.systemProperty('tests.rest.cluster', remoteCluster.map(c -> c.allHttpSocketURI.join(",")))
-    nonInputProperties.systemProperty('tests.rest.search_cluster', localCluster.map(c -> c.allHttpSocketURI.join(",")))
-  }
 }
 

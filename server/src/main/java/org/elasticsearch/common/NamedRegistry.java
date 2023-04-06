@@ -45,4 +45,8 @@ public class NamedRegistry<T> {
             }
         }
     }
+
+    public void register(Map<String, T> collect) {
+        collect.forEach(this::register);
+    }
 }

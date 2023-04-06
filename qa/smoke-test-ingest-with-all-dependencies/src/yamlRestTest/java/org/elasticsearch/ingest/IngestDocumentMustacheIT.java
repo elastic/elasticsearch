@@ -22,7 +22,7 @@ public class IngestDocumentMustacheIT extends AbstractScriptTestCase {
     public void testAccessMetadataViaTemplate() {
         Map<String, Object> document = new HashMap<>();
         document.put("foo", "bar");
-        IngestDocument ingestDocument = new IngestDocument("index", "id", null, null, null, document);
+        IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
         ingestDocument.setFieldValue(compile("field1"), ValueSource.wrap("1 {{foo}}", scriptService));
         assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("1 bar"));
 
@@ -37,7 +37,7 @@ public class IngestDocumentMustacheIT extends AbstractScriptTestCase {
         innerObject.put("baz", "hello baz");
         innerObject.put("qux", Collections.singletonMap("fubar", "hello qux and fubar"));
         document.put("foo", innerObject);
-        IngestDocument ingestDocument = new IngestDocument("index", "id", null, null, null, document);
+        IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
         ingestDocument.setFieldValue(compile("field1"), ValueSource.wrap("1 {{foo.bar}} {{foo.baz}} {{foo.qux.fubar}}", scriptService));
         assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("1 hello bar hello baz hello qux and fubar"));
 
@@ -57,7 +57,7 @@ public class IngestDocumentMustacheIT extends AbstractScriptTestCase {
         list.add(value);
         list.add(null);
         document.put("list2", list);
-        IngestDocument ingestDocument = new IngestDocument("index", "id", null, null, null, document);
+        IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
         ingestDocument.setFieldValue(compile("field1"), ValueSource.wrap("1 {{list1.0}} {{list2.0}}", scriptService));
         assertThat(ingestDocument.getFieldValue("field1", String.class), equalTo("1 foo {field=value}"));
     }
@@ -67,7 +67,7 @@ public class IngestDocumentMustacheIT extends AbstractScriptTestCase {
         Map<String, Object> ingestMap = new HashMap<>();
         ingestMap.put("timestamp", "bogus_timestamp");
         document.put("_ingest", ingestMap);
-        IngestDocument ingestDocument = new IngestDocument("index", "id", null, null, null, document);
+        IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
         ingestDocument.setFieldValue(
             compile("ingest_timestamp"),
             ValueSource.wrap("{{_ingest.timestamp}} and {{_source._ingest.timestamp}}", scriptService)

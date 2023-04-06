@@ -23,6 +23,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -183,8 +184,8 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        List<TermValues> termValuesList = termValuesList(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        List<TermValues> termValuesList = termValuesList(aggCtx.getLeafReaderContext());
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -351,8 +352,8 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
      * Handles non-float and date doc values
      */
     static class LongTermValuesSource implements TermValuesSource {
-        ValuesSource.Numeric source;
-        InternalMultiTerms.KeyConverter converter;
+        final ValuesSource.Numeric source;
+        final InternalMultiTerms.KeyConverter converter;
 
         LongTermValuesSource(ValuesSourceConfig config) {
             this.source = (ValuesSource.Numeric) config.getValuesSource();
@@ -395,7 +396,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
      * Handles float and date doc values
      */
     static class DoubleTermValuesSource implements TermValuesSource {
-        ValuesSource.Numeric source;
+        final ValuesSource.Numeric source;
 
         DoubleTermValuesSource(ValuesSourceConfig config) {
             this.source = (ValuesSource.Numeric) config.getValuesSource();

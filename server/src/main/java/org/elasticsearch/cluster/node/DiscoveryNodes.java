@@ -24,8 +24,8 @@ import java.io.IOException;
 import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +61,8 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     private final Version maxNodeVersion;
     private final Version minNodeVersion;
 
+    private final Set<String> availableRoles;
+
     private DiscoveryNodes(
         Map<String, DiscoveryNode> nodes,
         Map<String, DiscoveryNode> dataNodes,
@@ -85,6 +87,11 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         this.minNodeVersion = minNodeVersion;
         this.maxNodeVersion = maxNodeVersion;
         assert (localNodeId == null) == (localNode == null);
+        this.availableRoles = dataNodes.values()
+            .stream()
+            .flatMap(n -> n.getRoles().stream())
+            .map(DiscoveryNodeRole::roleName)
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     @Override
@@ -106,6 +113,16 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
             return false;
         }
         return localNodeId.equals(masterNodeId);
+    }
+
+    /**
+     * Checks if any node has the role with the given {@code roleName}.
+     *
+     * @param roleName name to check
+     * @return true if any node has the role of the given name
+     */
+    public boolean isRoleAvailable(String roleName) {
+        return availableRoles.contains(roleName);
     }
 
     /**
@@ -169,11 +186,15 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         return filteredNodes(nodes, n -> n.canContainData() == false && n.isMasterNode() == false && n.isIngestNode() == false);
     }
 
+    private static final Comparator<DiscoveryNode> MASTERS_FIRST_COMPARATOR
+    // Ugly hack: when https://github.com/elastic/elasticsearch/issues/94946 is fixed, remove the sorting by ephemeral ID here
+        = Comparator.<DiscoveryNode>comparingInt(n -> n.isMasterNode() ? 0 : 1).thenComparing(DiscoveryNode::getEphemeralId);
+
     /**
      * Returns a stream of all nodes, with master nodes at the front
      */
     public Stream<DiscoveryNode> mastersFirstStream() {
-        return Stream.concat(masterNodes.values().stream(), stream().filter(n -> n.isMasterNode() == false));
+        return nodes.values().stream().sorted(MASTERS_FIRST_COMPARATOR);
     }
 
     /**
@@ -334,7 +355,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         if (nodes == null || nodes.length == 0) {
             return stream().map(DiscoveryNode::getId).toArray(String[]::new);
         } else {
-            Set<String> resolvedNodesIds = new HashSet<>(nodes.length);
+            Set<String> resolvedNodesIds = Sets.newHashSetWithExpectedSize(nodes.length);
             for (String nodeId : nodes) {
                 if (nodeId == null) {
                     // don't silence the underlying issue, it is a bug, so lets fail if assertions are enabled

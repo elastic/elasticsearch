@@ -193,7 +193,7 @@ public class EmailService extends NotificationService<Account> {
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_SEND_PARTIAL, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_WAIT_ON_QUIT, (s, o) -> {}, (s, o) -> {});
         this.allowedDomains = new HashSet<>(SETTING_DOMAIN_ALLOWLIST.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(SETTING_DOMAIN_ALLOWLIST, (s) -> {});
+        clusterSettings.addSettingsUpdateConsumer(SETTING_DOMAIN_ALLOWLIST, this::updateAllowedDomains);
         // do an initial load
         reload(settings);
     }

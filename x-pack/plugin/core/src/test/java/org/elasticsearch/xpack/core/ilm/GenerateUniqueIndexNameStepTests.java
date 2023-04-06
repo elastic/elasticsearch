@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -54,8 +55,8 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
         String prefix = instance.prefix();
 
         switch (between(0, 2)) {
-            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> prefix = randomValueOtherThan(prefix, () -> randomAlphaOfLengthBetween(5, 10));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -191,7 +192,7 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
                 .numberOfReplicas(randomIntBetween(1, 5))
                 .build();
             ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-                .routingTable(RoutingTable.builder().addAsNew(indexMetadata).build())
+                .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build())
                 .metadata(Metadata.builder().put(indexMetadata, false))
                 .build();
 

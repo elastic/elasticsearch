@@ -62,7 +62,7 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
         );
         final String endpoint = "/_security/user/" + username;
         final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        final String body = """
+        final String body = Strings.format("""
             {
                 "username": "%s",
                 "full_name": "%s",
@@ -70,7 +70,7 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
                 "password": "%s",
                 "roles": [ "%s" ]
             }
-            """.formatted(user.principal(), user.fullName(), user.email(), password.toString(), role);
+            """, user.principal(), user.fullName(), user.email(), password.toString(), role);
         request.setJsonEntity(body);
         request.addParameters(Map.of("refresh", "true"));
         request.setOptions(RequestOptions.DEFAULT);
@@ -138,11 +138,11 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
     protected void setUserPassword(String username, SecureString password) throws IOException {
         final String endpoint = "/_security/user/" + username + "/_password";
         final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        final String body = """
+        final String body = Strings.format("""
             {
                 "password": "%s"
             }
-            """.formatted(password.toString());
+            """, password.toString());
         request.setJsonEntity(body);
         request.setOptions(RequestOptions.DEFAULT);
         adminClient().performRequest(request);

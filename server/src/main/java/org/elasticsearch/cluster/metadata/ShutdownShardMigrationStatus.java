@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject {
-    private static final Version ALLOCATION_DECISION_ADDED_VERSION = Version.V_7_16_0;
+    private static final TransportVersion ALLOCATION_DECISION_ADDED_VERSION = TransportVersion.V_7_16_0;
+
+    public static final String NODE_ALLOCATION_DECISION_KEY = "node_allocation_decision";
 
     private final SingleNodeShutdownMetadata.Status status;
     private final long shardsRemaining;
@@ -55,7 +57,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
         this.status = in.readEnum(SingleNodeShutdownMetadata.Status.class);
         this.shardsRemaining = in.readLong();
         this.explanation = in.readOptionalString();
-        if (in.getVersion().onOrAfter(ALLOCATION_DECISION_ADDED_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(ALLOCATION_DECISION_ADDED_VERSION)) {
             this.allocationDecision = in.readOptionalWriteable(ShardAllocationDecision::new);
         } else {
             this.allocationDecision = null;
@@ -83,7 +85,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
             builder.field("explanation", explanation);
         }
         if (Objects.nonNull(allocationDecision)) {
-            builder.startObject("node_allocation_decision");
+            builder.startObject(NODE_ALLOCATION_DECISION_KEY);
             {
                 allocationDecision.toXContent(builder, params);
             }
@@ -98,7 +100,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
         out.writeEnum(status);
         out.writeLong(shardsRemaining);
         out.writeOptionalString(explanation);
-        if (out.getVersion().onOrAfter(ALLOCATION_DECISION_ADDED_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(ALLOCATION_DECISION_ADDED_VERSION)) {
             out.writeOptionalWriteable(allocationDecision);
         }
     }

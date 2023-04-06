@@ -189,7 +189,7 @@ public final class VersionStats implements ToXContentFragment, Writeable {
             builder.field("version", version.toString());
             builder.field("index_count", indexCount);
             builder.field("primary_shard_count", primaryShardCount);
-            builder.humanReadableField("total_primary_bytes", "total_primary_size", new ByteSizeValue(totalPrimaryByteCount));
+            builder.humanReadableField("total_primary_bytes", "total_primary_size", ByteSizeValue.ofBytes(totalPrimaryByteCount));
             builder.endObject();
             return builder;
         }

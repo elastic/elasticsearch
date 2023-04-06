@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -38,9 +38,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -63,12 +66,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
@@ -82,6 +87,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyCollectionOf;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -98,7 +104,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 public class TasksIT extends ESIntegTestCase {
 
-    private Map<Tuple<String, String>, RecordingTaskManagerListener> listeners = new HashMap<>();
+    private final Map<Tuple<String, String>, RecordingTaskManagerListener> listeners = new HashMap<>();
 
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
@@ -259,7 +265,7 @@ public class TasksIT extends ESIntegTestCase {
         // we will have as many [s][p] and [s][r] tasks as we have primary and replica shards
         assertEquals(numberOfShards.totalNumShards, numberOfEvents(RefreshAction.NAME + "[s][*]", Tuple::v1));
 
-        // we the [s][p] and [s][r] tasks should have a corresponding [s] task on the same node as a parent
+        // the [s][p] and [s][r] tasks should have a corresponding [s] task on the same node as a parent
         List<TaskInfo> spEvents = findEvents(RefreshAction.NAME + "[s][*]", Tuple::v1);
         for (TaskInfo taskInfo : spEvents) {
             List<TaskInfo> sTask;
@@ -267,17 +273,17 @@ public class TasksIT extends ESIntegTestCase {
                 // A [s][p] level task should have a corresponding [s] level task on the same node
                 sTask = findEvents(
                     RefreshAction.NAME + "[s]",
-                    event -> event.v1()
-                        && taskInfo.taskId().getNodeId().equals(event.v2().taskId().getNodeId())
-                        && taskInfo.description().equals(event.v2().description())
+                    event -> event.v1() // task registration event
+                        && event.v2().taskId().equals(taskInfo.parentTaskId())
+                        && event.v2().taskId().getNodeId().equals(taskInfo.taskId().getNodeId())
                 );
             } else {
-                // A [s][r] level task should have a corresponding [s] level task on the a different node (where primary is located)
+                // A [s][r] level task should have a corresponding [s] level task on a different node (where primary is located)
                 sTask = findEvents(
                     RefreshAction.NAME + "[s]",
-                    event -> event.v1()
-                        && taskInfo.parentTaskId().getNodeId().equals(event.v2().taskId().getNodeId())
-                        && taskInfo.description().equals(event.v2().description())
+                    event -> event.v1() // task registration event
+                        && event.v2().taskId().equals(taskInfo.parentTaskId())
+                        && event.v2().taskId().getNodeId().equals(taskInfo.taskId().getNodeId()) == false
                 );
             }
             // There should be only one parent task
@@ -450,7 +456,7 @@ public class TasksIT extends ESIntegTestCase {
             // Need to run the task in a separate thread because node client's .execute() is blocked by our task listener
             index = new Thread(() -> {
                 IndexResponse indexResponse = client().prepareIndex("test").setSource("test", "test").get();
-                assertArrayEquals(ReplicationResponse.EMPTY, indexResponse.getShardInfo().getFailures());
+                assertArrayEquals(ReplicationResponse.NO_FAILURES, indexResponse.getShardInfo().getFailures());
             });
             index.start();
             assertTrue(taskRegistered.await(10, TimeUnit.SECONDS)); // waiting for at least one task to be registered
@@ -482,14 +488,12 @@ public class TasksIT extends ESIntegTestCase {
             if (index != null) {
                 index.join();
             }
-            assertBusy(
-                () -> {
-                    assertEquals(
-                        emptyList(),
-                        client().admin().cluster().prepareListTasks().setActions("indices:data/write/index*").get().getTasks()
-                    );
-                }
-            );
+            assertBusy(() -> {
+                assertEquals(
+                    emptyList(),
+                    client().admin().cluster().prepareListTasks().setActions("indices:data/write/index*").get().getTasks()
+                );
+            });
         }
     }
 
@@ -631,6 +635,11 @@ public class TasksIT extends ESIntegTestCase {
 
                     @Override
                     public void onTaskUnregistered(Task task) {}
+
+                    @Override
+                    public void subscribeForRemovedTasks(RemovedTaskListener removedTaskListener) {
+                        waitForWaitingToStart.countDown();
+                    }
                 });
             }
 
@@ -754,6 +763,14 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testTasksWaitForAllTask() throws Exception {
+        // Find tasks that are not expected to complete and identify the nodes running them
+        List<PersistentTasksCustomMetadata.PersistentTask<?>> alwaysRunningTasks = findTasks(
+            clusterService().state(),
+            HealthNode.TASK_NAME
+        );
+        Set<String> nodesRunningTasks = alwaysRunningTasks.stream()
+            .map(PersistentTasksCustomMetadata.PersistentTask::getExecutorNode)
+            .collect(Collectors.toSet());
         // Spin up a request to wait for all tasks in the cluster to make sure it doesn't cause an infinite loop
         ListTasksResponse response = client().admin()
             .cluster()
@@ -762,8 +779,13 @@ public class TasksIT extends ESIntegTestCase {
             .setTimeout(timeValueSeconds(10))
             .get();
 
-        // It should finish quickly and without complaint and list the list tasks themselves
-        assertThat(response.getNodeFailures(), emptyCollectionOf(ElasticsearchException.class));
+        // We expect the nodes that are running always-running-tasks to report FailedNodeException and fail to list their tasks
+        assertThat(response.getNodeFailures().size(), equalTo(nodesRunningTasks.size()));
+        assertThat(
+            response.getNodeFailures().stream().map(f -> ((FailedNodeException) f).nodeId()).collect(Collectors.toSet()),
+            equalTo(nodesRunningTasks)
+        );
+        // We expect no task failures, at least one task the completed, the listTasks task on a node with completed tasks (1 out of min 2).
         assertThat(response.getTaskFailures(), emptyCollectionOf(TaskOperationFailure.class));
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(1));
     }

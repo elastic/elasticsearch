@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -14,11 +15,13 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -63,7 +66,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static java.time.format.DateTimeFormatter.ISO_ZONED_DATE_TIME;
-import static org.elasticsearch.client.internal.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -178,7 +180,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client().admin()
             .indices()
-            .create(createIndexRequest("test").settings(settings))
+            .create(new CreateIndexRequest("test").settings(settings))
             .actionGet();
         assertAcked(createIndexResponse);
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
@@ -264,7 +266,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client().admin()
             .indices()
-            .create(createIndexRequest("test").settings(settings))
+            .create(new CreateIndexRequest("test").settings(settings))
             .actionGet();
         assertAcked(createIndexResponse);
 
@@ -281,11 +283,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         }
 
         // set the origination date setting to an older value
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, 1000L))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexSettings.LIFECYCLE_ORIGINATION_DATE, 1000L), "test");
 
         {
             assertBusy(() -> {
@@ -295,11 +293,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         }
 
         // set the origination date setting to null
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, null))
-            .get();
+        updateIndexSettings(Settings.builder().putNull(IndexSettings.LIFECYCLE_ORIGINATION_DATE), "test");
 
         {
             assertBusy(() -> {
@@ -313,11 +307,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         }
 
         // complete the step
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Collections.singletonMap("index.lifecycle.test.complete", true))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.lifecycle.test.complete", true), "test");
 
         {
             Phase phase = new Phase("mock", TimeValue.ZERO, Collections.singletonMap("TEST_ACTION", OBSERVABLE_ACTION));
@@ -353,8 +343,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         CreateIndexResponse createIndexResponse = client().admin()
             .indices()
             .create(
-                createIndexRequest(indexName).settings(
-                    Settings.builder().put(settings).put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                new CreateIndexRequest(indexName).settings(
+                    Settings.builder().put(settings).put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
                 )
             )
             .actionGet();
@@ -368,11 +358,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         });
 
         // disabling the lifecycle parsing would maintain the parsed value as that was set as the origination date
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false), indexName);
 
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
@@ -380,11 +366,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         });
 
         // setting the lifecycle origination date setting to null should make the lifecyle date fallback on the index creation date
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, null))
-            .get();
+        updateIndexSettings(Settings.builder().putNull(IndexSettings.LIFECYCLE_ORIGINATION_DATE), indexName);
 
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
@@ -393,18 +375,12 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         // setting the lifecycle origination date to an explicit value overrides the date parsing
         long originationDate = 42L;
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(
-                Map.of(
-                    LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE,
-                    true,
-                    LifecycleSettings.LIFECYCLE_ORIGINATION_DATE,
-                    originationDate
-                )
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                .put(IndexSettings.LIFECYCLE_ORIGINATION_DATE, originationDate),
+            indexName
+        );
 
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
@@ -448,7 +424,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client().admin()
             .indices()
-            .create(createIndexRequest("test").settings(settings))
+            .create(new CreateIndexRequest("test").settings(settings))
             .actionGet();
         assertAcked(createIndexResponse);
 
@@ -478,12 +454,11 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         final String node1 = getLocalNodeId(server_1);
 
         assertAcked(client().execute(StopILMAction.INSTANCE, new StopILMRequest()).get());
-        assertBusy(
-            () -> assertThat(
-                client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get().getMode(),
-                equalTo(OperationMode.STOPPED)
-            )
-        );
+        assertBusy(() -> {
+            OperationMode mode = client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get().getMode();
+            logger.info("--> waiting for STOPPED, currently: {}", mode);
+            assertThat(mode, equalTo(OperationMode.STOPPED));
+        });
 
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
@@ -525,10 +500,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         // update the poll interval
         TimeValue newPollInterval = TimeValue.timeValueHours(randomLongBetween(6, 1000));
-        Settings newIntervalSettings = Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, newPollInterval.getStringRep())
-            .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(newIntervalSettings));
+        updateClusterSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, newPollInterval.getStringRep()));
         {
             TimeValueSchedule schedule = (TimeValueSchedule) indexLifecycleService.getScheduledJob().getSchedule();
             assertThat(schedule.getInterval(), equalTo(newPollInterval));
@@ -595,15 +567,15 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(getKey().getPhase());
-            out.writeString(getKey().getAction());
-            out.writeString(getKey().getName());
+            out.writeString(getKey().phase());
+            out.writeString(getKey().action());
+            out.writeString(getKey().name());
             boolean hasNextStep = getNextStepKey() != null;
             out.writeBoolean(hasNextStep);
             if (hasNextStep) {
-                out.writeString(getNextStepKey().getPhase());
-                out.writeString(getNextStepKey().getAction());
-                out.writeString(getNextStepKey().getName());
+                out.writeString(getNextStepKey().phase());
+                out.writeString(getNextStepKey().action());
+                out.writeString(getNextStepKey().name());
             }
         }
 

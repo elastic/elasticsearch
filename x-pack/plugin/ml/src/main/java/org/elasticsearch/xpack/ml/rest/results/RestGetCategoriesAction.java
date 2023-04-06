@@ -10,6 +10,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -92,7 +93,11 @@ public class RestGetCategoriesAction extends BaseRestHandler {
             request.setPartitionFieldValue(restRequest.param(Request.PARTITION_FIELD_VALUE.getPreferredName()));
         }
 
-        return channel -> client.execute(GetCategoriesAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            GetCategoriesAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel)
+        );
     }
 
 }

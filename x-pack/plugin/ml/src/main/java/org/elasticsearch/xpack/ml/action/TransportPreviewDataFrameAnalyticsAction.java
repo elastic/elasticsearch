@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -101,13 +102,14 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
     }
 
     void preview(Task task, DataFrameAnalyticsConfig config, ActionListener<Response> listener) {
+        final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(
-            new ParentTaskAssigningClient(client, task.getParentTaskId())
+            new ParentTaskAssigningClient(client, parentTaskId)
         );
         extractedFieldsDetectorFactory.createFromSource(config, ActionListener.wrap(extractedFieldsDetector -> {
             DataFrameDataExtractor extractor = DataFrameDataExtractorFactory.createForSourceIndices(
                 client,
-                task.getParentTaskId().toString(),
+                parentTaskId.toString(),
                 config,
                 extractedFieldsDetector.detect().v1()
             ).newExtractor(false);

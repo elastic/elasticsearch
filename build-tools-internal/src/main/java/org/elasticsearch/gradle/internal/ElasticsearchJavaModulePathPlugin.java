@@ -105,11 +105,10 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
                     Logger logger = task.getLogger();
                     if (logger.isInfoEnabled()) {
                         logger.info(
-                            "%s%n Module path args: %s%n Classpath: %s".formatted(
-                                task.toString(),
-                                argsToString(argumentProvider.asArguments()),
-                                pathToString(task.getClasspath().getAsPath())
-                            )
+                            "{}\n Module path args: {}\n Classpath: {}",
+                            task.getPath(),
+                            argsToString(argumentProvider.asArguments()),
+                            pathToString(task.getClasspath().getAsPath())
                         );
                     }
                 }
@@ -134,7 +133,7 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
                     return false;
                 }
                 return isModuleDependency
-                    || (it.getId()instanceof ProjectComponentIdentifier projectId && hasModuleInfoDotJava(project, projectId));
+                    || (it.getId() instanceof ProjectComponentIdentifier projectId && hasModuleInfoDotJava(project, projectId));
             })
             .flatMap(it -> Stream.concat(walkResolvedComponent(project, it, true, visited), Stream.of(it.getId())));
     }
@@ -186,7 +185,7 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
     }
 
     static boolean hasModuleInfoDotJava(Project project, ProjectComponentIdentifier id) {
-        return project.findProject(id.getProjectPath()).file("src/main/java/module-info.java").exists();
+        return new File(findProjectIdPath(project, id), "src/main/java/module-info.java").exists();
     }
 
     static SourceSet getJavaMainSourceSet(Project project) {
@@ -208,5 +207,22 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
 
     static boolean isIdea() {
         return System.getProperty("idea.sync.active", "false").equals("true");
+    }
+
+    static File findProjectIdPath(Project project, ProjectComponentIdentifier id) {
+        if (id.getBuild().isCurrentBuild()) {
+            return project.findProject(id.getProjectPath()).getProjectDir();
+        } else {
+            // For project dependencies sourced from an included build we have to infer the source project path
+            File includedBuildDir = project.getGradle().includedBuild(id.getBuild().getName()).getProjectDir();
+
+            // We have to account for us renaming the :libs projects here
+            String[] pathSegments = id.getProjectPath().split(":");
+            if (pathSegments[1].equals("libs")) {
+                pathSegments[2] = pathSegments[2].replaceFirst("elasticsearch-", "");
+            }
+
+            return new File(includedBuildDir, String.join(File.separator, List.of(pathSegments)));
+        }
     }
 }

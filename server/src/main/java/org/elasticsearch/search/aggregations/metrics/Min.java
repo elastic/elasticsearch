@@ -23,9 +23,22 @@ import java.util.Objects;
 public class Min extends InternalNumericMetricsAggregation.SingleValue {
     private final double min;
 
+    private final boolean nonEmpty;
+
     public Min(String name, double min, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, formatter, metadata);
         this.min = min;
+        this.nonEmpty = true;
+    }
+
+    public static Min createEmptyMin(String name, DocValueFormat formatter, Map<String, Object> metadata) {
+        return new Min(name, formatter, metadata);
+    }
+
+    private Min(String name, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, formatter, metadata);
+        this.min = Double.POSITIVE_INFINITY;
+        this.nonEmpty = false;
     }
 
     /**
@@ -34,6 +47,7 @@ public class Min extends InternalNumericMetricsAggregation.SingleValue {
     public Min(StreamInput in) throws IOException {
         super(in);
         min = in.readDouble();
+        this.nonEmpty = min != Double.POSITIVE_INFINITY || format != DocValueFormat.RAW;
     }
 
     @Override
@@ -64,6 +78,11 @@ public class Min extends InternalNumericMetricsAggregation.SingleValue {
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return this;
+    }
+
+    @Override
+    public boolean canLeadReduction() {
+        return nonEmpty;
     }
 
     @Override

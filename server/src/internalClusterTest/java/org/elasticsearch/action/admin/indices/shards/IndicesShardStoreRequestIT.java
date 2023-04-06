@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.shards;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -72,7 +71,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         assertThat(response.getStoreStatuses().size(), equalTo(0));
 
         // all shards
-        response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest(index).shardStatuses("all")).get();
+        response = client().admin().indices().shardStores(new IndicesShardStoresRequest(index).shardStatuses("all")).get();
         assertThat(response.getStoreStatuses().containsKey(index), equalTo(true));
         Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> shardStores = response.getStoreStatuses().get(index);
         assertThat(shardStores.size(), equalTo(2));
@@ -90,11 +89,11 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         disableAllocation(index);
         logger.info("--> stop random node");
         int num = client().admin().cluster().prepareState().get().getState().nodes().getSize();
-        internalCluster().stopRandomNode(new IndexNodePredicate(index));
+        internalCluster().stopNode(internalCluster().getNodeNameThat(new IndexNodePredicate(index)));
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes("" + (num - 1)));
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> unassignedShards = clusterState.routingTable().index(index).shardsWithState(ShardRoutingState.UNASSIGNED);
-        response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest(index)).get();
+        response = client().admin().indices().shardStores(new IndicesShardStoresRequest(index)).get();
         assertThat(response.getStoreStatuses().containsKey(index), equalTo(true));
         Map<Integer, List<IndicesShardStoresResponse.StoreStatus>> shardStoresStatuses = response.getStoreStatuses().get(index);
         assertThat(shardStoresStatuses.size(), equalTo(unassignedShards.size()));
@@ -121,7 +120,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         ensureGreen();
         IndicesShardStoresResponse response = client().admin()
             .indices()
-            .shardStores(Requests.indicesShardStoresRequest().shardStatuses("all"))
+            .shardStores(new IndicesShardStoresRequest(new String[] {}).shardStatuses("all"))
             .get();
         Map<String, Map<Integer, List<IndicesShardStoresResponse.StoreStatus>>> shardStatuses = response.getStoreStatuses();
         assertThat(shardStatuses.containsKey(index1), equalTo(true));
@@ -130,7 +129,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         assertThat(shardStatuses.get(index2).size(), equalTo(2));
 
         // ensure index filtering works
-        response = client().admin().indices().shardStores(Requests.indicesShardStoresRequest(index1).shardStatuses("all")).get();
+        response = client().admin().indices().shardStores(new IndicesShardStoresRequest(index1).shardStatuses("all")).get();
         shardStatuses = response.getStoreStatuses();
         assertThat(shardStatuses.containsKey(index1), equalTo(true));
         assertThat(shardStatuses.containsKey(index2), equalTo(false));

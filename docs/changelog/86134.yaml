@@ -1,6 +1,0 @@
-pr: 86134
-summary: Initialize active realms without logging a message
-area: License
-type: enhancement
-issues:
- - 81380

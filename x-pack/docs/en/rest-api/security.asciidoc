@@ -70,6 +70,8 @@ without requiring basic authentication:
 * <<security-api-clear-api-key-cache,Clear API key cache>>
 * <<security-api-grant-api-key,Grant API key>>
 * <<security-api-query-api-key,Query API key>>
+* <<security-api-update-api-key,Update API key>>
+* <<security-api-bulk-update-api-keys,Bulk update API keys>>
 
 [discrete]
 [[security-user-apis]]
@@ -188,6 +190,8 @@ include::security/oidc-prepare-authentication-api.asciidoc[]
 include::security/oidc-authenticate-api.asciidoc[]
 include::security/oidc-logout-api.asciidoc[]
 include::security/query-api-key.asciidoc[]
+include::security/update-api-key.asciidoc[]
+include::security/bulk-update-api-keys.asciidoc[]
 include::security/saml-prepare-authentication-api.asciidoc[]
 include::security/saml-authenticate-api.asciidoc[]
 include::security/saml-logout-api.asciidoc[]

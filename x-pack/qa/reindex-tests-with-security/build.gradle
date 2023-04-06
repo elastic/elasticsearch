@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
@@ -8,6 +8,11 @@ dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('security'))))
   yamlRestTestImplementation(project(':modules:reindex'))
   yamlRestTestImplementation(project(":client:rest-high-level"))
+}
+
+tasks.named('yamlRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
 }
 
 tasks.named("forbiddenPatterns").configure {

@@ -48,32 +48,251 @@ setup:
             user: "d"
 
 ---
-"Basic Search":
+rescale_0_1:
+  - skip:
+      features: close_to
 
   - do:
       search:
-        index: "foo"
+        index: foo
         body:
           size: 0
           aggs:
             users_by_day:
               date_histogram:
-                field: "timestamp"
-                calendar_interval: "day"
+                field: timestamp
+                calendar_interval: day
               aggs:
                 percent_of_total_users:
                   normalize:
-                    buckets_path: "_count"
-                    method: "percent_of_sum"
+                    buckets_path: _count
+                    method: rescale_0_1
 
   - length: { aggregations.users_by_day.buckets: 3 }
   - match: { aggregations.users_by_day.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
   - match: { aggregations.users_by_day.buckets.0.doc_count: 3 }
-  - match: { aggregations.users_by_day.buckets.0.percent_of_total_users.value: 0.5 }
+  - close_to: { aggregations.users_by_day.buckets.0.percent_of_total_users.value: { value: 1.0, error: 0.05 } }
   - match: { aggregations.users_by_day.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
   - match: { aggregations.users_by_day.buckets.1.doc_count: 2 }
-  - match: { aggregations.users_by_day.buckets.1.percent_of_total_users.value: 0.3333333333333333 }
+  - close_to: { aggregations.users_by_day.buckets.1.percent_of_total_users.value: { value: 0.5, error: 0.05 }}
   - match: { aggregations.users_by_day.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
   - match: { aggregations.users_by_day.buckets.2.doc_count: 1 }
-  - match: { aggregations.users_by_day.buckets.2.percent_of_total_users.value: 0.16666666666666666 }
+  - close_to: { aggregations.users_by_day.buckets.2.percent_of_total_users.value: { value: 0.0, error: 0.05 }}
 
+---
+rescale_0_100:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: foo
+        body:
+          size: 0
+          aggs:
+            users_by_day:
+              date_histogram:
+                field: timestamp
+                calendar_interval: day
+              aggs:
+                percent_of_total_users:
+                  normalize:
+                    buckets_path: _count
+                    method: rescale_0_100
+
+  - length: { aggregations.users_by_day.buckets: 3 }
+  - match: { aggregations.users_by_day.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.0.doc_count: 3 }
+  - close_to: { aggregations.users_by_day.buckets.0.percent_of_total_users.value: { value: 100, error: 0.5 }}
+  - match: { aggregations.users_by_day.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.1.doc_count: 2 }
+  - close_to: { aggregations.users_by_day.buckets.1.percent_of_total_users.value: { value:  50, error: 0.5 }}
+  - match: { aggregations.users_by_day.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.2.doc_count: 1 }
+  - close_to: { aggregations.users_by_day.buckets.2.percent_of_total_users.value: { value:   0, error: 0.5 }}
+
+---
+percent_of_sum:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: foo
+        body:
+          size: 0
+          aggs:
+            users_by_day:
+              date_histogram:
+                field: timestamp
+                calendar_interval: day
+              aggs:
+                percent_of_total_users:
+                  normalize:
+                    buckets_path: _count
+                    method: percent_of_sum
+
+  - length: { aggregations.users_by_day.buckets: 3 }
+  - match: { aggregations.users_by_day.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.0.doc_count: 3 }
+  - close_to: { aggregations.users_by_day.buckets.0.percent_of_total_users.value: { value: 0.5, error: 0.05 }}
+  - match: { aggregations.users_by_day.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.1.doc_count: 2 }
+  - close_to: { aggregations.users_by_day.buckets.1.percent_of_total_users.value: { value: 0.3, error: 0.05 }}
+  - match: { aggregations.users_by_day.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.2.doc_count: 1 }
+  - close_to: { aggregations.users_by_day.buckets.2.percent_of_total_users.value: { value: 0.2, error: 0.05 }}
+
+---
+mean:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: foo
+        body:
+          size: 0
+          aggs:
+            users_by_day:
+              date_histogram:
+                field: timestamp
+                calendar_interval: day
+              aggs:
+                percent_of_total_users:
+                  normalize:
+                    buckets_path: _count
+                    method: mean
+
+  - length: { aggregations.users_by_day.buckets: 3 }
+  - match: { aggregations.users_by_day.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.0.doc_count: 3 }
+  - close_to: { aggregations.users_by_day.buckets.0.percent_of_total_users.value: { value:  0.5, error: 0.05 }}
+  - match: { aggregations.users_by_day.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.1.doc_count: 2 }
+  - close_to: { aggregations.users_by_day.buckets.1.percent_of_total_users.value: { value:  0.0, error: 0.05 }}
+  - match: { aggregations.users_by_day.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.2.doc_count: 1 }
+  - close_to: { aggregations.users_by_day.buckets.2.percent_of_total_users.value: { value: -0.5, error: 0.05 }}
+
+---
+zscore:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: foo
+        body:
+          size: 0
+          aggs:
+            users_by_day:
+              date_histogram:
+                field: timestamp
+                calendar_interval: day
+              aggs:
+                percent_of_total_users:
+                  normalize:
+                    buckets_path: _count
+                    method: z-score
+
+  - length: { aggregations.users_by_day.buckets: 3 }
+  - match: { aggregations.users_by_day.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.0.doc_count: 3 }
+  - close_to: { aggregations.users_by_day.buckets.0.percent_of_total_users.value: { value:  1.2, error: 0.05 }}
+  - match: { aggregations.users_by_day.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.1.doc_count: 2 }
+  - close_to: { aggregations.users_by_day.buckets.1.percent_of_total_users.value: { value:  0.0, error: 0.05 }}
+  - match: { aggregations.users_by_day.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.2.doc_count: 1 }
+  - close_to: { aggregations.users_by_day.buckets.2.percent_of_total_users.value: { value: -1.22, error: 0.05 }}
+
+---
+softmax:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: foo
+        body:
+          size: 0
+          aggs:
+            users_by_day:
+              date_histogram:
+                field: timestamp
+                calendar_interval: day
+              aggs:
+                percent_of_total_users:
+                  normalize:
+                    buckets_path: _count
+                    method: softmax
+
+  - length: { aggregations.users_by_day.buckets: 3 }
+  - match: { aggregations.users_by_day.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.0.doc_count: 3 }
+  - close_to: { aggregations.users_by_day.buckets.0.percent_of_total_users.value: { value: 0.67, error: 0.05 }}
+  - match: { aggregations.users_by_day.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.1.doc_count: 2 }
+  - close_to: { aggregations.users_by_day.buckets.1.percent_of_total_users.value: { value: 0.24, error: 0.05 }}
+  - match: { aggregations.users_by_day.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.2.doc_count: 1 }
+  - close_to: { aggregations.users_by_day.buckets.2.percent_of_total_users.value: { value: 0.09, error: 0.05 }}
+
+---
+format:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: foo
+        body:
+          size: 0
+          aggs:
+            users_by_day:
+              date_histogram:
+                field: timestamp
+                calendar_interval: day
+              aggs:
+                percent_of_total_users:
+                  normalize:
+                    buckets_path: _count
+                    method: percent_of_sum
+                    format: 00.00%
+
+  - length: { aggregations.users_by_day.buckets: 3 }
+  - match: { aggregations.users_by_day.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.0.doc_count: 3 }
+  - close_to: { aggregations.users_by_day.buckets.0.percent_of_total_users.value: { value: 0.5, error: 0.05 }}
+  - match: { aggregations.users_by_day.buckets.0.percent_of_total_users.value_as_string: 50.00% }
+  - match: { aggregations.users_by_day.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.1.doc_count: 2 }
+  - close_to: { aggregations.users_by_day.buckets.1.percent_of_total_users.value: { value: 0.3, error: 0.05 }}
+  - match: { aggregations.users_by_day.buckets.1.percent_of_total_users.value_as_string: 33.33% }
+  - match: { aggregations.users_by_day.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.2.doc_count: 1 }
+  - close_to: { aggregations.users_by_day.buckets.2.percent_of_total_users.value: { value: 0.2, error: 0.05 }}
+  - match: { aggregations.users_by_day.buckets.2.percent_of_total_users.value_as_string: 16.67% }
+
+---
+bad path:
+  - skip:
+      features: close_to
+
+  - do:
+      catch: /No aggregation found for path \[badpath\]/
+      search:
+        index: foo
+        body:
+          size: 0
+          aggs:
+            users_by_day:
+              date_histogram:
+                field: timestamp
+                calendar_interval: day
+              aggs:
+                percent_of_total_users:
+                  normalize:
+                    buckets_path: badpath
+                    method: rescale_0_1

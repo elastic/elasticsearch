@@ -34,6 +34,7 @@ public class DockerRun {
     private Integer uid;
     private Integer gid;
     private final List<String> extraArgs = new ArrayList<>();
+    private final List<String> runArgs = new ArrayList<>();
     private String memory = "2g"; // default to 2g memory limit
 
     private DockerRun() {}
@@ -95,6 +96,11 @@ public class DockerRun {
         return this;
     }
 
+    public DockerRun runArgs(String... args) {
+        Collections.addAll(this.runArgs, args);
+        return this;
+    }
+
     String build() {
         final List<String> cmd = new ArrayList<>();
 
@@ -143,6 +149,8 @@ public class DockerRun {
 
         // Image name
         cmd.add(getImageName(distribution));
+
+        cmd.addAll(this.runArgs);
 
         return String.join(" ", cmd);
     }

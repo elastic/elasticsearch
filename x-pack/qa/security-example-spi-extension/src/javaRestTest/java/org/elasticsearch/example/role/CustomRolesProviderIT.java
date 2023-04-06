@@ -11,17 +11,16 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.example.realm.CustomRealm;
 import org.elasticsearch.example.realm.CustomRealmIT;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.INDEX;
@@ -32,7 +31,6 @@ import static org.hamcrest.Matchers.is;
 /**
  * Integration test for custom roles providers.
  */
-@SuppressWarnings("removal")
 public class CustomRolesProviderIT extends ESRestTestCase {
     private static final String TEST_USER = "test_user";
     private static final String TEST_PWD = "test-user-password";
@@ -58,13 +56,13 @@ public class CustomRolesProviderIT extends ESRestTestCase {
     public void setupTestUser(String role) throws IOException {
         final String endpoint = "/_security/user/" + TEST_USER;
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        final String body = """
+        final String body = Strings.format("""
             {
                 "username": "%s",
                 "password": "%s",
                 "roles": [ "%s" ]
             }
-            """.formatted(TEST_USER, TEST_PWD, role);
+            """, TEST_USER, TEST_PWD, role);
         request.setJsonEntity(body);
         request.addParameters(Map.of("refresh", "true"));
         request.setOptions(RequestOptions.DEFAULT);
@@ -100,9 +98,4 @@ public class CustomRolesProviderIT extends ESRestTestCase {
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
     }
 
-    private class TestRestHighLevelClient extends RestHighLevelClient {
-        TestRestHighLevelClient() {
-            super(client(), restClient -> {}, Collections.emptyList());
-        }
-    }
 }

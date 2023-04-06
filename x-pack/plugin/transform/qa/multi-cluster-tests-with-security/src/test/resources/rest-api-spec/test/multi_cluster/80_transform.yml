@@ -26,22 +26,17 @@ setup:
   - do:
       security.put_role:
         name: "x_cluster_role"
-        # gh#72715: the my_remote_cluster privileges should not be needed
         body:  >
           {
             "cluster": [],
             "indices": [
               {
-                "names": ["test_index"],
+                "names": ["test_index", "same_index_local_and_remote"],
                 "privileges": ["read", "view_index_metadata"]
               },
               {
-                "names": ["simple-remote-transform*", "simple-local-remote-transform"],
+                "names": ["simple-remote-transform*", "simple-local-remote-transform", "same-index-local-and-remote-transform"],
                 "privileges": ["create_index", "index", "read"]
-              },
-              {
-                "names": ["my_remote_cluster:remote_test_i*", "my_remote_cluster:aliased_test_index"],
-                "privileges": ["read", "view_index_metadata"]
               }
             ]
           }
@@ -54,7 +49,7 @@ setup:
             "cluster": [],
             "indices": [
               {
-                "names": ["simple-remote-transform*", "simple-local-remote-transform"],
+                "names": ["simple-remote-transform*", "simple-local-remote-transform", "same-index-local-and-remote-transform"],
                 "privileges": ["create_index", "index", "read"]
               }
             ]
@@ -156,7 +151,7 @@ teardown:
         transform_id: "simple-remote-transform"
 
   - do:
-      catch: /Cannot preview transform \[simple-remote-transform\] because user bob lacks the required permissions \[my_remote_cluster:remote_test_index\*:\[read, view_index_metadata\], simple-remote-transform:\[\]\]/
+      catch: /Source indices have been deleted or closed./
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.preview_transform:
         transform_id: "simple-remote-transform"
@@ -311,14 +306,13 @@ teardown:
 ---
 "Batch transform from remote cluster when the user is not authorized":
   - do:
-      catch: /Cannot create transform \[simple-remote-transform\] because user bob lacks the required permissions \[my_remote_cluster:remote_test_index:\[read, view_index_metadata\], simple-remote-transform:\[\]\]/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.put_transform:
-        transform_id: "simple-remote-transform"
+        transform_id: "simple-remote-transform-3"
         body: >
           {
             "source": { "index": "my_remote_cluster:remote_test_index" },
-            "dest": { "index": "simple-remote-transform" },
+            "dest": { "index": "simple-remote-transform-3" },
             "pivot": {
               "group_by": { "user": {"terms": {"field": "user"}}},
               "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
@@ -342,7 +336,6 @@ teardown:
           }
   - match: { acknowledged: true }
   - do:
-      catch: /Cannot update transform \[simple-remote-transform-2\] because user bob lacks the required permissions \[my_remote_cluster:remote_test_index:\[read, view_index_metadata\], simple-remote-transform-2:\[\]\]/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.update_transform:
         transform_id: "simple-remote-transform-2"
@@ -355,7 +348,7 @@ teardown:
 ---
 "Batch transform preview from remote cluster when the user is not authorized":
   - do:
-      catch: /Cannot preview transform \[transform-preview\] because user bob lacks the required permissions \[my_remote_cluster:remote_test_index:\[read, view_index_metadata\], simple-remote-transform-2:\[\]\]/
+      catch: /Source indices have been deleted or closed./
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.preview_transform:
         body: >
@@ -368,7 +361,7 @@ teardown:
             }
           }
   - do:
-      catch: /Cannot preview transform \[transform-preview\] because user bob lacks the required permissions \[my_remote_cluster:test_index:\[read, view_index_metadata\]\]/
+      catch: /Source indices have been deleted or closed./
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.preview_transform:
         body: >
@@ -379,3 +372,97 @@ teardown:
               "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
             }
           }
+
+---
+"Batch transform local and remote index sharing the same name":
+  # create index with the same name on local and remote gh#91550
+  - do:
+      indices.create:
+        index: same_index_local_and_remote
+        body:
+          settings:
+            index:
+              number_of_shards: 3
+              number_of_replicas: 0
+          aliases:
+            test_alias: {}
+          mappings:
+            properties:
+              time:
+                type: date
+              user:
+                type: keyword
+              stars:
+                type: integer
+              coolness:
+                type: integer
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "same_index_local_and_remote"}}'
+            - '{"user": "z", "stars": 1, "date" : "2018-11-29T12:12:12.123456789Z"}'
+            - '{"index": {"_index": "same_index_local_and_remote"}}'
+            - '{"user": "a", "stars": 2, "date" : "2018-11-29T12:14:12.123456789Z"}'
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.put_transform:
+        transform_id: "same-index-local-and-remote-transform"
+        body: >
+          {
+            "source": { "index": ["same_index_local_and_remote", "my_remote_cluster:same_index_local_and_remote"] },
+            "dest": { "index": "same-index-local-and-remote-transform" },
+            "pivot": {
+              "group_by": { "user": {"terms": {"field": "user"}}},
+              "aggs": {
+                "avg_stars": {"avg": {"field": "stars"}},
+                "count": {"value_count": {"field": "user"}}
+              }
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.start_transform:
+        transform_id: "same-index-local-and-remote-transform"
+  - match: { acknowledged: true }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "same-index-local-and-remote-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "same-index-local-and-remote-transform" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.stop_transform:
+        transform_id: "same-index-local-and-remote-transform"
+        wait_for_completion: true
+        wait_for_checkpoint: true
+  - match: { acknowledged: true }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.get_transform_stats:
+        transform_id: "same-index-local-and-remote-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "same-index-local-and-remote-transform" }
+  - match: { transforms.0.state: "stopped" }
+  - match: { transforms.0.checkpointing.last.checkpoint: 1 }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: same-index-local-and-remote-transform
+        sort: user
+
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._index: same-index-local-and-remote-transform }
+  - match: { hits.hits.0._source.avg_stars: 3 }
+  - match: { hits.hits.0._source.count: 2 }
+  - match: { hits.hits.0._source.user: a }

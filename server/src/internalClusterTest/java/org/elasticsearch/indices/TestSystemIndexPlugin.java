@@ -21,7 +21,7 @@ import java.util.List;
 public class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of(new TestSystemIndexDescriptor());
+        return List.of(new TestSystemIndexDescriptor(), new TestSystemIndexDescriptorAllowsTemplates());
     }
 
     @Override

@@ -10,6 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentType;
@@ -57,7 +58,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         final Authentication authentication = randomAuthentication();
         authentication.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -69,24 +70,24 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        if (authentication.getUser().fullName().startsWith("Service account - ")) {
+        if (authentication.getEffectiveSubject().getUser().fullName().startsWith("Service account - ")) {
             assertThat(result, not(hasKey("roles")));
             assertThat(result, not(hasKey("email")));
         } else {
-            assertThat(result.get("email"), equalTo(authentication.getUser().email()));
-            if (authentication.getUser().roles().length == 0) {
+            assertThat(result.get("email"), equalTo(authentication.getEffectiveSubject().getUser().email()));
+            if (authentication.getEffectiveSubject().getUser().roles().length == 0) {
                 assertThat(result, not(hasKey("roles")));
             } else {
-                assertThat(result.get("roles"), equalTo(Arrays.asList(authentication.getUser().roles())));
+                assertThat(result.get("roles"), equalTo(Arrays.asList(authentication.getEffectiveSubject().getUser().roles())));
             }
         }
-        if (authentication.getUser().metadata().isEmpty()) {
+        if (authentication.getEffectiveSubject().getUser().metadata().isEmpty()) {
             assertThat(result, not(hasKey("metadata")));
         } else {
-            assertThat(result.get("metadata"), equalTo(authentication.getUser().metadata()));
+            assertThat(result.get("metadata"), equalTo(authentication.getEffectiveSubject().getUser().metadata()));
         }
-        assertThat(result.get("username"), equalTo(authentication.getUser().principal()));
-        assertThat(result.get("full_name"), equalTo(authentication.getUser().fullName()));
+        assertThat(result.get("username"), equalTo(authentication.getEffectiveSubject().getUser().principal()));
+        assertThat(result.get("full_name"), equalTo(authentication.getEffectiveSubject().getUser().fullName()));
         assertThat(((Map<String, String>) result.get("realm")).get("name"), equalTo(ApiKeyService.getCreatorRealmName(authentication)));
         assertThat(((Map<String, String>) result.get("realm")).get("type"), equalTo(ApiKeyService.getCreatorRealmType(authentication)));
         assertThat(result.get("authentication_type"), equalTo(authentication.getAuthenticationType().toString()));
@@ -101,7 +102,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         final SecurityContext mockSecurityContext = mock(SecurityContext.class);
         when(mockSecurityContext.getAuthentication()).thenReturn(authentication);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -120,7 +121,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
     }
 
     public void testNoCurrentUser() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -138,7 +139,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
     public void testSecurityDisabled() throws Exception {
         Settings securityDisabledSettings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -161,7 +162,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         final Authentication authentication = randomAuthentication();
         authentication.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -175,14 +176,14 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result, aMapWithSize(1));
-        assertThat(result.get("username"), equalTo(authentication.getUser().principal()));
+        assertThat(result.get("username"), equalTo(authentication.getEffectiveSubject().getUser().principal()));
     }
 
     public void testRolesProperties() throws Exception {
         final Authentication authentication = randomAuthentication();
         authentication.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -195,11 +196,11 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        if (authentication.getUser().roles().length == 0) {
+        if (authentication.getEffectiveSubject().getUser().roles().length == 0) {
             assertThat(result, not(hasKey("roles")));
         } else {
             assertThat(result, aMapWithSize(1));
-            assertThat(result.get("roles"), equalTo(Arrays.asList(authentication.getUser().roles())));
+            assertThat(result.get("roles"), equalTo(Arrays.asList(authentication.getEffectiveSubject().getUser().roles())));
         }
     }
 
@@ -207,7 +208,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         final Authentication authentication = randomAuthentication();
         authentication.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -221,14 +222,14 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result, aMapWithSize(1));
-        assertThat(result.get("full_name"), equalTo(authentication.getUser().fullName()));
+        assertThat(result.get("full_name"), equalTo(authentication.getEffectiveSubject().getUser().fullName()));
     }
 
     public void testEmailProperties() throws Exception {
         final Authentication authentication = randomAuthentication();
         authentication.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -241,9 +242,9 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        if (authentication.getUser().email() != null) {
+        if (authentication.getEffectiveSubject().getUser().email() != null) {
             assertThat(result, aMapWithSize(1));
-            assertThat(result.get("email"), equalTo(authentication.getUser().email()));
+            assertThat(result.get("email"), equalTo(authentication.getEffectiveSubject().getUser().email()));
         } else {
             assertThat(result, not(hasKey("email")));
         }
@@ -253,7 +254,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         final Authentication authentication = randomAuthentication();
         authentication.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -266,11 +267,11 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
-        if (authentication.getUser().metadata().isEmpty()) {
+        if (authentication.getEffectiveSubject().getUser().metadata().isEmpty()) {
             assertThat(result, not(hasKey("metadata")));
         } else {
             assertThat(result, aMapWithSize(1));
-            assertThat(result.get("metadata"), equalTo(authentication.getUser().metadata()));
+            assertThat(result.get("metadata"), equalTo(authentication.getEffectiveSubject().getUser().metadata()));
         }
     }
 
@@ -287,16 +288,16 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
             EnumSet.of(Property.USERNAME)
         );
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         ingestDocument.setFieldValue("_field", "test");
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result, aMapWithSize(1));
-        assertThat(result.get("username"), equalTo(authentication.getUser().principal()));
+        assertThat(result.get("username"), equalTo(authentication.getEffectiveSubject().getUser().principal()));
 
-        ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        ingestDocument = TestIngestDocument.emptyIngestDocument();
         ingestDocument.setFieldValue("_field.other", "test");
         ingestDocument.setFieldValue("_field.username", "test");
         processor.execute(ingestDocument);
@@ -304,7 +305,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> result2 = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result2, aMapWithSize(2));
-        assertThat(result2.get("username"), equalTo(authentication.getUser().principal()));
+        assertThat(result2.get("username"), equalTo(authentication.getEffectiveSubject().getUser().principal()));
         assertThat(result2.get("other"), equalTo("test"));
     }
 
@@ -329,7 +330,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         );
         auth.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -378,9 +379,8 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
             .build();
         auth.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(
-            IngestDocument.deepCopyMap(Map.of("_field", Map.of("api_key", Map.of("version", 42), "realm", Map.of("id", 7)))),
-            new HashMap<>()
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(
+            IngestDocument.deepCopyMap(Map.of("_field", Map.of("api_key", Map.of("version", 42), "realm", Map.of("id", 7))))
         );
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
@@ -407,7 +407,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         auth.writeToContext(threadContext);
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag",
             null,
@@ -420,7 +420,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         assertThat(result, aMapWithSize(3));
-        final Authentication.RealmRef lookedUpRealmRef = auth.getLookedUpBy();
+        final Authentication.RealmRef lookedUpRealmRef = auth.getEffectiveSubject().getRealm();
         assertThat(((Map<String, String>) result.get("realm")).get("name"), equalTo(lookedUpRealmRef.getName()));
         assertThat(((Map<String, String>) result.get("realm")).get("type"), equalTo(lookedUpRealmRef.getType()));
     }

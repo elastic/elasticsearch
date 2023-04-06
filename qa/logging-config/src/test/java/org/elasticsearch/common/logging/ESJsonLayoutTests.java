@@ -7,11 +7,10 @@
  */
 package org.elasticsearch.common.logging;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
-
-import java.util.Locale;
 
 public class ESJsonLayoutTests extends ESTestCase {
     @BeforeClass
@@ -27,7 +26,7 @@ public class ESJsonLayoutTests extends ESTestCase {
         ESJsonLayout server = ESJsonLayout.newBuilder().setType("server").build();
         String conversionPattern = server.getPatternLayout().getConversionPattern();
 
-        assertThat(conversionPattern, Matchers.equalTo(String.format(Locale.ROOT, """
+        assertThat(conversionPattern, Matchers.equalTo(Strings.format("""
             {\
             "type": "server", \
             "timestamp": "%%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}", \
@@ -45,7 +44,7 @@ public class ESJsonLayoutTests extends ESTestCase {
         String conversionPattern = server.getPatternLayout().getConversionPattern();
 
         // message field is removed as is expected to be provided by a field from a message
-        assertThat(conversionPattern, Matchers.equalTo(String.format(Locale.ROOT, """
+        assertThat(conversionPattern, Matchers.equalTo(Strings.format("""
             {\
             "type": "server", \
             "timestamp": "%%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}", \

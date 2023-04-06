@@ -7,14 +7,15 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
@@ -81,8 +83,8 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_5_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_5_0;
     }
 
     @Override
@@ -96,15 +98,8 @@ public final class EnrichMetadata extends AbstractNamedDiffable<Metadata.Custom>
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(POLICIES.getPreferredName());
-        for (Map.Entry<String, EnrichPolicy> entry : policies.entrySet()) {
-            builder.startObject(entry.getKey());
-            builder.value(entry.getValue());
-            builder.endObject();
-        }
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return ChunkedToXContentHelper.xContentFragmentValuesMap(POLICIES.getPreferredName(), policies);
     }
 
     @Override

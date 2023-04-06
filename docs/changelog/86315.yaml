@@ -1,6 +1,0 @@
-pr: 86315
-summary: Reject `openConnection` attempt while closing
-area: Network
-type: bug
-issues:
- - 86249

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -27,6 +28,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Optional;
+import java.util.Set;
 
 public class TransportPutComponentTemplateAction extends AcknowledgedTransportMasterNodeAction<PutComponentTemplateAction.Request> {
 
@@ -62,6 +66,23 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
+    public static ComponentTemplate normalizeComponentTemplate(
+        ComponentTemplate componentTemplate,
+        IndexScopedSettings indexScopedSettings
+    ) {
+        Template template = componentTemplate.template();
+        // Normalize the index settings if necessary
+        if (template.settings() != null) {
+            Settings.Builder builder = Settings.builder().put(template.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
+            Settings settings = builder.build();
+            indexScopedSettings.validate(settings, true);
+            template = new Template(settings, template.mappings(), template.aliases(), template.lifecycle());
+            componentTemplate = new ComponentTemplate(template, componentTemplate.version(), componentTemplate.metadata());
+        }
+
+        return componentTemplate;
+    }
+
     @Override
     protected void masterOperation(
         Task task,
@@ -69,16 +90,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        ComponentTemplate componentTemplate = request.componentTemplate();
-        Template template = componentTemplate.template();
-        // Normalize the index settings if necessary
-        if (template.settings() != null) {
-            Settings.Builder builder = Settings.builder().put(template.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
-            Settings settings = builder.build();
-            indexScopedSettings.validate(settings, true);
-            template = new Template(settings, template.mappings(), template.aliases());
-            componentTemplate = new ComponentTemplate(template, componentTemplate.version(), componentTemplate.metadata());
-        }
+        ComponentTemplate componentTemplate = normalizeComponentTemplate(request.componentTemplate(), indexScopedSettings);
         indexTemplateService.putComponentTemplate(
             request.cause(),
             request.create(),
@@ -87,5 +99,15 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
             componentTemplate,
             listener
         );
+    }
+
+    @Override
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedComposableIndexTemplateAction.NAME);
+    }
+
+    @Override
+    public Set<String> modifiedKeys(PutComponentTemplateAction.Request request) {
+        return Set.of(ReservedComposableIndexTemplateAction.reservedComponentName(request.name()));
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
@@ -299,7 +300,8 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                 TimeValue.ZERO,
                 TimeValue.ZERO
             ),
-            getMetadataCreateIndexService()
+            getMetadataCreateIndexService(),
+            ActionListener.noop()
         );
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
@@ -360,7 +362,8 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                 TimeValue.ZERO,
                 TimeValue.ZERO
             ),
-            getMetadataCreateIndexService()
+            getMetadataCreateIndexService(),
+            ActionListener.noop()
         );
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
@@ -376,7 +379,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         }
     }
 
-    public void testCreateDataStreamWithoutSuppliedWriteIndex() throws Exception {
+    public void testCreateDataStreamWithoutSuppliedWriteIndex() {
         String dataStreamName = "foo";
         AliasMetadata alias = AliasMetadata.builder(dataStreamName).build();
         IndexMetadata foo1 = IndexMetadata.builder("foo1")
@@ -423,7 +426,8 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     TimeValue.ZERO,
                     TimeValue.ZERO
                 ),
-                getMetadataCreateIndexService()
+                getMetadataCreateIndexService(),
+                ActionListener.noop()
             )
         );
         assertThat(e.getMessage(), containsString("alias [" + dataStreamName + "] must specify a write index"));

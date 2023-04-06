@@ -1,0 +1,83 @@
+setup:
+  - skip:
+      features: headers
+      version: ' - 7.99.99'
+      reason: 'kNN search added in 8.0'
+  - do:
+      indices.create:
+        index: futest
+        body:
+          settings:
+            routing.rebalance.enable: none
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: l2_norm
+
+  - do:
+      index:
+        index: futest
+        id: "1"
+        body:
+          name: cow.jpg
+          vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+
+  - do:
+      index:
+        index: futest
+        id: "2"
+        body:
+          name: moose.jpg
+          vector: [ -0.5, 100.0, -13, 14.8, -156.0 ]
+
+  - do:
+      index:
+        index: futest
+        id: "3"
+        body:
+          name: rabbit.jpg
+          vector: [ 0.5, 111.3, -13.0, 14.8, -156.0 ]
+
+  - do:
+      indices.refresh: { }
+
+---
+"Field usage":
+  - skip:
+      version: ' - 8.0.99'
+      reason: 'dense_vector field usage was added in 8.1'
+      features: ["allowed_warnings"]
+  - do:
+      allowed_warnings:
+        - "The kNN search API has been replaced by the `knn` option in the search API."
+      knn_search:
+        index: futest
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+
+  - do:
+      indices.field_usage_stats: { index: futest }
+
+  - is_true: futest
+  - length: { futest.shards: 1 }
+
+  - gt: { futest.shards.0.stats.all_fields.any: 0 }
+  - gt: { futest.shards.0.stats.all_fields.knn_vectors: 0 }
+
+  - gt: { futest.shards.0.stats.fields.vector.any: 0 }
+  - gt: { futest.shards.0.stats.fields.vector.knn_vectors: 0 }
+
+  - gt: { futest.shards.0.stats.fields._id.stored_fields: 0 }
+  - match: { futest.shards.0.stats.fields._id.knn_vectors: 0 }

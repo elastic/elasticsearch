@@ -736,7 +736,7 @@ GET /_search
 
 NOTE: The `after_key` is *usually* the key to the last bucket returned in
 the response, but that isn't guaranteed. Always use the returned `after_key` instead
-of derriving it from the buckets.
+of deriving it from the buckets.
 
 ==== Early termination
 

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,7 +29,7 @@ import java.util.Locale;
 
 public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse.Node> implements ToXContentObject {
 
-    private WatcherMetadata watcherMetadata;
+    private final WatcherMetadata watcherMetadata;
 
     public WatcherStatsResponse(StreamInput in) throws IOException {
         super(in);
@@ -63,7 +64,7 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        watcherMetadata.toXContent(builder, params);
+        ChunkedToXContent.wrapAsToXContent(watcherMetadata).toXContent(builder, params);
         builder.startArray("stats");
         for (Node node : getNodes()) {
             node.toXContent(builder, params);

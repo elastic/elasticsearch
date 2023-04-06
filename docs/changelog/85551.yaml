@@ -1,5 +1,0 @@
-pr: 85551
-summary: "Distinguish missing and invalid repositories"
-area: Snapshot/Restore
-type: bug
-issues: [85550]

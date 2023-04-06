@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.transport.Transport;
@@ -86,10 +87,12 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     protected SearchPhase getNextPhase(final SearchPhaseResults<DfsSearchResult> results, SearchPhaseContext context) {
         final List<DfsSearchResult> dfsSearchResults = results.getAtomicArray().asList();
         final AggregatedDfs aggregatedDfs = SearchPhaseController.aggregateDfs(dfsSearchResults);
+        final List<DfsKnnResults> mergedKnnResults = SearchPhaseController.mergeKnnResults(getRequest(), dfsSearchResults);
 
         return new DfsQueryPhase(
             dfsSearchResults,
             aggregatedDfs,
+            mergedKnnResults,
             queryPhaseResultConsumer,
             (queryResults) -> new FetchSearchPhase(queryResults, aggregatedDfs, context),
             context

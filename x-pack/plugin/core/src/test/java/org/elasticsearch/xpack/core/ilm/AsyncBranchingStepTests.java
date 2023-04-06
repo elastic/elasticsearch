@@ -67,16 +67,12 @@ public class AsyncBranchingStepTests extends AbstractStepTestCase<AsyncBranching
         TriConsumer<IndexMetadata, ClusterState, ActionListener<Boolean>> asyncPredicate = instance.getAsyncPredicate();
 
         switch (between(0, 2)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextStepKey = new StepKey(
-                nextStepKey.getPhase(),
-                nextStepKey.getAction(),
-                nextStepKey.getName() + randomAlphaOfLength(5)
-            );
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextStepKey = new StepKey(nextStepKey.phase(), nextStepKey.action(), nextStepKey.name() + randomAlphaOfLength(5));
             case 2 -> nextSkipStepKey = new StepKey(
-                nextSkipStepKey.getPhase(),
-                nextSkipStepKey.getAction(),
-                nextSkipStepKey.getName() + randomAlphaOfLength(5)
+                nextSkipStepKey.phase(),
+                nextSkipStepKey.action(),
+                nextSkipStepKey.name() + randomAlphaOfLength(5)
             );
             default -> throw new AssertionError("Illegal randomisation branch");
         }

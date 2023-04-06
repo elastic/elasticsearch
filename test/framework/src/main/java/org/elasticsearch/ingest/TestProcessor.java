@@ -55,7 +55,18 @@ public class TestProcessor implements Processor {
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         invokedCounter.incrementAndGet();
-        ingestDocumentMapper.apply(ingestDocument);
+
+        try {
+            ingestDocumentMapper.apply(ingestDocument);
+        } catch (Exception e) {
+            if (this.isAsync()) {
+                handler.accept(null, e);
+                return;
+            } else {
+                throw e;
+            }
+        }
+
         handler.accept(ingestDocument, null);
     }
 

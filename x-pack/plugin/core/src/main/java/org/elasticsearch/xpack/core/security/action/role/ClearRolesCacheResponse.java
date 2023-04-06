@@ -16,11 +16,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * The response object that will be returned when clearing the cache of native roles
@@ -60,16 +58,7 @@ public class ClearRolesCacheResponse extends BaseNodesResponse<ClearRolesCacheRe
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return Strings.toString(builder);
-        } catch (IOException e) {
-            return String.format(Locale.ROOT, """
-                { "error" : "%s" }""", e.getMessage());
-        }
+        return Strings.toString(this);
     }
 
     public static class Node extends BaseNodeResponse {

@@ -1352,6 +1352,11 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
             }
 
             @Override
+            public int docValueCount() {
+                return Math.toIntExact(endOffset - startOffset);
+            }
+
+            @Override
             public long getValueCount() {
                 return valueCount;
             }
@@ -1413,6 +1418,11 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
             @Override
             public long getValueCount() {
                 return valueCount;
+            }
+
+            @Override
+            public int docValueCount() {
+                return Math.toIntExact(endOffset - startOffset);
             }
 
             @Override

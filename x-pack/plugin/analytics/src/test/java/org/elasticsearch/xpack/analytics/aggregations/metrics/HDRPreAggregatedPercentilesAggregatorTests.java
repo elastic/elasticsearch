@@ -9,20 +9,15 @@ package org.elasticsearch.xpack.analytics.aggregations.metrics;
 import org.HdrHistogram.DoubleHistogram;
 import org.HdrHistogram.DoubleHistogramIterationValue;
 import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
@@ -96,16 +91,14 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
     }
 
     public void testEmptyField() throws IOException {
-        testCase(
-            new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(singleton(getDocValue("number", new double[0]))); },
-            hdr -> { assertFalse(AggregationInspectionHelper.hasValue(hdr)); }
-        );
+        testCase(new MatchAllDocsQuery(), iw -> { iw.addDocument(singleton(getDocValue("number", new double[0]))); }, hdr -> {
+            assertFalse(AggregationInspectionHelper.hasValue(hdr));
+        });
     }
 
     public void testSomeMatchesBinaryDocValues() throws IOException {
         testCase(
-            new DocValuesFieldExistsQuery("number"),
+            new FieldExistsQuery("number"),
             iw -> { iw.addDocument(singleton(getDocValue("number", new double[] { 60, 40, 20, 10 }))); },
             hdr -> {
                 // assertEquals(4L, hdr.state.getTotalCount());
@@ -120,7 +113,7 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
     }
 
     public void testSomeMatchesMultiBinaryDocValues() throws IOException {
-        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
+        testCase(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(getDocValue("number", new double[] { 60, 40, 20, 10 })));
             iw.addDocument(singleton(getDocValue("number", new double[] { 60, 40, 20, 10 })));
             iw.addDocument(singleton(getDocValue("number", new double[] { 60, 40, 20, 10 })));
@@ -138,25 +131,9 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalHDRPercentiles> verify)
         throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                buildIndex.accept(indexWriter);
-            }
+        PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.HDR);
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("test").field("number")
-                    .method(PercentilesMethod.HDR);
-
-                MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap(), null);
-                Aggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
-                aggregator.preCollection();
-                indexSearcher.search(query, aggregator);
-                aggregator.postCollection();
-                verify.accept((InternalHDRPercentiles) aggregator.buildTopLevel());
-
-            }
-        }
+        MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap());
+        testCase(buildIndex, verify, new AggTestConfig(builder, fieldType).withQuery(query));
     }
 }

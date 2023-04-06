@@ -1,5 +1,0 @@
-pr: 87125
-summary: Hide system indices and their aliases in upgraded clusters
-area: Infra/Core
-type: bug
-issues: []

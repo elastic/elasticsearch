@@ -7,14 +7,18 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -23,6 +27,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
@@ -41,6 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,10 +60,14 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         allocationService = mock(AllocationService.class);
-        when(allocationService.reroute(any(ClusterState.class), any(String.class))).thenAnswer(
+        when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).thenAnswer(
             mockInvocation -> mockInvocation.getArguments()[0]
         );
-        service = new MetadataDeleteIndexService(Settings.EMPTY, null, allocationService);
+        service = new MetadataDeleteIndexService(
+            Settings.EMPTY,
+            ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+            allocationService
+        );
     }
 
     public void testDeleteMissing() {
@@ -71,7 +81,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         String index = randomAlphaOfLength(5);
         Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
         SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
-            new SnapshotsInProgress.Entry(
+            SnapshotsInProgress.Entry.snapshot(
                 snapshot,
                 true,
                 false,
@@ -81,7 +91,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
                 Collections.emptyList(),
                 System.currentTimeMillis(),
                 (long) randomIntBetween(0, 1000),
-                ImmutableOpenMap.of(),
+                Map.of(),
                 null,
                 SnapshotInfoTestUtils.randomUserMetadata(),
                 VersionUtils.randomVersion(random())
@@ -101,16 +111,24 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         );
     }
 
-    public void testDeleteUnassigned() {
+    public void testDeleteUnassigned() throws Exception {
         // Create an unassigned index
         String index = randomAlphaOfLength(5);
         ClusterState before = clusterState(index);
 
         // Mock the built reroute
-        when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
+        when(allocationService.reroute(any(ClusterState.class), anyString(), any())).then(i -> i.getArguments()[0]);
 
         // Remove it
-        ClusterState after = service.deleteIndices(before, Set.of(before.metadata().getIndices().get(index).getIndex()));
+        final ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            before,
+            service.executor,
+            List.of(
+                new DeleteIndexClusterStateUpdateRequest(ActionListener.noop()).indices(
+                    new Index[] { before.metadata().getIndices().get(index).getIndex() }
+                )
+            )
+        );
 
         // It is gone
         assertNull(after.metadata().getIndices().get(index));
@@ -118,7 +136,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertNull(after.blocks().indices().get(index));
 
         // Make sure we actually attempted to reroute
-        verify(allocationService).reroute(any(ClusterState.class), any(String.class));
+        verify(allocationService).reroute(any(ClusterState.class), any(String.class), any());
     }
 
     public void testDeleteIndexWithAnAlias() {
@@ -133,7 +151,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             .build();
         ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(idxMetadata, false))
-            .routingTable(RoutingTable.builder().addAsNew(idxMetadata).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(idxMetadata).build())
             .blocks(ClusterBlocks.builder().addBlocks(idxMetadata))
             .build();
 
@@ -221,7 +239,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             .build();
         return ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata, false))
-            .routingTable(RoutingTable.builder().addAsNew(indexMetadata).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build())
             .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))
             .build();
     }

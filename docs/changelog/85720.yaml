@@ -1,5 +1,0 @@
-pr: 85720
-summary: Allow bucket paths to specify `_count` within a bucket
-area: Aggregations
-type: bug
-issues: []

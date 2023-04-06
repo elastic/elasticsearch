@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -60,6 +61,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.allOf;
@@ -139,6 +141,7 @@ public class ClusterStateHealthTests extends ESTestCase {
                 "restore master",
                 () -> ClusterState.builder(currentState)
                     .nodes(DiscoveryNodes.builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNodeId()))
+                    .incrementVersion()
                     .build(),
                 ActionListener.noop()
             );
@@ -152,7 +155,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             threadPool,
             new ActionFilters(new HashSet<>()),
             indexNameExpressionResolver,
-            new AllocationService(null, new TestGatewayAllocator(), null, null, null)
+            new AllocationService(null, new TestGatewayAllocator(), null, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
         );
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(action, null, new ClusterHealthRequest().waitForGreenStatus(), listener);
@@ -320,7 +323,9 @@ public class ClusterStateHealthTests extends ESTestCase {
             .numberOfReplicas(numberOfReplicas)
             .build();
         final Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
-        final RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
+        final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(indexMetadata)
+            .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test_cluster"))
             .metadata(metadata)
@@ -355,7 +360,9 @@ public class ClusterStateHealthTests extends ESTestCase {
             indexMetadata = idxMetaWithAllocationIds.build();
         }
         final Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
-        final RoutingTable routingTable = RoutingTable.builder().addAsRecovery(indexMetadata).build();
+        final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsRecovery(indexMetadata)
+            .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test_cluster"))
             .metadata(metadata)
@@ -409,7 +416,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
                 ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary() && randomBoolean()) {
-                    final ShardRouting newShardRouting = shardRouting.moveToStarted();
+                    final ShardRouting newShardRouting = shardRouting.moveToStarted(UNAVAILABLE_EXPECTED_SHARD_SIZE);
                     allocationIds.put(newShardRouting.getId(), Set.of(newShardRouting.allocationId().getId()));
                     newIndexRoutingTable.addShard(newShardRouting);
                 } else {
@@ -457,7 +464,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
                 ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary() && shardRouting.started() == false) {
-                    final ShardRouting newShardRouting = shardRouting.moveToStarted();
+                    final ShardRouting newShardRouting = shardRouting.moveToStarted(UNAVAILABLE_EXPECTED_SHARD_SIZE);
                     allocationIds.put(newShardRouting.getId(), Set.of(newShardRouting.allocationId().getId()));
                     newIndexRoutingTable.addShard(newShardRouting);
                 } else {
@@ -503,7 +510,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
                 ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary() == false && randomBoolean()) {
-                    newIndexRoutingTable.addShard(shardRouting.moveToStarted());
+                    newIndexRoutingTable.addShard(shardRouting.moveToStarted(UNAVAILABLE_EXPECTED_SHARD_SIZE));
                 } else {
                     newIndexRoutingTable.addShard(shardRouting);
                 }
@@ -521,7 +528,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
                 ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary() == false && shardRouting.started() == false) {
-                    newIndexRoutingTable.addShard(shardRouting.moveToStarted());
+                    newIndexRoutingTable.addShard(shardRouting.moveToStarted(UNAVAILABLE_EXPECTED_SHARD_SIZE));
                     replicaStateChanged = true;
                 } else {
                     newIndexRoutingTable.addShard(shardRouting);

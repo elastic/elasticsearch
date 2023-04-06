@@ -1,6 +1,0 @@
-pr: 85830
-summary: Add support for `impact_areas` to health impacts
-area: Health
-type: feature
-issues:
- - 85829

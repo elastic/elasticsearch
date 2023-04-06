@@ -1,6 +1,0 @@
-pr: 85713
-summary: "TSDB: fix wrong initial value of tsidOrd in TimeSeriesIndexSearcher"
-area: TSDB
-type: bug
-issues:
-  - 85711

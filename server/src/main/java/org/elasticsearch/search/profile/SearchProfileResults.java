@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.profile;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,7 +45,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     }
 
     public SearchProfileResults(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             shardResults = in.readMap(StreamInput::readString, SearchProfileShardResult::new);
         } else {
             // Before 8.0.0 we only send the query phase result
@@ -58,7 +58,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             out.writeMap(shardResults, StreamOutput::writeString, (o, r) -> r.writeTo(o));
         } else {
             // Before 8.0.0 we only send the query phase
@@ -129,6 +129,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
         throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+        SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = null;
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
         AggregationProfileShardResult aggProfileShardResult = null;
         ProfileResult fetchResult = null;
@@ -145,7 +146,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("searches".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         queryProfileResults.add(QueryProfileShardResult.fromXContent(parser));
                     }
                 } else if (AggregationProfileShardResult.AGGREGATIONS.equals(currentFieldName)) {
@@ -154,7 +155,13 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
                     parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                fetchResult = ProfileResult.fromXContent(parser);
+                if ("dfs".equals(currentFieldName)) {
+                    searchProfileDfsPhaseResult = SearchProfileDfsPhaseResult.fromXContent(parser);
+                } else if ("fetch".equals(currentFieldName)) {
+                    fetchResult = ProfileResult.fromXContent(parser);
+                } else {
+                    parser.skipChildren();
+                }
             } else {
                 parser.skipChildren();
             }
@@ -163,6 +170,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
             new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult),
             fetchResult
         );
+        result.getQueryPhase().setSearchProfileDfsPhaseResult(searchProfileDfsPhaseResult);
         searchProfileResults.put(id, result);
     }
 }

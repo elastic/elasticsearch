@@ -9,10 +9,12 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -25,8 +27,8 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
@@ -40,6 +42,7 @@ import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithSta
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.numberOfShardsOfType;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -59,7 +62,9 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(indexSettings).numberOfShards(2).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
         ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .routingTable(routingTable)
@@ -97,7 +102,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                     )
             )
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
 
@@ -126,7 +131,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                     )
             )
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
@@ -150,7 +155,9 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(indexSettings).numberOfShards(2).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
         ClusterState clusterState = ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .routingTable(routingTable)
@@ -199,10 +206,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         } else {
             final ShardRouting unassignedShard = unassignedShards.get(0);
 
-            final SameShardAllocationDecider decider = new SameShardAllocationDecider(
-                sameHostSetting,
-                new ClusterSettings(sameHostSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
+            final SameShardAllocationDecider decider = new SameShardAllocationDecider(createBuiltInClusterSettings(sameHostSetting));
 
             final RoutingNode emptyNode = clusterState.getRoutingNodes()
                 .stream()
@@ -231,10 +235,11 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             assertThat(
                 decision.getExplanation(),
                 equalTo(
-                    """
-                        cannot allocate to node [%s] because a copy of this shard is already allocated to node [%s] with the same host \
-                        address [%s] and [%s] is [true] which forbids more than one node on each host from holding a copy of this shard\
-                        """.formatted(
+                    Strings.format(
+                        """
+                            cannot allocate to node [%s] because a copy of this shard is already allocated to node [%s] with the same host \
+                            address [%s] and [%s] is [true] which forbids more than one node on each host from holding a copy of this shard\
+                            """,
                         emptyNode.nodeId(),
                         otherNode.nodeId(),
                         host1,
@@ -253,11 +258,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         final Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(
-                        settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 99)
-                            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-                    )
+                    .settings(indexSettings(Version.CURRENT, 1, 99).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
             )
             .build();
 
@@ -288,7 +289,9 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .metadata(metadata)
-                .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+                .routingTable(
+                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build()
+                )
                 .nodes(DiscoveryNodes.builder().add(node1).add(node2))
                 .build(),
             strategy
@@ -298,10 +301,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
     }
 
     public void testForceAllocatePrimaryOnSameNodeNotAllowed() {
-        SameShardAllocationDecider decider = new SameShardAllocationDecider(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
+        SameShardAllocationDecider decider = new SameShardAllocationDecider(createBuiltInClusterSettings());
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomIntBetween(2, 4), 1);
         Index index = clusterState.getMetadata().index("idx").getIndex();
         ShardRouting primaryShard = clusterState.routingTable().index(index).shard(0).primaryShard();

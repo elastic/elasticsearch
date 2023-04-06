@@ -10,15 +10,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
-import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -29,7 +29,7 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.atomic.LongAdder;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 
 /**
  * A {@link DirectBlobContainerIndexInput} instance corresponds to a single file from a Lucene directory that has been snapshotted. Because
@@ -65,23 +65,22 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private StreamForSequentialReads streamForSequentialReads;
     private long sequentialReadSize;
     private static final long NO_SEQUENTIAL_READ_OPTIMIZATION = 0L;
-    private static final int COPY_BUFFER_SIZE = 8192;
 
     public DirectBlobContainerIndexInput(
         String name,
-        SearchableSnapshotDirectory directory,
+        BlobContainer blobContainer,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
         long sequentialReadSize
     ) {
-        this(name, directory, fileInfo, context, stats, 0L, 0L, fileInfo.length(), sequentialReadSize);
+        this(name, blobContainer, fileInfo, context, stats, 0L, 0L, fileInfo.length(), sequentialReadSize);
         stats.incrementOpenCount();
     }
 
     private DirectBlobContainerIndexInput(
         String name,
-        SearchableSnapshotDirectory directory,
+        BlobContainer blobContainer,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
@@ -90,8 +89,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long length,
         long sequentialReadSize
     ) {
-        super(logger, name, directory, fileInfo, context, stats, offset, length, ByteRange.EMPTY, ByteRange.EMPTY); // TODO should use blob
-                                                                                                                    // cache
+        super(logger, name, blobContainer, fileInfo, context, stats, offset, length); // TODO should use blob cache
         this.position = position;
         assert sequentialReadSize >= 0;
         this.sequentialReadSize = sequentialReadSize;
@@ -99,7 +97,9 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @Override
     protected void doReadInternal(ByteBuffer b) throws IOException {
-        ensureOpen();
+        if (closed.get()) {
+            throw new IOException(this + " is closed");
+        }
         if (fileInfo.numberOfParts() == 1) {
             readInternalBytes(0, position, b, b.remaining());
         } else {
@@ -126,12 +126,9 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             // we did not read everything in an optimized fashion, so read the remainder directly
             final long startTimeNanos = stats.currentTimeNanos();
             try (InputStream inputStream = openBlobStream(part, pos + optimizedReadSize, length - optimizedReadSize)) {
-                final int directReadSize = readFully(
-                    inputStream,
-                    b,
-                    length - optimizedReadSize,
-                    () -> { throw new EOFException("Read past EOF at [" + position + "] with length [" + fileInfo.partBytes(part) + "]"); }
-                );
+                final int directReadSize = readFully(inputStream, b, length - optimizedReadSize, () -> {
+                    throw new EOFException("Read past EOF at [" + position + "] with length [" + fileInfo.partBytes(part) + "]");
+                });
                 assert optimizedReadSize + directReadSize == length : optimizedReadSize + " and " + directReadSize + " vs " + length;
                 position += directReadSize;
                 final long endTimeNanos = stats.currentTimeNanos();
@@ -245,11 +242,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @Override
     protected void seekInternal(long pos) throws IOException {
-        if (pos > length()) {
-            throw new EOFException("Reading past end of file [position=" + pos + ", length=" + length() + "] for " + toString());
-        } else if (pos < 0L) {
-            throw new IOException("Seeking to negative position [" + pos + "] for " + toString());
-        }
+        BlobCacheUtils.ensureSeek(pos, this);
         if (position != offset + pos) {
             position = offset + pos;
             closeStreamForSequentialReads();
@@ -268,28 +261,23 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @Override
     public IndexInput slice(String sliceName, long offset, long length) throws IOException {
-        if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
-            final DirectBlobContainerIndexInput slice = new DirectBlobContainerIndexInput(
-                sliceName,
-                directory,
-                fileInfo,
-                context,
-                stats,
-                position,
-                this.offset + offset,
-                length,
-                // Slices might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
-                // solution: do not optimize sequential reads on slices.
-                NO_SEQUENTIAL_READ_OPTIMIZATION
-            );
-            slice.isClone = true;
-            slice.seek(0L);
-            return slice;
-        } else {
-            throw new IllegalArgumentException(
-                "slice() " + sliceName + " out of bounds: offset=" + offset + ",length=" + length + ",fileLength=" + length() + ": " + this
-            );
-        }
+        BlobCacheUtils.ensureSlice(sliceName, offset, length, this);
+        final DirectBlobContainerIndexInput slice = new DirectBlobContainerIndexInput(
+            sliceName,
+            blobContainer,
+            fileInfo,
+            context,
+            stats,
+            position,
+            this.offset + offset,
+            length,
+            // Slices might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
+            // solution: do not optimize sequential reads on slices.
+            NO_SEQUENTIAL_READ_OPTIMIZATION
+        );
+        slice.isClone = true;
+        slice.seek(0L);
+        return slice;
     }
 
     @Override
@@ -313,17 +301,9 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
      */
     private static int readFully(InputStream inputStream, final ByteBuffer b, int length, CheckedRunnable<IOException> onEOF)
         throws IOException {
-        int totalRead = 0;
-        final byte[] buffer = new byte[Math.min(length, COPY_BUFFER_SIZE)];
-        while (totalRead < length) {
-            final int len = Math.min(length - totalRead, COPY_BUFFER_SIZE);
-            final int read = inputStream.read(buffer, 0, len);
-            if (read == -1) {
-                onEOF.run();
-                break;
-            }
-            b.put(buffer, 0, read);
-            totalRead += read;
+        int totalRead = Streams.read(inputStream, b, length);
+        if (totalRead < length) {
+            onEOF.run();
         }
         return totalRead > 0 ? totalRead : -1;
     }

@@ -60,7 +60,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSou
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -517,7 +517,9 @@ public class LuceneTests extends ESTestCase {
     public void testWrapLiveDocsNotExposeAbortedDocuments() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig config = newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()));
+            .setMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, MatchAllDocsQuery::new, newMergePolicy()))
+            // disable merges on refresh as we will verify the deleted documents
+            .setMaxFullFlushMergeWaitMillis(-1);
         IndexWriter writer = new IndexWriter(dir, config);
         int numDocs = between(1, 10);
         List<String> liveDocs = new ArrayList<>();
@@ -565,7 +567,7 @@ public class LuceneTests extends ESTestCase {
             EMPTY_REGISTRY,
             Lucene::writeSortField,
             Lucene::readSortField,
-            VersionUtils.randomVersion(random())
+            TransportVersionUtils.randomVersion(random())
         );
         assertEquals(sortFieldTuple.v2(), deserialized);
     }
@@ -577,7 +579,7 @@ public class LuceneTests extends ESTestCase {
             EMPTY_REGISTRY,
             Lucene::writeSortValue,
             Lucene::readSortValue,
-            VersionUtils.randomVersion(random())
+            TransportVersionUtils.randomVersion(random())
         );
         assertEquals(sortValue, deserialized);
     }

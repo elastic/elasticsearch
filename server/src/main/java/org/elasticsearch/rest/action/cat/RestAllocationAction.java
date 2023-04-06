@@ -22,6 +22,8 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 
@@ -31,6 +33,7 @@ import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestAllocationAction extends AbstractCatAction {
 
     @Override
@@ -96,16 +99,13 @@ public class RestAllocationAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, final ClusterStateResponse state, final NodesStatsResponse stats) {
         final Map<String, Integer> allocs = new HashMap<>();
 
-        for (ShardRouting shard : state.getState().routingTable().allShards()) {
+        for (ShardRouting shard : state.getState().routingTable().allShardsIterator()) {
             String nodeId = "UNASSIGNED";
-
             if (shard.assignedToNode()) {
                 nodeId = shard.currentNodeId();
             }
-
             allocs.merge(nodeId, 1, Integer::sum);
         }
-
         Table table = getTableWithHeader(request);
 
         for (NodeStats nodeStats : stats.getNodes()) {
@@ -128,7 +128,7 @@ public class RestAllocationAction extends AbstractCatAction {
             table.startRow();
             table.addCell(shardCount);
             table.addCell(nodeStats.getIndices().getStore().getSize());
-            table.addCell(used < 0 ? null : new ByteSizeValue(used));
+            table.addCell(used < 0 ? null : ByteSizeValue.ofBytes(used));
             table.addCell(avail.getBytes() < 0 ? null : avail);
             table.addCell(total.getBytes() < 0 ? null : total);
             table.addCell(diskPercent < 0 ? null : diskPercent);

@@ -1,11 +1,12 @@
-default-scenarios = ["precommit_master", "precommit_branch"]
+// ensure branch scenario is listed first as this is the gradle version that will picked for inspecting the build
+default-scenarios = ["precommit_branch", "precommit_main"]
 
-precommit_master {
-    title = "precommit (master)"
-    versions = ["@masterWrapper@"]
+precommit_main {
+    title = "precommit (main)"
+    versions = ["@mainWrapper@"]
     cleanup-tasks = ["clean"]
     tasks = ["precommit"]
-    gradle-args = ["--no-scan", "--no-build-cache"]
+    gradle-args = ["--no-scan", "--no-build-cache", "--stacktrace"]
     run-using = cli // value can be "cli" or "tooling-api"
     daemon = warm // value can be "warm", "cold", or "none"
     warm-ups = 5
@@ -14,7 +15,7 @@ precommit_master {
         "BUILD_PERFORMANCE_TEST" = "true"
     }
     git-checkout = {
-        build = "master"
+        build = "main"
     }
 }
 
@@ -23,7 +24,7 @@ precommit_branch {
     versions = ["@branchWrapper@"]
     cleanup-tasks = ["clean"]
     tasks = ["precommit"]
-    gradle-args = ["--no-scan", "--no-build-cache"]
+    gradle-args = ["--no-scan", "--no-build-cache", "--stacktrace"]
     run-using = cli // value can be "cli" or "tooling-api"
     daemon = warm // value can be "warm", "cold", or "none"
     warm-ups = 5

@@ -1,6 +1,7 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.dra-artifacts'
 
 esplugin {
   name 'x-pack-ml'
@@ -10,24 +11,25 @@ esplugin {
   extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
 }
 
-
-repositories {
-  exclusiveContent {
-    forRepository {
-      ivy {
-        name "ml-cpp"
-        url providers.systemProperty('build.ml_cpp.repo').orElse('https://prelert-artifacts.s3.amazonaws.com').get()
-        metadataSources {
-          // no repository metadata, look directly for the artifact
-          artifact()
-        }
-        patternLayout {
-          artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/[module]-[revision](-[classifier]).[ext]"
+if (useDra == false) {
+  repositories {
+    exclusiveContent {
+      forRepository {
+        ivy {
+          name "ml-cpp"
+          url providers.systemProperty('build.ml_cpp.repo').orElse('https://prelert-artifacts.s3.amazonaws.com').get()
+          metadataSources {
+            // no repository metadata, look directly for the artifact
+            artifact()
+          }
+          patternLayout {
+            artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/[module]-[revision](-[classifier]).[ext]"
+          }
         }
       }
-    }
-    filter {
-      includeGroup 'org.elasticsearch.ml'
+      filter {
+        includeGroup 'org.elasticsearch.ml'
+      }
     }
   }
 }

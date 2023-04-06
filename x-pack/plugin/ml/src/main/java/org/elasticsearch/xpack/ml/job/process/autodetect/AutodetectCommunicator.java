@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
@@ -88,8 +87,7 @@ public class AutodetectCommunicator implements Closeable {
         this.onFinishHandler = onFinishHandler;
         this.xContentRegistry = xContentRegistry;
         this.autodetectWorkerExecutor = autodetectWorkerExecutor;
-        this.includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
-            && job.getAnalysisConfig().getCategorizationFieldName() != null;
+        this.includeTokensField = job.getAnalysisConfig().getCategorizationFieldName() != null;
     }
 
     public void restoreState(ModelSnapshot modelSnapshot) {
@@ -182,6 +180,7 @@ public class AutodetectCommunicator implements Closeable {
         try {
             future.get();
             autodetectWorkerExecutor.shutdown();
+            dataCountsReporter.writeUnreportedCounts();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
@@ -258,6 +257,11 @@ public class AutodetectCommunicator implements Closeable {
     public void flushJob(FlushJobParams params, BiConsumer<FlushAcknowledgement, Exception> handler) {
         submitOperation(() -> {
             String flushId = autodetectProcess.flushJob(params);
+            try {
+                dataCountsReporter.writeUnreportedCounts();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
             return waitFlushToCompletion(flushId, params.isWaitForNormalization());
         }, handler);
     }
@@ -413,5 +417,9 @@ public class AutodetectCommunicator implements Closeable {
             );
         }
         categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, categorizationAnalyzerConfig);
+    }
+
+    public void setVacating(boolean vacating) {
+        autodetectResultProcessor.setVacating(vacating);
     }
 }

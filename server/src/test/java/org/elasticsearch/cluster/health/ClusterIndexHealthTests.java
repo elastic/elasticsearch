@@ -8,12 +8,12 @@
 package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -28,8 +28,8 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class ClusterIndexHealthTests extends AbstractSerializingTestCase<ClusterIndexHealth> {
-    private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.SHARDS, ClusterHealthRequest.Level.INDICES);
+public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase<ClusterIndexHealth> {
+    private final ClusterStatsLevel level = randomFrom(ClusterStatsLevel.SHARDS, ClusterStatsLevel.INDICES);
 
     public void testClusterIndexHealth() {
         RoutingTableGenerator routingTableGenerator = new RoutingTableGenerator();
@@ -73,9 +73,9 @@ public class ClusterIndexHealthTests extends AbstractSerializingTestCase<Cluster
         return randomIndexHealth(randomAlphaOfLengthBetween(1, 10), level);
     }
 
-    public static ClusterIndexHealth randomIndexHealth(String indexName, ClusterHealthRequest.Level level) {
+    public static ClusterIndexHealth randomIndexHealth(String indexName, ClusterStatsLevel level) {
         Map<Integer, ClusterShardHealth> shards = new HashMap<>();
-        if (level == ClusterHealthRequest.Level.SHARDS) {
+        if (level == ClusterStatsLevel.SHARDS) {
             for (int i = 0; i < randomInt(5); i++) {
                 shards.put(i, ClusterShardHealthTests.randomShardHealth(i));
             }
@@ -123,7 +123,7 @@ public class ClusterIndexHealthTests extends AbstractSerializingTestCase<Cluster
     }
 
     @Override
-    protected ClusterIndexHealth mutateInstance(ClusterIndexHealth instance) throws IOException {
+    protected ClusterIndexHealth mutateInstance(ClusterIndexHealth instance) {
         String mutate = randomFrom(
             "index",
             "numberOfShards",

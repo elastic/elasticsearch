@@ -40,6 +40,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLette
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+import static org.elasticsearch.upgrades.UpgradeWithOldIndexSettingsIT.updateIndexSettingsPermittingSlowlogDeprecationWarning;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
@@ -236,7 +237,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
                 final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
                 // remove the replica and guaranteed the primary is placed on the old node
-                updateIndexSettings(
+                updateIndexSettingsPermittingSlowlogDeprecationWarning(
                     index,
                     Settings.builder()
                         .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
@@ -246,7 +247,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 );
                 ensureGreen(index); // wait for the primary to be assigned
                 ensureNoInitializingShards(); // wait for all other shard activity to finish
-                updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._id", newNode));
+                updateIndexSettingsPermittingSlowlogDeprecationWarning(
+                    index,
+                    Settings.builder().put("index.routing.allocation.include._id", newNode)
+                );
                 asyncIndexDocs(index, 10, 50).get();
                 // ensure the relocation from old node to new node has occurred; otherwise ensureGreen can
                 // return true even though shards haven't moved to the new node yet (allocation was throttled).

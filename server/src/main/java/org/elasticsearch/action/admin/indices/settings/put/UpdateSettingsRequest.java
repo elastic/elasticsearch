@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -31,7 +31,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * Request for an update index settings action
@@ -55,7 +54,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         settings = readSettingsFromStream(in);
         preserveExisting = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
             origin = in.readString();
         }
     }
@@ -182,9 +181,9 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
-        writeSettingsToStream(settings, out);
+        settings.writeTo(out);
         out.writeBoolean(preserveExisting);
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
             out.writeString(origin);
         }
     }

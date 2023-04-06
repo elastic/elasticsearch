@@ -23,6 +23,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.CancellableTask;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -45,6 +46,7 @@ class FieldCapabilitiesFetcher {
     }
 
     FieldCapabilitiesIndexResponse fetch(
+        CancellableTask task,
         ShardId shardId,
         String[] fieldPatterns,
         String[] filters,
@@ -78,7 +80,7 @@ class FieldCapabilitiesFetcher {
                     return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true);
                 }
             }
-
+            task.ensureNotCancelled();
             Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
             final Map<String, IndexFieldCapabilities> responseMap = retrieveFieldCaps(
                 searchExecutionContext,
@@ -110,6 +112,7 @@ class FieldCapabilitiesFetcher {
         boolean includeParentObjects = checkIncludeParents(filters);
 
         Predicate<MappedFieldType> filter = buildFilter(indexFieldfilter, filters, types, context);
+        boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
             MappedFieldType ft = context.getFieldType(field);
@@ -120,8 +123,8 @@ class FieldCapabilitiesFetcher {
                     context.isMetadataField(field),
                     ft.isSearchable(),
                     ft.isAggregatable(),
-                    ft.isDimension(),
-                    ft.getMetricType(),
+                    isTimeSeriesIndex ? ft.isDimension() : false,
+                    isTimeSeriesIndex ? ft.getMetricType() : null,
                     ft.meta()
                 );
                 responseMap.put(field, fieldCap);

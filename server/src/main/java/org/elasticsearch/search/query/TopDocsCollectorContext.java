@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexOptions;
@@ -21,8 +22,8 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
@@ -73,20 +74,6 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         this.numHits = numHits;
     }
 
-    /**
-     * Returns the number of top docs to retrieve
-     */
-    final int numHits() {
-        return numHits;
-    }
-
-    /**
-     * Returns true if the top docs should be re-scored after initial search
-     */
-    boolean shouldRescore() {
-        return false;
-    }
-
     static class EmptyTopDocsCollectorContext extends TopDocsCollectorContext {
         private final Sort sort;
         private final Collector collector;
@@ -94,18 +81,10 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
         /**
          * Ctr
-         * @param reader The index reader
-         * @param query The query to execute
-         * @param trackTotalHitsUpTo True if the total number of hits should be tracked
-         * @param hasFilterCollector True if the collector chain contains a filter
+         * @param sortAndFormats The sort clause if provided
+         * @param trackTotalHitsUpTo The threshold up to which total hit count needs to be tracked
          */
-        private EmptyTopDocsCollectorContext(
-            IndexReader reader,
-            Query query,
-            @Nullable SortAndFormats sortAndFormats,
-            int trackTotalHitsUpTo,
-            boolean hasFilterCollector
-        ) throws IOException {
+        private EmptyTopDocsCollectorContext(@Nullable SortAndFormats sortAndFormats, int trackTotalHitsUpTo) {
             super(REASON_SEARCH_COUNT, 0);
             this.sort = sortAndFormats == null ? null : sortAndFormats.sort;
             if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
@@ -114,23 +93,16 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 this.hitCountSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
             } else {
                 TotalHitCountCollector hitCountCollector = new TotalHitCountCollector();
-                // implicit total hit counts are valid only when there is no filter collector in the chain
-                int hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
-                if (hitCount == -1) {
-                    if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
-                        this.collector = hitCountCollector;
-                        this.hitCountSupplier = () -> new TotalHits(hitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO);
-                    } else {
-                        EarlyTerminatingCollector col = new EarlyTerminatingCollector(hitCountCollector, trackTotalHitsUpTo, false);
-                        this.collector = col;
-                        this.hitCountSupplier = () -> new TotalHits(
-                            hitCountCollector.getTotalHits(),
-                            col.hasEarlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO
-                        );
-                    }
+                if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_ACCURATE) {
+                    this.collector = hitCountCollector;
+                    this.hitCountSupplier = () -> new TotalHits(hitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO);
                 } else {
-                    this.collector = new EarlyTerminatingCollector(hitCountCollector, 0, false);
-                    this.hitCountSupplier = () -> new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO);
+                    EarlyTerminatingCollector col = new EarlyTerminatingCollector(hitCountCollector, trackTotalHitsUpTo, false);
+                    this.collector = col;
+                    this.hitCountSupplier = () -> new TotalHits(
+                        hitCountCollector.getTotalHits(),
+                        col.hasEarlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO
+                    );
                 }
             }
         }
@@ -202,7 +174,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
     }
 
-    abstract static class SimpleTopDocsCollectorContext extends TopDocsCollectorContext {
+    static class SimpleTopDocsCollectorContext extends TopDocsCollectorContext {
 
         private static TopDocsCollector<?> createCollector(
             @Nullable SortAndFormats sortAndFormats,
@@ -227,12 +199,12 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
          * Ctr
          * @param reader The index reader
          * @param query The Lucene query
-         * @param sortAndFormats The query sort
+         * @param sortAndFormats The sort clause if provided
          * @param numHits The number of top hits to retrieve
          * @param searchAfter The doc this request should "search after"
          * @param trackMaxScore True if max score should be tracked
-         * @param trackTotalHitsUpTo True if the total number of hits should be tracked
-         * @param hasFilterCollector True if the collector chain contains at least one collector that can filters document
+         * @param trackTotalHitsUpTo Threshold up to which total hit count should be tracked
+         * @param hasFilterCollector True if the collector chain contains at least one collector that can filter documents out
          */
         private SimpleTopDocsCollectorContext(
             IndexReader reader,
@@ -401,13 +373,17 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 count += context.reader().docFreq(term);
             }
             return count;
-        } else if (query.getClass() == DocValuesFieldExistsQuery.class && reader.hasDeletions() == false) {
-            final String field = ((DocValuesFieldExistsQuery) query).getField();
+        } else if (query.getClass() == FieldExistsQuery.class && reader.hasDeletions() == false) {
+            final String field = ((FieldExistsQuery) query).getField();
             int count = 0;
             for (LeafReaderContext context : reader.leaves()) {
                 FieldInfos fieldInfos = context.reader().getFieldInfos();
                 FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
                 if (fieldInfo != null) {
+                    if (fieldInfo.getDocValuesType() == DocValuesType.NONE) {
+                        // no shortcut possible: it's a text field, empty values are counted as no value.
+                        return -1;
+                    }
                     if (fieldInfo.getPointIndexDimensionCount() > 0) {
                         PointValues points = context.reader().getPointValues(field);
                         if (points != null) {
@@ -441,13 +417,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         final int totalNumDocs = Math.max(1, reader.numDocs());
         if (searchContext.size() == 0) {
             // no matter what the value of from is
-            return new EmptyTopDocsCollectorContext(
-                reader,
-                query,
-                searchContext.sort(),
-                searchContext.trackTotalHitsUpTo(),
-                hasFilterCollector
-            );
+            return new EmptyTopDocsCollectorContext(searchContext.sort(), searchContext.trackTotalHitsUpTo());
         } else if (searchContext.scrollContext() != null) {
             // we can disable the tracking of total hits after the initial scroll query
             // since the total hits is preserved in the scroll context.
@@ -495,12 +465,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 searchContext.trackScores(),
                 searchContext.trackTotalHitsUpTo(),
                 hasFilterCollector
-            ) {
-                @Override
-                boolean shouldRescore() {
-                    return rescore;
-                }
-            };
+            );
         }
     }
 

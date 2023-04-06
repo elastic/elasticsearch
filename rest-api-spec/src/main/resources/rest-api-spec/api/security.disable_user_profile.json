@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-disable-user-profile.html",
       "description":"Disables a user profile so it's not visible in user profile searches."
     },
-    "stability":"experimental",
+    "stability":"stable",
     "visibility":"private",
     "headers":{
       "accept": [ "application/json"]

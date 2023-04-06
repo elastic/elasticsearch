@@ -13,14 +13,19 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.StatusInfo;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -28,11 +33,12 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -49,28 +55,36 @@ public class JoinHelperTests extends ESTestCase {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new HandshakingCapturingTransport();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
-        final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final var taskManger = new TaskManager(Settings.EMPTY, threadPool, Set.of());
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             capturingTransport,
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode,
-            null,
-            Collections.emptySet(),
-            new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext())
+            clusterSettings,
+            new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
+            taskManger,
+            Tracer.NOOP
         );
         JoinHelper joinHelper = new JoinHelper(
             null,
-            null,
+            new MasterService(Settings.EMPTY, clusterSettings, threadPool, taskManger),
             new NoOpClusterApplier(),
             transportService,
             () -> 0L,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
+            (joinRequest, joinCallback) -> {
+                throw new AssertionError();
+            },
             startJoinRequest -> { throw new AssertionError(); },
             (s, p, r) -> {},
             () -> new StatusInfo(HEALTHY, "info"),
-            new JoinReasonService(() -> 0L)
+            new JoinReasonService(() -> 0L),
+            new NoneCircuitBreakerService(),
+            Function.identity(),
+            (listener, term) -> listener.onResponse(null)
         );
         transportService.start();
 
@@ -206,26 +220,37 @@ public class JoinHelperTests extends ESTestCase {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new HandshakingCapturingTransport();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
-        TransportService transportService = capturingTransport.createTransportService(
+        ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final var taskManger = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        TransportService transportService = new TransportService(
             Settings.EMPTY,
-            deterministicTaskQueue.getThreadPool(),
+            capturingTransport,
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode,
-            null,
-            Collections.emptySet()
+            clusterSettings,
+            new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
+            taskManger,
+            Tracer.NOOP
         );
         AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(UNHEALTHY, "unhealthy-info"));
         JoinHelper joinHelper = new JoinHelper(
             null,
-            null,
+            new MasterService(Settings.EMPTY, clusterSettings, threadPool, taskManger),
             new NoOpClusterApplier(),
             transportService,
             () -> 0L,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
+            (joinRequest, joinCallback) -> {
+                throw new AssertionError();
+            },
             startJoinRequest -> { throw new AssertionError(); },
             (s, p, r) -> {},
             nodeHealthServiceStatus::get,
-            new JoinReasonService(() -> 0L)
+            new JoinReasonService(() -> 0L),
+            new NoneCircuitBreakerService(),
+            Function.identity(),
+            (listener, term) -> listener.onResponse(null)
         );
         transportService.start();
 

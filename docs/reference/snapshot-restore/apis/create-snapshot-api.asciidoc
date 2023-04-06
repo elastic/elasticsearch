@@ -97,7 +97,7 @@ Don't expand wildcard patterns.
 `ignore_unavailable`::
 (Optional, Boolean)
 If `false`, the snapshot fails if any data stream or index in `indices` is
-missing or closed. If `true`, the snapshot ignores missing or closed data
+missing. If `true`, the snapshot ignores missing data
 streams and indices. Defaults to `false`.
 
 `include_global_state`::

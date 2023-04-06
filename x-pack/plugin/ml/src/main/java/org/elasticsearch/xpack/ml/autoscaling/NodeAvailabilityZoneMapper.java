@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.autoscaling;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -23,7 +24,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.OptionalInt;
 
 /**
@@ -47,7 +47,7 @@ public class NodeAvailabilityZoneMapper implements ClusterStateListener {
     public NodeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings, DiscoveryNodes discoveryNodes) {
         awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
         lastDiscoveryNodes = discoveryNodes;
-        buildNodesByAvailabilityZone();
+        updateNodesByAvailabilityZone();
         clusterSettings.addSettingsUpdateConsumer(
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
             this::setAwarenessAttributes
@@ -56,7 +56,7 @@ public class NodeAvailabilityZoneMapper implements ClusterStateListener {
 
     private synchronized void setAwarenessAttributes(List<String> awarenessAttributes) {
         this.awarenessAttributes = List.copyOf(awarenessAttributes);
-        buildNodesByAvailabilityZone();
+        updateNodesByAvailabilityZone();
     }
 
     public List<String> getAwarenessAttributes() {
@@ -107,47 +107,54 @@ public class NodeAvailabilityZoneMapper implements ClusterStateListener {
     public synchronized void clusterChanged(ClusterChangedEvent event) {
         if (lastDiscoveryNodes == null || event.nodesChanged()) {
             lastDiscoveryNodes = event.state().nodes();
-            buildNodesByAvailabilityZone();
+            updateNodesByAvailabilityZone();
         }
     }
 
-    private synchronized void buildNodesByAvailabilityZone() {
+    private synchronized void updateNodesByAvailabilityZone() {
         if (lastDiscoveryNodes == null) {
             allNodesByAvailabilityZone = Map.of();
             mlNodesByAvailabilityZone = allNodesByAvailabilityZone;
             return;
         }
+        NodesByAvailabilityZone nodesByAvailabilityZone = buildNodesByAvailabilityZone(lastDiscoveryNodes, awarenessAttributes);
+        this.allNodesByAvailabilityZone = nodesByAvailabilityZone.allNodes;
+        this.mlNodesByAvailabilityZone = nodesByAvailabilityZone.mlNodes;
+    }
 
-        Collection<DiscoveryNode> nodes = lastDiscoveryNodes.getNodes().values();
+    private static NodesByAvailabilityZone buildNodesByAvailabilityZone(DiscoveryNodes discoveryNodes, List<String> awarenessAttributes) {
+        Collection<DiscoveryNode> nodes = discoveryNodes.getNodes().values();
 
         if (awarenessAttributes.isEmpty()) {
-            allNodesByAvailabilityZone = Map.of(List.of(), nodes);
-            mlNodesByAvailabilityZone = Map.of(
-                List.of(),
-                nodes.stream().filter(n -> n.getRoles().contains(DiscoveryNodeRole.ML_ROLE)).toList()
+            return new NodesByAvailabilityZone(
+                Map.of(List.of(), nodes),
+                Map.of(List.of(), nodes.stream().filter(n -> n.getRoles().contains(DiscoveryNodeRole.ML_ROLE)).toList())
             );
-            return;
         }
 
-        Map<List<String>, Collection<DiscoveryNode>> updatedNodesByAvailabilityZone = new HashMap<>();
-        Map<List<String>, Collection<DiscoveryNode>> updatedMlNodesByAvailabilityZone = new HashMap<>();
+        Map<List<String>, Collection<DiscoveryNode>> allNodesByAvailabilityZone = new HashMap<>();
+        Map<List<String>, Collection<DiscoveryNode>> mlNodesByAvailabilityZone = new HashMap<>();
         for (DiscoveryNode node : nodes) {
-            List<String> orderedNodeAttributeValues = awarenessAttributes.stream()
-                .map(a -> node.getAttributes().get(a))
-                .filter(Objects::nonNull)
-                .toList();
-            if (orderedNodeAttributeValues.size() != awarenessAttributes.size()) {
-                // This indicates bad configuration - there shouldn't be nodes that don't have all the awareness attributes
-                logger.debug(
-                    "Node [{}] does not have all configured awareness attributes {} - will be ignored in availability zone mapper",
-                    node,
-                    awarenessAttributes
-                );
-                continue;
-            }
-            updatedNodesByAvailabilityZone.computeIfAbsent(orderedNodeAttributeValues, k -> new ArrayList<>()).add(node);
+            List<String> orderedNodeAttributeValues = awarenessAttributes.stream().map(a -> {
+                String v = node.getAttributes().get(a);
+                if (v == null) {
+                    // This will never happen for a Cloud cluster, but for self-managed it's possible.
+                    // We reuse the same allocation attributes that are used for shards, but self-managed
+                    // users might not have bothered to set them on their ML nodes if they are not spread
+                    // across availability zones.
+                    logger.debug(
+                        "Node [{}] does not have all configured awareness attributes {} - missing [{}]",
+                        node,
+                        awarenessAttributes,
+                        a
+                    );
+                    return "";
+                }
+                return v;
+            }).toList();
+            allNodesByAvailabilityZone.computeIfAbsent(orderedNodeAttributeValues, k -> new ArrayList<>()).add(node);
             if (node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {
-                updatedMlNodesByAvailabilityZone.compute(orderedNodeAttributeValues, (k, v) -> {
+                mlNodesByAvailabilityZone.compute(orderedNodeAttributeValues, (k, v) -> {
                     if (v == null) {
                         v = new ArrayList<>();
                     }
@@ -156,7 +163,27 @@ public class NodeAvailabilityZoneMapper implements ClusterStateListener {
                 });
             }
         }
-        allNodesByAvailabilityZone = Map.copyOf(updatedNodesByAvailabilityZone);
-        mlNodesByAvailabilityZone = Map.copyOf(updatedMlNodesByAvailabilityZone);
+        return new NodesByAvailabilityZone(Map.copyOf(allNodesByAvailabilityZone), Map.copyOf(mlNodesByAvailabilityZone));
     }
+
+    /**
+     * This is different to {@link #getMlNodesByAvailabilityZone()} in that the latter returns the ML nodes by availability zone
+     * of the latest cluster state, while this method does the same for a specific cluster state.
+     *
+     * @param clusterState The cluster state whose nodes will be used to detect ML nodes by availability zone.
+     * @return A map whose keys are lists of awareness attribute values in the same order as the configured awareness attribute
+     *         names, and whose values are collections of nodes that have that combination of attributes. If availability zones
+     *         are not configured then the map will contain one entry mapping an empty list to a collection of all nodes. If
+     *         it is too early in the lifecycle of the node to know the answer then an empty map will be returned. An empty
+     *         map will also be returned if there are no ML nodes in the cluster. (These two empty map return scenarios can be
+     *         distinguished by calling one of the other methods.)
+     */
+    public Map<List<String>, Collection<DiscoveryNode>> buildMlNodesByAvailabilityZone(ClusterState clusterState) {
+        return buildNodesByAvailabilityZone(clusterState.nodes(), awarenessAttributes).mlNodes;
+    }
+
+    private record NodesByAvailabilityZone(
+        Map<List<String>, Collection<DiscoveryNode>> allNodes,
+        Map<List<String>, Collection<DiscoveryNode>> mlNodes
+    ) {};
 }

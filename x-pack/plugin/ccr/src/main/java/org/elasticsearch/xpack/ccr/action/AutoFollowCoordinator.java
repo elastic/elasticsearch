@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -61,6 +62,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -72,8 +75,23 @@ import static org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedClust
  */
 public class AutoFollowCoordinator extends AbstractLifecycleComponent implements ClusterStateListener {
 
+    /**
+     * This is the string that will be replaced by the leader index name for a backing index or data
+     * stream. It allows auto-following to automatically rename an index or data stream when
+     * automatically followed. For example, using "{{leader_index}}_copy" for the follow pattern
+     * means that a data stream called "logs-foo-bar" would be renamed "logs-foo-bar_copy" when
+     * replicated, and a backing index called ".ds-logs-foo-bar-2022-02-02-000001" would be renamed
+     * to ".ds-logs-foo-bar_copy-2022-02-02-000001".
+     * See {@link AutoFollower#getFollowerIndexName} for the entire usage.
+     */
+    public static final String AUTO_FOLLOW_PATTERN_REPLACEMENT = "{{leader_index}}";
+
     private static final Logger LOGGER = LogManager.getLogger(AutoFollowCoordinator.class);
     private static final int MAX_AUTO_FOLLOW_ERRORS = 256;
+
+    private static final Pattern DS_BACKING_PATTERN = Pattern.compile(
+        "^(.*?" + DataStream.BACKING_INDEX_PREFIX + ")(.+)-(\\d{4}.\\d{2}.\\d{2})(-[\\d]+)?$"
+    );
 
     private final Client client;
     private final ClusterService clusterService;
@@ -92,10 +110,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     private long numberOfFailedRemoteClusterStateRequests = 0;
     private final LinkedHashMap<AutoFollowErrorKey, Tuple<Long, ElasticsearchException>> recentAutoFollowErrors;
 
-    private static final class AutoFollowErrorKey {
-        private final String pattern;
-        private final String index;
-
+    private record AutoFollowErrorKey(String pattern, String index) {
         private AutoFollowErrorKey(String pattern, String index) {
             this.pattern = Objects.requireNonNull(pattern);
             this.index = index;
@@ -281,17 +296,15 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     final long metadataVersion,
                     final BiConsumer<ClusterStateResponse, Exception> handler
                 ) {
-                    final ClusterStateRequest request = new ClusterStateRequest();
-                    request.clear();
-                    request.metadata(true);
-                    request.routingTable(true);
-                    request.waitForMetadataVersion(metadataVersion);
-                    request.waitForTimeout(waitForMetadataTimeOut);
                     // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
                     CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                         client,
                         remoteCluster,
-                        request,
+                        new ClusterStateRequest().clear()
+                            .metadata(true)
+                            .routingTable(true)
+                            .waitForMetadataVersion(metadataVersion)
+                            .waitForTimeout(waitForMetadataTimeOut),
                         e -> handler.accept(null, e),
                         remoteClusterStateResponse -> handler.accept(remoteClusterStateResponse, null)
                     );
@@ -563,6 +576,12 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             cleanFollowedRemoteIndices(remoteClusterState, patterns);
         }
 
+        /**
+         * Go through all the leader indices that need to be followed, ensuring that they are
+         * auto-followed by only a single pattern, have soft-deletes enabled, are not
+         * searchable snapshots, and are not already followed. If all of those conditions are met,
+         * then follow the indices.
+         */
         private void checkAutoFollowPattern(
             String autoFollowPattenName,
             String remoteClusterString,
@@ -575,19 +594,23 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             Consumer<AutoFollowResult> resultHandler
         ) {
             final GroupedActionListener<Tuple<Index, Exception>> groupedListener = new GroupedActionListener<>(
-                ActionListener.wrap(
-                    rs -> resultHandler.accept(new AutoFollowResult(autoFollowPattenName, new ArrayList<>(rs))),
-                    e -> { throw new AssertionError("must never happen", e); }
-                ),
-                leaderIndicesToFollow.size()
+                leaderIndicesToFollow.size(),
+                ActionListener.wrap(rs -> resultHandler.accept(new AutoFollowResult(autoFollowPattenName, new ArrayList<>(rs))), e -> {
+                    throw new AssertionError("must never happen", e);
+                })
             );
 
+            // Loop through all the as-of-yet-unfollowed indices from the leader
             for (final Index indexToFollow : leaderIndicesToFollow) {
+                // Look up the abstraction for the given index, e.g., an index ".ds-foo" could look
+                // up the Data Stream "foo"
                 IndexAbstraction indexAbstraction = remoteMetadata.getIndicesLookup().get(indexToFollow.getName());
+                // Ensure that the remote cluster doesn't have other patterns
+                // that would follow the index, there can be only one.
                 List<String> otherMatchingPatterns = patternsForTheSameRemoteCluster.stream()
                     .filter(otherPattern -> otherPattern.v2().match(indexAbstraction))
                     .map(Tuple::v1)
-                    .collect(Collectors.toList());
+                    .toList();
                 if (otherMatchingPatterns.size() != 0) {
                     groupedListener.onResponse(
                         new Tuple<>(
@@ -605,6 +628,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     );
                 } else {
                     final IndexMetadata leaderIndexMetadata = remoteMetadata.getIndexSafe(indexToFollow);
+                    // First ensure that the index on the leader that we want to follow has soft-deletes enabled
                     if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetadata.getSettings()) == false) {
                         String message = String.format(
                             Locale.ROOT,
@@ -639,10 +663,12 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             error -> groupedListener.onResponse(new Tuple<>(indexToFollow, error))
                         );
                     } else {
+                        // Finally, if there are no reasons why we cannot follow the leader index, perform the follow.
                         followLeaderIndex(
                             autoFollowPattenName,
                             remoteClusterString,
                             indexToFollow,
+                            indexAbstraction,
                             autoFollowPattern,
                             headers,
                             error -> groupedListener.onResponse(new Tuple<>(indexToFollow, error))
@@ -669,22 +695,32 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             return false;
         }
 
-        private void followLeaderIndex(
-            String autoFollowPattenName,
-            String remoteClusterString,
+        /**
+         * Given a remote cluster, index that will be followed (and its abstraction), as well as an
+         * {@link AutoFollowPattern}, generate the internal follow request for following the index.
+         */
+        static PutFollowAction.Request generateRequest(
+            String remoteCluster,
             Index indexToFollow,
-            AutoFollowPattern pattern,
-            Map<String, String> headers,
-            Consumer<Exception> onResult
+            IndexAbstraction indexAbstraction,
+            AutoFollowPattern pattern
         ) {
             final String leaderIndexName = indexToFollow.getName();
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
             PutFollowAction.Request request = new PutFollowAction.Request();
-            request.setRemoteCluster(remoteClusterString);
+            request.setRemoteCluster(remoteCluster);
             request.setLeaderIndex(indexToFollow.getName());
             request.setFollowerIndex(followIndexName);
             request.setSettings(pattern.getSettings());
+            // If there was a pattern specified for renaming the backing index, and this index is
+            // part of a data stream, then send the new data stream name as part of the request.
+            if (pattern.getFollowIndexPattern() != null && indexAbstraction.getParentDataStream() != null) {
+                String dataStreamName = indexAbstraction.getParentDataStream().getName();
+                // Send the follow index pattern as the data stream pattern, so that data streams can be
+                // renamed accordingly (not only the backing indices)
+                request.setDataStreamName(pattern.getFollowIndexPattern().replace(AUTO_FOLLOW_PATTERN_REPLACEMENT, dataStreamName));
+            }
             request.getParameters().setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
             request.getParameters().setMaxReadRequestSize(pattern.getMaxReadRequestSize());
             request.getParameters().setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());
@@ -697,9 +733,23 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             request.getParameters().setReadPollTimeout(pattern.getReadPollTimeout());
             request.masterNodeTimeout(TimeValue.MAX_VALUE);
 
+            return request;
+        }
+
+        private void followLeaderIndex(
+            String autoFollowPattenName,
+            String remoteClusterString,
+            Index indexToFollow,
+            IndexAbstraction indexAbstraction,
+            AutoFollowPattern pattern,
+            Map<String, String> headers,
+            Consumer<Exception> onResult
+        ) {
+            PutFollowAction.Request request = generateRequest(remoteClusterString, indexToFollow, indexAbstraction, pattern);
+
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {
-                LOGGER.info("auto followed leader index [{}] as follow index [{}]", indexToFollow, followIndexName);
+                LOGGER.info("auto followed leader index [{}] as follow index [{}]", indexToFollow, request.getFollowerIndex());
 
                 // This function updates the auto follow metadata in the cluster to record that the leader index has been followed:
                 // (so that we do not try to follow it in subsequent auto follow runs)
@@ -731,6 +781,22 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             }
         }
 
+        /**
+         * Given an auto following pattern for a set of indices and the cluster state from a remote
+         * cluster, return the list of indices that need to be followed. The list of followed index
+         * UUIDs contains indices that have already been followed, so the returned list will only
+         * contain "new" indices from the leader that need to be followed.
+         *
+         * When looking up the name of the index to see if it matches one of the patterns, the index
+         * abstraction ({@link IndexAbstraction}) of the index is used for comparison, this means
+         * that if an index named ".ds-foo" was part of a data stream "foo", then an auto-follow
+         * pattern of "f*" would allow the ".ds-foo" index to be returned.
+         *
+         * @param autoFollowPattern pattern to check indices that may need to be followed
+         * @param remoteClusterState state from the remote ES cluster
+         * @param followedIndexUUIDs a collection of UUIDs of indices already being followed
+         * @return any new indices on the leader that need to be followed
+         */
         static List<Index> getLeaderIndicesToFollow(
             AutoFollowPattern autoFollowPattern,
             ClusterState remoteClusterState,
@@ -760,9 +826,45 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             return leaderIndicesToFollow;
         }
 
+        /**
+         * Returns the new name for the follower index. If the auto-follow configuration includes a
+         * follow index pattern, the text "{@code {{leader_index}}}" is replaced with the original
+         * index name, so a leader index called "foo" and a pattern of "{{leader_index}}_copy"
+         * becomes a new follower index called "foo_copy".
+         */
         static String getFollowerIndexName(AutoFollowPattern autoFollowPattern, String leaderIndexName) {
-            if (autoFollowPattern.getFollowIndexPattern() != null) {
-                return autoFollowPattern.getFollowIndexPattern().replace("{{leader_index}}", leaderIndexName);
+            final String followPattern = autoFollowPattern.getFollowIndexPattern();
+            if (followPattern != null) {
+                if (leaderIndexName.contains(DataStream.BACKING_INDEX_PREFIX)) {
+                    // The index being replicated is a data stream backing index, so it's something
+                    // like: <optional-prefix>.ds-<data-stream-name>-20XX-mm-dd-NNNNNN
+                    //
+                    // However, we cannot just replace the name with the proposed follow index
+                    // pattern, or else we'll end up with something like ".ds-logs-foo-bar-2022-02-02-000001_copy"
+                    // for "{{leader_index}}_copy", which will cause problems because it doesn't
+                    // follow a parseable pattern. Instead it would be better to rename it as though
+                    // the data stream name was the leader index name, ending up with
+                    // ".ds-logs-foo-bar_copy-2022-02-02-000001" as the final index name.
+                    Matcher m = DS_BACKING_PATTERN.matcher(leaderIndexName);
+                    if (m.find()) {
+                        return m.group(1) + // Prefix including ".ds-"
+                            followPattern.replace(AUTO_FOLLOW_PATTERN_REPLACEMENT, m.group(2)) + // Data stream name changed
+                            "-" + // Hyphen separator
+                            m.group(3) + // Date math
+                            m.group(4);
+                    } else {
+                        throw new IllegalArgumentException(
+                            "unable to determine follower index name from leader index name ["
+                                + leaderIndexName
+                                + "] and follow index pattern: ["
+                                + followPattern
+                                + "], index appears to follow a regular data stream backing pattern, but could not be parsed"
+                        );
+                    }
+                } else {
+                    // If the index does nat contain a `.ds-<thing>`, then rename it as usual.
+                    return followPattern.replace("{{leader_index}}", leaderIndexName);
+                }
             } else {
                 return leaderIndexName;
             }

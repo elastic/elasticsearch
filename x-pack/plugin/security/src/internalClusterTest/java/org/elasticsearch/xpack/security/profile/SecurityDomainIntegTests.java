@@ -81,7 +81,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
      * // payload
      * {
      *   "aud": "aud",
-     *   "sub": "rac_user",
+     *   "sub": "rac-user",
      *   "roles": "[rac_role]",
      *   "iss": "iss",
      *   "exp": 4070908800,
@@ -90,8 +90,9 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
      * // signed with "hmac-oidc-key-string-for-hs256-algorithm"
      */
     private static final String HEADER_JWT_REALM_1 = "eyJhbGciOiJIUzI1NiJ9."
-        + "eyJhdWQiOiJhdWQiLCJzdWIiOiJyYWNfdXNlciIsInJvbGVzIjoiW3JhY19yb2xlXSIsImlzcyI6ImlzcyIsImV4cCI6NDA3MDkwODgwMCwiaWF0Ijo5NDY2ODQ4MDB9"
-        + ".vbEtAFY4e47ZovTcxlWRyU9BTRYB092kJm7SGsnd7KM";
+        + "eyJhdWQiOiJhdWQiLCJzdWIiOiJyYWMtdXNlciIsInJvbGVzIjoiW3JhY19yb2xlXS"
+        + "IsImlzcyI6ImlzcyIsImV4cCI6NDA3MDkwODgwMCwiaWF0Ijo5NDY2ODQ4MDB9"
+        + ".e9qS8Uws6meykYDzLCopxPqg9j5S-_LvepKSVG2OYPA";
 
     private static final String HEADER_SECRET_JWT_REALM_2 = "client-shared-secret-string-2";
     /**
@@ -102,7 +103,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
      * // payload
      * {
      *   "aud": "aud",
-     *   "sub": "rac_user",
+     *   "sub": "rac-user",
      *   "roles": "[rac_role]",
      *   "iss": "other_iss",
      *   "exp": 4070908800,
@@ -111,9 +112,9 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
      * // signed with "hmac-oidc-key-string-for-hs256-algorithm-2"
      */
     private static final String HEADER_JWT_REALM_2 = "eyJhbGciOiJIUzI1NiJ9."
-        + "eyJhdWQiOiJhdWQiLCJzdWIiOiJyYWNfdXNlciIsInJvbGVzIjoiW3JhY19yb2xl"
-        + "XSIsImlzcyI6Im90aGVyX2lzcyIsImV4cCI6NDA3MDkwODgwMCwiaWF0Ijo5NDY2ODQ4MDB9"
-        + ".4_c4sJ70xy-WssadlvAXL9OsR8V3qAZoY5bzPLjsong";
+        + "eyJhdWQiOiJhdWQiLCJzdWIiOiJyYWMtdXNlciIsInJvbGVzIjoiW3JhY19yb2xlXS"
+        + "IsImlzcyI6Im90aGVyX2lzcyIsImV4cCI6NDA3MDkwODgwMCwiaWF0Ijo5NDY2ODQ4MDB9"
+        + ".B-3cWnDZuFxp8nrAO04SkYfow3JESEy0e8xnliwEvzA";
 
     @Before
     public void setNativeMapping() throws IOException {
@@ -123,7 +124,7 @@ public class SecurityDomainIntegTests extends AbstractProfileIntegTestCase {
         putRoleMappingRequest.setRules(
             new ExpressionParser().parse(
                 "rules",
-                new XContentSource(new BytesArray("{ \"field\": { \"username\" : \"rac_user\" } }"), XContentType.JSON)
+                new XContentSource(new BytesArray("{ \"field\": { \"username\" : \"rac-user\" } }"), XContentType.JSON)
             )
         );
         client().execute(PutRoleMappingAction.INSTANCE, putRoleMappingRequest).actionGet();

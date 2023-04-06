@@ -30,9 +30,11 @@ than or equal to 50.
 NOTE: Field metadata is updatable by submitting a mapping update. The metadata
 of the update will override the metadata of the existing field.
 
+NOTE: Field metadata is not supported on object or nested fields.
+
 Elastic products use the following standard metadata entries for fields. You
 can follow these same metadata conventions to get a better out-of-the-box
-experience with your data. 
+experience with your data.
 
 unit::
 

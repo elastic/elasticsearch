@@ -59,9 +59,11 @@ import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
@@ -368,23 +370,47 @@ public class LdapRealmTests extends LdapTestCase {
             LdapRealmSettings.LDAP_TYPE,
             "test-ldap-realm-user-search"
         );
-        Settings settings = Settings.builder()
+
+        final List<? extends Setting.AffixSetting<?>> userSearchSettings = List.of(
+            LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN,
+            LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE,
+            LdapUserSearchSessionFactorySettings.SEARCH_SCOPE,
+            LdapUserSearchSessionFactorySettings.SEARCH_FILTER,
+            LdapUserSearchSessionFactorySettings.POOL_ENABLED
+        );
+        final List<? extends Setting.AffixSetting<?>> configuredUserSearchSettings = randomNonEmptySubsetOf(userSearchSettings).stream()
+            .sorted(Comparator.comparing(userSearchSettings::indexOf))
+            .toList();
+
+        final Settings.Builder settingsBuilder = Settings.builder()
             .put(defaultGlobalSettings)
             .putList(getFullSettingKey(identifier, URLS_SETTING), ldapUrls())
             .putList(getFullSettingKey(identifier.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), "cn=foo")
-            .put(getFullSettingKey(identifier.getName(), LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN), "cn=bar")
             .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.BASE_DN), "")
             .put(getFullSettingKey(identifier, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
             .put(getFullSettingKey(identifier, VERIFICATION_MODE_SETTING_REALM), SslVerificationMode.CERTIFICATE)
-            .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
-            .build();
-        RealmConfig config = getRealmConfig(identifier, settings);
+            .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0);
+
+        configuredUserSearchSettings.forEach(s -> {
+            final String key = getFullSettingKey(identifier.getName(), s);
+            settingsBuilder.put(key, key.endsWith(".enabled") ? String.valueOf(randomBoolean()) : randomAlphaOfLengthBetween(8, 18));
+        });
+        RealmConfig config = getRealmConfig(identifier, settingsBuilder.build());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> LdapRealm.sessionFactory(config, null, threadPool));
+
         assertThat(
             e.getMessage(),
             containsString(
                 "settings were found for both"
-                    + " user search [xpack.security.authc.realms.ldap.test-ldap-realm-user-search.user_search.base_dn] and"
+                    + " user search ["
+                    + configuredUserSearchSettings.stream()
+                        .map(Setting::getKey)
+                        .map(
+                            key -> "xpack.security.authc.realms.ldap.test-ldap-realm-user-search"
+                                + key.substring(key.lastIndexOf(".user_search."))
+                        )
+                        .collect(Collectors.joining(","))
+                    + "] and"
                     + " user template [xpack.security.authc.realms.ldap.test-ldap-realm-user-search.user_dn_templates]"
             )
         );

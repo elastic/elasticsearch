@@ -14,7 +14,6 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;

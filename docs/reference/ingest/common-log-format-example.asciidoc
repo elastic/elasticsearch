@@ -13,9 +13,7 @@ The logs you want to parse look similar to this:
 
 [source,log]
 ----
-212.87.37.154 - - [30/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\"
-200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6)
-AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"
+212.87.37.154 - - [05/May/2099:16:21:15 +0000] "GET /favicon.ico HTTP/1.1" 200 3638 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36"
 ----
 // NOTCONSOLE
 
@@ -30,7 +28,8 @@ Pipelines**.
 image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Pipelines list view,align="center"]
 
 . Click **Create pipeline > New pipeline**.
-. Provide a name and description for the pipeline.
+. Set **Name** to `my-pipeline` and optionally add a description for the 
+pipeline.
 . Add a <<grok-processor,grok processor>> to parse the log message:
 
 .. Click **Add a processor** and select the **Grok** processor type.
@@ -39,7 +38,7 @@ image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Pipelines list vie
 +
 [source,grok]
 ----
-%{IPORHOST:source.ip} %{USER:user.id} %{USER:user.name} \\[%{HTTPDATE:@timestamp}\\] \"%{WORD:http.request.method} %{DATA:url.original} HTTP/%{NUMBER:http.version}\" %{NUMBER:http.response.status_code:int} (?:-|%{NUMBER:http.response.body.bytes:int}) %{QS:http.request.referrer} %{QS:user_agent}
+%{IPORHOST:source.ip} %{USER:user.id} %{USER:user.name} \[%{HTTPDATE:@timestamp}\] "%{WORD:http.request.method} %{DATA:url.original} HTTP/%{NUMBER:http.version}" %{NUMBER:http.response.status_code:int} (?:-|%{NUMBER:http.response.body.bytes:int}) %{QS:http.request.referrer} %{QS:user_agent}
 ----
 // NOTCONSOLE
 +

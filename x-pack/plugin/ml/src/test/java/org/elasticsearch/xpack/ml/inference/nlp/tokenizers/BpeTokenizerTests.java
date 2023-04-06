@@ -377,6 +377,11 @@ public class BpeTokenizerTests extends BaseTokenStreamTestCase {
         assertAnalyzesToNoCharFilter(analyzer, "Elasticsearch <mask>.", new String[] { "Elast", "icsearch", "<mask>", "." });
         assertAnalyzesToNoCharFilter(
             analyzer,
+            "Elasticsearch<mask><mask>~redElasticsearch",
+            new String[] { "Elast", "icsearch", "<mask>", "<mask>", "~", "red", "Elast", "icsearch" }
+        );
+        assertAnalyzesToNoCharFilter(
+            analyzer,
             "Elasticsearch red~<mask>.",
             new String[] { "Elast", "icsearch", "Ġred", "~", "<mask>", "." }
         );
@@ -389,60 +394,63 @@ public class BpeTokenizerTests extends BaseTokenStreamTestCase {
     }
 
     public void testTokenization() throws IOException {
-        BpeAnalyzer analyzer = analyzerFromSettings(List.of("<mask>"), false);
-        String inputText = "Elasticsearch Godzilla car";
-        List<Integer> tokenPositionMap = new ArrayList<>();
-        try (TokenStream ts = analyzer.tokenStream("input", inputText)) {
-            ts.reset();
-            PositionIncrementAttribute tokenPos = ts.addAttribute(PositionIncrementAttribute.class);
-            int currPos = -1;
-            while (ts.incrementToken()) {
-                currPos += tokenPos.getPositionIncrement();
-                tokenPositionMap.add(currPos);
+        try (BpeAnalyzer analyzer = analyzerFromSettings(List.of("<mask>"), false)) {
+            String inputText = "Elasticsearch Godzilla car";
+            List<Integer> tokenPositionMap = new ArrayList<>();
+            try (TokenStream ts = analyzer.tokenStream("input", inputText)) {
+                ts.reset();
+                PositionIncrementAttribute tokenPos = ts.addAttribute(PositionIncrementAttribute.class);
+                int currPos = -1;
+                while (ts.incrementToken()) {
+                    currPos += tokenPos.getPositionIncrement();
+                    tokenPositionMap.add(currPos);
+                }
             }
+            List<BpeTokenizer.BpeToken> tokens = analyzer.getTokens();
+            List<Integer> tokenIds = tokens.stream().map(BpeTokenizer.BpeToken::getEncoding).collect(Collectors.toList());
+            List<String> tokenValues = tokens.stream().map(BpeTokenizer.BpeToken::toString).collect(Collectors.toList());
+            assertThat(tokenIds, equalTo(List.of(297, 299, 277, 293)));
+            assertThat(tokenPositionMap, equalTo(List.of(0, 0, 1, 2)));
+            assertThat(tokenValues, equalTo(List.of("Elast", "icsearch", "ĠGodzilla", "Ġcar")));
+
+            // Verify offsets handle whitespace and partitioned words
+            assertThat(inputText.substring(tokens.get(0).startOffset(), tokens.get(0).endOffset()), equalTo("Elasticsearch"));
+            assertThat(inputText.substring(tokens.get(1).startOffset(), tokens.get(1).endOffset()), equalTo("Elasticsearch"));
+
+            assertThat(inputText.substring(tokens.get(2).startOffset(), tokens.get(2).endOffset()), equalTo("Godzilla"));
+            assertThat(inputText.substring(tokens.get(3).startOffset(), tokens.get(3).endOffset()), equalTo("car"));
         }
-        List<BpeTokenizer.BpeToken> tokens = analyzer.getTokens();
-        List<Integer> tokenIds = tokens.stream().map(BpeTokenizer.BpeToken::getEncoding).collect(Collectors.toList());
-        List<String> tokenValues = tokens.stream().map(BpeTokenizer.BpeToken::toString).collect(Collectors.toList());
-        assertThat(tokenIds, equalTo(List.of(297, 299, 277, 293)));
-        assertThat(tokenPositionMap, equalTo(List.of(0, 0, 1, 2)));
-        assertThat(tokenValues, equalTo(List.of("Elast", "icsearch", "ĠGodzilla", "Ġcar")));
-
-        // Verify offsets handle whitespace and partitioned words
-        assertThat(inputText.substring(tokens.get(0).startOffset(), tokens.get(0).endOffset()), equalTo("Elasticsearch"));
-        assertThat(inputText.substring(tokens.get(1).startOffset(), tokens.get(1).endOffset()), equalTo("Elasticsearch"));
-
-        assertThat(inputText.substring(tokens.get(2).startOffset(), tokens.get(2).endOffset()), equalTo("Godzilla"));
-        assertThat(inputText.substring(tokens.get(3).startOffset(), tokens.get(3).endOffset()), equalTo("car"));
     }
 
     public void testTokenizationOffsetsWithPrefixWhitespace() throws IOException {
-        BpeAnalyzer analyzer = analyzerFromSettings(List.of("<mask>"), true);
-        String inputText = "Godzilla car";
-        try (TokenStream ts = analyzer.tokenStream("input", inputText)) {
-            ts.reset();
-            while (ts.incrementToken()) {
+        try (BpeAnalyzer analyzer = analyzerFromSettings(List.of("<mask>"), true)) {
+            String inputText = "Godzilla car";
+            try (TokenStream ts = analyzer.tokenStream("input", inputText)) {
+                ts.reset();
+                while (ts.incrementToken()) {
+                }
             }
+            List<BpeTokenizer.BpeToken> tokens = analyzer.getTokens();
+            assertThat(inputText.substring(tokens.get(0).startOffset(), tokens.get(0).endOffset()), equalTo("Godzilla"));
+            assertThat(inputText.substring(tokens.get(1).startOffset(), tokens.get(1).endOffset()), equalTo("car"));
         }
-        List<BpeTokenizer.BpeToken> tokens = analyzer.getTokens();
-        assertThat(inputText.substring(tokens.get(0).startOffset(), tokens.get(0).endOffset()), equalTo("Godzilla"));
-        assertThat(inputText.substring(tokens.get(1).startOffset(), tokens.get(1).endOffset()), equalTo("car"));
     }
 
     public void testTokenizationEmpty() throws IOException {
-        BpeAnalyzer analyzer = analyzerFromSettings(List.of("<mask>"), random().nextBoolean());
-        List<Integer> tokenPositionMap = new ArrayList<>();
-        try (TokenStream ts = analyzer.tokenStream("input", "")) {
-            ts.reset();
-            PositionIncrementAttribute tokenPos = ts.addAttribute(PositionIncrementAttribute.class);
-            int currPos = -1;
-            while (ts.incrementToken()) {
-                currPos += tokenPos.getPositionIncrement();
-                tokenPositionMap.add(currPos);
+        try (BpeAnalyzer analyzer = analyzerFromSettings(List.of("<mask>"), random().nextBoolean())) {
+            List<Integer> tokenPositionMap = new ArrayList<>();
+            try (TokenStream ts = analyzer.tokenStream("input", "")) {
+                ts.reset();
+                PositionIncrementAttribute tokenPos = ts.addAttribute(PositionIncrementAttribute.class);
+                int currPos = -1;
+                while (ts.incrementToken()) {
+                    currPos += tokenPos.getPositionIncrement();
+                    tokenPositionMap.add(currPos);
+                }
             }
+            assertThat(tokenPositionMap, hasSize(0));
+            assertThat(analyzer.getTokens(), hasSize(0));
         }
-        assertThat(tokenPositionMap, hasSize(0));
-        assertThat(analyzer.getTokens(), hasSize(0));
     }
 
     public static BpeAnalyzer analyzerFromSettings(List<String> neverSplit, boolean prefixSpace) {

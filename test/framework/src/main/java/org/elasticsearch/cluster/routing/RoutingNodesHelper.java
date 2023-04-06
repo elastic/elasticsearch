@@ -10,45 +10,27 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 
 public final class RoutingNodesHelper {
 
     private RoutingNodesHelper() {}
 
-    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState... state) {
-        List<ShardRouting> shards = new ArrayList<>();
-        for (RoutingNode routingNode : routingNodes) {
-            shards.addAll(routingNode.shardsWithState(state));
-        }
-        for (ShardRoutingState s : state) {
-            if (s == ShardRoutingState.UNASSIGNED) {
-                routingNodes.unassigned().forEach(shards::add);
-                break;
-            }
-        }
-        return shards;
+    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState state) {
+        return state == ShardRoutingState.UNASSIGNED
+            ? iterableAsArrayList(routingNodes.unassigned())
+            : routingNodes.stream().flatMap(routingNode -> routingNode.shardsWithState(state)).toList();
     }
 
-    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, String index, ShardRoutingState... state) {
-        List<ShardRouting> shards = new ArrayList<>();
-        for (RoutingNode routingNode : routingNodes) {
-            shards.addAll(routingNode.shardsWithState(index, state));
-        }
-        for (ShardRoutingState s : state) {
-            if (s == ShardRoutingState.UNASSIGNED) {
-                for (ShardRouting unassignedShard : routingNodes.unassigned()) {
-                    if (unassignedShard.index().getName().equals(index)) {
-                        shards.add(unassignedShard);
-                    }
-                }
-                break;
-            }
-        }
-        return shards;
+    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, String index, ShardRoutingState states) {
+        return shardsWithState(routingNodes, states).stream()
+            .filter(shardRouting -> Objects.equals(shardRouting.getIndexName(), index))
+            .toList();
     }
 
     /**
@@ -63,11 +45,10 @@ public final class RoutingNodesHelper {
     }
 
     public static RoutingNode routingNode(String nodeId, DiscoveryNode node, ShardRouting... shards) {
-        final RoutingNode routingNode = new RoutingNode(nodeId, node);
+        final RoutingNode routingNode = new RoutingNode(nodeId, node, shards.length);
         for (ShardRouting shardRouting : shards) {
             routingNode.add(shardRouting);
         }
-
         return routingNode;
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,7 +22,6 @@ import org.junit.Before;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 public class CreateIndexRequestBuilderTests extends ESTestCase {
@@ -50,13 +50,12 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
     public void testSetSource() throws IOException {
         CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
 
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> builder.setSource("{ \"%s\": \"%s\" }".formatted(KEY, VALUE), XContentType.JSON)
-        );
-        assertEquals(String.format(Locale.ROOT, "unknown key [%s] for create index", KEY), e.getMessage());
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            builder.setSource(Strings.format("{ \"%s\": \"%s\" }", KEY, VALUE), XContentType.JSON);
+        });
+        assertEquals(Strings.format("unknown key [%s] for create index", KEY), e.getMessage());
 
-        builder.setSource("{ \"settings\": { \"%s\": \"%s\" }}".formatted(KEY, VALUE), XContentType.JSON);
+        builder.setSource(Strings.format("{ \"settings\": { \"%s\": \"%s\" }}", KEY, VALUE), XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
         XContentBuilder xContent = XContentFactory.jsonBuilder()

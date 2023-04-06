@@ -27,7 +27,7 @@ public class Version implements ToXContentFragment, BytesRefProducer, Comparable
     }
 
     protected Version(BytesRef bytes) {
-        this.version = VersionEncoder.decodeVersion(bytes);
+        this.version = VersionEncoder.decodeVersion(bytes).utf8ToString();
         this.bytes = bytes;
     }
 

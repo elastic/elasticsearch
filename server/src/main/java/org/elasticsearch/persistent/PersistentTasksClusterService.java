@@ -27,6 +27,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -343,32 +344,21 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         // leaving the cluster
         final List<DiscoveryNode> candidateNodes = currentState.nodes()
             .stream()
-            .filter(dn -> isNodeShuttingDown(currentState, dn.getId()) == false)
+            .filter(dn -> NodesShutdownMetadata.isNodeShuttingDown(currentState, dn.getId()) == false)
             .collect(Collectors.toCollection(ArrayList::new));
         // Task assignment should not rely on node order
         Randomness.shuffle(candidateNodes);
 
         final Assignment assignment = persistentTasksExecutor.getAssignment(taskParams, candidateNodes, currentState);
         assert assignment != null : "getAssignment() should always return an Assignment object, containing a node or a reason why not";
-        assert (assignment.getExecutorNode() == null || isNodeShuttingDown(currentState, assignment.getExecutorNode()) == false)
+        assert (assignment.getExecutorNode() == null
+            || NodesShutdownMetadata.isNodeShuttingDown(currentState, assignment.getExecutorNode()) == false)
             : "expected task ["
                 + taskName
                 + "] to be assigned to a node that is not marked as shutting down, but "
                 + assignment.getExecutorNode()
                 + " is currently marked as shutting down";
         return assignment;
-    }
-
-    /**
-     * Returns true if the given node is marked as shutting down with any
-     * shutdown type.
-     */
-    static boolean isNodeShuttingDown(final ClusterState state, final String nodeId) {
-        // Right now we make no distinction between the type of shutdown, but maybe in the future we might?
-        return NodesShutdownMetadata.getShutdowns(state)
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(allNodes -> allNodes.get(nodeId))
-            .isPresent();
     }
 
     @Override
@@ -406,7 +396,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                     // There must be a task that's worth rechecking because there was one
                     // that caused this method to be called and the method failed to assign it,
                     // but only do this if the node is still the master
-                    periodicRechecker.rescheduleIfNecessary();
+                    try {
+                        periodicRechecker.rescheduleIfNecessary();
+                    } catch (Exception e2) {
+                        assert e2 instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e2;
+                        logger.warn("failed to reschedule persistent tasks rechecker", e2);
+                    }
                 }
             }
 

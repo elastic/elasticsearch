@@ -140,7 +140,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         connectionManager.addListener(this);
     }
 
-    static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings) {
+    static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings, boolean credentialsProtected) {
+        final String transportProfile = credentialsProtected
+            ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
+            : TransportSettings.DEFAULT_PROFILE;
+
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder().setConnectTimeout(
             TransportSettings.CONNECT_TIMEOUT.get(settings)
@@ -158,7 +162,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                 TransportRequestOptions.Type.RECOVERY,
                 TransportRequestOptions.Type.PING
             )
-            .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG);
+            .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG)
+            .setTransportProfile(transportProfile);
         return builder.build();
     }
 

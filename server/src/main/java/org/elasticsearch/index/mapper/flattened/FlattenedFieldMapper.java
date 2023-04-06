@@ -35,8 +35,10 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -64,14 +66,12 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * A field mapper that accepts a JSON object and flattens it into a single field. This data type
@@ -273,7 +273,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             throw new UnsupportedOperationException(
                 "[fuzzy] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
@@ -312,9 +313,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-            throws IOException {
-            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+        public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
             Terms terms = MultiTerms.getTerms(reader, name());
             if (terms == null) {
                 // Field does not exist on this shard.
@@ -323,9 +322,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
             Automaton a = Automata.makeString(key + FlattenedFieldParser.SEPARATOR);
             if (caseInsensitive) {
-                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(string));
+                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(prefix));
             } else {
-                a = Operations.concatenate(a, Automata.makeString(string));
+                a = Operations.concatenate(a, Automata.makeString(prefix));
                 a = Operations.concatenate(a, Automata.makeAnyString());
             }
             a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
@@ -352,7 +351,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new KeyedFlattenedFieldData.Builder(name(), key, (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n));
         }
@@ -365,6 +364,15 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 );
             }
             return SourceValueFetcher.identity(rootName + "." + key, context, null);
+        }
+
+        @Override
+        public Object valueForDisplay(Object value) {
+            if (value == null) {
+                return null;
+            }
+            BytesRef binaryValue = (BytesRef) value;
+            return binaryValue.utf8ToString();
         }
     }
 
@@ -633,7 +641,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
@@ -704,7 +712,13 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         XContentParser xContentParser = context.parser();
-        context.doc().addAll(fieldParser.parse(xContentParser));
+        try {
+            // make sure that we don't expand dots in field names while parsing
+            context.path().setWithinLeafObject(true);
+            context.doc().addAll(fieldParser.parse(xContentParser));
+        } finally {
+            context.path().setWithinLeafObject(false);
+        }
 
         if (mappedFieldType.hasDocValues() == false) {
             context.addToFieldNames(fieldType().name());

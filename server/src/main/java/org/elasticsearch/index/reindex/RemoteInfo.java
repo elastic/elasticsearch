@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -99,7 +99,7 @@ public class RemoteInfo implements Writeable, ToXContentObject, Closeable {
         port = in.readVInt();
         query = in.readBytesReference();
         username = in.readOptionalString();
-        if (in.getVersion().before(Version.V_8_2_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_2_0)) {
             password = new SecureString(in.readOptionalString().toCharArray());
         } else {
             password = in.readOptionalSecureString();
@@ -122,7 +122,7 @@ public class RemoteInfo implements Writeable, ToXContentObject, Closeable {
         out.writeVInt(port);
         out.writeBytesReference(query);
         out.writeOptionalString(username);
-        if (out.getVersion().before(Version.V_8_2_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_2_0)) {
             out.writeOptionalString(password.toString());
         } else {
             out.writeOptionalSecureString(password);

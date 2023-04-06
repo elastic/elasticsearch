@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class RegressionFeatureImportanceTests extends AbstractSerializingTestCase<RegressionFeatureImportance> {
+public class RegressionFeatureImportanceTests extends AbstractXContentSerializingTestCase<RegressionFeatureImportance> {
 
     @Override
     protected RegressionFeatureImportance doParseInstance(XContentParser parser) throws IOException {
@@ -27,6 +27,11 @@ public class RegressionFeatureImportanceTests extends AbstractSerializingTestCas
     @Override
     protected RegressionFeatureImportance createTestInstance() {
         return createRandomInstance();
+    }
+
+    @Override
+    protected RegressionFeatureImportance mutateInstance(RegressionFeatureImportance instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static RegressionFeatureImportance createRandomInstance() {

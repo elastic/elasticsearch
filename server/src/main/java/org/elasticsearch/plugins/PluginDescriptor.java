@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,7 +24,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -39,11 +40,15 @@ import java.util.stream.Collectors;
  */
 public class PluginDescriptor implements Writeable, ToXContentObject {
 
-    public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
+    public static final String INTERNAL_DESCRIPTOR_FILENAME = "plugin-descriptor.properties";
+    public static final String STABLE_DESCRIPTOR_FILENAME = "stable-plugin-descriptor.properties";
+    public static final String NAMED_COMPONENTS_FILENAME = "named_components.json";
+
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
-    private static final Version LICENSED_PLUGINS_SUPPORT = Version.V_7_11_0;
-    private static final Version MODULE_NAME_SUPPORT = Version.V_8_3_0;
+    private static final TransportVersion LICENSED_PLUGINS_SUPPORT = TransportVersion.V_7_11_0;
+    private static final TransportVersion MODULE_NAME_SUPPORT = TransportVersion.V_8_3_0;
+    private static final TransportVersion BOOTSTRAP_SUPPORT_REMOVED = TransportVersion.V_8_4_0;
 
     private final String name;
     private final String description;
@@ -54,25 +59,24 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     private final String moduleName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
-    private final PluginType type;
-    private final String javaOpts;
     private final boolean isLicensed;
+    private final boolean isModular;
+    private final boolean isStable;
 
     /**
      * Construct plugin info.
      *
-     * @param name                  the name of the plugin
-     * @param description           a description of the plugin
-     * @param version               an opaque version identifier for the plugin
-     * @param elasticsearchVersion  the version of Elasticsearch the plugin was built for
-     * @param javaVersion           the version of Java the plugin was built with
-     * @param classname             the entry point to the plugin
-     * @param moduleName            the module name to load the plugin class from, or null if not in a module
-     * @param extendedPlugins       other plugins this plugin extends through SPI
-     * @param hasNativeController   whether or not the plugin has a native controller
-     * @param type                  the type of the plugin. Expects "bootstrap" or "isolated".
-     * @param javaOpts              any additional JVM CLI parameters added by this plugin
-     * @param isLicensed            whether is this a licensed plugin
+     * @param name                 the name of the plugin
+     * @param description          a description of the plugin
+     * @param version              an opaque version identifier for the plugin
+     * @param elasticsearchVersion the version of Elasticsearch the plugin was built for
+     * @param javaVersion          the version of Java the plugin was built with
+     * @param classname            the entry point to the plugin
+     * @param moduleName           the module name to load the plugin class from, or null if not in a module
+     * @param extendedPlugins      other plugins this plugin extends through SPI
+     * @param hasNativeController  whether or not the plugin has a native controller
+     * @param isLicensed           whether is this a licensed plugin
+     * @param isModular            whether this plugin should be loaded in a module layer
      */
     public PluginDescriptor(
         String name,
@@ -84,9 +88,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         String moduleName,
         List<String> extendedPlugins,
         boolean hasNativeController,
-        PluginType type,
-        String javaOpts,
-        boolean isLicensed
+        boolean isLicensed,
+        boolean isModular,
+        boolean isStable
     ) {
         this.name = name;
         this.description = description;
@@ -97,9 +101,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.moduleName = moduleName;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
-        this.type = type;
-        this.javaOpts = javaOpts;
         this.isLicensed = isLicensed;
+        this.isModular = isModular;
+        this.isStable = isStable;
     }
 
     /**
@@ -115,7 +119,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         elasticsearchVersion = Version.readVersion(in);
         javaVersion = in.readString();
         this.classname = in.readString();
-        if (in.getVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
+        if (in.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
             this.moduleName = in.readOptionalString();
         } else {
             this.moduleName = null;
@@ -123,14 +127,22 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
 
-        if (in.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
-            type = PluginType.valueOf(in.readString());
-            javaOpts = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
+            if (in.getTransportVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
+                in.readString(); // plugin type
+                in.readOptionalString(); // java opts
+            }
             isLicensed = in.readBoolean();
         } else {
-            type = PluginType.ISOLATED;
-            javaOpts = null;
             isLicensed = false;
+        }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            isModular = in.readBoolean();
+            isStable = in.readBoolean();
+        } else {
+            isModular = moduleName != null;
+            isStable = false;
         }
     }
 
@@ -142,142 +154,142 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         Version.writeVersion(elasticsearchVersion, out);
         out.writeString(javaVersion);
         out.writeString(classname);
-        if (out.getVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
+        if (out.getTransportVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
             out.writeOptionalString(moduleName);
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
 
-        if (out.getVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
-            out.writeString(type.name());
-            out.writeOptionalString(javaOpts);
+        if (out.getTransportVersion().onOrAfter(LICENSED_PLUGINS_SUPPORT)) {
+            if (out.getTransportVersion().before(BOOTSTRAP_SUPPORT_REMOVED)) {
+                out.writeString("ISOLATED");
+                out.writeOptionalString(null);
+            }
             out.writeBoolean(isLicensed);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            out.writeBoolean(isModular);
+            out.writeBoolean(isStable);
         }
     }
 
     /**
-     * Reads the plugin descriptor file.
+     * Reads the descriptor file for a plugin.
      *
-     * @param path           the path to the root directory for the plugin
+     * @param pluginDir the path to the root directory for the plugin
      * @return the plugin info
      * @throws IOException if an I/O exception occurred reading the plugin descriptor
      */
-    public static PluginDescriptor readFromProperties(final Path path) throws IOException {
-        final Path descriptor = path.resolve(ES_PLUGIN_PROPERTIES);
+    public static PluginDescriptor readFromProperties(final Path pluginDir) throws IOException {
+        Path internalDescriptorFile = pluginDir.resolve(INTERNAL_DESCRIPTOR_FILENAME);
+        Path stableDescriptorFile = pluginDir.resolve(STABLE_DESCRIPTOR_FILENAME);
+
+        final BiFunction<Map<String, String>, String, PluginDescriptor> reader;
+        final Path descriptorFile;
+
+        boolean internalDescriptorExists = Files.exists(internalDescriptorFile);
+        boolean stableDescriptorExists = Files.exists(stableDescriptorFile);
+        String name = pluginDir.getFileName().toString(); // temporary until descriptor is loaded
+
+        if (internalDescriptorExists && stableDescriptorExists) {
+            throw new IllegalStateException(
+                "Plugin [" + name + "] has both stable and internal descriptor properties. Only one may exist."
+            );
+        } else if (internalDescriptorExists == false && stableDescriptorExists == false) {
+            throw new IllegalStateException("Plugin [" + name + "] is missing a descriptor properties file.");
+        } else if (internalDescriptorExists) {
+            descriptorFile = internalDescriptorFile;
+            reader = PluginDescriptor::readerInternalDescriptor;
+        } else {
+            descriptorFile = stableDescriptorFile;
+            reader = PluginDescriptor::readerStableDescriptor;
+        }
 
         final Map<String, String> propsMap;
         {
             final Properties props = new Properties();
-            try (InputStream stream = Files.newInputStream(descriptor)) {
+            try (InputStream stream = Files.newInputStream(descriptorFile)) {
                 props.load(stream);
             }
             propsMap = props.stringPropertyNames().stream().collect(Collectors.toMap(Function.identity(), props::getProperty));
         }
 
-        final String name = propsMap.remove("name");
-        if (name == null || name.isEmpty()) {
-            throw new IllegalArgumentException("property [name] is missing in [" + descriptor + "]");
-        }
-        final String description = propsMap.remove("description");
-        if (description == null) {
-            throw new IllegalArgumentException("property [description] is missing for plugin [" + name + "]");
-        }
-        final String version = propsMap.remove("version");
-        if (version == null) {
-            throw new IllegalArgumentException("property [version] is missing for plugin [" + name + "]");
-        }
-
-        final String esVersionString = propsMap.remove("elasticsearch.version");
-        if (Strings.hasText(esVersionString) == false) {
-            throw new IllegalArgumentException("property [elasticsearch.version] is missing for plugin [" + name + "]");
-        }
-        final Version esVersion = Version.fromString(esVersionString);
-        final String javaVersionString = propsMap.remove("java.version");
-        if (javaVersionString == null) {
-            throw new IllegalArgumentException("property [java.version] is missing for plugin [" + name + "]");
-        }
-        JarHell.checkJavaVersion("plugin " + name, javaVersionString);
-
-        final String extendedString = propsMap.remove("extended.plugins");
-        final List<String> extendedPlugins;
-        if (extendedString == null) {
-            extendedPlugins = Collections.emptyList();
-        } else {
-            extendedPlugins = Arrays.asList(Strings.delimitedListToStringArray(extendedString, ","));
-        }
-
-        final boolean hasNativeController = parseBooleanValue(name, "has.native.controller", propsMap.remove("has.native.controller"));
-
-        final PluginType type = getPluginType(name, propsMap.remove("type"));
-
-        final String classname = getClassname(name, type, propsMap.remove("classname"));
-        String modulename = propsMap.remove("modulename");
-        if (modulename != null && modulename.isBlank()) {
-            modulename = null;
-        }
-
-        final String javaOpts = propsMap.remove("java.opts");
-
-        if (type != PluginType.BOOTSTRAP && Strings.isNullOrEmpty(javaOpts) == false) {
-            throw new IllegalArgumentException(
-                "[java.opts] can only have a value when [type] is set to [bootstrap] for plugin [" + name + "]"
-            );
-        }
-
-        boolean isLicensed = parseBooleanValue(name, "licensed", propsMap.remove("licensed"));
+        PluginDescriptor descriptor = reader.apply(propsMap, descriptorFile.getFileName().toString());
+        name = descriptor.getName();
 
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties for plugin [" + name + "] in plugin descriptor: " + propsMap.keySet());
         }
 
-        return new PluginDescriptor(
-            name,
-            description,
-            version,
-            esVersion,
-            javaVersionString,
-            classname,
-            modulename,
-            extendedPlugins,
-            hasNativeController,
-            type,
-            javaOpts,
-            isLicensed
-        );
+        return descriptor;
     }
 
-    private static PluginType getPluginType(String name, String rawType) {
-        if (Strings.isNullOrEmpty(rawType)) {
-            return PluginType.ISOLATED;
+    private static PluginDescriptor readerInternalDescriptor(Map<String, String> propsMap, String filename) {
+        String name = readNonEmptyString(propsMap, filename, "name");
+        String desc = readString(propsMap, name, "description");
+        String ver = readString(propsMap, name, "version");
+        Version esVer = readElasticsearchVersion(propsMap, name);
+        String javaVer = readJavaVersion(propsMap, name);
+
+        String extendedString = propsMap.remove("extended.plugins");
+        List<String> extended = List.of();
+        if (extendedString != null) {
+            extended = List.of(Strings.delimitedListToStringArray(extendedString, ","));
         }
 
-        try {
-            return PluginType.valueOf(rawType.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(
-                "[type] must be unspecified or one of [isolated, bootstrap] but found [" + rawType + "] for plugin [" + name + "]"
-            );
+        boolean nativeCont = readBoolean(propsMap, name, "has.native.controller");
+        String classname = readNonEmptyString(propsMap, name, "classname");
+        String module = propsMap.remove("modulename");
+        if (module != null && module.isBlank()) {
+            module = null;
         }
+
+        boolean isLicensed = readBoolean(propsMap, name, "licensed");
+        boolean modular = module != null;
+
+        return new PluginDescriptor(name, desc, ver, esVer, javaVer, classname, module, extended, nativeCont, isLicensed, modular, false);
     }
 
-    private static String getClassname(String name, PluginType type, String classname) {
-        if (type == PluginType.BOOTSTRAP) {
-            if (Strings.isNullOrEmpty(classname) == false) {
-                throw new IllegalArgumentException(
-                    "property [classname] can only have a value when [type] is set to [bootstrap] for plugin [" + name + "]"
-                );
-            }
-            return "";
-        }
+    private static PluginDescriptor readerStableDescriptor(Map<String, String> propsMap, String filename) {
+        String name = readNonEmptyString(propsMap, filename, "name");
+        String desc = readString(propsMap, name, "description");
+        String ver = readString(propsMap, name, "version");
+        Version esVer = readElasticsearchVersion(propsMap, name);
+        String javaVer = readJavaVersion(propsMap, name);
+        boolean isModular = readBoolean(propsMap, name, "modular");
 
-        if (classname == null) {
-            throw new IllegalArgumentException("property [classname] is missing for plugin [" + name + "]");
-        }
-
-        return classname;
+        return new PluginDescriptor(name, desc, ver, esVer, javaVer, null, null, List.of(), false, false, isModular, true);
     }
 
-    private static boolean parseBooleanValue(String pluginName, String name, String rawValue) {
+    private static String readNonEmptyString(Map<String, String> propsMap, String pluginId, String name) {
+        String value = propsMap.remove(name);
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("property [" + name + "] is missing for plugin [" + pluginId + "]");
+        }
+        return value;
+    }
+
+    private static String readString(Map<String, String> propsMap, String pluginId, String name) {
+        String value = propsMap.remove(name);
+        if (value == null) {
+            throw new IllegalArgumentException("property [" + name + "] is missing for plugin [" + pluginId + "]");
+        }
+        return value;
+    }
+
+    private static Version readElasticsearchVersion(Map<String, String> propsMap, String pluginId) {
+        String esVersionString = readNonEmptyString(propsMap, pluginId, "elasticsearch.version");
+        return Version.fromString(esVersionString);
+    }
+
+    private static String readJavaVersion(Map<String, String> propsMap, String pluginId) {
+        String javaVersion = readNonEmptyString(propsMap, pluginId, "java.version");
+        JarHell.checkJavaVersion("plugin " + pluginId, javaVersion);
+        return javaVersion;
+    }
+
+    private static boolean readBoolean(Map<String, String> propsMap, String pluginId, String name) {
+        String rawValue = propsMap.remove(name);
         try {
             return Booleans.parseBoolean(rawValue, false);
         } catch (IllegalArgumentException e) {
@@ -286,7 +298,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
                 "property [%s] must be [true], [false], or unspecified but was [%s] for plugin [%s]",
                 name,
                 rawValue,
-                pluginName
+                pluginId
             );
             throw new IllegalArgumentException(message);
         }
@@ -374,30 +386,24 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns the type of this plugin. Can be "isolated" for regular sandboxed plugins, or "bootstrap"
-     * for plugins that affect how Elasticsearch's JVM runs.
-     *
-     * @return the type of the plugin
-     */
-    public PluginType getType() {
-        return type;
-    }
-
-    /**
-     * Returns any additional JVM command-line options that this plugin adds. Only applies to
-     * plugins whose <code>type</code> is "bootstrap".
-     *
-     * @return any additional JVM options.
-     */
-    public String getJavaOpts() {
-        return javaOpts;
-    }
-
-    /**
      * Whether this plugin is subject to the Elastic License.
      */
     public boolean isLicensed() {
         return isLicensed;
+    }
+
+    /**
+     * Whether this plugin should be loaded in a module layer.
+     */
+    public boolean isModular() {
+        return isModular;
+    }
+
+    /**
+     * Whether this plugin uses only stable APIs.
+     */
+    public boolean isStable() {
+        return isStable;
     }
 
     @Override
@@ -418,10 +424,6 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         builder.field("extended_plugins", extendedPlugins);
         builder.field("has_native_controller", hasNativeController);
         builder.field("licensed", isLicensed);
-        builder.field("type", type);
-        if (type == PluginType.BOOTSTRAP) {
-            builder.field("java_opts", javaOpts);
-        }
 
         return builder;
     }
@@ -457,12 +459,6 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         appendLine(lines, prefix, "Java Version: ", javaVersion);
         appendLine(lines, prefix, "Native Controller: ", hasNativeController);
         appendLine(lines, prefix, "Licensed: ", isLicensed);
-        appendLine(lines, prefix, "Type: ", type);
-
-        if (type == PluginType.BOOTSTRAP) {
-            appendLine(lines, prefix, "Java Opts: ", javaOpts);
-        }
-
         appendLine(lines, prefix, "Extended Plugins: ", extendedPlugins.toString());
         appendLine(lines, prefix, " * Classname: ", classname);
 

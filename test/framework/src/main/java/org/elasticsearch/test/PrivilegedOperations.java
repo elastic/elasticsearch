@@ -15,11 +15,16 @@ import java.io.IOException;
 import java.net.URLClassLoader;
 import java.security.AccessControlContext;
 import java.security.AccessController;
+import java.security.CodeSigner;
+import java.security.CodeSource;
 import java.security.DomainCombiner;
+import java.security.Permission;
+import java.security.PermissionCollection;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
+import java.util.Enumeration;
 import java.util.function.Supplier;
 
 import javax.tools.JavaCompiler;
@@ -59,6 +64,15 @@ public final class PrivilegedOperations {
         );
     }
 
+    public static <T> T supplierWithCreateClassLoader(Supplier<T> supplier) {
+        return AccessController.doPrivileged(
+            (PrivilegedAction<T>) () -> supplier.get(),
+            context,
+            new RuntimePermission("createClassLoader"),
+            new RuntimePermission("closeClassLoader")
+        );
+    }
+
     @SuppressForbidden(reason = "need to create file permission")
     private static FilePermission newAllFilesReadPermission() {
         return new FilePermission("<<ALL FILES>>", "read");
@@ -68,19 +82,34 @@ public final class PrivilegedOperations {
 
     @SuppressWarnings("removal")
     private static AccessControlContext getContext() {
-        ProtectionDomain[] pda = new ProtectionDomain[] { privilegedCall(org.elasticsearch.secure_sm.SecureSM.class::getProtectionDomain) };
+        ProtectionDomain[] pda = new ProtectionDomain[] {
+            new ProtectionDomain(new CodeSource(null, (CodeSigner[]) null), new PermissivePermissionCollection()) };
         DomainCombiner combiner = (ignoreCurrent, ignoreAssigned) -> pda;
         AccessControlContext acc = new AccessControlContext(AccessController.getContext(), combiner);
         // getContext must be called with the new acc so that a combined context will be created
         return AccessController.doPrivileged((PrivilegedAction<AccessControlContext>) AccessController::getContext, acc);
     }
 
-    // Use the all-powerful protection domain of secure_sm for wrapping calls
+    // An all-powerful context for wrapping calls
     @SuppressWarnings("removal")
     private static final AccessControlContext context = getContext();
 
-    @SuppressWarnings("removal")
-    private static <T> T privilegedCall(Supplier<T> supplier) {
-        return AccessController.doPrivileged((PrivilegedAction<T>) supplier::get, context);
+    // A permissive permission collection - implies all permissions.
+    private static final class PermissivePermissionCollection extends PermissionCollection {
+
+        private PermissivePermissionCollection() {}
+
+        @Override
+        public void add(Permission permission) {}
+
+        @Override
+        public boolean implies(Permission permission) {
+            return true;
+        }
+
+        @Override
+        public Enumeration<Permission> elements() {
+            return null;
+        }
     }
 }

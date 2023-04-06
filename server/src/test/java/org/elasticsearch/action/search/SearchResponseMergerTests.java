@@ -13,8 +13,10 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -39,6 +41,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.junit.Before;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -450,6 +453,48 @@ public class SearchResponseMergerTests extends ESTestCase {
             }
             lastClusterAlias = shard.getClusterAlias();
         }
+    }
+
+    /** Test merging results where one result has a raw format, for instance if
+     * searching over multiple indexes where the field isn't mapped in all indexes.
+     */
+    public void testMergeEmptyFormat() throws InterruptedException {
+        DateFormatter dateFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+        Max max1 = Max.createEmptyMax("field1", DocValueFormat.RAW, Collections.emptyMap());
+        Max max2 = new Max(
+            "field1",
+            dateFormatter.parseMillis("2021-05-01T00:00:00.000Z"),
+            new DocValueFormat.DateTime(dateFormatter, ZoneId.of("UTC"), DateFieldMapper.Resolution.MILLISECONDS),
+            Collections.emptyMap()
+        );
+
+        SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
+        SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
+            0,
+            0,
+            0,
+            new SearchTimeProvider(0, 0, () -> 0),
+            emptyReduceContextBuilder(new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("field1")))
+        );
+        for (Max max : Arrays.asList(max1, max2)) {
+            InternalAggregations aggs = InternalAggregations.from(Arrays.asList(max));
+            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, aggs, null, null, false, null, 1);
+            SearchResponse searchResponse = new SearchResponse(
+                internalSearchResponse,
+                null,
+                1,
+                1,
+                0,
+                randomLong(),
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            );
+            searchResponseMerger.add(searchResponse);
+        }
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+        SearchResponse searchResponse = searchResponseMerger.getMergedResponse(clusters);
+        Max mergedMax = searchResponse.getAggregations().get("field1");
+        assertEquals(mergedMax.getValueAsString(), "2021-05-01T00:00:00.000Z");
     }
 
     public void testMergeAggs() throws InterruptedException {

@@ -802,12 +802,28 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         .cluster()
                         .prepareCleanupRepository(trackedRepository.repositoryName)
                         .execute(mustSucceed(cleanupRepositoryResponse -> {
-                            Releasables.close(releaseAll);
-                            logger.info("--> completed cleanup of [{}]", trackedRepository.repositoryName);
                             final RepositoryCleanupResult result = cleanupRepositoryResponse.result();
-                            assertThat(Strings.toString(result), result.blobs(), equalTo(0L));
-                            assertThat(Strings.toString(result), result.bytes(), equalTo(0L));
-                            startCleaner();
+                            if (result.bytes() > 0L || result.blobs() > 0L) {
+                                // we could legitimately run into dangling blobs as the result of a shard snapshot failing half-way
+                                // through the snapshot because of a concurrent index-close or -delete. The second round of cleanup on
+                                // the same repository however must always fully remove any dangling blobs since we block all concurrent
+                                // operations on the repository here
+                                client.admin()
+                                    .cluster()
+                                    .prepareCleanupRepository(trackedRepository.repositoryName)
+                                    .execute(mustSucceed(secondCleanupRepositoryResponse -> {
+                                        final RepositoryCleanupResult secondCleanupResult = secondCleanupRepositoryResponse.result();
+                                        assertThat(Strings.toString(secondCleanupResult), secondCleanupResult.blobs(), equalTo(0L));
+                                        assertThat(Strings.toString(secondCleanupResult), secondCleanupResult.bytes(), equalTo(0L));
+                                        Releasables.close(releaseAll);
+                                        logger.info("--> completed second cleanup of [{}]", trackedRepository.repositoryName);
+                                        startCleaner();
+                                    }));
+                            } else {
+                                Releasables.close(releaseAll);
+                                logger.info("--> completed cleanup of [{}]", trackedRepository.repositoryName);
+                                startCleaner();
+                            }
                         }));
 
                     startedCleanup = true;

@@ -7,6 +7,9 @@
 
 experimental[]
 
+NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
+rollups as a way to reduce your storage costs for time series data.
+
 Time-based data (documents that are predominantly identified by their timestamp) often have associated retention policies
 to manage data growth. For example, your system may be generating 500 documents every second. That will generate
 43 million documents per day, and nearly 16 billion documents a year.

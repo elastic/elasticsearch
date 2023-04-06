@@ -1,5 +1,0 @@
-pr: 87338
-summary: Disallow three-digit minor and revision versions
-area: Infra/Core
-type: bug
-issues: []

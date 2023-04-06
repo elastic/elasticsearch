@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ssl.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -44,7 +43,7 @@ public class RestGetCertificateInfoAction extends BaseRestHandler {
             new RestBuilderListener<Response>(channel) {
                 @Override
                 public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-                    return new BytesRestResponse(RestStatus.OK, response.toXContent(builder, request));
+                    return new RestResponse(RestStatus.OK, response.toXContent(builder, request));
                 }
             }
         );

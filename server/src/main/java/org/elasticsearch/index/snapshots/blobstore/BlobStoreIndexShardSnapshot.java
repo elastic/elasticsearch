@@ -80,7 +80,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         }
 
         public FileInfo(StreamInput in) throws IOException {
-            this(in.readString(), new StoreFileMetadata(in), in.readOptionalWriteable(ByteSizeValue::new));
+            this(in.readString(), new StoreFileMetadata(in), in.readOptionalWriteable(ByteSizeValue::readFrom));
         }
 
         @Override
@@ -309,7 +309,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                     case PHYSICAL_NAME -> physicalName = parser.text();
                     case LENGTH -> length = parser.longValue();
                     case CHECKSUM -> checksum = parser.text();
-                    case PART_SIZE -> partSize = new ByteSizeValue(parser.longValue());
+                    case PART_SIZE -> partSize = ByteSizeValue.ofBytes(parser.longValue());
                     case WRITTEN_BY -> writtenBy = parser.text();
                     case META_HASH -> {
                         metaHash.bytes = parser.binaryValue();

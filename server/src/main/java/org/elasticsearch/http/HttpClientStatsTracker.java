@@ -89,7 +89,7 @@ public class HttpClientStatsTracker {
                 threadPool.absoluteTimeInMillis()
             )
         );
-        httpChannel.addCloseListener(ActionListener.wrap(() -> {
+        httpChannel.addCloseListener(ActionListener.running(() -> {
             try {
                 final ClientStatsBuilder disconnectedClientStats = httpChannelStats.remove(httpChannel);
                 if (disconnectedClientStats != null) {

@@ -29,8 +29,8 @@ import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHea
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.INCREASE_CLUSTER_SHARD_LIMIT_ACTION_GUIDE;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.INCREASE_SHARD_LIMIT_ACTION_GUIDE;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.MIGRATE_TO_TIERS_ACTION_GUIDE;
-import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.NODE_CAPACITY_ACTION_GUIDE;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.RESTORE_FROM_SNAPSHOT_ACTION_GUIDE;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.TIER_CAPACITY_ACTION_GUIDE;
 import static org.hamcrest.Matchers.is;
 
 public class ShardsAvailabilityActionGuideTests extends ESTestCase {
@@ -85,6 +85,6 @@ public class ShardsAvailabilityActionGuideTests extends ESTestCase {
     }
 
     public void testIncreaseTierCapacity() {
-        assertThat(ACTION_INCREASE_NODE_CAPACITY.helpURL(), is(NODE_CAPACITY_ACTION_GUIDE));
+        assertThat(ACTION_INCREASE_NODE_CAPACITY.helpURL(), is(TIER_CAPACITY_ACTION_GUIDE));
     }
 }

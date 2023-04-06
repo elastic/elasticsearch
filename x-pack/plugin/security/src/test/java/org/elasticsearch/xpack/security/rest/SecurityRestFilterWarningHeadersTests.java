@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -24,6 +23,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.junit.Before;
@@ -57,7 +57,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
         authcService = mock(AuthenticationService.class);
         restHandler = mock(RestHandler.class);
         threadContext = new ThreadContext(Settings.EMPTY);
-        secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService);
+        secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService, new AuditTrailService(null, null));
     }
 
     public void testResponseHeadersOnFailure() throws Exception {
@@ -91,10 +91,11 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
         throws Exception {
         RestChannel channel = mock(RestChannel.class);
         SecurityRestFilter filter = new SecurityRestFilter(
-            Settings.EMPTY,
+            true,
             threadContext,
             authcService,
             secondaryAuthenticator,
+            new AuditTrailService(null, null),
             restHandler,
             false
         );
@@ -106,7 +107,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
             ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
             callback.onResponse(primaryAuthentication);
             return null;
-        }).when(authcService).authenticate(eq(request), anyActionListener());
+        }).when(authcService).authenticate(eq(request.getHttpRequest()), anyActionListener());
         Authentication secondaryAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(i -> {
             final Object[] arguments = i.getArguments();
@@ -114,13 +115,13 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
             ActionListener<Authentication> callback = (ActionListener<Authentication>) arguments[arguments.length - 1];
             callback.onResponse(secondaryAuthentication);
             return null;
-        }).when(authcService).authenticate(eq(request), eq(false), anyActionListener());
+        }).when(authcService).authenticate(eq(request.getHttpRequest()), eq(false), anyActionListener());
         doThrow(new ElasticsearchStatusException("Rest handling failed", restStatus, "")).when(restHandler)
             .handleRequest(request, channel, null);
         when(channel.request()).thenReturn(request);
         when(channel.newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
         filter.handleRequest(request, channel, null);
-        ArgumentCaptor<BytesRestResponse> response = ArgumentCaptor.forClass(BytesRestResponse.class);
+        ArgumentCaptor<RestResponse> response = ArgumentCaptor.forClass(RestResponse.class);
         verify(channel).sendResponse(response.capture());
         RestResponse restResponse = response.getValue();
         return restResponse.filterHeaders(headers.immutableMap());
@@ -130,10 +131,11 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
         throws Exception {
         RestChannel channel = mock(RestChannel.class);
         SecurityRestFilter filter = new SecurityRestFilter(
-            Settings.EMPTY,
+            true,
             threadContext,
             authcService,
             secondaryAuthenticator,
+            mock(AuditTrailService.class),
             restHandler,
             false
         );
@@ -142,11 +144,11 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
             ActionListener<?> callback = (ActionListener<?>) i.getArguments()[1];
             callback.onFailure(new ElasticsearchStatusException("Authentication failed", restStatus, ""));
             return Void.TYPE;
-        }).when(authcService).authenticate(eq(request), anyActionListener());
+        }).when(authcService).authenticate(eq(request.getHttpRequest()), anyActionListener());
         when(channel.request()).thenReturn(request);
         when(channel.newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
         filter.handleRequest(request, channel, null);
-        ArgumentCaptor<BytesRestResponse> response = ArgumentCaptor.forClass(BytesRestResponse.class);
+        ArgumentCaptor<RestResponse> response = ArgumentCaptor.forClass(RestResponse.class);
         verify(channel).sendResponse(response.capture());
         RestResponse restResponse = response.getValue();
         return restResponse.filterHeaders(headers.immutableMap());

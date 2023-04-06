@@ -1,5 +1,5 @@
 [[discovery-azure-classic]]
-=== Azure Classic Discovery Plugin
+=== Azure Classic discovery plugin
 
 The Azure Classic Discovery plugin uses the Azure Classic API to identify the
 addresses of seed hosts.
@@ -11,7 +11,7 @@ include::install_remove.asciidoc[]
 
 
 [[discovery-azure-classic-usage]]
-==== Azure Virtual Machine Discovery
+==== Azure Virtual Machine discovery
 
 Azure VM discovery allows to use the Azure APIs to perform automatic discovery.
 Here is a simple sample configuration:
@@ -331,54 +331,13 @@ scp /tmp/azurekeystore.pkcs12 azure-elasticsearch-cluster.cloudapp.net:/home/ela
 ssh azure-elasticsearch-cluster.cloudapp.net
 ----
 
-Once connected, {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[install {es}]:
-
-Check that Elasticsearch is running:
-
-[source,console]
-----
-GET /
-----
-
-This command should give you a JSON result:
-
-["source","js",subs="attributes,callouts"]
---------------------------------------------
-{
-  "name" : "Cp8oag6",
-  "cluster_name" : "elasticsearch",
-  "cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",
-  "version" : {
-    "number" : "{version_qualified}",
-    "build_type" : "{build_type}",
-    "build_hash" : "f27399d",
-    "build_date" : "2016-03-30T09:51:41.449Z",
-    "build_snapshot" : false,
-    "lucene_version" : "{lucene_version}",
-    "minimum_wire_compatibility_version" : "1.2.3",
-    "minimum_index_compatibility_version" : "1.2.3"
-  },
-  "tagline" : "You Know, for Search"
-}
---------------------------------------------
-// TESTRESPONSE[s/"name" : "Cp8oag6",/"name" : "$body.name",/]
-// TESTRESPONSE[s/"cluster_name" : "elasticsearch",/"cluster_name" : "$body.cluster_name",/]
-// TESTRESPONSE[s/"cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",/"cluster_uuid" : "$body.cluster_uuid",/]
-// TESTRESPONSE[s/"build_hash" : "f27399d",/"build_hash" : "$body.version.build_hash",/]
-// TESTRESPONSE[s/"build_date" : "2016-03-30T09:51:41.449Z",/"build_date" : $body.version.build_date,/]
-// TESTRESPONSE[s/"build_snapshot" : false,/"build_snapshot" : $body.version.build_snapshot,/]
-// TESTRESPONSE[s/"minimum_wire_compatibility_version" : "1.2.3"/"minimum_wire_compatibility_version" : $body.version.minimum_wire_compatibility_version/]
-// TESTRESPONSE[s/"minimum_index_compatibility_version" : "1.2.3"/"minimum_index_compatibility_version" : $body.version.minimum_index_compatibility_version/]
-// So much s/// but at least we test that the layout is close to matching....
+Once connected,  {ref}/install-elasticsearch.html[install {es}].
 
 [[discovery-azure-classic-long-plugin]]
 ===== Install Elasticsearch cloud azure plugin
 
 [source,sh]
 ----
-# Stop Elasticsearch
-sudo service elasticsearch stop
-
 # Install the plugin
 sudo /usr/share/elasticsearch/bin/elasticsearch-plugin install discovery-azure-classic
 
@@ -407,17 +366,17 @@ discovery:
 # path.data: /mnt/resource/elasticsearch/data
 ----
 
-Restart Elasticsearch:
+Start Elasticsearch:
 
 [source,sh]
 ----
-sudo service elasticsearch start
+sudo systemctl start elasticsearch
 ----
 
 If anything goes wrong, check your logs in `/var/log/elasticsearch`.
 
 [[discovery-azure-classic-scale]]
-==== Scaling Out!
+==== Scaling out!
 
 You need first to create an image of your previous machine.
 Disconnect from your machine and run locally the following commands:

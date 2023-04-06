@@ -7,17 +7,21 @@
  */
 package org.elasticsearch.gradle.internal.doc;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.gradle.api.InvalidUserDataException;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import static org.elasticsearch.gradle.internal.doc.RestTestsFromSnippetsTask.replaceBlockQuote;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
-public class RestTestFromSnippetsTaskTests extends GradleUnitTestCase {
+public class RestTestFromSnippetsTaskTests {
     @Rule
     public ExpectedException expectedEx = ExpectedException.none();
 
+    @Test
     public void testInvalidBlockQuote() {
         String input = "\"foo\": \"\"\"bar\"";
         expectedEx.expect(InvalidUserDataException.class);
@@ -25,10 +29,12 @@ public class RestTestFromSnippetsTaskTests extends GradleUnitTestCase {
         replaceBlockQuote(input);
     }
 
+    @Test
     public void testSimpleBlockQuote() {
         assertEquals("\"foo\": \"bort baz\"", replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\""));
     }
 
+    @Test
     public void testMultipleBlockQuotes() {
         assertEquals(
             "\"foo\": \"bort baz\", \"bar\": \"other\"",
@@ -36,11 +42,13 @@ public class RestTestFromSnippetsTaskTests extends GradleUnitTestCase {
         );
     }
 
+    @Test
     public void testEscapingInBlockQuote() {
         assertEquals("\"foo\": \"bort\\\" baz\"", replaceBlockQuote("\"foo\": \"\"\"bort\" baz\"\"\""));
         assertEquals("\"foo\": \"bort\\n baz\"", replaceBlockQuote("\"foo\": \"\"\"bort\n baz\"\"\""));
     }
 
+    @Test
     public void testIsDocWriteRequest() {
         assertTrue((boolean) RestTestsFromSnippetsTask.shouldAddShardFailureCheck("doc-index/_search"));
         assertFalse((boolean) RestTestsFromSnippetsTask.shouldAddShardFailureCheck("_cat"));

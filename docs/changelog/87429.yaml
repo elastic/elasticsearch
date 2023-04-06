@@ -1,6 +1,0 @@
-pr: 87429
-summary: Security plugin close releasable realms
-area: Security
-type: bug
-issues:
- - 86286

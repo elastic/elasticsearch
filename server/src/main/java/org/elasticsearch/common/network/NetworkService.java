@@ -64,12 +64,12 @@ public final class NetworkService {
     );
     public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE = Setting.byteSizeSetting(
         "network.tcp.send_buffer_size",
-        new ByteSizeValue(-1),
+        ByteSizeValue.MINUS_ONE,
         Property.NodeScope
     );
     public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE = Setting.byteSizeSetting(
         "network.tcp.receive_buffer_size",
-        new ByteSizeValue(-1),
+        ByteSizeValue.MINUS_ONE,
         Property.NodeScope
     );
 

@@ -24,6 +24,7 @@ import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 import org.hamcrest.Matcher;
 
 import java.net.InetAddress;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -724,5 +725,24 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         ensureChecksPass.accept(Settings.builder().putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey()));
         ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey()));
         ensureChecksPass.accept(Settings.builder().putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey()));
+    }
+
+    public void testByteOrderCheck() throws NodeValidationException {
+        ByteOrder[] reference = new ByteOrder[] { ByteOrder.BIG_ENDIAN };
+        BootstrapChecks.ByteOrderCheck byteOrderCheck = new BootstrapChecks.ByteOrderCheck() {
+            @Override
+            ByteOrder nativeByteOrder() {
+                return reference[0];
+            }
+        };
+
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(emptyContext, true, List.of(byteOrderCheck))
+        );
+        assertThat(e.getMessage(), containsString("Little-endian native byte order is required to run Elasticsearch"));
+
+        reference[0] = ByteOrder.LITTLE_ENDIAN;
+        BootstrapChecks.check(emptyContext, true, List.of(byteOrderCheck));
     }
 }

@@ -1,0 +1,175 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: docs
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+            refresh_interval: "123s"
+
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: docs
+              _id:    "1"
+          - field: foo
+          - index:
+              _index: docs
+              _id:    "2"
+          - field: bar
+          - index:
+              _index: docs
+              _id:    "3"
+          - field: baz
+          - index:
+              _index: docs
+              _id:    "4"
+          - field: bar
+          - index:
+              _index: docs
+              _id:    "5"
+          - field: baz
+          - index:
+              _index: docs
+              _id:    "6"
+          - field: baz
+
+  - do:
+      snapshot.create_repository:
+        repository: repository-fs
+        body:
+          type: fs
+          settings:
+            location: "repository-fs"
+
+  # Remove the snapshot if a previous test failed to delete it.
+  # Useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+
+  - do:
+      indices.delete:
+        index: docs
+
+---
+teardown:
+
+  - do:
+      indices.delete:
+        index: docs-*
+
+---
+"Test Mount API with ignore_index_settings":
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        body:
+          index: docs
+          renamed_index: docs-mounted
+          ignore_index_settings: ["index.refresh_interval"]
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      indices.get_settings:
+        include_defaults: true
+        flat_settings: true
+        index: docs-mounted
+
+  - match: { docs-mounted.defaults.index\.refresh_interval: "1s" }
+
+  - do:
+      search:
+        index: docs-mounted
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 6 }
+
+  - do:
+      search:
+        index: docs-mounted
+        body:
+          size: 0
+          query:
+            term:
+              field: bar
+
+  - match: { hits.total.value: 2 }
+
+---
+"Test Mount API silently ignored special field ignored_index_settings in request body":
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        body:
+          index: docs
+          renamed_index: docs-with-ignored-settings
+          ignored_index_settings: ["index.refresh_interval"]
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      indices.get_settings:
+        index: docs-with-ignored-settings
+
+  - match: { docs-with-ignored-settings.settings.index.refresh_interval: "123s" }
+
+  - do:
+      search:
+        index: docs-with-ignored-settings
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 6 }
+
+  - do:
+      search:
+        index: docs-with-ignored-settings
+        body:
+          size: 0
+          query:
+            term:
+              field: bar
+
+  - match: { hits.total.value: 2 }
+
+
+---
+"Test Mount API with unknown request body field":
+  - skip:
+      version: " - 8.4.99"
+      reason: "unknown request body fields are rejected starting version 8.5.0"
+  - do:
+      catch:  bad_request
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        body:
+          index: docs
+          renamed_index: docs-with-wrong-request-body
+          wrong_request_body: "This is an unknown field"

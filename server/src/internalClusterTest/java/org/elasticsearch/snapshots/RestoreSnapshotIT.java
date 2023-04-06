@@ -31,6 +31,7 @@ import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.nio.file.Path;
@@ -158,9 +159,70 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(client.prepareGet(restoredIndexName2, sameSourceIndex ? docId : docId2).get().isExists(), equalTo(true));
     }
 
+    @TestLogging(
+        reason = "testing the logging of the start and completion of a snapshot restore",
+        value = "org.elasticsearch.snapshots.RestoreService:INFO"
+    )
+    public void testRestoreLogging() throws IllegalAccessException {
+        final MockLogAppender mockLogAppender = new MockLogAppender();
+        try {
+            String indexName = "testindex";
+            String repoName = "test-restore-snapshot-repo";
+            String snapshotName = "test-restore-snapshot";
+            Path absolutePath = randomRepoPath().toAbsolutePath();
+            logger.info("Path [{}]", absolutePath);
+            String restoredIndexName = indexName + "-restored";
+            String expectedValue = "expected";
+
+            mockLogAppender.start();
+            Loggers.addAppender(LogManager.getLogger(RestoreService.class), mockLogAppender);
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "not seen start of snapshot restore",
+                    "org.elasticsearch.snapshots.RestoreService",
+                    Level.INFO,
+                    "started restore of snapshot \\[.*" + snapshotName + ".*\\] for indices \\[.*" + indexName + ".*\\]"
+                )
+            );
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
+                    "not seen completion of snapshot restore",
+                    "org.elasticsearch.snapshots.RestoreService",
+                    Level.INFO,
+                    "completed restore of snapshot \\[.*" + snapshotName + ".*\\]"
+                )
+            );
+
+            Client client = client();
+            // Write a document
+            String docId = Integer.toString(randomInt());
+            indexDoc(indexName, docId, "value", expectedValue);
+            createRepository(repoName, "fs", absolutePath);
+            createSnapshot(repoName, snapshotName, Collections.singletonList(indexName));
+
+            RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(false)
+                .setRenamePattern(indexName)
+                .setRenameReplacement(restoredIndexName)
+                .get();
+
+            assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
+            ensureGreen(restoredIndexName);
+            assertThat(client.prepareGet(restoredIndexName, docId).get().isExists(), equalTo(true));
+            mockLogAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(LogManager.getLogger(RestoreService.class), mockLogAppender);
+            mockLogAppender.stop();
+        }
+    }
+
     public void testRestoreIncreasesPrimaryTerms() {
         final String indexName = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettingsNoReplicas(2).build());
+        createIndex(indexName, 2, 0);
         ensureGreen(indexName);
 
         if (randomBoolean()) {
@@ -587,11 +649,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         cluster().wipeIndices("test-idx");
 
         logger.info("--> restore index");
-        client.admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100b").build())
-            .get();
+        updateClusterSettings(Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "100b"));
         ActionFuture<RestoreSnapshotResponse> restoreSnapshotResponse = client.admin()
             .cluster()
             .prepareRestoreSnapshot("test-repo", "test-snap")
@@ -609,11 +667,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         }, 30, TimeUnit.SECONDS);
 
         // run at full speed again
-        client.admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()).build())
-            .get();
+        updateClusterSettings(Settings.builder().putNull(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()));
 
         // check that restore now completes quickly (i.e. within 20 seconds)
         assertThat(restoreSnapshotResponse.get(20L, TimeUnit.SECONDS).getRestoreInfo().totalShards(), greaterThan(0));
@@ -770,7 +824,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
             if (initialSettings.isEmpty() == false) {
                 logger.info("--> apply initial blocks to index");
-                client().admin().indices().prepareUpdateSettings("test-idx").setSettings(initialSettingsBuilder).get();
+                updateIndexSettings(initialSettingsBuilder, "test-idx");
             }
 
             createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx"));

@@ -8,26 +8,23 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
-import org.junit.BeforeClass;
+import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertThrows;
 
-public class JdkDownloadPluginTests extends GradleUnitTestCase {
-    private static Project rootProject;
+public class JdkDownloadPluginTests {
 
-    @BeforeClass
-    public static void setupRoot() {
-        rootProject = ProjectBuilder.builder().build();
-    }
-
+    @Test
     public void testMissingVendor() {
         assertJdkError(createProject(), "testjdk", null, "11.0.2+33", "linux", "x64", "vendor not specified for jdk [testjdk]");
     }
 
+    @Test
     public void testUnknownVendor() {
         assertJdkError(
             createProject(),
@@ -36,14 +33,16 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
             "11.0.2+33",
             "linux",
             "x64",
-            "unknown vendor [unknown] for jdk [testjdk], must be one of [adoptium, openjdk]"
+            "unknown vendor [unknown] for jdk [testjdk], must be one of [adoptium, openjdk, zulu]"
         );
     }
 
+    @Test
     public void testMissingVersion() {
         assertJdkError(createProject(), "testjdk", "openjdk", null, "linux", "x64", "version not specified for jdk [testjdk]");
     }
 
+    @Test
     public void testBadVersionFormat() {
         assertJdkError(
             createProject(),
@@ -56,10 +55,12 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
         );
     }
 
+    @Test
     public void testMissingPlatform() {
         assertJdkError(createProject(), "testjdk", "openjdk", "11.0.2+33", null, "x64", "platform not specified for jdk [testjdk]");
     }
 
+    @Test
     public void testUnknownPlatform() {
         assertJdkError(
             createProject(),
@@ -72,10 +73,12 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
         );
     }
 
+    @Test
     public void testMissingArchitecture() {
         assertJdkError(createProject(), "testjdk", "openjdk", "11.0.2+33", "linux", null, "architecture not specified for jdk [testjdk]");
     }
 
+    @Test
     public void testUnknownArchitecture() {
         assertJdkError(
             createProject(),
@@ -97,7 +100,7 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
         final String architecture,
         final String message
     ) {
-        IllegalArgumentException e = expectThrows(
+        IllegalArgumentException e = assertThrows(
             IllegalArgumentException.class,
             () -> createJdk(project, name, vendor, version, platform, architecture)
         );
@@ -124,7 +127,7 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
     }
 
     private Project createProject() {
-        Project project = ProjectBuilder.builder().withParent(rootProject).build();
+        Project project = ProjectBuilder.builder().withParent(ProjectBuilder.builder().build()).build();
         project.getPlugins().apply("elasticsearch.jdk-download");
         return project;
     }

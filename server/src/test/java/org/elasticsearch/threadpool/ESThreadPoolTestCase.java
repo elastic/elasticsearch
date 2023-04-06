@@ -41,7 +41,7 @@ public abstract class ESThreadPoolTestCase extends ESTestCase {
 
     static String randomThreadPool(final ThreadPool.ThreadPoolType type) {
         return randomFrom(
-            ThreadPool.THREAD_POOL_TYPES.entrySet().stream().filter(t -> t.getValue().equals(type)).map(Map.Entry::getKey).toList()
+            ThreadPool.THREAD_POOL_TYPES.entrySet().stream().filter(t -> t.getValue().equals(type)).map(Map.Entry::getKey).sorted().toList()
         );
     }
 

@@ -1,0 +1,38 @@
+constant_keyword:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              const_kwd:
+                type: constant_keyword
+                value: bar
+              kwd:
+                type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: foo
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1]
+  - match:
+      hits.hits.0._source:
+        kwd: foo
+        const_kwd: bar

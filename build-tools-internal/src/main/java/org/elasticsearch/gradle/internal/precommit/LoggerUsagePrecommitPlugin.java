@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -18,7 +17,7 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
-public class LoggerUsagePrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
+public class LoggerUsagePrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         Configuration loggerUsageConfig = project.getConfigurations().create("loggerUsagePlugin");

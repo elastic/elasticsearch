@@ -11,12 +11,13 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
@@ -146,7 +147,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         // Disable security otherwise authentication failures happen creating indices.
         Builder newSettings = Settings.builder();
         newSettings.put(super.nodeSettings());
-        newSettings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        newSettings.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         // newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         // newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -222,22 +223,21 @@ public class GraphTests extends ESSingleNodeTestCase {
         assertNull("Elvis is a 3rd tier connection so should not be returned here", response.getVertex(Vertex.createId("people", "elvis")));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55396")
     public void testTimedoutQueryCrawl() {
         GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
         grb.setTimeout(TimeValue.timeValueMillis(400));
         Hop hop1 = grb.createNextHop(QueryBuilders.termQuery("description", "beatles"));
         hop1.addVertexRequest("people").size(10).minDocCount(1); // members of beatles
-        // 00s friends of beatles
-        grb.createNextHop(QueryBuilders.termQuery("decade", "00s")).addVertexRequest("people").size(100).minDocCount(1);
         // A query that should cause a timeout
         ScriptQueryBuilder timeoutQuery = QueryBuilders.scriptQuery(
             new Script(ScriptType.INLINE, "mockscript", "graph_timeout", Collections.emptyMap())
         );
         grb.createNextHop(timeoutQuery).addVertexRequest("people").size(100).minDocCount(1);
+        // 00s friends of beatles
+        grb.createNextHop(QueryBuilders.termQuery("decade", "00s")).addVertexRequest("people").size(100).minDocCount(1);
 
         GraphExploreResponse response = grb.get();
-        assertTrue(response.isTimedOut());
+        assertTrue(Strings.toString(response), response.isTimedOut());
 
         checkVertexDepth(response, 0, "john", "paul", "george", "ringo");
 

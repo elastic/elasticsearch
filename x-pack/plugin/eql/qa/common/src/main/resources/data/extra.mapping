@@ -27,6 +27,12 @@
     "optional_field_default_null": {
       "type": "keyword",
       "null_value": "NULL"
+    },
+    "version": {
+        "type": "version"
+    },
+    "date_tags": {
+        "type": "date"
     }
   }
 }

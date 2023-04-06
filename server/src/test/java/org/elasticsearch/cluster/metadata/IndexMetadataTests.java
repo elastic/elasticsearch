@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
@@ -47,6 +47,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETT
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
 public class IndexMetadataTests extends ESTestCase {
@@ -66,6 +67,7 @@ public class IndexMetadataTests extends ESTestCase {
         return new NamedXContentRegistry(IndicesModule.getNamedXContents());
     }
 
+    @SuppressForbidden(reason = "Use IndexMetadata#getForecastedWriteLoad to ensure that the serialized value is correct")
     public void testIndexMetadataSerialization() throws IOException {
         Integer numShard = randomFrom(1, 2, 4, 8, 16);
         int numberOfReplicas = randomIntBetween(0, 10);
@@ -73,6 +75,9 @@ public class IndexMetadataTests extends ESTestCase {
         Map<String, String> customMap = new HashMap<>();
         customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
         customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
+        IndexMetadataStats indexStats = randomBoolean() ? randomIndexStats(numShard) : null;
+        Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
+        Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(
                 Settings.builder()
@@ -92,13 +97,16 @@ public class IndexMetadataTests extends ESTestCase {
                     List.of(
                         new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
                         new MaxDocsCondition(randomNonNegativeLong()),
-                        new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-                        new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+                        new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
+                        new MaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
                         new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
                     ),
                     randomNonNegativeLong()
                 )
             )
+            .stats(indexStats)
+            .indexWriteLoadForecast(indexWriteLoadForecast)
+            .shardSizeInBytesForecast(shardSizeInBytesForecast)
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -124,11 +132,12 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metadata.primaryTerm(0), fromXContentMeta.primaryTerm(0));
         assertEquals(metadata.isSystem(), fromXContentMeta.isSystem());
-        ImmutableOpenMap.Builder<String, DiffableStringMap> expectedCustomBuilder = ImmutableOpenMap.builder();
-        expectedCustomBuilder.put("my_custom", new DiffableStringMap(customMap));
-        ImmutableOpenMap<String, DiffableStringMap> expectedCustom = expectedCustomBuilder.build();
+        Map<String, DiffableStringMap> expectedCustom = Map.of("my_custom", new DiffableStringMap(customMap));
         assertEquals(metadata.getCustomData(), expectedCustom);
         assertEquals(metadata.getCustomData(), fromXContentMeta.getCustomData());
+        assertEquals(metadata.getStats(), fromXContentMeta.getStats());
+        assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
+        assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metadata.writeTo(out);
@@ -149,6 +158,9 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(deserialized.getCustomData(), expectedCustom);
             assertEquals(metadata.getCustomData(), deserialized.getCustomData());
             assertEquals(metadata.isSystem(), deserialized.isSystem());
+            assertEquals(metadata.getStats(), deserialized.getStats());
+            assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
+            assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
         }
     }
 
@@ -485,6 +497,43 @@ public class IndexMetadataTests extends ESTestCase {
         assertThat(idxMeta2.getLifecyclePolicyName(), equalTo("some_policy"));
     }
 
+    public void testIndexAndAliasWithSameName() {
+        {
+            final IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> IndexMetadata.builder("index")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("index").build())
+                    .build(randomBoolean())
+            );
+            assertEquals("alias name [index] self-conflicts with index name", iae.getMessage());
+        }
+        {
+            final IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> IndexMetadata.builder("index")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("index").build())
+                    .build(false)
+            );
+            assertEquals("alias name [index] self-conflicts with index name", iae.getMessage());
+        }
+    }
+
+    public void testRepairIndexAndAliasWithSameName() {
+        final IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetadata.builder("index").build())
+            .build(true);
+        assertThat(indexMetadata.getAliases(), hasKey("index-alias-corrupted-by-8-5"));
+    }
+
     private static Settings indexSettingsWithDataTier(String dataTier) {
         return Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -492,5 +541,14 @@ public class IndexMetadataTests extends ESTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(DataTier.TIER_PREFERENCE, dataTier)
             .build();
+    }
+
+    private IndexMetadataStats randomIndexStats(int numberOfShards) {
+        IndexWriteLoad.Builder indexWriteLoadBuilder = IndexWriteLoad.builder(numberOfShards);
+        int numberOfPopulatedWriteLoads = randomIntBetween(0, numberOfShards);
+        for (int i = 0; i < numberOfPopulatedWriteLoads; i++) {
+            indexWriteLoadBuilder.withShardWriteLoad(i, randomDoubleBetween(0.0, 128.0, true), randomNonNegativeLong());
+        }
+        return new IndexMetadataStats(indexWriteLoadBuilder.build(), randomLongBetween(100, 1024), randomIntBetween(1, 2));
     }
 }

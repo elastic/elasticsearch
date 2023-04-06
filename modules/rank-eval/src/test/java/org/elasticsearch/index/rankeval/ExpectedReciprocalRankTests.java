@@ -103,7 +103,7 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
             if (relevanceRatings[i] != null) {
                 rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
             }
-            hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, Integer.toString(i));
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         return hits;
@@ -188,11 +188,9 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
     }
 
     public void testEqualsAndHash() throws IOException {
-        checkEqualsAndHashCode(
-            createTestItem(),
-            original -> { return new ExpectedReciprocalRank(original.getMaxRelevance(), original.getUnknownDocRating(), original.getK()); },
-            ExpectedReciprocalRankTests::mutateTestItem
-        );
+        checkEqualsAndHashCode(createTestItem(), original -> {
+            return new ExpectedReciprocalRank(original.getMaxRelevance(), original.getUnknownDocRating(), original.getK());
+        }, ExpectedReciprocalRankTests::mutateTestItem);
     }
 
     private static ExpectedReciprocalRank mutateTestItem(ExpectedReciprocalRank original) {

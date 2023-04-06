@@ -1,0 +1,554 @@
+setup:
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T00:00:00", "v": 1, "a": 2, "g": 12 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T01:00:00", "v": 2, "a": 9 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T02:00:00", "v": 1, "a": 1, "g": 11 }
+
+---
+single sort:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v:
+                  max:
+                    field: v
+                sort:
+                  bucket_sort:
+                    sort:
+                      - v: desc
+
+  - match: { aggregations.timestamp.buckets.0.v.value: 2.0 }
+  - match: { aggregations.timestamp.buckets.1.v.value: 1.0 }
+  - match: { aggregations.timestamp.buckets.2.v.value: 1.0 }
+
+---
+two sorts:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v:
+                  max:
+                    field: v
+                a:
+                  max:
+                    field: a
+                sort:
+                  bucket_sort:
+                    sort:
+                      - v: desc
+                      - a: asc
+
+  - match: { aggregations.timestamp.buckets.0.v.value: 2.0 }
+  - match: { aggregations.timestamp.buckets.1.v.value: 1.0 }
+  - match: { aggregations.timestamp.buckets.2.v.value: 1.0 }
+  - match: { aggregations.timestamp.buckets.0.a.value: 9.0 }
+  - match: { aggregations.timestamp.buckets.1.a.value: 1.0 }
+  - match: { aggregations.timestamp.buckets.2.a.value: 2.0 }
+
+---
+sort terms on _key:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              terms:
+                field: a
+                order:
+                  - v: desc
+                size: 2
+              aggs:
+                v:
+                  max:
+                    field: v
+                sort:
+                  bucket_sort:
+                    sort:
+                      - _key: asc
+
+  - length: { aggregations.a.buckets: 2 }
+  - match: { aggregations.a.buckets.0.v.value: 1.0 }
+  - match: { aggregations.a.buckets.1.v.value: 2.0 }
+
+---
+sort terms on _count:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              terms:
+                field: v
+                order:
+                  - _key: asc
+              aggs:
+                sort:
+                  bucket_sort:
+                    sort:
+                      - _count: desc
+
+  - match: { aggregations.a.buckets.0.key: 1 }
+  - match: { aggregations.a.buckets.1.key: 2 }
+  - match: { aggregations.a.buckets.0.doc_count: 2 }
+  - match: { aggregations.a.buckets.1.doc_count: 1 }
+
+---
+sort terms on _count with secondary sort:
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T00:00:00", "v": 3, "a": 8 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T02:00:00", "v": 3, "a": 1 }
+
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              terms:
+                field: v
+                order:
+                  - _key: asc
+              aggs:
+                a:
+                  max:
+                    field: a
+                sort1:
+                  bucket_sort:
+                    sort:
+                      - _count: desc
+                      - a: desc
+
+  - match: { aggregations.a.buckets.0.key: 3 }
+  - match: { aggregations.a.buckets.1.key: 1 }
+  - match: { aggregations.a.buckets.2.key: 2 }
+  - match: { aggregations.a.buckets.0.doc_count: 2 }
+  - match: { aggregations.a.buckets.1.doc_count: 2 }
+  - match: { aggregations.a.buckets.2.doc_count: 1 }
+  - match: { aggregations.a.buckets.0.a.value: 8 }
+  - match: { aggregations.a.buckets.1.a.value: 2 }
+  - match: { aggregations.a.buckets.2.a.value: 9 }
+
+---
+sort date_histogram on _key:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                sort:
+                  bucket_sort:
+                    sort:
+                      - _key: desc
+
+  - length: { aggregations.timestamp.buckets: 3 }
+  - match: { aggregations.timestamp.buckets.0.key_as_string: "2022-01-01T02:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.1.key_as_string: "2022-01-01T01:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.2.key_as_string: "2022-01-01T00:00:00.000Z" }
+
+---
+default gap_policy is skip:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                g:
+                  max:
+                    field: g
+                sort:
+                  bucket_sort:
+                    sort:
+                      - g: asc
+
+  - length: { aggregations.timestamp.buckets: 2 }
+  - match: { aggregations.timestamp.buckets.0.key_as_string: "2022-01-01T02:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.1.key_as_string: "2022-01-01T00:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.0.g.value: 11 }
+  - match: { aggregations.timestamp.buckets.1.g.value: 12 }
+
+---
+gap_policy=skip:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                g:
+                  max:
+                    field: g
+                sort:
+                  bucket_sort:
+                    gap_policy: skip
+                    sort:
+                      - g: asc
+
+  - length: { aggregations.timestamp.buckets: 2 }
+  - match: { aggregations.timestamp.buckets.0.key_as_string: "2022-01-01T02:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.1.key_as_string: "2022-01-01T00:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.0.g.value: 11 }
+  - match: { aggregations.timestamp.buckets.1.g.value: 12 }
+
+---
+gap_policy=skip and size:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                g:
+                  max:
+                    field: g
+                sort:
+                  bucket_sort:
+                    gap_policy: skip
+                    sort:
+                      - g: asc
+                    size: 1
+
+  - length: { aggregations.timestamp.buckets: 1 }
+  - match: { aggregations.timestamp.buckets.0.key_as_string: "2022-01-01T02:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.0.g.value: 11 }
+
+---
+gap_policy=skip and primary has gaps but secondary doesn't:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                g:
+                  max:
+                    field: g
+                sort:
+                  bucket_sort:
+                    gap_policy: skip
+                    sort:
+                      - g: asc
+                      - _key: asc
+
+  - length: { aggregations.timestamp.buckets: 3 }
+  - match: { aggregations.timestamp.buckets.0.key_as_string: "2022-01-01T02:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.1.key_as_string: "2022-01-01T00:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.2.key_as_string: "2022-01-01T01:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.0.g.value: 11 }
+  - match: { aggregations.timestamp.buckets.1.g.value: 12 }
+  - is_false: aggregations.timestamp.buckets.2.g.value
+
+---
+gap_policy=skip and secondary has gaps but primary doesn't:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                g:
+                  max:
+                    field: g
+                sort:
+                  bucket_sort:
+                    gap_policy: skip
+                    sort:
+                      - _key: asc
+                      - g: asc
+
+  - length: { aggregations.timestamp.buckets: 3 }
+  - match: { aggregations.timestamp.buckets.0.key_as_string: "2022-01-01T00:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.1.key_as_string: "2022-01-01T01:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.2.key_as_string: "2022-01-01T02:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.0.g.value: 12 }
+  - is_false: aggregations.timestamp.buckets.1.g.value
+  - match: { aggregations.timestamp.buckets.2.g.value: 11 }
+
+---
+gap_policy=skip and primary and secondary have gaps:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                g:
+                  max:
+                    field: g
+                g2:
+                  max:
+                    field: g
+                sort:
+                  bucket_sort:
+                    gap_policy: skip
+                    sort:
+                      - g: asc
+                      - g2: asc
+
+  - length: { aggregations.timestamp.buckets: 2 }
+  - match: { aggregations.timestamp.buckets.0.key_as_string: "2022-01-01T02:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.1.key_as_string: "2022-01-01T00:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.0.g.value: 11 }
+  - match: { aggregations.timestamp.buckets.1.g.value: 12 }
+  - match: { aggregations.timestamp.buckets.0.g2.value: 11 }
+  - match: { aggregations.timestamp.buckets.1.g2.value: 12 }
+
+---
+gap_policy=insert_zeros:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                g:
+                  max:
+                    field: g
+                sort:
+                  bucket_sort:
+                    gap_policy: insert_zeros
+                    sort:
+                      - g: asc
+
+  - length: { aggregations.timestamp.buckets: 3 }
+  - match: { aggregations.timestamp.buckets.0.key_as_string: "2022-01-01T01:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.1.key_as_string: "2022-01-01T02:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.2.key_as_string: "2022-01-01T00:00:00.000Z" }
+  - is_false: aggregations.timestamp.buckets.0.g.value
+  - match: { aggregations.timestamp.buckets.1.g.value: 11 }
+  - match: { aggregations.timestamp.buckets.2.g.value: 12 }
+
+---
+gap_policy=keep_values:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                g:
+                  max:
+                    field: g
+                sort:
+                  bucket_sort:
+                    gap_policy: keep_values
+                    sort:
+                      - g: asc
+
+  - length: { aggregations.timestamp.buckets: 2 }
+  - match: { aggregations.timestamp.buckets.0.key_as_string: "2022-01-01T02:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.1.key_as_string: "2022-01-01T00:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.0.g.value: 11 }
+  - match: { aggregations.timestamp.buckets.1.g.value: 12 }
+
+---
+just limit size:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                sort:
+                  bucket_sort:
+                    size: 1
+
+  - length: { aggregations.timestamp.buckets: 1 }
+  - match: { aggregations.timestamp.buckets.0.key_as_string: "2022-01-01T00:00:00.000Z" }
+
+---
+just offset:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                sort:
+                  bucket_sort:
+                    from: 1
+
+  - length: { aggregations.timestamp.buckets: 2 }
+  - match: { aggregations.timestamp.buckets.0.key_as_string: "2022-01-01T01:00:00.000Z" }
+  - match: { aggregations.timestamp.buckets.1.key_as_string: "2022-01-01T02:00:00.000Z" }
+
+---
+limit size and offset:
+  - do:
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                sort:
+                  bucket_sort:
+                    size: 1
+                    from: 1
+
+  - length: { aggregations.timestamp.buckets: 1 }
+  - match: { aggregations.timestamp.buckets.0.key_as_string: "2022-01-01T01:00:00.000Z" }
+
+---
+no matches:
+  - do:
+      search:
+        body:
+          query:
+            match:
+              missing: missing
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                sort:
+                  bucket_sort:
+                    size: 1
+                    from: 1
+
+  - length: { aggregations.timestamp.buckets: 0 }
+
+---
+sort is stable:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              terms:
+                field: a
+              aggs:
+                v:
+                  max:
+                    field: v
+                sort:
+                  bucket_sort:
+                    sort:
+                      - v: desc
+
+  - match: { aggregations.a.buckets.0.key: 9.0 }
+  - match: { aggregations.a.buckets.1.key: 1.0 }
+  - match: { aggregations.a.buckets.2.key: 2.0 }
+  - match: { aggregations.a.buckets.0.v.value: 2.0 }
+  - match: { aggregations.a.buckets.1.v.value: 1.0 }
+  - match: { aggregations.a.buckets.2.v.value: 1.0 }
+
+---
+no action fails:
+  - do:
+      catch: /\[bad\] is configured to perform nothing. Please set either of \[sort, size, from\] to use bucket_sort/
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v:
+                  max:
+                    field: v
+                bad:
+                  bucket_sort: {}
+
+---
+invalid path fails:
+  - do:
+      catch: /No aggregation found for path \[garbage\]/
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v:
+                  max:
+                    field: v
+                bad:
+                  bucket_sort:
+                    sort:
+                      - garbage
+
+---
+top level fails:
+  - do:
+      catch: /bucket_sort aggregation \[bad\] must be declared inside of another aggregation/
+      search:
+        body:
+          aggs:
+            timestamp:
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v:
+                  max:
+                    field: v
+            bad:
+              bucket_sort:
+                sort:
+                  - timestamp>v

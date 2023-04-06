@@ -8,7 +8,11 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -33,6 +37,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 
 public abstract class InternalMultiBucketAggregationTestCase<T extends InternalAggregation & MultiBucketsAggregation> extends
@@ -94,6 +99,11 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
 
     protected abstract T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations);
 
+    /**
+     * The parsed version used by the deprecated high level rest client or
+     * {@code null} if the deprecated high level rest client isn't supported
+     * by this agg.
+     */
     protected abstract Class<? extends ParsedMultiBucketAggregation<?>> implementationClass();
 
     @Override
@@ -113,6 +123,13 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     public void testIterators() throws IOException {
         final T aggregation = createTestInstanceForXContent();
         assertMultiBucketsAggregations(aggregation, parseAndAssert(aggregation, false, false), true);
+    }
+
+    @Override
+    protected <P extends ParsedAggregation> P parseAndAssert(InternalAggregation aggregation, boolean shuffled, boolean addRandomFields)
+        throws IOException {
+        assumeFalse("deprecated high level rest client not supported", implementationClass() == null);
+        return super.parseAndAssert(aggregation, shuffled, addRandomFields);
     }
 
     @Override
@@ -247,5 +264,31 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         );
         Exception e = expectThrows(IllegalArgumentException.class, () -> agg.reduce(List.of(agg), reduceContext));
         assertThat(e.getMessage(), equalTo("too big!"));
+    }
+
+    /**
+     * Expect that reducing this aggregation will break the real memory breaker.
+     */
+    protected static void expectReduceThrowsRealMemoryBreaker(InternalAggregation agg) {
+        HierarchyCircuitBreakerService breaker = new HierarchyCircuitBreakerService(
+            Settings.builder().put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "50%").build(),
+            List.of(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        ) {
+            @Override
+            public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
+                super.checkParentLimit(newBytesReserved, label);
+            }
+        };
+        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            () -> false,
+            mock(AggregationBuilder.class),
+            v -> breaker.getBreaker("request").addEstimateBytesAndMaybeBreak(0, "test"),
+            PipelineTree.EMPTY
+        );
+        Exception e = expectThrows(CircuitBreakingException.class, () -> agg.reduce(List.of(agg), reduceContext));
+        assertThat(e.getMessage(), startsWith("[parent] Data too large, data for [test] "));
     }
 }

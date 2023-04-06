@@ -21,6 +21,8 @@ import org.ojalgo.structure.Access1D;
 import org.ojalgo.type.CalendarDateDuration;
 import org.ojalgo.type.CalendarDateUnit;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -77,7 +79,7 @@ class LinearProgrammingPlanSolver {
         long maxNodeMemory = nodes.stream().map(Node::availableMemoryBytes).max(Long::compareTo).orElse(0L);
         this.models = models.stream()
             // Filter out models that are not already assigned and do not fit on any node
-            .filter(m -> m.currentAllocationByNodeId().isEmpty() == false || m.memoryBytes() <= maxNodeMemory)
+            .filter(m -> m.currentAllocationsByNodeId().isEmpty() == false || m.memoryBytes() <= maxNodeMemory)
             // Also filter out models whose threads per allocation are more than the max node cores
             .filter(m -> m.threadsPerAllocation() <= maxNodeCores)
             .toList();
@@ -90,12 +92,16 @@ class LinearProgrammingPlanSolver {
             .collect(Collectors.toMap(Function.identity(), m -> m.memoryBytes() / (double) maxModelMemoryBytes));
     }
 
-    AssignmentPlan solvePlan() {
+    AssignmentPlan solvePlan(boolean useBinPackingOnly) {
         if (models.isEmpty() || maxNodeCores == 0) {
             return AssignmentPlan.builder(nodes, models).build();
         }
 
         Tuple<Map<Tuple<Model, Node>, Double>, AssignmentPlan> weightsAndBinPackingPlan = calculateWeightsAndBinPackingPlan();
+
+        if (useBinPackingOnly) {
+            return weightsAndBinPackingPlan.v2();
+        }
 
         Map<Tuple<Model, Node>, Double> allocationValues = new HashMap<>();
         Map<Tuple<Model, Node>, Double> assignmentValues = new HashMap<>();
@@ -172,13 +178,13 @@ class LinearProgrammingPlanSolver {
     }
 
     private double descendingSizeAnyFitsModelOrder(Model m) {
-        return (m.currentAllocationByNodeId().isEmpty() ? 1 : 2) * -normalizedMemoryPerModel.get(m) * m.threadsPerAllocation();
+        return (m.currentAllocationsByNodeId().isEmpty() ? 1 : 2) * -normalizedMemoryPerModel.get(m) * m.threadsPerAllocation();
     }
 
     private double descendingSizeAnyFitsNodeOrder(Node n, Model m, AssignmentPlan.Builder assignmentPlan) {
-        return (m.currentAllocationByNodeId().containsKey(n.id()) ? 0 : 1) + (assignmentPlan.getRemainingCores(n) >= assignmentPlan
+        return (m.currentAllocationsByNodeId().containsKey(n.id()) ? 0 : 1) + (assignmentPlan.getRemainingCores(n) >= assignmentPlan
             .getRemainingThreads(m) ? 0 : 1) + (0.01 * distance(assignmentPlan.getRemainingCores(n), assignmentPlan.getRemainingThreads(m)))
-            - (0.01 * assignmentPlan.getRemainingMemory(n));
+            - (0.01 * normalizedMemoryPerNode.get(n));
     }
 
     @SuppressForbidden(reason = "Math#abs(int) is safe here as we protect against MIN_VALUE")
@@ -188,11 +194,11 @@ class LinearProgrammingPlanSolver {
     }
 
     private double minWeight(Model m, Node n, double w) {
-        return m.currentAllocationByNodeId().containsKey(n.id()) ? w / 2 : 0;
+        return m.currentAllocationsByNodeId().containsKey(n.id()) ? w / 2 : 0;
     }
 
     private double maxWeight(Model m, Node n, double w) {
-        return m.currentAllocationByNodeId().containsKey(n.id()) ? w : w / 2;
+        return m.currentAllocationsByNodeId().containsKey(n.id()) ? w : w / 2;
     }
 
     private boolean solveLinearProgram(
@@ -273,7 +279,7 @@ class LinearProgrammingPlanSolver {
             // Each model should not get more allocations than is required.
             // Also, if the model has previous assignments, it should get at least as many allocations as it did before.
             model.addExpression("allocations_of_model_" + m.id() + "_not_more_than_required")
-                .lower(m.getPreviouslyAssignedAllocations())
+                .lower(m.getCurrentAssignedAllocations())
                 .upper(m.allocations())
                 .setLinearFactorsSimple(varsForModel(m, allocationVars));
         }
@@ -292,7 +298,7 @@ class LinearProgrammingPlanSolver {
             // This is the m_i * a_i_j * t_i / N_j constraint.
             List<Variable> allocations = new ArrayList<>();
             List<Double> modelMemories = new ArrayList<>();
-            models.stream().filter(m -> m.currentAllocationByNodeId().containsKey(n.id()) == false).forEach(m -> {
+            models.stream().filter(m -> m.currentAllocationsByNodeId().containsKey(n.id()) == false).forEach(m -> {
                 allocations.add(allocationVars.get(Tuple.tuple(m, n)));
                 modelMemories.add(normalizedMemoryPerModel.get(m) * m.threadsPerAllocation() / (double) coresPerNode.get(n));
             });
@@ -301,7 +307,7 @@ class LinearProgrammingPlanSolver {
                 .setLinearFactors(allocations, Access1D.wrap(modelMemories));
         }
 
-        Optimisation.Result result = model.maximise();
+        Optimisation.Result result = privilegedModelMaximise(model);
 
         if (result.getState().isFeasible() == false) {
             logger.debug("Linear programming solution state [{}] is not feasible", result.getState());
@@ -321,6 +327,11 @@ class LinearProgrammingPlanSolver {
         }
         logger.debug(() -> "LP solver result =\n" + prettyPrintSolverResult(assignmentValues, allocationValues));
         return true;
+    }
+
+    @SuppressWarnings("removal")
+    private static Optimisation.Result privilegedModelMaximise(ExpressionsBasedModel model) {
+        return AccessController.doPrivileged((PrivilegedAction<Optimisation.Result>) () -> model.maximise());
     }
 
     private int memoryComplexity() {

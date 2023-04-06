@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
@@ -37,6 +36,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -162,7 +162,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                Tracer.NOOP
             ) {
 
                 @Override
@@ -281,7 +282,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     assertThat(mediaTypeHeaderException.getMessage(), equalTo("Invalid media-type value on headers " + failedHeaderNames));
                 }
             },
-            clusterSettings
+            clusterSettings,
+            Tracer.NOOP
         ) {
             @Override
             protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -331,7 +333,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                         channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
                     }
                 },
-                clusterSettings
+                clusterSettings,
+                Tracer.NOOP
             ) {
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -361,16 +364,13 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .build()
             );
             MockLogAppender appender = new MockLogAppender();
-            final String traceLoggerName = "org.elasticsearch.http.HttpTracer";
-            try {
-                appender.start();
-                Loggers.addAppender(LogManager.getLogger(traceLoggerName), appender);
+            try (var ignored = appender.capturing(HttpTracer.class)) {
 
                 final String opaqueId = UUIDs.randomBase64UUID(random());
                 appender.addExpectation(
                     new MockLogAppender.PatternSeenEventExpectation(
                         "received request",
-                        traceLoggerName,
+                        HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
                         "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/test\\] received request from \\[.*"
                     )
@@ -381,20 +381,22 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 appender.addExpectation(
                     new MockLogAppender.PatternSeenEventExpectation(
                         "sent response",
-                        traceLoggerName,
+                        HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
                         "\\[\\d+\\]\\["
                             + opaqueId
                             + "\\]\\["
                             + (badRequest ? "BAD_REQUEST" : "OK")
-                            + "\\]\\[null\\]\\[0\\] sent response to \\[.*"
+                            + "\\]\\["
+                            + RestResponse.TEXT_CONTENT_TYPE
+                            + "\\]\\[0\\] sent response to \\[.*"
                     )
                 );
 
                 appender.addExpectation(
                     new MockLogAppender.UnseenEventExpectation(
                         "received other request",
-                        traceLoggerName,
+                        HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
                         "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/testNotSeen\\] received request from \\[.*"
                     )
@@ -415,7 +417,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .withInboundException(inboundException)
                     .build();
 
-                transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+                try (var httpChannel = fakeRestRequest.getHttpChannel()) {
+                    transport.incomingRequest(fakeRestRequest.getHttpRequest(), httpChannel);
+                }
 
                 final Exception inboundExceptionExcludedPath;
                 if (randomBoolean()) {
@@ -432,11 +436,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .withInboundException(inboundExceptionExcludedPath)
                     .build();
 
-                transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), fakeRestRequestExcludedPath.getHttpChannel());
+                try (var httpChannel = fakeRestRequestExcludedPath.getHttpChannel()) {
+                    transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), httpChannel);
+                }
                 appender.assertAllExpectationsMatched();
-            } finally {
-                Loggers.removeAppender(LogManager.getLogger(traceLoggerName), appender);
-                appender.stop();
             }
         }
     }
@@ -484,7 +487,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                         channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
                     }
                 },
-                clusterSettings
+                clusterSettings,
+                Tracer.NOOP
             ) {
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -540,7 +544,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                         channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
                     }
                 },
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                Tracer.NOOP
             ) {
 
                 @Override
@@ -615,7 +620,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                         channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
                     }
                 },
-                clusterSettings
+                clusterSettings,
+                Tracer.NOOP
             ) {
 
                 @Override
@@ -687,22 +693,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     private static RestResponse emptyResponse(RestStatus status) {
-        return new RestResponse() {
-            @Override
-            public String contentType() {
-                return null;
-            }
-
-            @Override
-            public BytesReference content() {
-                return BytesArray.EMPTY;
-            }
-
-            @Override
-            public RestStatus status() {
-                return status;
-            }
-        };
+        return new RestResponse(status, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
     }
 
     private TransportAddress address(String host, int port) throws UnknownHostException {

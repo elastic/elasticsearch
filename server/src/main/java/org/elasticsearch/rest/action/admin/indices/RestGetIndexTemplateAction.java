@@ -14,18 +14,19 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -34,10 +35,11 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * The REST handler for get template and head template APIs.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetIndexTemplateAction extends BaseRestHandler {
-    private static final Set<String> COMPATIBLE_RESPONSE_PARAMS = Collections.unmodifiableSet(
-        Sets.union(Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER), Settings.FORMAT_PARAMS)
-    );
+
+    private static final Set<String> COMPATIBLE_RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, INCLUDE_TYPE_NAME_PARAMETER);
+
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetIndexTemplateAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get "
         + "index template requests is deprecated. The parameter will be removed in the next major version.";

@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.build'
 
 dependencies {
   compileOnly project(":server")
@@ -6,4 +6,8 @@ dependencies {
   compileOnly project(":distribution:tools:server-cli")
 
   testImplementation project(":test:framework")
+}
+
+tasks.named('forbiddenApisMain').configure {
+  enabled = false
 }

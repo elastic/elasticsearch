@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -55,6 +56,7 @@ import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -129,6 +131,7 @@ import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.xpack.watcher.input.transform.TransformInput;
 import org.elasticsearch.xpack.watcher.input.transform.TransformInputFactory;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
+import org.elasticsearch.xpack.watcher.notification.WebhookService;
 import org.elasticsearch.xpack.watcher.notification.email.Account;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
 import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
@@ -234,12 +237,14 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         NodeScope
     );
     private static final Setting<Integer> SETTING_BULK_ACTIONS = Setting.intSetting("xpack.watcher.bulk.actions", 1, 1, 10000, NodeScope);
+    @Deprecated(forRemoval = true) // This setting is no longer used
     private static final Setting<Integer> SETTING_BULK_CONCURRENT_REQUESTS = Setting.intSetting(
         "xpack.watcher.bulk.concurrent_requests",
         0,
         0,
         20,
-        NodeScope
+        NodeScope,
+        Setting.Property.Deprecated
     );
     private static final Setting<TimeValue> SETTING_BULK_FLUSH_INTERVAL = Setting.timeSetting(
         "xpack.watcher.bulk.flush_interval",
@@ -266,7 +271,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     private static final Logger logger = LogManager.getLogger(Watcher.class);
     private WatcherIndexingListener listener;
     private HttpClient httpClient;
-    private BulkProcessor bulkProcessor;
+    private BulkProcessor2 bulkProcessor;
 
     protected final Settings settings;
     protected final boolean enabled;
@@ -302,7 +307,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationService allocationService
     ) {
         if (enabled == false) {
             return Collections.emptyList();
@@ -337,11 +344,13 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         JiraService jiraService = new JiraService(settings, httpClient, clusterService.getClusterSettings());
         SlackService slackService = new SlackService(settings, httpClient, clusterService.getClusterSettings());
         PagerDutyService pagerDutyService = new PagerDutyService(settings, httpClient, clusterService.getClusterSettings());
+        WebhookService webhookService = new WebhookService(settings, httpClient, clusterService.getClusterSettings());
 
         reloadableServices.add(emailService);
         reloadableServices.add(jiraService);
         reloadableServices.add(slackService);
         reloadableServices.add(pagerDutyService);
+        reloadableServices.add(webhookService);
 
         TextTemplateEngine templateEngine = new TextTemplateEngine(scriptService);
         Map<String, EmailAttachmentParser<?>> emailAttachmentParsers = new HashMap<>();
@@ -382,7 +391,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         // actions
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
         actionFactoryMap.put(EmailAction.TYPE, new EmailActionFactory(settings, emailService, templateEngine, emailAttachmentsParser));
-        actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(httpClient, templateEngine));
+        actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(webhookService, templateEngine));
         actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
         actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(templateEngine));
         actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(templateEngine, jiraService));
@@ -406,7 +415,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         final InputRegistry inputRegistry = new InputRegistry(inputFactories);
         inputFactories.put(ChainInput.TYPE, new ChainInputFactory(inputRegistry));
 
-        bulkProcessor = BulkProcessor.builder(new OriginSettingClient(client, WATCHER_ORIGIN)::bulk, new BulkProcessor.Listener() {
+        bulkProcessor = BulkProcessor2.builder(new OriginSettingClient(client, WATCHER_ORIGIN)::bulk, new BulkProcessor2.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -455,14 +464,13 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             }
 
             @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+            public void afterBulk(long executionId, BulkRequest request, Exception failure) {
                 logger.error("error executing bulk", failure);
             }
-        }, "watcher")
+        }, client.threadPool())
             .setFlushInterval(SETTING_BULK_FLUSH_INTERVAL.get(settings))
             .setBulkActions(SETTING_BULK_ACTIONS.get(settings))
             .setBulkSize(SETTING_BULK_SIZE.get(settings))
-            .setConcurrentRequests(SETTING_BULK_CONCURRENT_REQUESTS.get(settings))
             .build();
 
         HistoryStore historyStore = new HistoryStore(bulkProcessor);
@@ -591,6 +599,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         settings.addAll(JiraService.getSettings());
         settings.addAll(PagerDutyService.getSettings());
         settings.addAll(ReportingAttachmentParser.getSettings());
+        settings.addAll(WebhookService.getSettings());
 
         // http settings
         settings.addAll(HttpSettings.getSettings());
@@ -737,9 +746,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
     @Override
     public void close() throws IOException {
-        if (enabled) {
-            bulkProcessor.flush();
-        }
         IOUtils.closeWhileHandlingException(httpClient);
         try {
             if (enabled && bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
@@ -802,14 +808,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         if (manuallyStopped == false) {
             WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
             serviceRequest.stop();
-            originClient.execute(
-                WatcherServiceAction.INSTANCE,
-                serviceRequest,
-                ActionListener.wrap(
-                    (response) -> { listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped)); },
-                    listener::onFailure
-                )
-            );
+            originClient.execute(WatcherServiceAction.INSTANCE, serviceRequest, ActionListener.wrap((response) -> {
+                listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped));
+            }, listener::onFailure));
         } else {
             // If Watcher is manually stopped, we don't want to stop it AGAIN, so just call the listener.
             listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped));
@@ -828,11 +829,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         if (manuallyStopped == false) {
             WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
             serviceRequest.start();
-            originClient.execute(
-                WatcherServiceAction.INSTANCE,
-                serviceRequest,
-                ActionListener.wrap((response) -> { listener.onResponse(response.isAcknowledged()); }, listener::onFailure)
-            );
+            originClient.execute(WatcherServiceAction.INSTANCE, serviceRequest, ActionListener.wrap((response) -> {
+                listener.onResponse(response.isAcknowledged());
+            }, listener::onFailure));
         } else {
             // Watcher was manually stopped before we got there, don't start it.
             listener.onResponse(true);

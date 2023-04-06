@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 
 public class FillMaskProcessor extends NlpTask.Processor {
 
-    FillMaskProcessor(NlpTokenizer tokenizer, FillMaskConfig config) {
+    FillMaskProcessor(NlpTokenizer tokenizer) {
         super(tokenizer);
     }
 

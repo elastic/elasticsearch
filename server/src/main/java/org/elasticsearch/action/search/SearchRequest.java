@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -43,14 +44,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to execute search against one or more indices (or all). Best created using
- * {@link org.elasticsearch.client.internal.Requests#searchRequest(String...)}.
+ * A request to execute search against one or more indices (or all).
  * <p>
  * Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including aggregations and such.
  * </p>
  *
- * @see org.elasticsearch.client.internal.Requests#searchRequest(String...)
  * @see org.elasticsearch.client.internal.Client#search(SearchRequest)
  * @see SearchResponse
  */
@@ -238,7 +237,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         preference = in.readOptionalString();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types no longer relevant so ignore
             String[] types = in.readStringArray();
             if (types.length > 0) {
@@ -262,16 +261,16 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_12_0) && in.readBoolean()) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0) && in.readBoolean()) {
             minCompatibleShardNode = Version.readVersion(in);
         } else {
             minCompatibleShardNode = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             waitForCheckpoints = in.readMap(StreamInput::readString, StreamInput::readLongArray);
             waitForCheckpointsTimeout = in.readTimeValue();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {
             forceSyntheticSource = false;
@@ -287,7 +286,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalString(preference);
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
@@ -303,27 +302,27 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
             out.writeBoolean(minCompatibleShardNode != null);
             if (minCompatibleShardNode != null) {
                 Version.writeVersion(minCompatibleShardNode, out);
             }
         }
-        Version waitForCheckpointsVersion = Version.V_7_16_0;
-        if (out.getVersion().onOrAfter(waitForCheckpointsVersion)) {
+        TransportVersion waitForCheckpointsVersion = TransportVersion.V_7_16_0;
+        if (out.getTransportVersion().onOrAfter(waitForCheckpointsVersion)) {
             out.writeMap(waitForCheckpoints, StreamOutput::writeString, StreamOutput::writeLongArray);
             out.writeTimeValue(waitForCheckpointsTimeout);
         } else if (waitForCheckpoints.isEmpty() == false) {
             throw new IllegalArgumentException(
-                "Remote node version ["
-                    + out.getVersion()
+                "Remote transport version ["
+                    + out.getTransportVersion()
                     + " incompatible with "
-                    + "wait_for_checkpoints. All nodes must be version ["
+                    + "wait_for_checkpoints. All nodes must use transport version ["
                     + waitForCheckpointsVersion
                     + "] or greater."
             );
         }
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {
             if (forceSyntheticSource) {
@@ -739,6 +738,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return source != null && source.isSuggestOnly();
     }
 
+    /**
+     * @return true if the request contains kNN search
+     */
+    public boolean hasKnnSearch() {
+        return source != null && source.knnSearch().isEmpty() == false;
+    }
+
     public int resolveTrackTotalHitsUpTo() {
         return resolveTrackTotalHitsUpTo(scroll, source);
     }
@@ -809,15 +815,21 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         StringBuilder sb = new StringBuilder();
         sb.append("indices[");
         Strings.arrayToDelimitedString(indices, ",", sb);
-        sb.append("], ");
-        sb.append("search_type[").append(searchType).append("], ");
+        sb.append("]");
+        sb.append(", search_type[").append(searchType).append("]");
         if (scroll != null) {
-            sb.append("scroll[").append(scroll.keepAlive()).append("], ");
+            sb.append(", scroll[").append(scroll.keepAlive()).append("]");
         }
         if (source != null) {
-            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+            sb.append(", source[").append(source.toString(FORMAT_PARAMS)).append("]");
         } else {
-            sb.append("source[]");
+            sb.append(", source[]");
+        }
+        if (routing != null) {
+            sb.append(", routing[").append(routing).append("]");
+        }
+        if (preference != null) {
+            sb.append(", preference[").append(preference).append("]");
         }
         return sb.toString();
     }

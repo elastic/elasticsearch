@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.mocksocket.MockHttpServer;
@@ -53,29 +54,30 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
                 assertEquals(ROLE_NAME, params.get("RoleSessionName"));
 
                 exchange.getResponseHeaders().add("Content-Type", "text/xml; charset=UTF-8");
-                byte[] response = """
-                    <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
-                      <AssumeRoleWithWebIdentityResult>
-                        <SubjectFromWebIdentityToken>amzn1.account.AF6RHO7KZU5XRVQJGXK6HB56KR2A</SubjectFromWebIdentityToken>
-                        <Audience>client.5498841531868486423.1548@apps.example.com</Audience>
-                        <AssumedRoleUser>
-                          <Arn>%s</Arn>
-                          <AssumedRoleId>AROACLKWSDQRAOEXAMPLE:%s</AssumedRoleId>
-                        </AssumedRoleUser>
-                        <Credentials>
-                          <SessionToken>sts_session_token</SessionToken>
-                          <SecretAccessKey>secret_access_key</SecretAccessKey>
-                          <Expiration>%s</Expiration>
-                          <AccessKeyId>sts_access_key</AccessKeyId>
-                        </Credentials>
-                        <SourceIdentity>SourceIdentityValue</SourceIdentity>
-                        <Provider>www.amazon.com</Provider>
-                      </AssumeRoleWithWebIdentityResult>
-                      <ResponseMetadata>
-                        <RequestId>ad4156e9-bce1-11e2-82e6-6b6efEXAMPLE</RequestId>
-                      </ResponseMetadata>
-                    </AssumeRoleWithWebIdentityResponse>
-                    """.formatted(
+                byte[] response = Strings.format(
+                    """
+                        <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+                          <AssumeRoleWithWebIdentityResult>
+                            <SubjectFromWebIdentityToken>amzn1.account.AF6RHO7KZU5XRVQJGXK6HB56KR2A</SubjectFromWebIdentityToken>
+                            <Audience>client.5498841531868486423.1548@apps.example.com</Audience>
+                            <AssumedRoleUser>
+                              <Arn>%s</Arn>
+                              <AssumedRoleId>AROACLKWSDQRAOEXAMPLE:%s</AssumedRoleId>
+                            </AssumedRoleUser>
+                            <Credentials>
+                              <SessionToken>sts_session_token</SessionToken>
+                              <SecretAccessKey>secret_access_key</SecretAccessKey>
+                              <Expiration>%s</Expiration>
+                              <AccessKeyId>sts_access_key</AccessKeyId>
+                            </Credentials>
+                            <SourceIdentity>SourceIdentityValue</SourceIdentity>
+                            <Provider>www.amazon.com</Provider>
+                          </AssumeRoleWithWebIdentityResult>
+                          <ResponseMetadata>
+                            <RequestId>ad4156e9-bce1-11e2-82e6-6b6efEXAMPLE</RequestId>
+                          </ResponseMetadata>
+                        </AssumeRoleWithWebIdentityResponse>
+                        """,
                     ROLE_ARN,
                     ROLE_NAME,
                     ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"))

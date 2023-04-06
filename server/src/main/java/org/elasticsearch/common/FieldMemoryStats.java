@@ -67,7 +67,7 @@ public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<Str
         builder.startObject(key);
         for (var entry : stats.entrySet()) {
             builder.startObject(entry.getKey());
-            builder.humanReadableField(rawKey, readableKey, new ByteSizeValue(entry.getValue()));
+            builder.humanReadableField(rawKey, readableKey, ByteSizeValue.ofBytes(entry.getValue()));
             builder.endObject();
         }
         builder.endObject();

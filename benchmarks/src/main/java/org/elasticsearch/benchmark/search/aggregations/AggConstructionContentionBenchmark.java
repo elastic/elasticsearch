@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -210,7 +211,7 @@ public class AggConstructionContentionBenchmark {
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
             IndexFieldDataCache indexFieldDataCache = indicesFieldDataCache.buildIndexFieldDataCache(new IndexFieldDataCache.Listener() {
             }, index, ft.name());
-            return ft.fielddataBuilder("test", this::lookup).build(indexFieldDataCache, breakerService);
+            return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("benchmark")).build(indexFieldDataCache, breakerService);
         }
 
         @Override

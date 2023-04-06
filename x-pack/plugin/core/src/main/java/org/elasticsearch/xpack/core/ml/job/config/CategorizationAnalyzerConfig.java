@@ -61,6 +61,8 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     public static final ParseField TOKEN_FILTERS = AnalyzeAction.Fields.TOKEN_FILTERS;
     public static final ParseField CHAR_FILTERS = AnalyzeAction.Fields.CHAR_FILTERS;
 
+    public static final int MAX_TOKEN_COUNT = 100;
+
     /**
      * This method is only used in the unit tests - in production code this config is always parsed as a fragment.
      */
@@ -204,6 +206,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             .addCategorizationFilters(categorizationFilters)
             .setTokenizer("ml_standard")
             .addDateWordsTokenFilter()
+            .addLimitFilter()
             .build();
     }
 
@@ -426,6 +429,14 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
                 )
             );
             addTokenFilter(tokenFilter);
+            return this;
+        }
+
+        Builder addLimitFilter() {
+            Map<String, Object> limitFilter = new HashMap<>();
+            limitFilter.put("type", "limit");
+            limitFilter.put("max_token_count", MAX_TOKEN_COUNT);
+            addTokenFilter(limitFilter);
             return this;
         }
 

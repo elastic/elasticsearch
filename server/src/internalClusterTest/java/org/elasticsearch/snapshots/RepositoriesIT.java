@@ -11,6 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -20,12 +21,10 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.nio.file.Path;
@@ -270,11 +269,23 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         final String snapshot1 = "test-snap1";
         client().admin().cluster().prepareCreateSnapshot(repo, snapshot1).setWaitForCompletion(true).get();
         String blockedNode = internalCluster().getMasterName();
-        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, blockedNode).repository(repo)).blockOnDataFiles();
+        blockMasterOnWriteIndexFile(repo);
         logger.info("--> start deletion of snapshot");
         ActionFuture<AcknowledgedResponse> future = client().admin().cluster().prepareDeleteSnapshot(repo, snapshot1).execute();
         logger.info("--> waiting for block to kick in on node [{}]", blockedNode);
         waitForBlock(blockedNode, repo);
+
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareListTasks()
+                .setActions(DeleteSnapshotAction.NAME)
+                .setDetailed(true)
+                .get()
+                .getTasks()
+                .stream()
+                .anyMatch(ti -> ("[" + repo + "][" + snapshot1 + "]").equals(ti.description()))
+        );
 
         logger.info("--> try deleting the repository, should fail because the deletion of the snapshot is in progress");
         RepositoryConflictException e1 = expectThrows(

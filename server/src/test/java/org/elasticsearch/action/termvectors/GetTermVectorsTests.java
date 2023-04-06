@@ -24,6 +24,7 @@ import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -191,12 +192,12 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
             for (int k = 0; k < docsAndPositions.freq(); k++) {
                 docsAndPositions.nextPosition();
                 if (docsAndPositions.getPayload() != null) {
-                    String infoString = """
+                    String infoString = Strings.format("""
 
                         term: %s has payload\s
                         %s
                          but should have payload\s
-                        %s""".formatted(term, docsAndPositions.getPayload().toString(), curPayloads.get(k).toString());
+                        %s""", term, docsAndPositions.getPayload().toString(), curPayloads.get(k).toString());
                     assertThat(infoString, docsAndPositions.getPayload(), equalTo(curPayloads.get(k)));
                 } else {
                     String infoString = "\nterm: " + term + " has no payload but should have payload \n" + curPayloads.get(k).toString();

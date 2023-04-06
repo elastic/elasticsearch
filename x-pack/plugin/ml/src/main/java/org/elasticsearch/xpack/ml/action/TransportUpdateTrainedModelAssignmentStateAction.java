@@ -20,8 +20,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentStateAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentStateAction.Request;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction.Request;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
 
 public class TransportUpdateTrainedModelAssignmentStateAction extends AcknowledgedTransportMasterNodeAction<Request> {
@@ -38,7 +38,7 @@ public class TransportUpdateTrainedModelAssignmentStateAction extends Acknowledg
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            UpdateTrainedModelAssignmentStateAction.NAME,
+            UpdateTrainedModelAssignmentRoutingInfoAction.NAME,
             false,
             transportService,
             clusterService,

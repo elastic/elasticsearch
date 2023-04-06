@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 import org.elasticsearch.xpack.ml.job.config.CategorizationAnalyzerConfigTests;
 
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -21,7 +21,7 @@ public class CategorizeTextAggregationBuilderTests extends BaseAggregationTestCa
 
     @Override
     protected Collection<Class<? extends Plugin>> getExtraPlugins() {
-        return Collections.singletonList(MachineLearning.class);
+        return List.of(MachineLearningTests.TrialLicensedMachineLearning.class);
     }
 
     @Override

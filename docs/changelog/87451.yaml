@@ -1,6 +1,0 @@
-pr: 87451
-summary: Fail shard if STARTED after master failover
-area: Recovery
-type: bug
-issues:
- - 87367

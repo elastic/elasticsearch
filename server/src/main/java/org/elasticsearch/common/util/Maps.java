@@ -22,9 +22,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.util.Map.entry;
 
 public class Maps {
 
@@ -41,10 +38,8 @@ public class Maps {
      */
     @SuppressWarnings("unchecked")
     public static <K, V> Map<K, V> copyMapWithAddedEntry(final Map<K, V> map, final K key, final V value) {
-        Objects.requireNonNull(map);
-        Objects.requireNonNull(key);
-        Objects.requireNonNull(value);
-        assert checkIsImmutableMap(map, key, value);
+        assert assertIsImmutableMapAndNonNullKey(map, key, value);
+        assert value != null;
         assert map.containsKey(key) == false : "expected entry [" + key + "] to not already be present in map";
         @SuppressWarnings("rawtypes")
         final Map.Entry<K, V>[] entries = new Map.Entry[map.size() + 1];
@@ -64,13 +59,26 @@ public class Maps {
      * @param <V>   the type of the values in the map
      * @return an immutable map that contains the items from the specified map and a mapping from the specified key to the specified value
      */
+    @SuppressWarnings("unchecked")
     public static <K, V> Map<K, V> copyMapWithAddedOrReplacedEntry(final Map<K, V> map, final K key, final V value) {
-        Objects.requireNonNull(map);
-        Objects.requireNonNull(key);
-        Objects.requireNonNull(value);
-        assert checkIsImmutableMap(map, key, value);
-        return Stream.concat(map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false), Stream.of(entry(key, value)))
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        final V existing = map.get(key);
+        if (existing == null) {
+            return copyMapWithAddedEntry(map, key, value);
+        }
+        assert assertIsImmutableMapAndNonNullKey(map, key, value);
+        assert value != null;
+        @SuppressWarnings("rawtypes")
+        final Map.Entry<K, V>[] entries = new Map.Entry[map.size()];
+        boolean replaced = false;
+        int i = 0;
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            if (replaced == false && entry.getKey().equals(key)) {
+                entry = Map.entry(entry.getKey(), value);
+                replaced = true;
+            }
+            entries[i++] = entry;
+        }
+        return Map.ofEntries(entries);
     }
 
     /**
@@ -84,9 +92,7 @@ public class Maps {
      * @return an immutable map that contains the items from the specified map with the provided key removed
      */
     public static <K, V> Map<K, V> copyMapWithRemovedEntry(final Map<K, V> map, final K key) {
-        Objects.requireNonNull(map);
-        Objects.requireNonNull(key);
-        assert checkIsImmutableMap(map, key, map.get(key));
+        assert assertIsImmutableMapAndNonNullKey(map, key, map.get(key));
         return map.entrySet()
             .stream()
             .filter(k -> key.equals(k.getKey()) == false)
@@ -101,7 +107,8 @@ public class Maps {
         Map.of("a", "b").getClass()
     );
 
-    private static <K, V> boolean checkIsImmutableMap(final Map<K, V> map, final K key, final V value) {
+    private static <K, V> boolean assertIsImmutableMapAndNonNullKey(final Map<K, V> map, final K key, final V value) {
+        assert key != null;
         // check in the known immutable classes map first, most of the time we don't need to actually do the put and throw which is slow to
         // the point of visibly slowing down internal cluster tests without this short-cut
         if (IMMUTABLE_MAP_CLASSES.contains(map.getClass())) {
@@ -210,15 +217,9 @@ public class Maps {
         Function<T, ? extends K> keyMapper,
         Function<T, ? extends V> valueMapper
     ) {
-        return Collectors.collectingAndThen(
-            Collectors.toMap(
-                keyMapper,
-                valueMapper,
-                (v1, v2) -> { throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")"); },
-                () -> new TreeMap<K, V>()
-            ),
-            Collections::unmodifiableNavigableMap
-        );
+        return Collectors.collectingAndThen(Collectors.toMap(keyMapper, valueMapper, (v1, v2) -> {
+            throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")");
+        }, () -> new TreeMap<K, V>()), Collections::unmodifiableNavigableMap);
     }
 
     /**
@@ -232,15 +233,9 @@ public class Maps {
         Function<T, ? extends K> keyMapper,
         Function<T, ? extends V> valueMapper
     ) {
-        return Collectors.collectingAndThen(
-            Collectors.toMap(
-                keyMapper,
-                valueMapper,
-                (v1, v2) -> { throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")"); },
-                (Supplier<LinkedHashMap<K, V>>) LinkedHashMap::new
-            ),
-            Collections::unmodifiableMap
-        );
+        return Collectors.collectingAndThen(Collectors.toMap(keyMapper, valueMapper, (v1, v2) -> {
+            throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")");
+        }, (Supplier<LinkedHashMap<K, V>>) LinkedHashMap::new), Collections::unmodifiableMap);
     }
 
     /**
@@ -282,5 +277,60 @@ public class Maps {
     static int capacity(int expectedSize) {
         assert expectedSize >= 0;
         return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
+    }
+
+    /**
+     * This method creates a copy of the {@code source} map using {@code copyValueFunction} to create a defensive copy of each value.
+     */
+    public static <K, V> Map<K, V> copyOf(Map<K, V> source, Function<V, V> copyValueFunction) {
+        return transformValues(source, copyValueFunction);
+    }
+
+    /**
+     * Copy a map and transform it values using supplied function
+     */
+    public static <K, V1, V2> Map<K, V2> transformValues(Map<K, V1> source, Function<V1, V2> copyValueFunction) {
+        var copy = Maps.<K, V2>newHashMapWithExpectedSize(source.size());
+        for (var entry : source.entrySet()) {
+            copy.put(entry.getKey(), copyValueFunction.apply(entry.getValue()));
+        }
+        return copy;
+    }
+
+    /**
+     * An immutable implementation of {@link Map.Entry}.
+     * @param key key
+     * @param value value
+     */
+    public record ImmutableEntry<KType, VType>(KType key, VType value) implements Map.Entry<KType, VType> {
+
+        @Override
+        public KType getKey() {
+            return key;
+        }
+
+        @Override
+        public VType getValue() {
+            return value;
+        }
+
+        @Override
+        public VType setValue(VType value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        @SuppressWarnings("rawtypes")
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if ((o instanceof Map.Entry) == false) return false;
+            Map.Entry that = (Map.Entry) o;
+            return Objects.equals(key, that.getKey()) && Objects.equals(value, that.getValue());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(key) ^ Objects.hashCode(value);
+        }
     }
 }

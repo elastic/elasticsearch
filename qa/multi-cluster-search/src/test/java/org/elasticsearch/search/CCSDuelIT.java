@@ -17,7 +17,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -25,12 +25,14 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -54,7 +56,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -194,9 +195,9 @@ public class CCSDuelIT extends ESRestTestCase {
         response = createIndex(INDEX_NAME, settings, mapping);
         assertTrue(response.isAcknowledged());
 
-        BulkProcessor bulkProcessor = BulkProcessor.builder(
+        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(
             (r, l) -> restHighLevelClient.bulkAsync(r, RequestOptions.DEFAULT, l),
-            new BulkProcessor.Listener() {
+            new BulkProcessor2.Listener() {
                 @Override
                 public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -206,11 +207,11 @@ public class CCSDuelIT extends ESRestTestCase {
                 }
 
                 @Override
-                public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                public void afterBulk(long executionId, BulkRequest request, Exception failure) {
                     throw new AssertionError("Failed to execute bulk", failure);
                 }
             },
-            "CCSDuelIT"
+            new DeterministicTaskQueue(random()).getThreadPool()
         ).build();
 
         int numQuestions = randomIntBetween(50, 100);

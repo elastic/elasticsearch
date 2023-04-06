@@ -9,8 +9,8 @@ package org.elasticsearch.example.resthandler;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestTable;
 
@@ -48,7 +48,7 @@ public class ExampleCatAction extends AbstractCatAction {
             try {
                 channel.sendResponse(RestTable.buildResponse(table, channel));
             } catch (final Exception e) {
-                channel.sendResponse(new BytesRestResponse(channel, e));
+                channel.sendResponse(new RestResponse(channel, e));
             }
         };
     }

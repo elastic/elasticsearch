@@ -27,8 +27,13 @@ public class BpeTokenReaderTests extends ESTestCase {
 
     public void testAdverseStringsMatched() {
         String[] testStrings = new String[] {
-            " 'lk 'll it'll 1'll can'tk *('ll#$%^& out ''ll we'lk  This is a    "
-                + "big complicated \n  \n ajs   \n\t\n   hh\nt $%^8 t^ 8oi I'll figure 'lk it out '' we'lk  12#$567UJSDKGhbllasdkjn;;; ; ;",
+            """
+                 'lk 'll it'll 1'll can'tk *('ll#$%^& out ''ll we'lk  This is a    big complicated\s
+                 \s
+                 ajs  \s
+                \t
+                   hh
+                t $%^8 t^ 8oi I'll figure 'lk it out '' we'lk  12#$567UJSDKGhbllasdkjn;;; ; ;""",
             " ",
             "  ",
             " \n ",
@@ -48,7 +53,7 @@ public class BpeTokenReaderTests extends ESTestCase {
                 results.add(str.substring(matcher.start(), matcher.end()));
             }
             BpeTokenReader tokenReader = new BpeTokenReader(str);
-            Optional<? extends CharSequence> sequence = Optional.empty();
+            Optional<? extends CharSequence> sequence;
             List<String> otherResults = new ArrayList<>();
             while ((sequence = tokenReader.next()).isPresent()) {
                 otherResults.add(sequence.get().toString());
@@ -67,7 +72,7 @@ public class BpeTokenReaderTests extends ESTestCase {
                 results.add(str.substring(matcher.start(), matcher.end()));
             }
             BpeTokenReader tokenReader = new BpeTokenReader(str);
-            Optional<? extends CharSequence> sequence = Optional.empty();
+            Optional<? extends CharSequence> sequence;
             List<String> otherResults = new ArrayList<>();
             while ((sequence = tokenReader.next()).isPresent()) {
                 otherResults.add(sequence.get().toString());

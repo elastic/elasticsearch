@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
@@ -278,7 +279,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 for (int i = 0; i < contextSize; i++) {
                     String contextName = in.readString();
                     int nContexts = in.readVInt();
-                    Set<String> contexts = new HashSet<>(nContexts);
+                    Set<String> contexts = Sets.newHashSetWithExpectedSize(nContexts);
                     for (int j = 0; j < nContexts; j++) {
                         contexts.add(in.readString());
                     }

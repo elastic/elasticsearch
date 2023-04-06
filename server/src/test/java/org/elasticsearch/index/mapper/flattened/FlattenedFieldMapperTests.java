@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -30,6 +31,7 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
@@ -70,41 +72,46 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
         // Check the root fields.
-        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
 
-        assertEquals("field", fields[0].name());
-        assertEquals(new BytesRef("value"), fields[0].binaryValue());
-        assertFalse(fields[0].fieldType().stored());
-        assertTrue(fields[0].fieldType().omitNorms());
-        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
+        assertEquals("field", fields.get(0).name());
+        assertEquals(new BytesRef("value"), fields.get(0).binaryValue());
+        assertFalse(fields.get(0).fieldType().stored());
+        assertTrue(fields.get(0).fieldType().omitNorms());
+        assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
 
-        assertEquals("field", fields[1].name());
-        assertEquals(new BytesRef("value"), fields[1].binaryValue());
-        assertEquals(DocValuesType.SORTED_SET, fields[1].fieldType().docValuesType());
+        assertEquals("field", fields.get(1).name());
+        assertEquals(new BytesRef("value"), fields.get(1).binaryValue());
+        assertEquals(DocValuesType.SORTED_SET, fields.get(1).fieldType().docValuesType());
 
         // Check the keyed fields.
-        IndexableField[] keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
-        assertEquals(2, keyedFields.length);
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(2, keyedFields.size());
 
-        assertEquals("field._keyed", keyedFields[0].name());
-        assertEquals(new BytesRef("key\0value"), keyedFields[0].binaryValue());
-        assertFalse(keyedFields[0].fieldType().stored());
-        assertTrue(keyedFields[0].fieldType().omitNorms());
-        assertEquals(DocValuesType.NONE, keyedFields[0].fieldType().docValuesType());
+        assertEquals("field._keyed", keyedFields.get(0).name());
+        assertEquals(new BytesRef("key\0value"), keyedFields.get(0).binaryValue());
+        assertFalse(keyedFields.get(0).fieldType().stored());
+        assertTrue(keyedFields.get(0).fieldType().omitNorms());
+        assertEquals(DocValuesType.NONE, keyedFields.get(0).fieldType().docValuesType());
 
-        assertEquals("field._keyed", keyedFields[1].name());
-        assertEquals(new BytesRef("key\0value"), keyedFields[1].binaryValue());
-        assertEquals(DocValuesType.SORTED_SET, keyedFields[1].fieldType().docValuesType());
+        assertEquals("field._keyed", keyedFields.get(1).name());
+        assertEquals(new BytesRef("key\0value"), keyedFields.get(1).binaryValue());
+        assertEquals(DocValuesType.SORTED_SET, keyedFields.get(1).fieldType().docValuesType());
 
         // Check that there is no 'field names' field.
-        IndexableField[] fieldNamesFields = parsedDoc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
-        assertEquals(0, fieldNamesFields.length);
+        List<IndexableField> fieldNamesFields = parsedDoc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
+        assertEquals(0, fieldNamesFields.size());
     }
 
     public void testDisableIndex() throws Exception {
@@ -115,13 +122,13 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
-        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals(DocValuesType.SORTED_SET, fields[0].fieldType().docValuesType());
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
 
-        IndexableField[] keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
-        assertEquals(1, keyedFields.length);
-        assertEquals(DocValuesType.SORTED_SET, keyedFields[0].fieldType().docValuesType());
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(1, keyedFields.size());
+        assertEquals(DocValuesType.SORTED_SET, keyedFields.get(0).fieldType().docValuesType());
     }
 
     public void testDisableDocValues() throws Exception {
@@ -132,17 +139,17 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
-        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
 
-        IndexableField[] keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
-        assertEquals(1, keyedFields.length);
-        assertEquals(DocValuesType.NONE, keyedFields[0].fieldType().docValuesType());
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(1, keyedFields.size());
+        assertEquals(DocValuesType.NONE, keyedFields.get(0).fieldType().docValuesType());
 
-        IndexableField[] fieldNamesFields = parsedDoc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
-        assertEquals(1, fieldNamesFields.length);
-        assertEquals("field", fieldNamesFields[0].stringValue());
+        List<IndexableField> fieldNamesFields = parsedDoc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
+        assertEquals(1, fieldNamesFields.size());
+        assertEquals("field", fieldNamesFields.get(0).stringValue());
     }
 
     public void testIndexOptions() throws IOException {
@@ -167,17 +174,93 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     public void testNullField() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.nullField("field")));
-        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(0, fields.size());
+    }
+
+    public void testBlankFieldName() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("", "value").endObject()));
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+    }
+
+    public void testDotOnlyFieldName() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument parsedDoc = mapper.parse(
+            source(b -> b.startObject("field").field(".", "value1").field("..", "value2").field("...", "value3").endObject())
+        );
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(6, fields.size());
+    }
+
+    public void testMixOfOrdinaryAndFlattenedFields() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            topMapping(
+                b -> b.field("dynamic", "strict")
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", "flattened")
+                    .endObject()
+                    .startObject("a")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("b")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("c")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .startObject("d")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("e")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        ParsedDocument parsedDoc = mapper.parse(
+            source(
+                b -> b.startObject("field")
+                    .field("", "value")
+                    .field("subfield1", "value1")
+                    .field("subfield2", "value2")
+                    .endObject()
+                    .startObject("a")
+                    .startObject("b")
+                    .field("c", "value3")
+                    .endObject()
+                    .endObject()
+                    .field("d.e", "value4")
+            )
+        );
+        assertNull(parsedDoc.dynamicMappingsUpdate());
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(6, fields.size());
+        fields = parsedDoc.rootDoc().getFields("a.b");
+        assertEquals(0, fields.size());
+        fields = parsedDoc.rootDoc().getFields("a.b.c");
+        assertEquals(1, fields.size());
+        fields = parsedDoc.rootDoc().getFields("d");
+        assertEquals(0, fields.size());
+        fields = parsedDoc.rootDoc().getFields("d.e");
+        assertEquals(1, fields.size());
     }
 
     public void testMalformedJson() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
-        expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field", "not a JSON object"))));
+        expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", "not a JSON object"))));
 
         BytesReference doc2 = new BytesArray("{ \"field\": { \"key\": \"value\" ");
-        expectThrows(MapperParsingException.class, () -> mapper.parse(new SourceToParse("1", doc2, XContentType.JSON)));
+        expectThrows(DocumentParsingException.class, () -> mapper.parse(new SourceToParse("1", doc2, XContentType.JSON)));
     }
 
     public void testFieldMultiplicity() throws Exception {
@@ -198,17 +281,17 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
 
-        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(6, fields.length);
-        assertEquals(new BytesRef("value"), fields[0].binaryValue());
-        assertEquals(new BytesRef("true"), fields[2].binaryValue());
-        assertEquals(new BytesRef("false"), fields[4].binaryValue());
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(6, fields.size());
+        assertEquals(new BytesRef("value"), fields.get(0).binaryValue());
+        assertEquals(new BytesRef("true"), fields.get(2).binaryValue());
+        assertEquals(new BytesRef("false"), fields.get(4).binaryValue());
 
-        IndexableField[] keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
-        assertEquals(6, keyedFields.length);
-        assertEquals(new BytesRef("key1\0value"), keyedFields[0].binaryValue());
-        assertEquals(new BytesRef("key2\0true"), keyedFields[2].binaryValue());
-        assertEquals(new BytesRef("key3\0false"), keyedFields[4].binaryValue());
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(6, keyedFields.size());
+        assertEquals(new BytesRef("key1\0value"), keyedFields.get(0).binaryValue());
+        assertEquals(new BytesRef("key2\0true"), keyedFields.get(2).binaryValue());
+        assertEquals(new BytesRef("key3\0false"), keyedFields.get(4).binaryValue());
     }
 
     public void testDepthLimit() throws IOException {
@@ -233,7 +316,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.field("depth_limit", 2);
         }));
 
-        expectThrows(MapperParsingException.class, () -> mapperService.documentMapper().parse(source(b -> {
+        expectThrows(DocumentParsingException.class, () -> mapperService.documentMapper().parse(source(b -> {
             b.startObject("field");
             {
                 b.startObject("key1");
@@ -273,8 +356,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         }));
-        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
 
         // Set a lower value for ignore_above and check that the field is skipped.
         DocumentMapper newMapper = createDocumentMapper(fieldMapping(b -> {
@@ -289,8 +372,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         }));
-        IndexableField[] newFields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(0, newFields.length);
+        List<IndexableField> newFields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(0, newFields.size());
 
         // using a key bigger than ignore_above should not prevent the field from being indexed, although we store key:value pairs
         parsedDoc = newMapper.parse(source(b -> {
@@ -301,7 +384,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
         newFields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        assertEquals(2, fields.size());
     }
 
     /**
@@ -312,7 +395,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         DocumentMapper newMapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "flattened"); }));
 
         String longKey = "x".repeat(32800);
-        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> newMapper.parse(source(b -> {
+        DocumentParsingException ex = expectThrows(DocumentParsingException.class, () -> newMapper.parse(source(b -> {
             b.startArray("field");
             {
                 b.startObject().field(longKey, "value").endObject();
@@ -328,7 +411,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         );
 
         String value = "x".repeat(32800);
-        ex = expectThrows(MapperParsingException.class, () -> newMapper.parse(source(b -> {
+        ex = expectThrows(DocumentParsingException.class, () -> newMapper.parse(source(b -> {
             b.startArray("field");
             {
                 b.startObject().field("key", value).endObject();
@@ -360,18 +443,18 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.startObject("other_field").nullField("key").endObject();
         }));
 
-        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(0, fields.size());
 
-        IndexableField[] otherFields = parsedDoc.rootDoc().getFields("other_field");
-        assertEquals(2, otherFields.length);
-        assertEquals(new BytesRef("placeholder"), otherFields[0].binaryValue());
-        assertEquals(new BytesRef("placeholder"), otherFields[1].binaryValue());
+        List<IndexableField> otherFields = parsedDoc.rootDoc().getFields("other_field");
+        assertEquals(2, otherFields.size());
+        assertEquals(new BytesRef("placeholder"), otherFields.get(0).binaryValue());
+        assertEquals(new BytesRef("placeholder"), otherFields.get(1).binaryValue());
 
-        IndexableField[] prefixedOtherFields = parsedDoc.rootDoc().getFields("other_field._keyed");
-        assertEquals(2, prefixedOtherFields.length);
-        assertEquals(new BytesRef("key\0placeholder"), prefixedOtherFields[0].binaryValue());
-        assertEquals(new BytesRef("key\0placeholder"), prefixedOtherFields[1].binaryValue());
+        List<IndexableField> prefixedOtherFields = parsedDoc.rootDoc().getFields("other_field._keyed");
+        assertEquals(2, prefixedOtherFields.size());
+        assertEquals(new BytesRef("key\0placeholder"), prefixedOtherFields.get(0).binaryValue());
+        assertEquals(new BytesRef("key\0placeholder"), prefixedOtherFields.get(1).binaryValue());
     }
 
     public void testSplitQueriesOnWhitespace() throws IOException {
@@ -417,14 +500,22 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("a.b.c.d", "value")));
-        IndexableField[] fields = doc.rootDoc().getFields("a.b.c");
-        assertEquals(new BytesRef("value"), fields[0].binaryValue());
-        IndexableField[] keyed = doc.rootDoc().getFields("a.b.c._keyed");
-        assertEquals(new BytesRef("d\0value"), keyed[0].binaryValue());
+        List<IndexableField> fields = doc.rootDoc().getFields("a.b.c");
+        assertEquals(new BytesRef("value"), fields.get(0).binaryValue());
+        List<IndexableField> keyed = doc.rootDoc().getFields("a.b.c._keyed");
+        assertEquals(new BytesRef("d\0value"), keyed.get(0).binaryValue());
+    }
+
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         throw new AssumptionViolatedException("not supported");
     }
 

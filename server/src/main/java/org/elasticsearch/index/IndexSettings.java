@@ -10,7 +10,6 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -23,7 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Booleans;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
@@ -251,23 +250,48 @@ public final class IndexSettings {
         Property.IndexScope
     );
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
+    public static final Setting<TimeValue> NODE_DEFAULT_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "node._internal.default_refresh_interval",
+        DEFAULT_REFRESH_INTERVAL,
+        new TimeValue(-1, TimeUnit.MILLISECONDS),
+        Property.NodeScope
+    );
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "index.refresh_interval",
-        DEFAULT_REFRESH_INTERVAL,
+        NODE_DEFAULT_REFRESH_INTERVAL_SETTING,
         new TimeValue(-1, TimeUnit.MILLISECONDS),
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.translog.flush_threshold_size",
-        new ByteSizeValue(512, ByteSizeUnit.MB),
+        /*
+         * Prevent the translog from growing over 10GB or 20% of the recommended shard size of 50GB. This helps bound the maximum disk usage
+         * overhead of translogs.
+         */
+        new ByteSizeValue(10, ByteSizeUnit.GB),
         /*
          * An empty translog occupies 55 bytes on disk. If the flush threshold is below this, the flush thread
          * can get stuck in an infinite loop as the shouldPeriodicallyFlush can still be true after flushing.
          * However, small thresholds are useful for testing so we do not add a large lower bound here.
          */
-        new ByteSizeValue(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, ByteSizeUnit.BYTES),
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        ByteSizeValue.ofBytes(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    public static final Setting<TimeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING = Setting.timeSetting(
+        "index.translog.flush_threshold_age",
+        /*
+         * Flush at least every minute by default. This gives a first order approximation of the maximum time it takes to replay translogs
+         * of about one minute as well. In practice, this is not exactly true since replaying translogs is not as concurrent as indexing,
+         * especially as Elasticsearch bounds the maximum number of concurrent replays of translogs, but it should still be a good enough
+         * approximation.
+         */
+        new TimeValue(1, TimeUnit.MINUTES),
+        new TimeValue(1, TimeUnit.SECONDS),
+        new TimeValue(1, TimeUnit.HOURS),
         Property.Dynamic,
         Property.IndexScope
     );
@@ -278,8 +302,8 @@ public final class IndexSettings {
     public static final Setting<ByteSizeValue> INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.flush_after_merge",
         new ByteSizeValue(512, ByteSizeUnit.MB),
-        new ByteSizeValue(0, ByteSizeUnit.BYTES), // always flush after merge
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES), // never flush after merge
+        ByteSizeValue.ZERO, // always flush after merge
+        ByteSizeValue.ofBytes(Long.MAX_VALUE), // never flush after merge
         Property.Dynamic,
         Property.IndexScope
     );
@@ -297,8 +321,8 @@ public final class IndexSettings {
          * generation threshold. However, small thresholds are useful for testing so we
          * do not add a large lower bound here.
          */
-        new ByteSizeValue(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, ByteSizeUnit.BYTES),
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        ByteSizeValue.ofBytes(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.Dynamic,
         Property.IndexScope
     );
@@ -348,7 +372,7 @@ public final class IndexSettings {
      **/
     public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING = Setting.timeSetting(
         "index.translog.retention.age",
-        settings -> TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
@@ -456,21 +480,40 @@ public final class IndexSettings {
     );
 
     /**
-     * Is the {@code index.mode} enabled? It should only be enbaled if you
+     * This index setting is intentionally undocumented and should be used as an escape hatch to disable BloomFilter of the
+     * _id field of non-data-stream indices, which is enabled by default. This setting doesn't affect data-stream indices.
+     */
+    public static final Setting<Boolean> BLOOM_FILTER_ID_FIELD_ENABLED_SETTING = Setting.boolSetting(
+        "index.bloom_filter_for_id_field.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope,
+        Property.DeprecatedWarning
+    );
+    public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
+    public static final Setting<Long> LIFECYCLE_ORIGINATION_DATE_SETTING = Setting.longSetting(
+        LIFECYCLE_ORIGINATION_DATE,
+        -1,
+        -1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final String LIFECYCLE_PARSE_ORIGINATION_DATE = "index.lifecycle.parse_origination_date";
+    public static final Setting<Boolean> LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING = Setting.boolSetting(
+        LIFECYCLE_PARSE_ORIGINATION_DATE,
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * Is the {@code index.mode} enabled? It should only be enabled if you
      * pass a jvm parameter or are running a snapshot build.
      */
-    private static final Boolean TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED;
-
-    static {
-        final String property = System.getProperty("es.index_mode_feature_flag_registered");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.index_mode_feature_flag_registered is only supported in non-snapshot builds");
-        }
-        TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED = Booleans.parseBoolean(property, null);
-    }
+    private static final FeatureFlag TIME_SERIES_MODE_FEATURE_FLAG = FeatureFlag.legacyRegisteredFlag("index_mode");
 
     public static boolean isTimeSeriesModeEnabled() {
-        return Build.CURRENT.isSnapshot() || (TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED != null && TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED);
+        return TIME_SERIES_MODE_FEATURE_FLAG.isEnabled();
     }
 
     /**
@@ -538,13 +581,18 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
-        "index.look_ahead_time",
-        TimeValue.timeValueHours(2),
-        TimeValue.timeValueMinutes(1),
-        TimeValue.timeValueDays(7),
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     * TODO: Remove in 9.0
+     */
+    @Deprecated
+    public static final Setting<Integer> MAX_ADJACENCY_MATRIX_FILTERS_SETTING = Setting.intSetting(
+        "index.max_adjacency_matrix_filters",
+        100,
+        2,
+        Property.Dynamic,
         Property.IndexScope,
-        Property.Final
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
     );
 
     private final Index index;
@@ -561,7 +609,7 @@ public final class IndexSettings {
      * The bounds for {@code @timestamp} on this index or
      * {@code null} if there are no bounds.
      */
-    private final TimestampBounds timestampBounds;
+    private volatile TimestampBounds timestampBounds;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
@@ -575,6 +623,7 @@ public final class IndexSettings {
     private volatile TimeValue syncInterval;
     private volatile TimeValue refreshInterval;
     private volatile ByteSizeValue flushThresholdSize;
+    private volatile TimeValue flushThresholdAge;
     private volatile ByteSizeValue generationThresholdSize;
     private volatile ByteSizeValue flushAfterMergeThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
@@ -705,8 +754,13 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
-        mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-        this.timestampBounds = mode.getTimestampBound(scopedSettings);
+        mode = scopedSettings.get(MODE);
+        this.timestampBounds = mode.getTimestampBound(indexMetadata);
+        if (timestampBounds != null) {
+            scopedSettings.addSettingsUpdateConsumer(IndexSettings.TIME_SERIES_END_TIME, endTime -> {
+                this.timestampBounds = TimestampBounds.updateEndTime(this.timestampBounds, endTime);
+            });
+        }
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -717,6 +771,7 @@ public final class IndexSettings {
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
+        flushThresholdAge = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         flushAfterMergeThresholdSize = scopedSettings.get(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
@@ -751,7 +806,11 @@ public final class IndexSettings {
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
 
-        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
+        scopedSettings.addSettingsUpdateConsumer(
+            MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
+            mergePolicyConfig::setCompoundFormatThreshold
+        );
+        scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING, mergePolicyConfig::setMergePolicyType);
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
             mergePolicyConfig::setDeletesPctAllowed
@@ -777,6 +836,10 @@ public final class IndexSettings {
             MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
             mergePolicyConfig::setSegmentsPerTier
         );
+        scopedSettings.addSettingsUpdateConsumer(
+            MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING,
+            mergePolicyConfig::setMergeFactor
+        );
 
         scopedSettings.addSettingsUpdateConsumer(
             MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
@@ -797,6 +860,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING, this::setTranslogFlushThresholdAge);
         scopedSettings.addSettingsUpdateConsumer(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING, this::setFlushAfterMergeThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING, this::setGenerationThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
@@ -826,6 +890,10 @@ public final class IndexSettings {
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
         this.flushThresholdSize = byteSizeValue;
+    }
+
+    private void setTranslogFlushThresholdAge(TimeValue timeValue) {
+        this.flushThresholdAge = timeValue;
     }
 
     private void setFlushAfterMergeThresholdSize(ByteSizeValue byteSizeValue) {
@@ -1033,8 +1101,26 @@ public final class IndexSettings {
     /**
      * Returns the transaction log threshold size when to forcefully flush the index and clear the transaction log.
      */
-    public ByteSizeValue getFlushThresholdSize() {
-        return flushThresholdSize;
+    public ByteSizeValue getFlushThresholdSize(ByteSizeValue totalDiskSpace) {
+        // Never return more than 1% of the total disk space as a protection for small instances that may not have much disk space.
+        long onePercentOfTotalDiskSpace = totalDiskSpace.getBytes() / 100;
+        if (onePercentOfTotalDiskSpace <= ByteSizeUnit.MB.toBytes(10)) {
+            // Paranoia: total disk usage should always be at least in the GBs. Make sure the translog is always allowed at least 10MB.
+            onePercentOfTotalDiskSpace = ByteSizeUnit.MB.toBytes(10);
+        }
+        assert onePercentOfTotalDiskSpace > Translog.DEFAULT_HEADER_SIZE_IN_BYTES;
+        if (onePercentOfTotalDiskSpace < flushThresholdSize.getBytes()) {
+            return new ByteSizeValue(onePercentOfTotalDiskSpace, ByteSizeUnit.BYTES);
+        } else {
+            return flushThresholdSize;
+        }
+    }
+
+    /**
+     * Returns the transaction log threshold age when to forcefully flush the index and clear the transaction log.
+     */
+    public TimeValue getFlushThresholdAge() {
+        return flushThresholdAge;
     }
 
     /**
@@ -1184,8 +1270,8 @@ public final class IndexSettings {
     /**
      * Returns the merge policy that should be used for this index.
      */
-    public MergePolicy getMergePolicy() {
-        return mergePolicyConfig.getMergePolicy();
+    public MergePolicy getMergePolicy(boolean isTimeBasedIndex) {
+        return mergePolicyConfig.getMergePolicy(isTimeBasedIndex);
     }
 
     public <T> T getValue(Setting<T> setting) {

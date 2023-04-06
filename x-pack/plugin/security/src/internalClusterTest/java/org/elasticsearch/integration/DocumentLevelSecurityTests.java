@@ -32,6 +32,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -63,6 +64,7 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -73,8 +75,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
-import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
-import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -115,28 +115,22 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             CommonAnalysisPlugin.class,
             ParentJoinPlugin.class,
             InternalSettingsPlugin.class,
-            DenseVectorPlugin.class,
             SpatialPlugin.class,
-            PercolatorPlugin.class
+            PercolatorPlugin.class,
+            MapperExtrasPlugin.class
         );
-    }
-
-    @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        // a test requires the real SpatialPlugin because it utilizes the shape query
-        return false;
     }
 
     @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return super.configUsers() + """
+        return super.configUsers() + Strings.format("""
             user1:%s
             user2:%s
             user3:%s
             user4:%s
             user5:%s
-            """.formatted(usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
+            """, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
     }
 
     @Override
@@ -899,7 +893,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         // Since there's no kNN search action at the transport layer, we just emulate
         // how the action works (it builds a kNN query under the hood)
         float[] queryVector = new float[] { 0.0f, 0.0f, 0.0f };
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 50);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 50, null);
 
         if (randomBoolean()) {
             query.addFilterQuery(new WildcardQueryBuilder("other", "value*"));

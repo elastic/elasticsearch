@@ -176,6 +176,11 @@ public abstract class RetryableAction<Response> {
             }
         }
 
+        @Override
+        public String toString() {
+            return getClass().getName() + "/" + finalListener;
+        }
+
         private void onFinalFailure(Exception e) {
             addException(e);
             if (isDone.compareAndSet(false, true)) {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.health;
 
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -24,7 +25,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,7 +35,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Writeable, ToXContentFragment {
+public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
     private static final String STATUS = "status";
     private static final String NUMBER_OF_SHARDS = "number_of_shards";
     private static final String NUMBER_OF_REPLICAS = "number_of_replicas";
@@ -243,11 +243,6 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
     }
 
     @Override
-    public Iterator<ClusterShardHealth> iterator() {
-        return shards.values().iterator();
-    }
-
-    @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(index);
         out.writeVInt(numberOfShards);
@@ -273,7 +268,8 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         builder.field(INITIALIZING_SHARDS, getInitializingShards());
         builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
 
-        if ("shards".equals(params.param("level", "indices"))) {
+        ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.INDICES);
+        if (level == ClusterStatsLevel.SHARDS) {
             builder.startObject(SHARDS);
             for (ClusterShardHealth shardHealth : shards.values()) {
                 shardHealth.toXContent(builder, params);

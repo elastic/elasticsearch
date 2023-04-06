@@ -706,7 +706,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         String dateHistoField = config.getGroupConfig().getDateHistogram().getField();
         final ThreadPool threadPool = new TestThreadPool(getTestName());
 
-        try {
+        try (dir; reader) {
             RollupJob job = new RollupJob(config, Collections.emptyMap());
             final SyncRollupIndexer action = new SyncRollupIndexer(
                 threadPool,
@@ -718,8 +718,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             rollupConsumer.accept(action.triggerAndWaitForCompletion(now));
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-            reader.close();
-            dir.close();
         }
     }
 
@@ -743,15 +741,17 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     ScriptCompiler.NONE,
                     false,
                     false,
-                    Version.CURRENT
-                ).build(MapperBuilderContext.ROOT).fieldType();
+                    Version.CURRENT,
+                    null
+                ).build(MapperBuilderContext.root(false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
 
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
-                MappedFieldType ft = new KeywordFieldMapper.Builder(field, Version.CURRENT).build(MapperBuilderContext.ROOT).fieldType();
+                MappedFieldType ft = new KeywordFieldMapper.Builder(field, Version.CURRENT).build(MapperBuilderContext.root(false))
+                    .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
@@ -764,8 +764,9 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     ScriptCompiler.NONE,
                     false,
                     false,
-                    Version.CURRENT
-                ).build(MapperBuilderContext.ROOT).fieldType();
+                    Version.CURRENT,
+                    null
+                ).build(MapperBuilderContext.root(false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
@@ -882,7 +883,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
             CompositeAggregation result = null;
             try {
-                result = searchAndReduce(searcher, query, aggBuilder, fieldTypes);
+                result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldTypes).withQuery(query));
             } catch (IOException e) {
                 listener.onFailure(e);
             }

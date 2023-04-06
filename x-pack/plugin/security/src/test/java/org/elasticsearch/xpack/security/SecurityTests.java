@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -38,7 +39,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -51,10 +54,12 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -65,7 +70,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -112,6 +116,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -119,6 +125,7 @@ public class SecurityTests extends ESTestCase {
 
     private Security security = null;
     private ThreadContext threadContext = null;
+    private SecurityContext securityContext = null;
     private TestUtils.UpdatableLicenseState licenseState;
 
     public static class DummyExtension implements SecurityExtension {
@@ -160,6 +167,7 @@ public class SecurityTests extends ESTestCase {
         when(threadPool.relativeTimeInMillis()).thenReturn(1L);
         threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
+        securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
@@ -222,14 +230,14 @@ public class SecurityTests extends ESTestCase {
         Collection<Object> components = createComponents(settings);
         AuditTrailService service = findComponent(AuditTrailService.class, components);
         assertNotNull(service);
-        assertEquals(1, service.getAuditTrails().size());
-        assertEquals(LoggingAuditTrail.NAME, service.getAuditTrails().get(0).name());
+        assertThat(service.getAuditTrail(), notNullValue());
+        assertEquals(LoggingAuditTrail.NAME, service.getAuditTrail().name());
     }
 
     public void testDisabledByDefault() throws Exception {
         Collection<Object> components = createComponents(Settings.EMPTY);
         AuditTrailService auditTrailService = findComponent(AuditTrailService.class, components);
-        assertEquals(0, auditTrailService.getAuditTrails().size());
+        assertThat(auditTrailService.getAuditTrail(), nullValue());
     }
 
     public void testHttpSettingDefaults() throws Exception {
@@ -337,6 +345,8 @@ public class SecurityTests extends ESTestCase {
             "truststore.password",
             "truststore.path",
             "truststore.algorithm",
+            "trust_restrictions.path",
+            "trust_restrictions.x509_fields",
             "keystore.key_password"
         ).forEach(suffix -> {
 
@@ -369,10 +379,18 @@ public class SecurityTests extends ESTestCase {
             TimeValue.timeValueHours(24)
         );
         TestUtils.putLicense(builder, license);
+        LicenseService licenseService;
+        if (randomBoolean()) {
+            licenseService = mock(ClusterStateLicenseService.class);
+            when(((ClusterStateLicenseService) licenseService).getLicense(any())).thenReturn(license);
+        } else {
+            licenseService = mock(LicenseService.class);
+            when(licenseService.getLicense()).thenReturn(license);
+        }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder.build()).build();
-        new Security.ValidateLicenseForFIPS(false).accept(node, state);
+        new Security.ValidateLicenseForFIPS(false, licenseService).accept(node, state);
         // no exception thrown
-        new Security.ValidateLicenseForFIPS(true).accept(node, state);
+        new Security.ValidateLicenseForFIPS(true, licenseService).accept(node, state);
         // no exception thrown
     }
 
@@ -392,11 +410,13 @@ public class SecurityTests extends ESTestCase {
         License license = TestUtils.generateSignedLicense(forbiddenLicenseType, TimeValue.timeValueHours(24));
         TestUtils.putLicense(builder, license);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder.build()).build();
-        new Security.ValidateLicenseForFIPS(false).accept(node, state);
+        ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
+        when(licenseService.getLicense(any())).thenReturn(license);
+        new Security.ValidateLicenseForFIPS(false, licenseService).accept(node, state);
         // no exception thrown
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> new Security.ValidateLicenseForFIPS(true).accept(node, state)
+            () -> new Security.ValidateLicenseForFIPS(true, licenseService).accept(node, state)
         );
         assertThat(e.getMessage(), containsString("FIPS mode cannot be used"));
 
@@ -467,34 +487,23 @@ public class SecurityTests extends ESTestCase {
             new FieldPermissionsDefinition(new String[] { "field_granted" }, Strings.EMPTY_ARRAY)
         );
         IndicesAccessControl.IndexAccessControl indexGrantedAccessControl = new IndicesAccessControl.IndexAccessControl(
-            true,
             permissions,
             DocumentPermissions.allowAll()
         );
         permissionsMap.put("index_granted", indexGrantedAccessControl);
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
-            false,
-            FieldPermissions.DEFAULT,
-            DocumentPermissions.allowAll()
+            randomFrom(FieldPermissions.DEFAULT, null),
+            randomFrom(DocumentPermissions.allowAll(), null)
         );
-        permissionsMap.put("index_not_granted", indexAccessControl);
-        IndicesAccessControl.IndexAccessControl nullFieldPermissions = new IndicesAccessControl.IndexAccessControl(
-            true,
-            null,
-            DocumentPermissions.allowAll()
-        );
-        permissionsMap.put("index_null", nullFieldPermissions);
-        IndicesAccessControl index = new IndicesAccessControl(true, permissionsMap);
-        threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, index);
+        permissionsMap.put("index_granted_all_permissions", indexAccessControl);
+        IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, permissionsMap);
+        securityContext.putIndicesAccessControl(indicesAccessControl);
 
         assertTrue(fieldFilter.apply("index_granted").test("field_granted"));
         assertFalse(fieldFilter.apply("index_granted").test(randomAlphaOfLengthBetween(3, 10)));
-        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)).test("field_granted"));
-        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)).test(randomAlphaOfLengthBetween(3, 10)));
-        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 10)));
-        expectThrows(IllegalStateException.class, () -> fieldFilter.apply("index_not_granted"));
-        assertTrue(fieldFilter.apply("index_null").test(randomAlphaOfLengthBetween(3, 6)));
-        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_null"));
+        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_granted_all_permissions"));
+        assertTrue(fieldFilter.apply("index_granted_all_permissions").test(randomAlphaOfLengthBetween(3, 10)));
+        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_other"));
     }
 
     public void testGetFieldFilterSecurityDisabled() throws Exception {
@@ -710,16 +719,27 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(service);
         RestRequest request = new FakeRestRequest();
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate(request, ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
-            // On trial license, kerberos is allowed and the WWW-Authenticate response header should reflect that
-            verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "Negotiate", "ApiKey");
-        }));
+        service.authenticate(
+            request.getHttpRequest(),
+            ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
+                // On trial license, kerberos is allowed and the WWW-Authenticate response header should reflect that
+                verifyHasAuthenticationHeaderValue(
+                    e,
+                    "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"",
+                    "Negotiate",
+                    "ApiKey"
+                );
+            })
+        );
         threadContext.stashContext();
         licenseState.update(randomFrom(License.OperationMode.GOLD, License.OperationMode.BASIC), true, null);
-        service.authenticate(request, ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
-            // On basic or gold license, kerberos is not allowed and the WWW-Authenticate response header should also reflect that
-            verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "ApiKey");
-        }));
+        service.authenticate(
+            request.getHttpRequest(),
+            ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
+                // On basic or gold license, kerberos is not allowed and the WWW-Authenticate response header should also reflect that
+                verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "ApiKey");
+            })
+        );
         if (completed.get()) {
             fail("authentication succeeded but it shouldn't");
         }
@@ -778,7 +798,10 @@ public class SecurityTests extends ESTestCase {
                 null,
                 null,
                 usageService,
-                null
+                null,
+                Tracer.NOOP,
+                mock(ClusterService.class),
+                List.of()
             );
             actionModule.initRestHandlers(null);
 
@@ -820,6 +843,60 @@ public class SecurityTests extends ESTestCase {
             appender.stop();
             Loggers.removeAppender(mockLogger, appender);
         }
+    }
+
+    public void testSecurityMustBeEnableToConnectRemoteClusterWithCredentials() {
+        // Security on, no remote cluster with credentials
+        final Settings.Builder builder1 = Settings.builder();
+        if (randomBoolean()) {
+            builder1.put("xpack.security.enabled", "true");
+        }
+        try {
+            new Security(builder1.build());
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security off, no remote cluster with credentials
+        final Settings.Builder builder2 = Settings.builder().put("xpack.security.enabled", "false");
+        try {
+            new Security(builder2.build());
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security on, remote cluster with credentials
+        final Settings.Builder builder3 = Settings.builder();
+        final MockSecureSettings secureSettings3 = new MockSecureSettings();
+        final String clusterCredentials3 = randomAlphaOfLength(20);
+        secureSettings3.setString("cluster.remote.my1.credentials", clusterCredentials3);
+        builder3.setSecureSettings(secureSettings3);
+        if (randomBoolean()) {
+            builder3.put("xpack.security.enabled", "true");
+        }
+        final Settings settings3 = builder3.build();
+        try {
+            new Security(settings3);
+        } catch (Exception e) {
+            fail("Security should have been successfully initialized, but got " + e.getMessage());
+        }
+
+        // Security off, remote cluster with credentials
+        final Settings.Builder builder4 = Settings.builder();
+        final MockSecureSettings secureSettings4 = new MockSecureSettings();
+        secureSettings4.setString("cluster.remote.my1.credentials", randomAlphaOfLength(20));
+        secureSettings4.setString("cluster.remote.my2.credentials", randomAlphaOfLength(20));
+        builder4.setSecureSettings(secureSettings4);
+        final Settings settings4 = builder4.put("xpack.security.enabled", "false").build();
+        final IllegalArgumentException e4 = expectThrows(IllegalArgumentException.class, () -> new Security(settings4));
+        assertThat(
+            e4.getMessage(),
+            containsString(
+                "Found [2] remote clusters with credentials [cluster.remote.my1.credentials,cluster.remote.my2.credentials]. "
+                    + "Security [xpack.security.enabled] must be enabled to connect to them. "
+                    + "Please either enable security or remove these settings from the keystore."
+            )
+        );
     }
 
     private void verifyHasAuthenticationHeaderValue(Exception e, String... expectedValues) {

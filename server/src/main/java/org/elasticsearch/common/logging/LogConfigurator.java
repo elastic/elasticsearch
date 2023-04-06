@@ -30,8 +30,7 @@ import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusListener;
 import org.apache.logging.log4j.status.StatusLogger;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
+import org.apache.logging.log4j.util.Unbox;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.logging.internal.LoggerFactoryImpl;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +42,7 @@ import org.elasticsearch.node.Node;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.lang.invoke.MethodHandles;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitResult;
@@ -59,7 +59,6 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 public class LogConfigurator {
@@ -113,9 +112,8 @@ public class LogConfigurator {
      * @param useConsole whether a console appender should exist
      * @throws IOException   if there is an issue readings any log4j2.properties in the config
      *                       directory
-     * @throws UserException if there are no log4j2.properties in the specified configs path
      */
-    public static void configure(final Environment environment, boolean useConsole) throws IOException, UserException {
+    public static void configure(final Environment environment, boolean useConsole) throws IOException {
         Objects.requireNonNull(environment);
         try {
             // we are about to configure logging, check that the status logger did not log any error-level messages
@@ -126,9 +124,10 @@ public class LogConfigurator {
         }
         configureESLogging();
         configure(environment.settings(), environment.configFile(), environment.logsFile(), useConsole);
+        initializeStatics();
     }
 
-    private static void configureESLogging() {
+    public static void configureESLogging() {
         LoggerFactory.setInstance(new LoggerFactoryImpl());
     }
 
@@ -148,6 +147,17 @@ public class LogConfigurator {
         NodeNamePatternConverter.setNodeName(nodeName);
     }
 
+    // Some classes within log4j have static initializers that require security manager permissions.
+    // Here we aggressively initialize those classes during logging configuration so that
+    // actual logging calls at runtime do not trigger that initialization.
+    private static void initializeStatics() {
+        try {
+            MethodHandles.publicLookup().ensureInitialized(Unbox.class);
+        } catch (IllegalAccessException impossible) {
+            throw new AssertionError(impossible);
+        }
+    }
+
     private static void checkErrorListener() {
         assert errorListenerIsRegistered() : "expected error listener to be registered";
         if (error.get()) {
@@ -160,7 +170,7 @@ public class LogConfigurator {
     }
 
     private static void configure(final Settings settings, final Path configsPath, final Path logsPath, boolean useConsole)
-        throws IOException, UserException {
+        throws IOException {
         Objects.requireNonNull(settings);
         Objects.requireNonNull(configsPath);
         Objects.requireNonNull(logsPath);
@@ -229,10 +239,7 @@ public class LogConfigurator {
                 return FileVisitResult.CONTINUE;
             }
         });
-
-        if (configurations.isEmpty()) {
-            throw new UserException(ExitCodes.CONFIG, "no log4j2.properties found; tried [" + configsPath + "] and its subdirectories");
-        }
+        assert configurations.isEmpty() == false;
 
         context.start(new CompositeConfiguration(configurations));
 
@@ -253,8 +260,22 @@ public class LogConfigurator {
         // Redirect stdout/stderr to log4j. While we ensure Elasticsearch code does not write to those streams,
         // third party libraries may do that. Note that we do NOT close the streams because other code may have
         // grabbed a handle to the streams and intend to write to it, eg log4j for writing to the console
-        System.setOut(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO), false, StandardCharsets.UTF_8));
-        System.setErr(new PrintStream(new LoggingOutputStream(LogManager.getLogger("stderr"), Level.WARN), false, StandardCharsets.UTF_8));
+        System.setOut(
+            new PrintStream(new LoggingOutputStream(LogManager.getLogger("stdout"), Level.INFO, List.of()), false, StandardCharsets.UTF_8)
+        );
+        System.setErr(
+            new PrintStream(
+                new LoggingOutputStream(
+                    LogManager.getLogger("stderr"),
+                    Level.WARN,
+                    // MMapDirectory messages come from Lucene, suggesting to users as a warning that they should enable preview features in
+                    // the JDK
+                    List.of("MMapDirectory")
+                ),
+                false,
+                StandardCharsets.UTF_8
+            )
+        );
 
         final Logger rootLogger = LogManager.getRootLogger();
         Appender appender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
@@ -277,20 +298,6 @@ public class LogConfigurator {
             consoleAppender = null;
         }
         return appender;
-    }
-
-    /**
-     * Temporarily removes the appender for the console, so that log messages go only to the log file.
-     * @param clazz a class to get a logger for
-     * @param callback The code to log while the appender is removed
-     */
-    public static void logWithoutConsole(Class<?> clazz, Consumer<Logger> callback) {
-        Appender appender = removeConsoleAppender();
-        Logger logger = LogManager.getLogger(clazz);
-        callback.accept(logger);
-        if (appender != null) {
-            Loggers.addAppender(LogManager.getRootLogger(), appender);
-        }
     }
 
     private static void configureStatusLogger() {

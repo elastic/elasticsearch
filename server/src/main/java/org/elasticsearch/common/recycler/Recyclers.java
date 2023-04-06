@@ -137,7 +137,4 @@ public enum Recyclers {
         };
     }
 
-    public static <T> Recycler<T> concurrent(final Recycler.Factory<T> factory) {
-        return concurrent(factory, Runtime.getRuntime().availableProcessors());
-    }
 }

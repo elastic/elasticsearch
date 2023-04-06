@@ -1,6 +1,0 @@
-pr: 85817
-summary: "[discovery-gce] Fix initialisation of transport in FIPS mode"
-area: Discovery-Plugins
-type: bug
-issues:
- - 85803

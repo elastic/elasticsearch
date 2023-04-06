@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCase<PutAutoFollowPatternAction.Request> {
+public class PutAutoFollowPatternRequestTests extends AbstractXContentSerializingTestCase<PutAutoFollowPatternAction.Request> {
 
     @Override
     protected boolean supportsUnknownFields() {
@@ -56,6 +56,11 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         }
         ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
         return request;
+    }
+
+    @Override
+    protected PutAutoFollowPatternAction.Request mutateInstance(PutAutoFollowPatternAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

@@ -8,12 +8,12 @@
 package org.elasticsearch.painless.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class PainlessExecuteResponseTests extends AbstractSerializingTestCase<PainlessExecuteAction.Response> {
+public class PainlessExecuteResponseTests extends AbstractXContentSerializingTestCase<PainlessExecuteAction.Response> {
 
     @Override
     protected Writeable.Reader<PainlessExecuteAction.Response> instanceReader() {
@@ -29,6 +29,11 @@ public class PainlessExecuteResponseTests extends AbstractSerializingTestCase<Pa
             default -> throw new IllegalStateException("invalid branch");
         };
         return new PainlessExecuteAction.Response(result);
+    }
+
+    @Override
+    protected PainlessExecuteAction.Response mutateInstance(PainlessExecuteAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

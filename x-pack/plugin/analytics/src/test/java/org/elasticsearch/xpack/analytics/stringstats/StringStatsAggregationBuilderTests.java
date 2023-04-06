@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.analytics.stringstats;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class StringStatsAggregationBuilderTests extends AbstractSerializingTestCase<StringStatsAggregationBuilder> {
+public class StringStatsAggregationBuilderTests extends AbstractXContentSerializingTestCase<StringStatsAggregationBuilder> {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(
@@ -67,7 +67,7 @@ public class StringStatsAggregationBuilderTests extends AbstractSerializingTestC
     }
 
     @Override
-    protected StringStatsAggregationBuilder mutateInstance(StringStatsAggregationBuilder instance) throws IOException {
+    protected StringStatsAggregationBuilder mutateInstance(StringStatsAggregationBuilder instance) {
         if (randomBoolean()) {
             StringStatsAggregationBuilder mutant = new StringStatsAggregationBuilder(instance.getName());
             mutant.showDistribution(instance.showDistribution() == false);

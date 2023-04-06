@@ -9,8 +9,8 @@
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 esplugin {
     description 'An easy, safe and fast scripting language for Elasticsearch'
@@ -34,7 +34,7 @@ configurations {
 }
 
 dependencies {
-    api 'org.antlr:antlr4-runtime:4.5.3'
+    api "org.antlr:antlr4-runtime:${versions.antlr4}"
     api 'org.ow2.asm:asm-util:7.2'
     api 'org.ow2.asm:asm-tree:7.2'
     api 'org.ow2.asm:asm-commons:7.2'
@@ -96,7 +96,8 @@ tasks.named("yamlRestTestV7CompatTest").configure {
             'painless/40_fields_api/script fields api for dates',
             'painless/70_execute_painless_scripts/Execute with double field context (multi-value, fields api)',
             'painless/40_fields_api/filter script fields api',
-            'painless/40_fields_api/script score fields api'
+            'painless/40_fields_api/script score fields api',
+            'painless/70_mov_fn_agg/*' // Agg moved to a module.
     ].join(',')
 }
 
@@ -173,7 +174,7 @@ configurations {
 }
 
 dependencies {
-    regenerate 'org.antlr:antlr4:4.5.3'
+  regenerate "org.antlr:antlr4:${versions.antlr4}"
 }
 
 String grammarPath = 'src/main/antlr'
@@ -273,7 +274,7 @@ configurations {
 }
 
 dependencies {
-    regenerate 'org.antlr:antlr4:4.5.3'
+  regenerate "org.antlr:antlr4:${versions.antlr4}"
 }
 
 String suggestGrammarPath = 'src/main/antlr'

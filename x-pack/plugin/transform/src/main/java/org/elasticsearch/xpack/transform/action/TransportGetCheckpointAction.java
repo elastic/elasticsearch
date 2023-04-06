@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -24,21 +25,17 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Response;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -146,6 +143,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
 
         public void start() {
             GroupedActionListener<GetCheckpointNodeAction.Response> groupedListener = new GroupedActionListener<>(
+                nodesAndShards.size(),
                 ActionListener.wrap(responses -> {
                     // the final list should be ordered by key
                     Map<String, long[]> checkpointsByIndexReduced = new TreeMap<>();
@@ -165,8 +163,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                     }
 
                     listener.onResponse(new Response(checkpointsByIndexReduced));
-                }, listener::onFailure),
-                nodesAndShards.size()
+                }, listener::onFailure)
             );
 
             for (Entry<String, Set<ShardId>> oneNodeAndItsShards : nodesAndShards.entrySet()) {
@@ -200,24 +197,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                     nodeCheckpointsRequest,
                     task,
                     TransportRequestOptions.EMPTY,
-                    new TransportResponseHandler<GetCheckpointNodeAction.Response>() {
-
-                        @Override
-                        public GetCheckpointNodeAction.Response read(StreamInput in) throws IOException {
-                            return new GetCheckpointNodeAction.Response(in);
-                        }
-
-                        @Override
-                        public void handleResponse(GetCheckpointNodeAction.Response response) {
-                            groupedListener.onResponse(response);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            groupedListener.onFailure(exp);
-                        }
-
-                    }
+                    new ActionListenerResponseHandler<>(groupedListener, GetCheckpointNodeAction.Response::new)
                 );
             }
         }

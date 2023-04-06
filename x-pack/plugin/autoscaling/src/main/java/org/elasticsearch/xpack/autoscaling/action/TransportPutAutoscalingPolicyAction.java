@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
@@ -36,11 +35,12 @@ import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
 import java.util.Collections;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
 public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMasterNodeAction<PutAutoscalingPolicyAction.Request> {
-
     private static final Logger LOGGER = LogManager.getLogger(TransportPutAutoscalingPolicyAction.class);
 
     private final PolicyValidator policyValidator;
@@ -53,7 +53,6 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final AllocationDeciders allocationDeciders,
         final AutoscalingCalculateCapacityService.Holder policyValidatorHolder,
         final AutoscalingLicenseChecker autoscalingLicenseChecker
     ) {
@@ -63,7 +62,7 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             indexNameExpressionResolver,
-            policyValidatorHolder.get(allocationDeciders),
+            policyValidatorHolder.get(),
             autoscalingLicenseChecker
         );
     }
@@ -121,6 +120,17 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
+    /**
+     * Used by the reserved cluster state action handler for autoscaling policy
+     */
+    static ClusterState putAutoscalingPolicy(
+        final ClusterState currentState,
+        final PutAutoscalingPolicyAction.Request request,
+        final PolicyValidator policyValidator
+    ) {
+        return putAutoscalingPolicy(currentState, request, policyValidator, LOGGER);
+    }
+
     static ClusterState putAutoscalingPolicy(
         final ClusterState currentState,
         final PutAutoscalingPolicyAction.Request request,
@@ -175,5 +185,15 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
         final AutoscalingMetadata newMetadata = new AutoscalingMetadata(newPolicies);
         builder.metadata(Metadata.builder(currentState.getMetadata()).putCustom(AutoscalingMetadata.NAME, newMetadata).build());
         return builder.build();
+    }
+
+    @Override
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedAutoscalingPolicyAction.NAME);
+    }
+
+    @Override
+    public Set<String> modifiedKeys(PutAutoscalingPolicyAction.Request request) {
+        return Set.of(request.name());
     }
 }

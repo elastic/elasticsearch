@@ -1,5 +1,0 @@
-pr: 86707
-summary: Error on direct creation of non-primary system index
-area: Infra/Core
-type: bug
-issues: []

@@ -9,13 +9,12 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestDocument.Metadata;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -27,6 +26,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.ingest.IngestDocument.Metadata;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -35,6 +35,9 @@ public class SetProcessorTests extends ESTestCase {
     public void testSetExistingFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        while (Metadata.isMetadata(fieldName)) {
+            fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        }
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         Processor processor = createSetProcessor(fieldName, fieldValue, null, true, false);
         processor.execute(ingestDocument);
@@ -70,7 +73,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetNewFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         Processor processor = createSetProcessor(fieldName, fieldValue, null, false, false);
@@ -80,7 +83,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetExistingFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         Object fieldValue = "foo";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = createSetProcessor(fieldName, "bar", null, false, false);
@@ -90,7 +93,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetExistingNullFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         Object fieldValue = null;
         Object newValue = "bar";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
@@ -105,7 +108,7 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(randomMetadata.getFieldName(), "_value", null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(randomMetadata.getFieldName(), String.class), Matchers.equalTo("_value"));
+        assertThat(ingestDocument.getFieldValue(randomMetadata.getFieldName(), String.class), equalTo("_value"));
     }
 
     public void testSetMetadataVersion() throws Exception {
@@ -113,7 +116,7 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(Metadata.VERSION.getFieldName(), version, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(Metadata.VERSION.getFieldName(), Long.class), Matchers.equalTo(version));
+        assertThat(ingestDocument.getFieldValue(Metadata.VERSION.getFieldName(), Long.class), equalTo(version));
     }
 
     public void testSetMetadataVersionType() throws Exception {
@@ -121,7 +124,7 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(Metadata.VERSION_TYPE.getFieldName(), versionType, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(Metadata.VERSION_TYPE.getFieldName(), String.class), Matchers.equalTo(versionType));
+        assertThat(ingestDocument.getFieldValue(Metadata.VERSION_TYPE.getFieldName(), String.class), equalTo(versionType));
     }
 
     public void testSetMetadataIfSeqNo() throws Exception {
@@ -129,7 +132,7 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(Metadata.IF_SEQ_NO.getFieldName(), Long.class), Matchers.equalTo(ifSeqNo));
+        assertThat(ingestDocument.getFieldValue(Metadata.IF_SEQ_NO.getFieldName(), Long.class), equalTo(ifSeqNo));
     }
 
     public void testSetMetadataIfPrimaryTerm() throws Exception {
@@ -137,7 +140,7 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), Matchers.equalTo(ifPrimaryTerm));
+        assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), equalTo(ifPrimaryTerm));
     }
 
     public void testSetDynamicTemplates() throws Exception {

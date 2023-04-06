@@ -13,6 +13,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.job.process.AbstractInitializableRunnable;
 import org.junit.After;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecutorService.RequestPriority;
@@ -102,20 +104,29 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
 
         var counter = new AtomicInteger();
         long requestId = 1;
-        var r1 = new RunOrderValidator(2, counter);
-        executor.executeWithPriority(r1, RequestPriority.NORMAL, requestId++);
-        executor.executeWithPriority(new RunOrderValidator(3, counter), RequestPriority.NORMAL, requestId++);
-        executor.executeWithPriority(new RunOrderValidator(4, counter), RequestPriority.NORMAL, requestId++);
-        executor.executeWithPriority(new RunOrderValidator(1, counter), RequestPriority.HIGH, requestId++);
-        executor.executeWithPriority(new RunOrderValidator(5, counter), RequestPriority.NORMAL, requestId++);
-        executor.executeWithPriority(new RunOrderValidator(6, counter), RequestPriority.NORMAL, requestId++);
+        List<RunOrderValidator> validators = new ArrayList<>();
+        validators.add(new RunOrderValidator(2, counter));
+        validators.add(new RunOrderValidator(3, counter));
+        validators.add(new RunOrderValidator(4, counter));
+        validators.add(new RunOrderValidator(1, counter));   // high priority request runs first
+        validators.add(new RunOrderValidator(5, counter));
+        validators.add(new RunOrderValidator(6, counter));
+
+        executor.executeWithPriority(validators.get(0), RequestPriority.NORMAL, requestId++);
+        executor.executeWithPriority(validators.get(1), RequestPriority.NORMAL, requestId++);
+        executor.executeWithPriority(validators.get(2), RequestPriority.NORMAL, requestId++);
+        executor.executeWithPriority(validators.get(3), RequestPriority.HIGH, requestId++);
+        executor.executeWithPriority(validators.get(4), RequestPriority.NORMAL, requestId++);
+        executor.executeWithPriority(validators.get(5), RequestPriority.NORMAL, requestId++);
 
         // final action stops the executor
         executor.executeWithPriority(new ShutdownExecutorRunnable(executor), RequestPriority.NORMAL, 10000L);
 
         executor.start();
 
-        assertTrue(r1.hasBeenRun);
+        for (var validator : validators) {
+            assertTrue(validator.hasBeenRun);
+        }
     }
 
     private PriorityProcessWorkerExecutorService createProcessWorkerExecutorService(int queueSize) {

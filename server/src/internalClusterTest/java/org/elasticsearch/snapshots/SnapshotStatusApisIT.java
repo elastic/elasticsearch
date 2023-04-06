@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShar
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -63,6 +62,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that check by-timestamp order
+            .put(LARGE_SNAPSHOT_POOL_SETTINGS) // we have #testGetSnapshotsWithSnapshotInProgress which needs many threads to ensure
+            // its snapshot pool does not become fully blocked on data nodes when blocking on data files
             .build();
     }
 
@@ -88,9 +89,10 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
 
-        final List<SnapshotStatus> snapshotStatus = clusterAdmin().snapshotsStatus(
-            new SnapshotsStatusRequest("test-repo", new String[] { "test-snap" })
-        ).get().getSnapshots();
+        final List<SnapshotStatus> snapshotStatus = clusterAdmin().prepareSnapshotStatus("test-repo")
+            .setSnapshots("test-snap")
+            .get()
+            .getSnapshots();
         assertThat(snapshotStatus.size(), equalTo(1));
         final SnapshotStatus snStatus = snapshotStatus.get(0);
         assertEquals(snStatus.getStats().getStartTime(), snapshotInfo.startTime());
@@ -659,8 +661,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final var waitForCompletion = randomBoolean();
         final var createsListener = new PlainActionFuture<Void>();
         final var createsGroupedListener = new GroupedActionListener<CreateSnapshotResponse>(
-            createsListener.map(ignored -> null),
-            snapshotNames.length
+            snapshotNames.length,
+            createsListener.map(ignored -> null)
         );
         for (final var snapshotName : snapshotNames) {
             clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)

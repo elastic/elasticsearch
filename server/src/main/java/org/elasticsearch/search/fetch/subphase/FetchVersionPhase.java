@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 
@@ -30,6 +31,11 @@ public final class FetchVersionPhase implements FetchSubPhase {
             @Override
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
                 versions = readerContext.reader().getNumericDocValues(VersionFieldMapper.NAME);
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
             }
 
             @Override

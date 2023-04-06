@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.Before;
 
@@ -39,6 +41,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -56,6 +59,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     private IPFilter ipFilter;
     private CompositeRolesStore rolesStore;
     private NativeRoleMappingStore roleMappingStore;
+    private ProfileService profileService;
     private SecurityUsageServices securityServices;
 
     @Before
@@ -66,7 +70,8 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
         roleMappingStore = mock(NativeRoleMappingStore.class);
-        securityServices = new SecurityUsageServices(realms, rolesStore, roleMappingStore, ipFilter);
+        profileService = mock(ProfileService.class);
+        securityServices = new SecurityUsageServices(realms, rolesStore, roleMappingStore, ipFilter, profileService);
     }
 
     public void testAvailable() {
@@ -97,6 +102,8 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         final boolean enabled = explicitlyDisabled == false;
         final boolean operatorPrivilegesAvailable = randomBoolean();
         when(licenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(operatorPrivilegesAvailable);
+        final boolean remoteClusterServerAvailable = randomBoolean();
+        when(licenseState.isAllowed(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(remoteClusterServerAvailable);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 
@@ -107,6 +114,14 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);
         final boolean transportSSLEnabled = randomBoolean();
         settings.put("xpack.security.transport.ssl.enabled", transportSSLEnabled);
+
+        // Remote cluster server requires security to be enabled
+        final boolean remoteClusterServerEnabled = explicitlyDisabled ? false : randomBoolean();
+        settings.put("remote_cluster_server.enabled", remoteClusterServerEnabled);
+        final boolean remoteClusterServerSslEnabled = randomBoolean();
+        settings.put("xpack.security.remote_cluster_server.ssl.enabled", remoteClusterServerSslEnabled);
+        final boolean remoteClusterClientSslEnabled = randomBoolean();
+        settings.put("xpack.security.remote_cluster_client.ssl.enabled", remoteClusterClientSslEnabled);
 
         boolean configureEnabledFlagForTokenService = randomBoolean();
         final boolean tokenServiceEnabled;
@@ -165,6 +180,21 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         if (operatorPrivilegesEnabled) {
             settings.put("xpack.security.operator_privileges.enabled", true);
         }
+
+        final Map<String, Object> userProfileUsage = Map.of(
+            "total",
+            randomIntBetween(100, 200),
+            "enabled",
+            randomIntBetween(50, 99),
+            "recent",
+            randomIntBetween(1, 42)
+        );
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<Map<String, Object>>) invocation.getArguments()[0];
+            listener.onResponse(userProfileUsage);
+            return null;
+        }).when(profileService).usageStats(anyActionListener());
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
@@ -234,13 +264,26 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                 // operator privileges
                 assertThat(source.getValue("operator_privileges.available"), is(operatorPrivilegesAvailable));
                 assertThat(source.getValue("operator_privileges.enabled"), is(operatorPrivilegesEnabled));
-            } else {
-                if (explicitlyDisabled) {
-                    assertThat(source.getValue("ssl"), is(nullValue()));
-                } else {
-                    assertThat(source.getValue("ssl.http.enabled"), is(httpSSLEnabled));
-                    assertThat(source.getValue("ssl.transport.enabled"), is(transportSSLEnabled));
+
+                // user profile
+                assertThat(source.getValue("user_profile.total"), equalTo(userProfileUsage.get("total")));
+                assertThat(source.getValue("user_profile.enabled"), equalTo(userProfileUsage.get("enabled")));
+                assertThat(source.getValue("user_profile.recent"), equalTo(userProfileUsage.get("recent")));
+
+                assertThat(source.getValue("ssl.http.enabled"), is(httpSSLEnabled));
+                assertThat(source.getValue("ssl.transport.enabled"), is(transportSSLEnabled));
+                if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+                    if (remoteClusterServerEnabled) {
+                        assertThat(source.getValue("ssl.remote_cluster_server.enabled"), is(remoteClusterServerSslEnabled));
+                    } else {
+                        assertThat(source.getValue("ssl.remote_cluster_server.enabled"), nullValue());
+                    }
+                    assertThat(source.getValue("ssl.remote_cluster_client.enabled"), is(remoteClusterClientSslEnabled));
+                    assertThat(source.getValue("remote_cluster_server.available"), is(remoteClusterServerAvailable));
+                    assertThat(source.getValue("remote_cluster_server.enabled"), is(remoteClusterServerEnabled));
                 }
+            } else {
+                assertThat(source.getValue("ssl"), is(nullValue()));
                 assertThat(source.getValue("realms"), is(nullValue()));
                 assertThat(source.getValue("token_service"), is(nullValue()));
                 assertThat(source.getValue("api_key_service"), is(nullValue()));
@@ -249,6 +292,8 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
                 assertThat(source.getValue("ipfilter"), is(nullValue()));
                 assertThat(source.getValue("roles"), is(nullValue()));
                 assertThat(source.getValue("operator_privileges"), is(nullValue()));
+                assertThat(source.getValue("user_profile"), is(nullValue()));
+                assertThat(source.getValue("remote_cluster_server"), is(nullValue()));
             }
         }
     }

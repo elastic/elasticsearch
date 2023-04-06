@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -48,7 +49,6 @@ import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
-import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStatsEnclosed;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStatsEnclosed;
@@ -75,7 +75,6 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
-import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.hamcrest.Matcher;
@@ -102,6 +101,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
+import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.E;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.PI;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.DATE_FORMAT;
@@ -130,7 +130,7 @@ public class QueryTranslatorTests extends ESTestCase {
             Map<String, EsField> mapping = SqlTypesTests.loadMapping(mappingFile);
             EsIndex test = new EsIndex("test", mapping);
             IndexResolution getIndexResult = IndexResolution.valid(test);
-            analyzer = new Analyzer(TEST_CFG, sqlFunctionRegistry, getIndexResult, new Verifier(new Metrics()));
+            analyzer = analyzer(getIndexResult);
             optimizer = new Optimizer();
             planner = new Planner();
         }
@@ -770,7 +770,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 + randomFunction.name()
                 + "(date + INTERVAL 1 YEAR)"
         );
-        assertESQuery(p, containsString("""
+        assertESQuery(p, containsString(Strings.format("""
             {
               "terms": {
                 "script": {
@@ -791,7 +791,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 "order": "asc"
               }
             }}]}}}}
-            """.formatted(randomFunction.name()).replaceAll("\\s", "")));
+            """, randomFunction.name()).replaceAll("\\s", "")));
     }
 
     public void testDateTimeFunctionsWithMathIntervalAndGroupBy() {
@@ -803,7 +803,7 @@ public class QueryTranslatorTests extends ESTestCase {
         );
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("""
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(Strings.format("""
             {
               "terms": {
                 "script": {
@@ -818,7 +818,7 @@ public class QueryTranslatorTests extends ESTestCase {
                     "v3": "Z"
                   }
                 },
-                "missing_bucket": true,""".formatted(scriptMethods[pos]).replaceAll("\\s", "")));
+                "missing_bucket": true,""", scriptMethods[pos]).replaceAll("\\s", "")));
     }
 
     // Like/RLike/StartsWith
@@ -1131,41 +1131,42 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith(
-                """
-                    {
-                      "buckets_path": {
-                        "a0": "%s",
-                        "a1": "%s._count",
-                        "a2": "%s",
-                        "a3": "%s._count",
-                        "a4": "_count",
-                        "a5": "%s"
-                      },
-                      "script": {
-                        "source": "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0)),\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a1,params.v1)))),\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a2,params.v2)))),\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a3,params.v3)))),\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a4,params.v4)))),\
-                    InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a5,params.v5))))",
-                        "lang": "painless",
-                        "params": {
-                          "v0": 3,
-                          "v1": 32,
-                          "v2": 1,
-                          "v3": 2,
-                          "v4": 5,
-                          "v5": 50000
-                        }
-                      },
-                      "gap_policy": "skip"
-                    }}}}}
-                    """.formatted(
+                Strings.format(
+                    """
+                        {
+                          "buckets_path": {
+                            "a0": "%s",
+                            "a1": "%s._count",
+                            "a2": "%s",
+                            "a3": "%s._count",
+                            "a4": "_count",
+                            "a5": "%s"
+                          },
+                          "script": {
+                            "source": "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0)),\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a1,params.v1)))),\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a2,params.v2)))),\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a3,params.v3)))),\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a4,params.v4)))),\
+                        InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a5,params.v5))))",
+                            "lang": "painless",
+                            "params": {
+                              "v0": 3,
+                              "v1": 32,
+                              "v2": 1,
+                              "v3": 2,
+                              "v4": 5,
+                              "v5": 50000
+                            }
+                          },
+                          "gap_policy": "skip"
+                        }}}}}
+                        """,
                     cardinalityKeyword.getName(),
                     existsKeyword.getName(),
                     cardinalityDottedField.getName(),
@@ -1203,9 +1204,9 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(((MetricAggRef) fe).property(), metricToAgg.get(funcName));
 
             String aggName = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations().iterator().next().getName();
-            assertESQuery(p, endsWith("""
+            assertESQuery(p, endsWith(Strings.format("""
                 "aggregations":{"%s":{"extended_stats":{"field":"int","sigma":2.0}}}}}}\
-                """.formatted(aggName)));
+                """, aggName)));
         }
 
     }
@@ -1229,14 +1230,14 @@ public class QueryTranslatorTests extends ESTestCase {
             final int fieldCount = 5;
             final String sql = ("SELECT " +
             // 0-3: these all should fold into the same aggregation
-            "   PERCENTILE(int, 50, 'tdigest', 79.8 + 20.2), "
+                "   PERCENTILE(int, 50, 'tdigest', 79.8 + 20.2), "
                 + "   PERCENTILE(int, 40 + 10, 'tdigest', null), "
                 + "   PERCENTILE(int, 50, 'tdigest'), "
                 + "   PERCENTILE(int, 50), "
                 +
             // 4: this has a different method parameter
             // just to make sure we don't fold everything to default
-            "   PERCENTILE(int, 50, 'tdigest', 22) "
+                "   PERCENTILE(int, 50, 'tdigest', 22) "
                 + "FROM test").replaceAll("PERCENTILE", fnName);
 
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
@@ -1263,13 +1264,13 @@ public class QueryTranslatorTests extends ESTestCase {
             final int fieldCount = 5;
             final String sql = ("SELECT " +
             // 0-1: fold into the same aggregation
-            "   PERCENTILE(int, 50, 'tdigest'), " + "   PERCENTILE(int, 60, 'tdigest'), " +
+                "   PERCENTILE(int, 50, 'tdigest'), " + "   PERCENTILE(int, 60, 'tdigest'), " +
 
             // 2-3: fold into one aggregation
-            "   PERCENTILE(int, 50, 'hdr'), " + "   PERCENTILE(int, 60, 'hdr', 3), " +
+                "   PERCENTILE(int, 50, 'hdr'), " + "   PERCENTILE(int, 60, 'hdr', 3), " +
 
             // 4: folds into a separate aggregation
-            "   PERCENTILE(int, 60, 'hdr', 4)" + "FROM test").replaceAll("PERCENTILE", fnName);
+                "   PERCENTILE(int, 60, 'hdr', 4)" + "FROM test").replaceAll("PERCENTILE", fnName);
 
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
 

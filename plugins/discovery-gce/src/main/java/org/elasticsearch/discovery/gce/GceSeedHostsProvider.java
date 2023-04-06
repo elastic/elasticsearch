@@ -12,8 +12,6 @@ import com.google.api.services.compute.model.AccessConfig;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -24,6 +22,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;

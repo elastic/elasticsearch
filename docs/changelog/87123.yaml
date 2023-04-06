@@ -1,6 +1,0 @@
-pr: 87123
-summary: Don't run `include_in_parent` when in `copy_to` context
-area: Mapping
-type: bug
-issues:
- - 87036

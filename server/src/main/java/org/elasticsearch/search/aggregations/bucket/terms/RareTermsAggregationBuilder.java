@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -110,7 +110,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected boolean serializeTargetValueType(Version version) {
+    protected boolean serializeTargetValueType(TransportVersion version) {
         return true;
     }
 
@@ -249,7 +249,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_3_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_3_0;
     }
 }

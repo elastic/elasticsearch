@@ -13,8 +13,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.ActionConfigStats;
 
-import java.io.IOException;
-
 public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<ActionConfigStats> {
 
     @Override
@@ -41,19 +39,32 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
             builder.setRolloverMaxPrimaryShardDocs(randomLongBetween(0, Long.MAX_VALUE));
         }
         if (randomBoolean()) {
-            ByteSizeValue randomByteSize = ByteSizeValue.ofBytes(randomLongBetween(0, 1024L * 1024L * 1024L * 50L));
-            builder.setRolloverMaxPrimaryShardSize(randomByteSize);
+            builder.setRolloverMaxPrimaryShardSize(randomByteSize());
         }
         if (randomBoolean()) {
-            ByteSizeValue randomByteSize = ByteSizeValue.ofBytes(randomLongBetween(0, 1024L * 1024L * 1024L * 50L));
-            builder.setRolloverMaxSize(randomByteSize);
+            builder.setRolloverMaxSize(randomByteSize());
+        }
+        if (randomBoolean()) {
+            TimeValue randomAge = TimeValue.parseTimeValue(randomTimeValue(), "action_config_stats_tests");
+            builder.setRolloverMinAge(randomAge);
+        }
+        if (randomBoolean()) {
+            builder.setRolloverMinDocs(randomLongBetween(0, Long.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            builder.setRolloverMinPrimaryShardDocs(randomLongBetween(0, Long.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            builder.setRolloverMinPrimaryShardSize(randomByteSize());
+        }
+        if (randomBoolean()) {
+            builder.setRolloverMinSize(randomByteSize());
         }
         if (randomBoolean()) {
             builder.setPriority(randomIntBetween(0, 50));
         }
         if (randomBoolean()) {
-            ByteSizeValue randomByteSize = ByteSizeValue.ofBytes(randomLongBetween(0, 1024L * 1024L * 1024L * 50L));
-            builder.setShrinkMaxPrimaryShardSize(randomByteSize);
+            builder.setShrinkMaxPrimaryShardSize(randomByteSize());
         }
         if (randomBoolean()) {
             builder.setShrinkNumberOfShards(randomIntBetween(0, 50));
@@ -67,9 +78,9 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
     }
 
     @Override
-    protected ActionConfigStats mutateInstance(ActionConfigStats instance) throws IOException {
+    protected ActionConfigStats mutateInstance(ActionConfigStats instance) {
         ActionConfigStats.Builder builder = ActionConfigStats.builder(instance);
-        switch (between(0, 8)) {
+        switch (between(0, 14)) {
             case 0 -> {
                 int numberOfReplicas = randomValueOtherThan(instance.getAllocateNumberOfReplicas(), () -> randomIntBetween(0, 10000));
                 builder.setAllocateNumberOfReplicas(numberOfReplicas);
@@ -86,25 +97,41 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
                 builder.setRolloverMaxAge(randomAge);
             }
             case 3 -> builder.setRolloverMaxDocs(randomLongBetween(0, Long.MAX_VALUE));
-            case 4 -> {
-                ByteSizeValue randomByteSize = ByteSizeValue.ofBytes(randomLongBetween(0, 1024L * 1024L * 1024L * 50L));
-                builder.setRolloverMaxPrimaryShardSize(randomByteSize);
-            }
+            case 4 -> builder.setRolloverMaxPrimaryShardDocs(randomLongBetween(0, Long.MAX_VALUE));
             case 5 -> {
-                ByteSizeValue randomMaxByteSize = ByteSizeValue.ofBytes(randomLongBetween(0, 1024L * 1024L * 1024L * 50L));
-                builder.setRolloverMaxSize(randomMaxByteSize);
+                builder.setRolloverMaxPrimaryShardSize(randomByteSize());
             }
-            case 6 -> builder.setPriority(randomValueOtherThan(instance.getSetPriorityPriority(), () -> randomIntBetween(0, 50)));
+            case 6 -> {
+                builder.setRolloverMaxSize(randomByteSize());
+            }
             case 7 -> {
-                ByteSizeValue randomPrimaryByteSize = ByteSizeValue.ofBytes(randomLongBetween(0, 1024L * 1024L * 1024L * 50L));
-                builder.setShrinkMaxPrimaryShardSize(randomPrimaryByteSize);
+                TimeValue randomAge = randomValueOtherThan(
+                    instance.getRolloverMinAge(),
+                    () -> TimeValue.parseTimeValue(randomTimeValue(), "action_config_stats_tests")
+                );
+                builder.setRolloverMinAge(randomAge);
             }
-            case 8 -> builder.setShrinkNumberOfShards(
+            case 8 -> builder.setRolloverMinDocs(randomLongBetween(0, Long.MAX_VALUE));
+            case 9 -> builder.setRolloverMinPrimaryShardDocs(randomLongBetween(0, Long.MAX_VALUE));
+            case 10 -> {
+                builder.setRolloverMinPrimaryShardSize(randomByteSize());
+            }
+            case 11 -> {
+                builder.setRolloverMinSize(randomByteSize());
+            }
+            case 12 -> builder.setPriority(randomValueOtherThan(instance.getSetPriorityPriority(), () -> randomIntBetween(0, 50)));
+            case 13 -> {
+                builder.setShrinkMaxPrimaryShardSize(randomByteSize());
+            }
+            case 14 -> builder.setShrinkNumberOfShards(
                 randomValueOtherThan(instance.getShrinkNumberOfShards(), () -> randomIntBetween(0, 50))
             );
-            case 9 -> builder.setRolloverMaxPrimaryShardDocs(randomLongBetween(0, Long.MAX_VALUE));
             default -> throw new IllegalStateException("Illegal randomization branch");
         }
         return builder.build();
+    }
+
+    private static ByteSizeValue randomByteSize() {
+        return ByteSizeValue.ofBytes(randomLongBetween(0, 1024L * 1024L * 1024L * 50L));
     }
 }

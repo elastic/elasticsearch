@@ -17,7 +17,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -26,6 +25,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -164,14 +164,12 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.METADATA_VERIFICATION;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class IndicesService extends AbstractLifecycleComponent
@@ -218,7 +216,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final Client client;
-    private volatile Map<String, IndexService> indices = emptyMap();
+    private volatile Map<String, IndexService> indices = Map.of();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final AtomicInteger numUncompletedDeletes = new AtomicInteger();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
@@ -459,7 +457,24 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new NodeIndicesStats(commonStats, statsByShard(this, flags));
+        return new NodeIndicesStats(commonStats, statsByIndex(this, flags), statsByShard(this, flags));
+    }
+
+    static Map<Index, CommonStats> statsByIndex(final IndicesService indicesService, final CommonStatsFlags flags) {
+        // Currently only the Mappings flag is the only possible index-level flag.
+        if (flags.isSet(CommonStatsFlags.Flag.Mappings) == false) {
+            return Map.of();
+        }
+
+        final Map<Index, CommonStats> statsByIndex = Maps.newHashMapWithExpectedSize(indicesService.indices.size());
+        for (final IndexService indexService : indicesService) {
+            Index index = indexService.index();
+            CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
+            commonStats.nodeMappings = indexService.getNodeMappingStats();
+            var existing = statsByIndex.putIfAbsent(index, commonStats);
+            assert existing == null;
+        }
+        return statsByIndex;
     }
 
     static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
@@ -514,7 +529,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 new ShardStats(
                     indexShard.routingEntry(),
                     indexShard.shardPath(),
-                    new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                    CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags),
                     commitStats,
                     seqNoStats,
                     retentionLeaseStats
@@ -604,14 +619,17 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
-        final IndexService indexService = createIndexService(
-            CREATE_INDEX,
-            indexMetadata,
-            indicesQueryCache,
-            indicesFieldDataCache,
-            finalListeners,
-            indexingMemoryController
-        );
+        IndexService indexService;
+        try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+            indexService = createIndexService(
+                CREATE_INDEX,
+                indexMetadata,
+                indicesQueryCache,
+                indicesFieldDataCache,
+                finalListeners,
+                indexingMemoryController
+            );
+        }
         boolean success = false;
         try {
             if (writeDanglingIndices && nodeWriteDanglingIndicesInfo) {
@@ -780,7 +798,7 @@ public class IndicesService extends AbstractLifecycleComponent
             recoveryStateFactories
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
-        return indexModule.newIndexMapperService(parserConfig, mapperRegistry, scriptService);
+        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
     }
 
     /**
@@ -860,10 +878,9 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
 
                 logger.debug("[{}] closing ... (reason [{}])", indexName, reason);
-                Map<String, IndexService> newIndices = new HashMap<>(indices);
-                indexService = newIndices.remove(index.getUUID());
+                indexService = indices.get(index.getUUID());
                 assert indexService != null : "IndexService is null for index: " + index;
-                indices = unmodifiableMap(newIndices);
+                indices = Maps.copyMapWithRemovedEntry(indices, index.getUUID());
                 listener = indexService.getIndexEventListener();
             }
 
@@ -1209,12 +1226,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     private void addPendingDelete(Index index, PendingDelete pendingDelete) {
         synchronized (pendingDeletes) {
-            List<PendingDelete> list = pendingDeletes.get(index);
-            if (list == null) {
-                list = new ArrayList<>();
-                pendingDeletes.put(index, list);
-            }
-            list.add(pendingDelete);
+            pendingDeletes.computeIfAbsent(index, k -> new ArrayList<>()).add(pendingDelete);
             numUncompletedDeletes.incrementAndGet();
         }
     }
@@ -1624,7 +1636,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 InputStream inputStream = bytes.streamInput();
                 XContentParser parser = XContentFactory.xContentType(inputStream).xContent().createParser(parserConfig, inputStream)
             ) {
-                return parseInnerQueryBuilder(parser);
+                return parseTopLevelQuery(parser);
             }
         };
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
@@ -1634,30 +1646,36 @@ public class IndicesService extends AbstractLifecycleComponent
 
         Metadata metadata = state.metadata();
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
-        if (ia.getParentDataStream() != null) {
-            List<QueryBuilder> filters = Arrays.stream(aliases).map(name -> metadata.dataStreamAliases().get(name)).map(dataStreamAlias -> {
-                try {
-                    return filterParser.apply(dataStreamAlias.getFilter().uncompressed());
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }).toList();
+        DataStream dataStream = ia.getParentDataStream();
+        if (dataStream != null) {
+            String dataStreamName = dataStream.getName();
+            List<QueryBuilder> filters = Arrays.stream(aliases)
+                .map(name -> metadata.dataStreamAliases().get(name))
+                .filter(dataStreamAlias -> dataStreamAlias.getFilter(dataStreamName) != null)
+                .map(dataStreamAlias -> {
+                    try {
+                        return filterParser.apply(dataStreamAlias.getFilter(dataStreamName).uncompressed());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                })
+                .toList();
             if (filters.isEmpty()) {
-                return new AliasFilter(null, aliases);
+                return AliasFilter.of(null, aliases);
             } else {
                 if (filters.size() == 1) {
-                    return new AliasFilter(filters.get(0), aliases);
+                    return AliasFilter.of(filters.get(0), aliases);
                 } else {
                     BoolQueryBuilder bool = new BoolQueryBuilder();
                     for (QueryBuilder filter : filters) {
                         bool.should(filter);
                     }
-                    return new AliasFilter(bool, aliases);
+                    return AliasFilter.of(bool, aliases);
                 }
             }
         } else {
             IndexMetadata indexMetadata = metadata.index(index);
-            return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
+            return AliasFilter.of(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
         }
     }
 
@@ -1702,13 +1720,6 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public Function<String, Predicate<String>> getFieldFilter() {
         return mapperRegistry.getFieldFilter();
-    }
-
-    /**
-     * Returns the registered metadata field names for the provided compatible {@link Version}.
-     */
-    public Set<String> getMetadataFields(Version version) {
-        return mapperRegistry.getMetadataMapperParsers(version).keySet();
     }
 
     private void setIdFieldDataEnabled(boolean value) {

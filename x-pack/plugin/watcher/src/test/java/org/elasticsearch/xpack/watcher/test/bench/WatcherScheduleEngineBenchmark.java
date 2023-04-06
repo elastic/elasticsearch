@@ -103,7 +103,9 @@ public class WatcherScheduleEngineBenchmark {
                     Settings.builder().put(SETTINGS).put("node.data", false).build(),
                     emptyMap(),
                     null,
-                    () -> { throw new IllegalArgumentException("settings must have [node.name]"); }
+                    () -> {
+                        throw new IllegalArgumentException("settings must have [node.name]");
+                    }
                 )
             ).start()
         ) {
@@ -344,7 +346,7 @@ public class WatcherScheduleEngineBenchmark {
                 Locale.ENGLISH,
                 "%10s | %13s | %12d | %13d \n",
                 name,
-                new ByteSizeValue(avgHeapUsed),
+                ByteSizeValue.ofBytes(avgHeapUsed),
                 watcherThreadPoolStats.getRejected(),
                 watcherThreadPoolStats.getCompleted()
             );

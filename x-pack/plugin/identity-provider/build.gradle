@@ -294,6 +294,4 @@ addQaCheckDependencies(project)
 if (BuildParams.inFipsJvm) {
   // We don't support the IDP in FIPS-140 mode, so no need to run tests
   tasks.named("test").configure { enabled = false }
-  // We run neither integTests nor unit tests in FIPS-140 mode
-  tasks.named("testingConventions").configure { enabled = false }
 }

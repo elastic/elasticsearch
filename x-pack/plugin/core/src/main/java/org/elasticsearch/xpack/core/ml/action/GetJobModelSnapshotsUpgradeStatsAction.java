@@ -15,6 +15,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,6 +31,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request.SNAPSHOT_ID;
 
 public class GetJobModelSnapshotsUpgradeStatsAction extends ActionType<GetJobModelSnapshotsUpgradeStatsAction.Response> {
@@ -114,6 +118,18 @@ public class GetJobModelSnapshotsUpgradeStatsAction extends ActionType<GetJobMod
             return Objects.equals(jobId, other.jobId)
                 && Objects.equals(snapshotId, other.snapshotId)
                 && Objects.equals(allowNoMatch, other.allowNoMatch);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(
+                id,
+                type,
+                action,
+                format("get_job_model_snapshot_upgrade_stats[%s:%s]", jobId, snapshotId),
+                parentTaskId,
+                headers
+            );
         }
     }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -33,11 +32,11 @@ public class TestResponseHeaderRestAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         if ("password".equals(request.header("Secret"))) {
-            RestResponse response = new BytesRestResponse(RestStatus.OK, "Access granted");
+            RestResponse response = new RestResponse(RestStatus.OK, "Access granted");
             response.addHeader("Secret", "granted");
             return channel -> channel.sendResponse(response);
         } else {
-            RestResponse response = new BytesRestResponse(RestStatus.UNAUTHORIZED, "Access denied");
+            RestResponse response = new RestResponse(RestStatus.UNAUTHORIZED, "Access denied");
             response.addHeader("Secret", "required");
             return channel -> channel.sendResponse(response);
         }

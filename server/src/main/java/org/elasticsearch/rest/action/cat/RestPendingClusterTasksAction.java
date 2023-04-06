@@ -15,12 +15,15 @@ import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestPendingClusterTasksAction extends AbstractCatAction {
 
     @Override
@@ -66,10 +69,10 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
         return t;
     }
 
-    private Table buildTable(RestRequest request, PendingClusterTasksResponse tasks) {
+    private Table buildTable(RestRequest request, PendingClusterTasksResponse response) {
         Table t = getTableWithHeader(request);
 
-        for (PendingClusterTask task : tasks) {
+        for (PendingClusterTask task : response.pendingTasks()) {
             t.startRow();
             t.addCell(task.getInsertOrder());
             t.addCell(task.getTimeInQueue());

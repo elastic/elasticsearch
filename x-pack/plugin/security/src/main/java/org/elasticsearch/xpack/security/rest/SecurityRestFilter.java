@@ -108,7 +108,7 @@ public class SecurityRestFilter implements RestHandler {
 
         final RestRequest wrappedRequest = maybeWrapRestRequest(request);
         RemoteHostHeader.process(request, threadContext);
-        authenticationService.authenticate(wrappedRequest, ActionListener.wrap(authentication -> {
+        authenticationService.authenticate(wrappedRequest.getHttpRequest(), ActionListener.wrap(authentication -> {
             if (authentication == null) {
                 logger.trace("No authentication available for REST request [{}]", request.uri());
             } else {

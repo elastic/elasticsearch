@@ -1063,7 +1063,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                         Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
                         if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
                         // wait for the snapshot to be completed (successfully or not) otherwise the teardown might fail
-                        SnapshotState.valueOf((String) snapshotInfoMap.get("state")).completed()) {
+                            SnapshotState.valueOf((String) snapshotInfoMap.get("state")).completed()) {
                             return true;
                         }
                     }

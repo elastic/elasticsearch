@@ -640,17 +640,21 @@ public final class IndexModule {
      * doing so will result in an exception.
      */
     public MapperService newIndexMapperService(
+        ClusterService clusterService,
         XContentParserConfiguration parserConfiguration,
         MapperRegistry mapperRegistry,
         ScriptService scriptService
     ) throws IOException {
         return new MapperService(
+            clusterService,
             indexSettings,
             analysisRegistry.build(indexSettings),
             parserConfiguration,
             new SimilarityService(indexSettings, scriptService, similarities),
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException("no index query shard context available"); },
+            () -> {
+                throw new UnsupportedOperationException("no index query shard context available");
+            },
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
             scriptService
         );

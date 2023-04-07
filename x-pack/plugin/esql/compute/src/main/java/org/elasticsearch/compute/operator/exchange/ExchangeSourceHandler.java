@@ -30,8 +30,8 @@ public final class ExchangeSourceHandler {
     private final ExchangeBuffer buffer;
     private final Executor fetchExecutor;
 
-    private final PendingInstances allSinks = new PendingInstances();
-    private final PendingInstances allSources = new PendingInstances();
+    private final PendingInstances outstandingSinks = new PendingInstances();
+    private final PendingInstances outstandingSources = new PendingInstances();
     private final AtomicReference<Exception> failure = new AtomicReference<>();
 
     public ExchangeSourceHandler(int maxBufferSize, Executor fetchExecutor) {
@@ -43,7 +43,7 @@ public final class ExchangeSourceHandler {
         private boolean finished;
 
         LocalExchangeSource() {
-            allSources.trackNewInstance();
+            outstandingSources.trackNewInstance();
         }
 
         private void checkFailure() {
@@ -74,8 +74,8 @@ public final class ExchangeSourceHandler {
         public void finish() {
             if (finished == false) {
                 finished = true;
-                if (allSources.finishInstance()) {
-                    buffer.drainPages();
+                if (outstandingSources.finishInstance()) {
+                    buffer.finish(true);
                 }
             }
         }
@@ -144,7 +144,7 @@ public final class ExchangeSourceHandler {
         private final RemoteSink remoteSink;
 
         RemoteSinkFetcher(RemoteSink remoteSink) {
-            allSinks.trackNewInstance();
+            outstandingSinks.trackNewInstance();
             this.remoteSink = remoteSink;
         }
 
@@ -153,7 +153,7 @@ public final class ExchangeSourceHandler {
             while (loopControl.isRunning()) {
                 loopControl.exiting();
                 // finish other sinks if one of them failed or sources no longer need pages.
-                boolean toFinishSinks = allSources.finished || failure.get() != null;
+                boolean toFinishSinks = buffer.noMoreInputs() || failure.get() != null;
                 remoteSink.fetchPageAsync(toFinishSinks, ActionListener.wrap(resp -> {
                     Page page = resp.page();
                     if (page != null) {
@@ -203,8 +203,8 @@ public final class ExchangeSourceHandler {
         void onSinkComplete() {
             if (finished == false) {
                 finished = true;
-                if (allSinks.finishInstance()) {
-                    buffer.finish();
+                if (outstandingSinks.finishInstance()) {
+                    buffer.finish(false);
                 }
             }
         }

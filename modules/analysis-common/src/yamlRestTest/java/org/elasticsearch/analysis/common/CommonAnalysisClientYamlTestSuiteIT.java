@@ -20,6 +20,6 @@ public class CommonAnalysisClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters(new String[] { "analysis-common/10_basic"});
+        return ESClientYamlSuiteTestCase.createParameters();
     }
 }

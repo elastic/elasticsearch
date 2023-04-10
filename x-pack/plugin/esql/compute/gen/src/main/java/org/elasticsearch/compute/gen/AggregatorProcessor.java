@@ -7,13 +7,17 @@
 
 package org.elasticsearch.compute.gen;
 
+import com.squareup.javapoet.JavaFile;
+
 import org.elasticsearch.compute.ann.Aggregator;
 
 import java.io.IOException;
+import java.io.Writer;
 import java.util.List;
 import java.util.Set;
 
 import javax.annotation.processing.Completion;
+import javax.annotation.processing.Filer;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
@@ -23,6 +27,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic;
+import javax.tools.JavaFileObject;
 
 /**
  * Glues the {@link AggregatorImplementer} into the jdk's annotation
@@ -65,14 +70,30 @@ public class AggregatorProcessor implements Processor {
     public boolean process(Set<? extends TypeElement> set, RoundEnvironment roundEnvironment) {
         for (TypeElement ann : set) {
             for (Element aggClass : roundEnvironment.getElementsAnnotatedWith(ann)) {
-                try {
-                    new AggregatorImplementer(env.getElementUtils(), (TypeElement) aggClass).sourceFile().writeTo(env.getFiler());
-                } catch (IOException e) {
-                    env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed generating aggregation for " + aggClass);
-                    throw new RuntimeException(e);
-                }
+                write(aggClass, "aggregator", new AggregatorImplementer(env.getElementUtils(), (TypeElement) aggClass).sourceFile(), env);
             }
         }
         return true;
+    }
+
+    /**
+     * Just like {@link JavaFile#writeTo(Filer)} but on windows it replaces {@code \n} with {@code \r\n}.
+     */
+    public static void write(Object origination, String what, JavaFile file, ProcessingEnvironment env) {
+        try {
+            String fileName = file.packageName + "." + file.typeSpec.name;
+            JavaFileObject filerSourceFile = env.getFiler()
+                .createSourceFile(fileName, file.typeSpec.originatingElements.toArray(Element[]::new));
+            try (Writer w = filerSourceFile.openWriter()) {
+                if (System.getProperty("line.separator").equals("\n")) {
+                    file.writeTo(w);
+                } else {
+                    w.write(file.toString().replace("\n", System.getProperty("line.separator")));
+                }
+            }
+        } catch (IOException e) {
+            env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed generating " + what + " for " + origination);
+            throw new RuntimeException(e);
+        }
     }
 }

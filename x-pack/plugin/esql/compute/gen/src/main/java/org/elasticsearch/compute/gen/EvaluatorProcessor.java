@@ -9,7 +9,6 @@ package org.elasticsearch.compute.gen;
 
 import org.elasticsearch.compute.ann.Evaluator;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
@@ -22,7 +21,6 @@ import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
-import javax.tools.Diagnostic;
 
 /**
  * Glues the {@link EvaluatorImplementer} into the jdk's annotation
@@ -66,14 +64,13 @@ public class EvaluatorProcessor implements Processor {
         for (TypeElement ann : set) {
             for (Element evaluatorMethod : roundEnvironment.getElementsAnnotatedWith(ann)) {
                 Evaluator evaluatorAnn = evaluatorMethod.getAnnotation(Evaluator.class);
-                try {
+                AggregatorProcessor.write(
+                    evaluatorMethod,
+                    "evaluator",
                     new EvaluatorImplementer(env.getElementUtils(), (ExecutableElement) evaluatorMethod, evaluatorAnn.extraName())
-                        .sourceFile()
-                        .writeTo(env.getFiler());
-                } catch (IOException e) {
-                    env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed generating evaluator for " + evaluatorMethod);
-                    throw new RuntimeException(e);
-                }
+                        .sourceFile(),
+                    env
+                );
             }
         }
         return true;

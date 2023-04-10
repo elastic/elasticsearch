@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.dlm;
 
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -88,7 +88,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         return toXContent(builder, params, null);
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConditions rolloverConditions)
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
         builder.startObject();
         builder.field(INDEX_FIELD.getPreferredName(), index);
@@ -113,7 +113,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
             }
             if (this.lifecycle != null) {
                 builder.field(LIFECYCLE_FIELD.getPreferredName());
-                lifecycle.toXContent(builder, params, rolloverConditions);
+                lifecycle.toXContent(builder, params, rolloverConfiguration);
             }
             if (this.error != null) {
                 builder.field(ERROR_FIELD.getPreferredName(), error);

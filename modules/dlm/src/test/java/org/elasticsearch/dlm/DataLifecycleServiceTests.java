@@ -42,7 +42,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -53,7 +52,6 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -78,8 +76,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
     private DataLifecycleService dataLifecycleService;
     private List<TransportRequest> clientSeenRequests;
     private Client client;
-    @SuppressWarnings("rawtypes")
-    private List<DoExecuteDelegate> clientDelegates;
+    private DoExecuteDelegate clientDelegate;
     private ClusterService clusterService;
 
     @Before
@@ -104,7 +101,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             () -> now,
             new DataLifecycleErrorStore()
         );
-        clientDelegates = new ArrayList<>();
+        clientDelegate = null;
         dataLifecycleService.init();
     }
 
@@ -317,11 +314,11 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
     public void testForceMerge() throws Exception {
         // We want this test method to get fake force merge responses, because this is what triggers a cluster state update
-        clientDelegates.add((action, request, listener) -> {
+        clientDelegate = (action, request, listener) -> {
             if (action.name().equals("indices:admin/forcemerge")) {
                 listener.onResponse(new ForceMergeResponse(5, 1, 0, List.of()));
             }
-        });
+        };
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
         Metadata.Builder builder = Metadata.builder();
@@ -495,8 +492,11 @@ public class DataLifecycleServiceTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
-    private NoOpClient getTransportRequestsRecordingClient() {
+    /**
+     * This method returns a client that keeps track of the requests it has seen in clientSeenRequests. By default it does nothing else
+     * (it does not even notify the listener), but tests can provide an implementation of clientDelegate to provide any needed behavior.
+     */
+    private Client getTransportRequestsRecordingClient() {
         return new NoOpClient(getTestName()) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -505,13 +505,15 @@ public class DataLifecycleServiceTests extends ESTestCase {
                 ActionListener<Response> listener
             ) {
                 clientSeenRequests.add(request);
-                clientDelegates.forEach(clientDelegate -> clientDelegate.apply(action, request, listener));
+                if (clientDelegate != null) {
+                    clientDelegate.doExecute(action, request, listener);
+                }
             }
         };
     }
 
-    @FunctionalInterface
-    public interface DoExecuteDelegate<Request extends ActionRequest, Response extends ActionResponse> {
-        void apply(ActionType<Response> action, Request request, ActionListener<Response> listener);
+    private interface DoExecuteDelegate {
+        @SuppressWarnings("rawtypes")
+        void doExecute(ActionType action, ActionRequest request, ActionListener listener);
     }
 }

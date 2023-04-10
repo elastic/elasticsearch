@@ -16,22 +16,18 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
 /** Runs yaml rest tests. */
-public class RankRRFClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class LicenseClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .nodes(2)
-        .plugin("rank-rrf")
-        .setting("xpack.license.self_generated.type", "trial")
-        .build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().nodes(1).plugin("rank-rrf").build();
 
-    public RankRRFClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public LicenseClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters(new String[] { "rrf" });
+        return ESClientYamlSuiteTestCase.createParameters(new String[] { "license" });
     }
 
     @Override

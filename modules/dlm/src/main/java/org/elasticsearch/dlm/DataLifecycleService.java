@@ -469,7 +469,6 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 public ClusterState execute(ClusterState currentState) {
                     logger.info("Updating cluster state with forcemerge began result for {}", targetIndex);
                     IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
-                    logger.error("I am here!!!");
                     Map<String, String> customMetadata = indexMetadata.getCustomData("dlm");
                     Map<String, String> newCustomMetadata = new HashMap<>();
                     if (customMetadata != null) {

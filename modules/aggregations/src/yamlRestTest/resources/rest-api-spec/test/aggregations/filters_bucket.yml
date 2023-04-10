@@ -140,8 +140,8 @@ setup:
 ---
 "named filters with bucket sort test":
   - skip:
-      version: " - 8.5.99"
-      reason: introduced in 8.6.0
+      version: " - 8.7.99"
+      reason: introduced in 8.8.0
   - do:
       search:
         rest_total_hits_as_int: true

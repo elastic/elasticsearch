@@ -6,7 +6,61 @@ and columns.
 
 image::images/esql/processing-command.svg[A processing command changes an input table,align="center"]
 
+ESQL supports these processing commands:
+
+* <<esql-dissect>>
+* <<esql-drop>>
+* <<esql-eval>>
+* <<esql-grok>>
+* <<esql-limit>>
+* <<esql-project>>
+* <<esql-rename>>
+* <<esql-sort>>
+* <<esql-stats-by>>
+* <<esql-where>>
+
+
+[[esql-dissect]]
+=== `DISSECT`
+
+TODO
+
+[[esql-drop]]
+=== `DROP`
+
+TODO
+
+[[esql-eval]]
+=== `EVAL`
+`EVAL` enables you to add new columns to the end of the table:
+
+[source,esql]
+----
+FROM employees
+| PROJECT first_name, last_name, height
+| EVAL height_feet = height * 3.281, height_cm = height * 100
+----
+
+If the specified column already exists, the existing column will be dropped, and
+the new column will be appended to the table:
+
+[source,esql]
+----
+FROM employees
+| PROJECT first_name, last_name, height
+| EVAL height = height * 3.281
+----
+
 [discrete]
+==== Functions 
+`EVAL` supports various functions for calculating values. Refer to
+<<esql-functions,Functions>> for more information.
+
+[[esql-grok]]
+=== `GROK`
+
+TODO
+
 [[esql-limit]]
 === `LIMIT`
 
@@ -18,7 +72,6 @@ FROM employees
 | LIMIT 5
 ----
 
-[discrete]
 [[esql-project]]
 === `PROJECT`
 
@@ -72,34 +125,11 @@ FROM employees
 | PROJECT current_employee = still_hired, *
 ----
 
-[discrete]
-[[esql-eval]]
-=== `EVAL`
-`EVAL` enables you to add new columns to the end of the table:
+[[esql-rename]]
+=== `RENAME`
 
-[source,esql]
-----
-FROM employees
-| PROJECT first_name, last_name, height
-| EVAL height_feet = height * 3.281, height_cm = height * 100
-----
+TODO
 
-If the specified column already exists, the existing column will be dropped, and
-the new column will be appended to the table:
-
-[source,esql]
-----
-FROM employees
-| PROJECT first_name, last_name, height
-| EVAL height = height * 3.281
-----
-
-[discrete]
-==== Functions 
-`EVAL` supports various functions for calculating values. Refer to
-<<esql-functions,Functions>> for more information.
-
-[discrete]
 [[esql-sort]]
 === `SORT`
 Use the `SORT` command to sort rows on one or more fields:
@@ -145,7 +175,56 @@ FROM employees
 | SORT first_name ASC NULLS FIRST
 ----
 
-[discrete]
+[[esql-stats-by]]
+=== `STATS ... BY`
+Use `STATS ... BY` to group rows according to a common value and calculate one
+or more aggregated values over the grouped rows. 
+
+[source,esql]
+----
+FROM employees
+| STATS count = COUNT(languages) BY languages
+----
+
+If `BY` is omitted, the output table contains exactly one row with the
+aggregations applied over the entire dataset:
+
+[source,esql]
+----
+FROM employees
+| STATS avg_lang = AVG(languages)
+----
+
+It's possible to calculate multiple values:
+
+[source,esql]
+----
+FROM employees
+| STATS avg_lang = AVG(languages), max_lang = MAX(languages)
+----
+
+It's also possible to group by multiple values (only supported for long and
+keyword family fields):
+
+[source,esql]
+----
+FROM employees
+| EVAL hired = DATE_FORMAT(hire_date, "YYYY")
+| STATS avg_salary = AVG(salary) BY hired, languages.long
+| EVAL avg_salary = ROUND(avg_salary)
+| SORT hired, languages.long
+----
+
+The following aggregation functions are supported:
+
+* `AVG`
+* `COUNT`
+* `MAX`
+* `MEDIAN`
+* `MEDIAN_ABSOLUTE_DEVIATION`
+* `MIN`
+* `SUM`
+
 [[esql-where]]
 === `WHERE`
 
@@ -204,54 +283,3 @@ FROM employees
 | PROJECT first_name, last_name, height
 | WHERE length(first_name) < 4
 ----
-
-[discrete]
-[[esql-stats-by]]
-=== `STATS ... BY`
-Use `STATS ... BY` to group rows according to a common value and calculate one
-or more aggregated values over the grouped rows. 
-
-[source,esql]
-----
-FROM employees
-| STATS count = COUNT(languages) BY languages
-----
-
-If `BY` is omitted, the output table contains exactly one row with the
-aggregations applied over the entire dataset:
-
-[source,esql]
-----
-FROM employees
-| STATS avg_lang = AVG(languages)
-----
-
-It's possible to calculate multiple values:
-
-[source,esql]
-----
-FROM employees
-| STATS avg_lang = AVG(languages), max_lang = MAX(languages)
-----
-
-It's also possible to group by multiple values (only supported for long and
-keyword family fields):
-
-[source,esql]
-----
-FROM employees
-| EVAL hired = DATE_FORMAT(hire_date, "YYYY")
-| STATS avg_salary = AVG(salary) BY hired, languages.long
-| EVAL avg_salary = ROUND(avg_salary)
-| SORT hired, languages.long
-----
-
-The following aggregation functions are supported:
-
-* `AVG`
-* `COUNT`
-* `MAX`
-* `MEDIAN`
-* `MEDIAN_ABSOLUTE_DEVIATION`
-* `MIN`
-* `SUM`

@@ -1,9 +1,18 @@
 [[esql-functions]]
 == ESQL functions
 
-<<esql-eval,`EVAL`>> and <<esql-where,`WHERE`>> support the following functions:
+<<esql-eval,`EVAL`>> and <<esql-where,`WHERE`>> support these functions:
 
-[discrete]
+* <<esql-abs>>
+* <<esql-concat>>
+* <<esql-date_format>>
+* <<esql-date_trunc>>
+* <<esql-is_null>>
+* <<esql-length>>
+* <<esql-round>>
+* <<esql-starts_with>>
+* <<esql-substring>>
+
 [[esql-abs]]
 === `ABS`
 Returns the absolute value.
@@ -15,7 +24,6 @@ FROM employees
 | EVAL abs_height = ABS(0.0 - height)
 ----
 
-[discrete]
 [[esql-concat]]
 === `CONCAT`
 Concatenates two or more strings.
@@ -27,7 +35,6 @@ FROM employees
 | EVAL fullname = CONCAT(first_name, " ", last_name)
 ----
 
-[discrete]
 [[esql-date_format]]
 === `DATE_FORMAT`
 Returns a string representation of a date in the provided format. If no format
@@ -40,7 +47,6 @@ FROM employees
 | EVAL hired = DATE_FORMAT(hire_date, "YYYY-MM-dd")
 ----
 
-[discrete]
 [[esql-date_trunc]]
 === `DATE_TRUNC`
 Rounds down a date to the closest interval. Intervals can be expressed using the
@@ -54,7 +60,6 @@ FROM employees
 | SORT year_hired
 ----
 
-[discrete]
 [[esql-is_null]]
 === `IS_NULL`
 Returns a boolean than indicates whether its input is `null`.  
@@ -73,7 +78,6 @@ FROM employees
 | WHERE NOT is_null(first_name)
 ----
 
-[discrete]
 [[esql-length]]
 === `LENGTH`
 Returns the character length of a string.
@@ -85,7 +89,6 @@ FROM employees
 | EVAL fn_length = LENGTH(first_name)
 ----
 
-[discrete]
 [[esql-round]]
 === `ROUND`
 Rounds a number to the closest number with the specified number of digits.
@@ -99,7 +102,6 @@ FROM employees
 | EVAL height = ROUND(height * 3.281, 1)
 ----
 
-[discrete]
 [[esql-starts_with]]
 === `STARTS_WITH`
 Returns a boolean that indicates whether a keyword string starts with another 
@@ -112,7 +114,6 @@ FROM employees
 | EVAL ln_S = STARTS_WITH(last_name, "S")
 ----
 
-[discrete]
 [[esql-substring]]
 === `SUBSTRING`
 Returns a substring of a string, specified by a start position and an optional

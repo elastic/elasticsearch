@@ -991,7 +991,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testTopNNotPushedDownOnOverlimit() {
-        var optimized = optimizedPlan(physicalPlan("from test | sort emp_no | limit " + (LuceneOperator.PAGE_SIZE + 1) + " | project emp_no"));
+        var optimized = optimizedPlan(
+            physicalPlan("from test | sort emp_no | limit " + (LuceneOperator.PAGE_SIZE + 1) + " | project emp_no")
+        );
 
         var project = as(optimized, ProjectExec.class);
         var topN = as(project.child(), TopNExec.class);

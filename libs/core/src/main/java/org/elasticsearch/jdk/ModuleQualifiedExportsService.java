@@ -8,7 +8,6 @@
 
 package org.elasticsearch.jdk;
 
-import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleDescriptor.Exports;
 import java.lang.module.ModuleDescriptor.Opens;
 import java.util.ArrayList;
@@ -42,13 +41,16 @@ public abstract class ModuleQualifiedExportsService {
     protected ModuleQualifiedExportsService() {
         this.qualifiedExports = invert(selfModule.getDescriptor().exports(), Exports::isQualified, Exports::source, Exports::targets);
         this.qualifiedOpens = invert(selfModule.getDescriptor().opens(), Opens::isQualified, Opens::source, Opens::targets);
-        this.targets = Stream.concat(qualifiedExports.keySet().stream(), qualifiedOpens.keySet().stream()).collect(Collectors.toUnmodifiableSet());
+        this.targets = Stream.concat(qualifiedExports.keySet().stream(), qualifiedOpens.keySet().stream())
+            .collect(Collectors.toUnmodifiableSet());
     }
 
-    private <T> Map<String, List<String>> invert(Collection<T> sourcesToTargets,
-                                                 Predicate<T> qualifiedPredicate,
-                                                 Function<T, String> sourceGetter,
-                                                 Function<T, Collection<String>> targetsGetter) {
+    private <T> Map<String, List<String>> invert(
+        Collection<T> sourcesToTargets,
+        Predicate<T> qualifiedPredicate,
+        Function<T, String> sourceGetter,
+        Function<T, Collection<String>> targetsGetter
+    ) {
         Map<String, List<String>> targetsToSources = new HashMap<>();
         for (T sourceToTargets : sourcesToTargets) {
             if (qualifiedPredicate.test(sourceToTargets) == false) {
@@ -78,7 +80,8 @@ public abstract class ModuleQualifiedExportsService {
         String targetName = target.getName();
         if (targets.contains(targetName) == false) {
             throw new IllegalArgumentException(
-                "Module " + selfModule.getName() + " does not contain qualified exports or opens for module " + targetName);
+                "Module " + selfModule.getName() + " does not contain qualified exports or opens for module " + targetName
+            );
         }
         List<String> exports = qualifiedExports.getOrDefault(targetName, List.of());
         for (String export : exports) {

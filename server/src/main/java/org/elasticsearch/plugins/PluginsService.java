@@ -771,8 +771,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             .filter(opens -> opens.targets().contains(target.getName()))
             .forEach(opens -> serverModule.addOpens(opens.source(), target));
 
-        qualifiedExports.getOrDefault(target.getName(), List.of())
-            .forEach(exportService -> exportService.addExportsAndOpens(target));
+        qualifiedExports.getOrDefault(target.getName(), List.of()).forEach(exportService -> exportService.addExportsAndOpens(target));
     }
 
     /**

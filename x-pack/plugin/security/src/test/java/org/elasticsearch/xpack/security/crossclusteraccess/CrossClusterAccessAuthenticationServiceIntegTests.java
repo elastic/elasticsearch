@@ -131,7 +131,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
                             + authentication.getEffectiveSubject().getUser().principal()
                             + "] has type ["
                             + authentication.getEffectiveSubject().getType()
-                            + "] which is not supported for cross cluster access"
+                            + "] but nested cross cluster access is not supported"
                     )
                 )
             );

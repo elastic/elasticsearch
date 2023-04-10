@@ -469,8 +469,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         this.indexSnapshotDetails = Map.copyOf(indexSnapshotDetails);
     }
 
-    public SnapshotInfo withoutIndices() {
-        if (indices.isEmpty()) {
+    public SnapshotInfo maybeWithoutIndices(boolean retainIndices) {
+        if (retainIndices || indices.isEmpty()) {
             return this;
         }
         return new SnapshotInfo(

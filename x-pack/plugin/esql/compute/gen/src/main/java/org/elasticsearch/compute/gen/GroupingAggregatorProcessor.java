@@ -9,7 +9,6 @@ package org.elasticsearch.compute.gen;
 
 import org.elasticsearch.compute.ann.GroupingAggregator;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
@@ -22,7 +21,6 @@ import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
-import javax.tools.Diagnostic;
 
 /**
  * Glues the {@link GroupingAggregatorImplementer} into the jdk's annotation
@@ -65,12 +63,12 @@ public class GroupingAggregatorProcessor implements Processor {
     public boolean process(Set<? extends TypeElement> set, RoundEnvironment roundEnvironment) {
         for (TypeElement ann : set) {
             for (Element aggClass : roundEnvironment.getElementsAnnotatedWith(ann)) {
-                try {
-                    new GroupingAggregatorImplementer(env.getElementUtils(), (TypeElement) aggClass).sourceFile().writeTo(env.getFiler());
-                } catch (IOException e) {
-                    env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed generating grouping aggregation for " + aggClass);
-                    throw new RuntimeException(e);
-                }
+                AggregatorProcessor.write(
+                    aggClass,
+                    "grouping aggregation",
+                    new GroupingAggregatorImplementer(env.getElementUtils(), (TypeElement) aggClass).sourceFile(),
+                    env
+                );
             }
         }
         return true;

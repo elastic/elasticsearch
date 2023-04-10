@@ -123,7 +123,12 @@ public class ExchangeServiceTests extends ESTestCase {
         ESTestCase.terminate(threadPool);
     }
 
-    public void runConcurrentTest(int maxSeqNo, Supplier<ExchangeSource> exchangeSource, Supplier<ExchangeSink> exchangeSink) {
+    void runConcurrentTest(
+        int maxInputSeqNo,
+        int maxOutputSeqNo,
+        Supplier<ExchangeSource> exchangeSource,
+        Supplier<ExchangeSink> exchangeSink
+    ) {
         final AtomicInteger nextSeqNo = new AtomicInteger(-1);
         class SeqNoGenerator extends SourceOperator {
             @Override
@@ -133,7 +138,7 @@ public class ExchangeServiceTests extends ESTestCase {
 
             @Override
             public boolean isFinished() {
-                return nextSeqNo.get() >= maxSeqNo;
+                return nextSeqNo.get() >= maxInputSeqNo;
             }
 
             @Override
@@ -145,7 +150,7 @@ public class ExchangeServiceTests extends ESTestCase {
                 IntBlock.Builder builder = IntBlock.newBlockBuilder(size);
                 for (int i = 0; i < size; i++) {
                     int seqNo = nextSeqNo.incrementAndGet();
-                    if (seqNo < maxSeqNo) {
+                    if (seqNo < maxInputSeqNo) {
                         builder.appendInt(seqNo);
                     }
                 }
@@ -169,9 +174,17 @@ public class ExchangeServiceTests extends ESTestCase {
 
             @Override
             public void addInput(Page page) {
+                assertFalse("already finished", finished);
                 IntBlock block = page.getBlock(0);
                 for (int i = 0; i < block.getPositionCount(); i++) {
-                    assertTrue(receivedSeqNos.add(block.getInt(i)));
+                    int v = block.getInt(i);
+                    if (v < maxOutputSeqNo) {
+                        assertTrue(receivedSeqNos.add(v));
+                        // Early termination
+                        if (receivedSeqNos.size() >= maxOutputSeqNo) {
+                            finished = true;
+                        }
+                    }
                 }
             }
 
@@ -212,28 +225,29 @@ public class ExchangeServiceTests extends ESTestCase {
                 Driver.start(threadPool.executor("esql_test_executor"), driver, listener);
             }
         }.runToCompletion(drivers, future);
-        future.actionGet(TimeValue.timeValueMinutes(2));
-        var expectedSeqNos = IntStream.range(0, maxSeqNo).boxed().collect(Collectors.toSet());
+        future.actionGet(TimeValue.timeValueMinutes(1));
+        var expectedSeqNos = IntStream.range(0, Math.min(maxInputSeqNo, maxOutputSeqNo)).boxed().collect(Collectors.toSet());
         assertThat(receivedSeqNos, hasSize(expectedSeqNos.size()));
         assertThat(receivedSeqNos, equalTo(expectedSeqNos));
     }
 
     public void testConcurrentWithHandlers() {
-        var sourceExchanger = new ExchangeSourceHandler(randomIntBetween(1, 64), threadPool.executor("esql_test_executor"));
+        var sourceExchanger = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor("esql_test_executor"));
         List<ExchangeSinkHandler> sinkHandlers = new ArrayList<>();
         Supplier<ExchangeSink> exchangeSink = () -> {
             final ExchangeSinkHandler sinkHandler;
             if (sinkHandlers.isEmpty() == false && randomBoolean()) {
                 sinkHandler = randomFrom(sinkHandlers);
             } else {
-                sinkHandler = new ExchangeSinkHandler(randomIntBetween(1, 64));
+                sinkHandler = new ExchangeSinkHandler(randomExchangeBuffer());
                 sourceExchanger.addRemoteSink(sinkHandler::fetchPageAsync, randomIntBetween(1, 3));
                 sinkHandlers.add(sinkHandler);
             }
             return sinkHandler.createExchangeSink();
         };
-        final int maxSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
-        runConcurrentTest(maxSeqNo, sourceExchanger::createExchangeSource, exchangeSink);
+        final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
+        final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
+        runConcurrentTest(maxInputSeqNo, maxOutputSeqNo, sourceExchanger::createExchangeSource, exchangeSink);
     }
 
     public void testEarlyTerminate() {
@@ -264,11 +278,12 @@ public class ExchangeServiceTests extends ESTestCase {
         try {
             String exchangeId = "exchange";
             Task task = new Task(1, "", "", "", null, Collections.emptyMap());
-            ExchangeSourceHandler sourceHandler = exchange0.createSourceHandler(exchangeId, randomIntBetween(1, 64));
-            ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 64));
+            ExchangeSourceHandler sourceHandler = exchange0.createSourceHandler(exchangeId, randomExchangeBuffer());
+            ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomExchangeBuffer());
             sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node1.getLocalNode()), randomIntBetween(1, 5));
-            final int maxSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
-            runConcurrentTest(maxSeqNo, sourceHandler::createExchangeSource, sinkHandler::createExchangeSink);
+            final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
+            final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
+            runConcurrentTest(maxInputSeqNo, maxOutputSeqNo, sourceHandler::createExchangeSource, sinkHandler::createExchangeSink);
         } finally {
             IOUtils.close(node0, node1);
         }
@@ -316,7 +331,7 @@ public class ExchangeServiceTests extends ESTestCase {
             sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node1.getLocalNode()), randomIntBetween(1, 5));
             Exception err = expectThrows(
                 Exception.class,
-                () -> runConcurrentTest(maxSeqNo, sourceHandler::createExchangeSource, sinkHandler::createExchangeSink)
+                () -> runConcurrentTest(maxSeqNo, maxSeqNo, sourceHandler::createExchangeSource, sinkHandler::createExchangeSink)
             );
             Throwable cause = ExceptionsHelper.unwrap(err, IOException.class);
             assertNotNull(cause);
@@ -341,6 +356,10 @@ public class ExchangeServiceTests extends ESTestCase {
         service.start();
         service.acceptIncomingRequests();
         return service;
+    }
+
+    private int randomExchangeBuffer() {
+        return randomBoolean() ? randomIntBetween(1, 3) : randomIntBetween(1, 128);
     }
 
     private static class FilterTransportChannel implements TransportChannel {

@@ -38,9 +38,11 @@ final class ExchangeBuffer {
     }
 
     void addPage(Page page) {
-        queue.add(page);
-        if (queueSize.incrementAndGet() == 1) {
-            notifyNotEmpty();
+        if (noMoreInputs == false) {
+            queue.add(page);
+            if (queueSize.incrementAndGet() == 1) {
+                notifyNotEmpty();
+            }
         }
     }
 
@@ -50,12 +52,6 @@ final class ExchangeBuffer {
             notifyNotFull();
         }
         return page;
-    }
-
-    void drainPages() {
-        while (pollPage() != null) {
-
-        }
     }
 
     private void notifyNotEmpty() {
@@ -82,11 +78,11 @@ final class ExchangeBuffer {
 
     ListenableActionFuture<Void> waitForWriting() {
         // maxBufferSize check is not water-tight as more than one sink can pass this check at the same time.
-        if (queueSize.get() < maxSize) {
+        if (queueSize.get() < maxSize || noMoreInputs) {
             return Operator.NOT_BLOCKED;
         }
         synchronized (notFullLock) {
-            if (queueSize.get() < maxSize) {
+            if (queueSize.get() < maxSize || noMoreInputs) {
                 return Operator.NOT_BLOCKED;
             }
             if (notFullFuture == null) {
@@ -111,8 +107,13 @@ final class ExchangeBuffer {
         }
     }
 
-    void finish() {
+    void finish(boolean drainingPages) {
         noMoreInputs = true;
+        if (drainingPages) {
+            while (pollPage() != null) {
+
+            }
+        }
         notifyNotEmpty();
     }
 

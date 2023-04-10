@@ -135,8 +135,6 @@ public final class ExchangeService {
             ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
             if (sinkHandler != null) {
                 sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
-            } else if (request.sourcesFinished()) {
-                listener.onResponse(new ExchangeResponse(null, true));
             } else {
                 // If a data-node request arrives after an exchange request, we add the listener to the pending list. This allows the
                 // data-node request to link the pending listeners with its exchange sink handler when it arrives. We also register the
@@ -145,7 +143,7 @@ public final class ExchangeService {
                 CancellableTask cancellableTask = (CancellableTask) task;
                 cancellableTask.addListener(() -> cancellableTask.notifyIfCancelled(wrappedListener));
                 PendingListener pendingListener = pendingListeners.computeIfAbsent(exchangeId, k -> new PendingListener());
-                pendingListener.addListener(wrappedListener);
+                pendingListener.addListener(new ExchangeListener(request.sourcesFinished(), wrappedListener));
                 // If the data-node request arrived while we were adding the listener to the pending list, we must complete the pending
                 // listeners with the newly created sink handler.
                 sinkHandler = sinks.get(exchangeId);
@@ -156,17 +154,21 @@ public final class ExchangeService {
         }
     }
 
-    static final class PendingListener {
-        private final Queue<ActionListener<ExchangeResponse>> listeners = ConcurrentCollections.newQueue();
+    private record ExchangeListener(boolean sourcesFinished, ActionListener<ExchangeResponse> listener) {
 
-        void addListener(ActionListener<ExchangeResponse> listener) {
+    }
+
+    static final class PendingListener {
+        private final Queue<ExchangeListener> listeners = ConcurrentCollections.newQueue();
+
+        void addListener(ExchangeListener listener) {
             listeners.add(listener);
         }
 
         void onReady(ExchangeSinkHandler handler) {
-            ActionListener<ExchangeResponse> listener;
-            while ((listener = listeners.poll()) != null) {
-                handler.fetchPageAsync(false, listener);
+            ExchangeListener e;
+            while ((e = listeners.poll()) != null) {
+                handler.fetchPageAsync(e.sourcesFinished, e.listener);
             }
         }
     }

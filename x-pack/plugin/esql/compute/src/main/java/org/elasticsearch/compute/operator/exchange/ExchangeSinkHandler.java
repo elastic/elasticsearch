@@ -29,7 +29,6 @@ public final class ExchangeSinkHandler {
     private final ExchangeBuffer buffer;
     private final Queue<ActionListener<ExchangeResponse>> listeners = new ConcurrentLinkedQueue<>();
     private final AtomicInteger outstandingSinks = new AtomicInteger();
-    private volatile boolean allSourcesFinished = false;
     // listeners are notified by only one thread.
     private final Semaphore promised = new Semaphore(1);
 
@@ -46,10 +45,8 @@ public final class ExchangeSinkHandler {
 
         @Override
         public void addPage(Page page) {
-            if (allSourcesFinished == false) {
-                buffer.addPage(page);
-                notifyListeners();
-            }
+            buffer.addPage(page);
+            notifyListeners();
         }
 
         @Override
@@ -57,7 +54,7 @@ public final class ExchangeSinkHandler {
             if (finished == false) {
                 finished = true;
                 if (outstandingSinks.decrementAndGet() == 0) {
-                    buffer.finish();
+                    buffer.finish(false);
                     notifyListeners();
                 }
             }
@@ -65,7 +62,7 @@ public final class ExchangeSinkHandler {
 
         @Override
         public boolean isFinished() {
-            return finished || allSourcesFinished;
+            return finished || buffer.noMoreInputs();
         }
 
         @Override
@@ -84,14 +81,9 @@ public final class ExchangeSinkHandler {
      */
     public void fetchPageAsync(boolean sourceFinished, ActionListener<ExchangeResponse> listener) {
         if (sourceFinished) {
-            this.allSourcesFinished = true;
-            buffer.drainPages();
+            buffer.finish(true);
         }
-        if (this.allSourcesFinished) {
-            listener.onResponse(new ExchangeResponse(null, true));
-        } else {
-            listeners.add(listener);
-        }
+        listeners.add(listener);
         notifyListeners();
     }
 
@@ -126,7 +118,7 @@ public final class ExchangeSinkHandler {
     }
 
     public void finish() {
-        buffer.finish();
+        buffer.finish(false);
         notifyListeners();
     }
 }

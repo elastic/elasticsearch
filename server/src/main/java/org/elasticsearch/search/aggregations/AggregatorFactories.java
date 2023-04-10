@@ -389,7 +389,7 @@ public class AggregatorFactories {
 
         public AggregatorFactories build(AggregationContext context, AggregatorFactory parent) throws IOException {
             if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
-                return EMPTY;
+                return AggregatorFactories.EMPTY;
             }
             AggregatorFactory[] aggFactories = new AggregatorFactory[aggregationBuilders.size()];
             int i = 0;

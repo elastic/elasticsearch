@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -33,10 +33,10 @@ import java.util.Objects;
  */
 public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentObject {
 
-    public static final Setting<RolloverConditions> CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING = new Setting<>(
+    public static final Setting<RolloverConfiguration> CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING = new Setting<>(
         "cluster.dlm.default.rollover",
-        "max_age=7d,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000",
-        (s) -> RolloverConditions.parseSetting(s, "cluster.dlm.default.rollover"),
+        "max_age=auto,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000",
+        (s) -> RolloverConfiguration.parseSetting(s, "cluster.dlm.default.rollover"),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -128,14 +128,15 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     /**
      * Converts the data lifecycle to XContent and injects the RolloverConditions if they exist.
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params ignored, @Nullable RolloverConditions rolloverConditions)
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
         builder.startObject();
         if (dataRetention != null) {
             builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.getStringRep());
         }
-        if (rolloverConditions != null) {
-            builder.field(ROLLOVER_FIELD.getPreferredName(), rolloverConditions);
+        if (rolloverConfiguration != null) {
+            builder.field(ROLLOVER_FIELD.getPreferredName());
+            rolloverConfiguration.evaluateAndConvertToXContent(builder, params, dataRetention);
         }
         builder.endObject();
         return builder;

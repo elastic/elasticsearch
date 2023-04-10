@@ -61,6 +61,12 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
 
     @Override
     public IntBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+        if (block.areAllValuesNull()) {
+            for (int p = beginInclusive; p < endExclusive; p++) {
+                appendNull();
+            }
+            return this;
+        }
         return copyFrom((IntBlock) block, beginInclusive, endExclusive);
     }
 

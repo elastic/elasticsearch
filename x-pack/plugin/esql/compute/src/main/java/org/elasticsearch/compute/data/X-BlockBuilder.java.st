@@ -102,6 +102,12 @@ $endif$
 
     @Override
     public $Type$BlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+        if (block.areAllValuesNull()) {
+            for (int p = beginInclusive; p < endExclusive; p++) {
+                appendNull();
+            }
+            return this;
+        }
         return copyFrom(($Type$Block) block, beginInclusive, endExclusive);
     }
 

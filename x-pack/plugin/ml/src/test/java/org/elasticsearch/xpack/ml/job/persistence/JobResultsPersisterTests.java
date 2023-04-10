@@ -74,7 +74,6 @@ public class JobResultsPersisterTests extends ESTestCase {
     private static final String JOB_ID = "foo";
 
     private Client client;
-    private OriginSettingClient originSettingClient;
     private ArgumentCaptor<BulkRequest> bulkRequestCaptor;
     private JobResultsPersister persister;
 
@@ -83,7 +82,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         bulkRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
         client = mock(Client.class);
         doAnswer(withResponse(mock(BulkResponse.class))).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
-        originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
+        OriginSettingClient originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         persister = new JobResultsPersister(originSettingClient, buildResultsPersisterService(originSettingClient));
     }
 
@@ -222,8 +221,8 @@ public class JobResultsPersisterTests extends ESTestCase {
 
     public void testBulkRequestExecutesWhenReachMaxDocs() {
         JobResultsPersister.Builder bulkBuilder = persister.bulkPersisterBuilder("foo");
-        ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, 0);
         for (int i = 0; i <= JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
+            ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, i);
             bulkBuilder.persistModelPlot(modelPlot);
         }
 
@@ -282,7 +281,6 @@ public class JobResultsPersisterTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
     public void testPersistDatafeedTimingStats() {
         DatafeedTimingStats timingStats = new DatafeedTimingStats(
             "foo",
@@ -291,7 +289,11 @@ public class JobResultsPersisterTests extends ESTestCase {
             666.0,
             new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0)
         );
-        persister.persistDatafeedTimingStats(timingStats, WriteRequest.RefreshPolicy.IMMEDIATE);
+        persister.persistDatafeedTimingStats(
+            timingStats,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            ActionListener.wrap(r -> {}, e -> fail("unexpected exception " + e.getMessage()))
+        );
 
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();
@@ -325,7 +327,6 @@ public class JobResultsPersisterTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings("unchecked")
     private void testPersistQuantilesSync(SearchHits searchHits, String expectedIndexOrAlias) {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);

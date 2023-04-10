@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +26,7 @@ import java.util.Objects;
 
 public class ShardStats implements Writeable, ToXContentFragment {
 
-    private static final Version DEDUPLICATE_SHARD_PATH_VERSION = Version.V_8_4_0;
+    private static final TransportVersion DEDUPLICATE_SHARD_PATH_VERSION = TransportVersion.V_8_4_0;
 
     private final ShardRouting shardRouting;
     private final CommonStats commonStats;
@@ -46,7 +46,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         commonStats = new CommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
         statePath = in.readString();
-        if (in.getVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
             dataPath = Objects.requireNonNullElse(in.readOptionalString(), this.statePath);
         } else {
             dataPath = in.readString();
@@ -164,7 +164,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         commonStats.writeTo(out);
         out.writeOptionalWriteable(commitStats);
         out.writeString(statePath);
-        if (out.getVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
             out.writeOptionalString(statePath.equals(dataPath) ? null : dataPath);
         } else {
             out.writeString(dataPath);

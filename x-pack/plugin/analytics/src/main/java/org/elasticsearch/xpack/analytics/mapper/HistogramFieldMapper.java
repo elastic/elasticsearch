@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -28,10 +29,10 @@ import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -49,6 +50,7 @@ import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -197,6 +199,33 @@ public class HistogramFieldMapper extends FieldMapper {
                         }
 
                         @Override
+                        public FormattedDocValues getFormattedValues(DocValueFormat format) {
+                            try {
+                                final BinaryDocValues values = DocValues.getBinary(context.reader(), fieldName);
+                                final InternalHistogramValue value = new InternalHistogramValue();
+                                return new FormattedDocValues() {
+                                    @Override
+                                    public boolean advanceExact(int docId) throws IOException {
+                                        return values.advanceExact(docId);
+                                    }
+
+                                    @Override
+                                    public int docValueCount() {
+                                        return 1;
+                                    }
+
+                                    @Override
+                                    public Object nextValue() throws IOException {
+                                        value.reset(values.binaryValue());
+                                        return value;
+                                    }
+                                };
+                            } catch (IOException e) {
+                                throw new UncheckedIOException("Unable to loead histogram doc values", e);
+                            }
+                        }
+
+                        @Override
                         public SortedBinaryDocValues getBytesValues() {
                             throw new UnsupportedOperationException(
                                 "String representation of doc values " + "for [" + CONTENT_TYPE + "] fields is not supported"
@@ -283,7 +312,8 @@ public class HistogramFieldMapper extends FieldMapper {
                         double val = subParser.doubleValue();
                         if (val < previousVal) {
                             // values must be in increasing order
-                            throw new MapperParsingException(
+                            throw new DocumentParsingException(
+                                subParser.getTokenLocation(),
                                 "error parsing field ["
                                     + name()
                                     + "], ["
@@ -312,22 +342,28 @@ public class HistogramFieldMapper extends FieldMapper {
                         token = subParser.nextToken();
                     }
                 } else {
-                    throw new MapperParsingException("error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]");
+                    throw new DocumentParsingException(
+                        subParser.getTokenLocation(),
+                        "error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]"
+                    );
                 }
                 token = subParser.nextToken();
             }
             if (values == null) {
-                throw new MapperParsingException(
+                throw new DocumentParsingException(
+                    subParser.getTokenLocation(),
                     "error parsing field [" + name() + "], expected field called [" + VALUES_FIELD.getPreferredName() + "]"
                 );
             }
             if (counts == null) {
-                throw new MapperParsingException(
+                throw new DocumentParsingException(
+                    subParser.getTokenLocation(),
                     "error parsing field [" + name() + "], expected field called [" + COUNTS_FIELD.getPreferredName() + "]"
                 );
             }
             if (values.size() != counts.size()) {
-                throw new MapperParsingException(
+                throw new DocumentParsingException(
+                    subParser.getTokenLocation(),
                     "error parsing field ["
                         + name()
                         + "], expected same length from ["
@@ -346,7 +382,8 @@ public class HistogramFieldMapper extends FieldMapper {
             for (int i = 0; i < values.size(); i++) {
                 int count = counts.get(i);
                 if (count < 0) {
-                    throw new MapperParsingException(
+                    throw new DocumentParsingException(
+                        subParser.getTokenLocation(),
                         "error parsing field [" + name() + "], [" + COUNTS_FIELD + "] elements must be >= 0 but got " + counts.get(i)
                     );
                 } else if (count > 0) {
@@ -370,7 +407,11 @@ public class HistogramFieldMapper extends FieldMapper {
 
         } catch (Exception ex) {
             if (ignoreMalformed.value() == false) {
-                throw new MapperParsingException("failed to parse field [{}] of type [{}]", ex, fieldType().name(), fieldType().typeName());
+                throw new DocumentParsingException(
+                    context.parser().getTokenLocation(),
+                    "failed to parse field [" + fieldType().name() + "] of type [" + fieldType().typeName() + "]",
+                    ex
+                );
             }
 
             if (subParser != null) {

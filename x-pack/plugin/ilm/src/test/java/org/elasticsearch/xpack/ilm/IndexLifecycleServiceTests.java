@@ -24,11 +24,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle.State;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -47,7 +49,6 @@ import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.ShrunkShardsAllocatedStep;
 import org.elasticsearch.xpack.core.ilm.Step;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -63,6 +64,7 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.time.Clock.systemUTC;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
@@ -75,6 +77,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 public class IndexLifecycleServiceTests extends ESTestCase {
@@ -328,25 +331,23 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
 
-        SetOnce<Boolean> ranPolicy = new SetOnce<>();
-        SetOnce<Boolean> moveToMaintenance = new SetOnce<>();
-        doAnswer(invocationOnMock -> {
-            ranPolicy.set(true);
-            throw new AssertionError("invalid invocation");
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(), eq(IndexLifecycleRunner.ILM_TASK_CONFIG), any());
-
+        AtomicBoolean moveToMaintenance = new AtomicBoolean();
         doAnswer(invocationOnMock -> {
             OperationModeUpdateTask task = (OperationModeUpdateTask) invocationOnMock.getArguments()[1];
             assertThat(task.getILMOperationMode(), equalTo(OperationMode.STOPPED));
-            moveToMaintenance.set(true);
+            assertTrue(moveToMaintenance.compareAndSet(false, true));
             return null;
         }).when(clusterService)
             .submitUnbatchedStateUpdateTask(eq("ilm_operation_mode_update[stopped]"), any(OperationModeUpdateTask.class));
 
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, randomBoolean());
-        assertNull(ranPolicy.get());
         assertTrue(moveToMaintenance.get());
+
+        Mockito.verify(clusterService, Mockito.atLeastOnce()).getClusterSettings();
+        Mockito.verify(clusterService, Mockito.atLeastOnce()).submitUnbatchedStateUpdateTask(anyString(), any());
+        Mockito.verify(clusterService, times(1)).createTaskQueue(anyString(), any(), any());
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testExceptionStillProcessesOtherIndices() {
@@ -502,7 +503,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     }
 
     public void testParsingOriginationDateBeforeIndexCreation() {
-        Settings indexSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true).build();
+        Settings indexSettings = Settings.builder().put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true).build();
         Index index = new Index("invalid_index_name", UUID.randomUUID().toString());
         expectThrows(
             IllegalArgumentException.class,

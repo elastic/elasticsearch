@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.hamcrest.Matchers;
 
 import java.util.EnumSet;
 import java.util.concurrent.CancellationException;
@@ -35,11 +35,10 @@ import java.util.function.Function;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
-import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
+import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefixOnMaster;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-@TestLogging(value = "org.elasticsearch.tasks.TaskManager:TRACE,org.elasticsearch.test.TaskAssertions:TRACE", reason = "debugging")
 public class RestClusterInfoActionCancellationIT extends HttpSmokeTestCase {
 
     public void testGetMappingsCancellation() throws Exception {
@@ -77,8 +76,18 @@ public class RestClusterInfoActionCancellationIT extends HttpSmokeTestCase {
         final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
         assertThat(future.isDone(), equalTo(false));
-        awaitTaskWithPrefix(actionName);
-
+        awaitTaskWithPrefixOnMaster(actionName);
+        // To ensure that the task is executing on master, we wait until the first blocked execution of the task registers its cluster state
+        // observer for further retries. This ensures that a task is not cancelled before we have started its execution, which could result
+        // in the task being unregistered and the test not being able to find any cancelled tasks.
+        assertBusy(
+            () -> assertThat(
+                internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+                    .getClusterApplierService()
+                    .getTimeoutClusterStateListenersSize(),
+                Matchers.greaterThan(0)
+            )
+        );
         cancellable.cancel();
         assertAllCancellableTasksAreCancelled(actionName);
 

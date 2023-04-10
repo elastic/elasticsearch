@@ -141,7 +141,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         });
 
         assertThat(responseRef.get(), notNullValue());
-        if (anonymousUser.enabled() && false == authentication.isApiKey()) {
+        if (anonymousUser.enabled() && false == (authentication.isApiKey() || authentication.isCrossClusterAccess())) {
             // Roles of anonymousUser are added to non api key authentication
             final Authentication auth = responseRef.get().authentication();
             final User userInResponse = auth.getEffectiveSubject().getUser();
@@ -155,7 +155,10 @@ public class TransportAuthenticateActionTests extends ESTestCase {
             }
             assertThat(auth.getAuthenticatingSubject().getRealm(), sameInstance(authentication.getAuthenticatingSubject().getRealm()));
             assertThat(auth.getEffectiveSubject().getRealm(), sameInstance(authentication.getEffectiveSubject().getRealm()));
-            assertThat(auth.getEffectiveSubject().getVersion(), sameInstance(authentication.getEffectiveSubject().getVersion()));
+            assertThat(
+                auth.getEffectiveSubject().getTransportVersion(),
+                sameInstance(authentication.getEffectiveSubject().getTransportVersion())
+            );
             assertThat(auth.getAuthenticationType(), sameInstance(authentication.getAuthenticationType()));
             assertThat(
                 auth.getAuthenticatingSubject().getMetadata(),

@@ -51,6 +51,7 @@ import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -239,6 +240,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 name,
                 new WildcardFieldType(context.buildFullName(name), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
                 ignoreAbove.get(),
+                context.isSourceSynthetic(),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 nullValue.get(),
@@ -627,8 +629,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 TermQuery tq = new TermQuery(new Term(name(), token));
                 bqBuilder.add(new BooleanClause(tq, occur));
             } else {
-                PrefixQuery wq = new PrefixQuery(new Term(name(), token));
-                wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+                PrefixQuery wq = new PrefixQuery(new Term(name(), token), MultiTermQuery.CONSTANT_SCORE_REWRITE);
                 bqBuilder.add(new BooleanClause(wq, occur));
             }
         }
@@ -679,8 +680,7 @@ public class WildcardFieldMapper extends FieldMapper {
                             TermQuery tq = new TermQuery(new Term(name(), token));
                             bqBuilder.add(new BooleanClause(tq, Occur.FILTER));
                         } else {
-                            PrefixQuery wq = new PrefixQuery(new Term(name(), token));
-                            wq.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+                            PrefixQuery wq = new PrefixQuery(new Term(name(), token), MultiTermQuery.CONSTANT_SCORE_REWRITE);
                             bqBuilder.add(new BooleanClause(wq, Occur.FILTER));
                         }
                     }
@@ -705,7 +705,8 @@ public class WildcardFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             String searchTerm = BytesRefs.toString(value);
             try {
@@ -766,13 +767,22 @@ public class WildcardFieldMapper extends FieldMapper {
                 BooleanQuery ngramQ = approxBuilder.build();
 
                 // Verification query
-                FuzzyQuery fq = new FuzzyQuery(
-                    new Term(name(), searchTerm),
-                    fuzziness.asDistance(searchTerm),
-                    prefixLength,
-                    maxExpansions,
-                    transpositions
-                );
+                FuzzyQuery fq = rewriteMethod == null
+                    ? new FuzzyQuery(
+                        new Term(name(), searchTerm),
+                        fuzziness.asDistance(searchTerm),
+                        prefixLength,
+                        maxExpansions,
+                        transpositions
+                    )
+                    : new FuzzyQuery(
+                        new Term(name(), searchTerm),
+                        fuzziness.asDistance(searchTerm),
+                        prefixLength,
+                        maxExpansions,
+                        transpositions,
+                        rewriteMethod
+                    );
                 if (ngramQ.clauses().size() == 0) {
                     return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), searchTerm, fq.getAutomata().automaton);
                 }
@@ -873,11 +883,13 @@ public class WildcardFieldMapper extends FieldMapper {
     private final String nullValue;
     private final FieldType ngramFieldType;
     private final Version indexVersionCreated;
+    private final boolean storeIgnored;
 
     private WildcardFieldMapper(
         String simpleName,
         WildcardFieldType mappedFieldType,
         int ignoreAbove,
+        boolean storeIgnored,
         MultiFields multiFields,
         CopyTo copyTo,
         String nullValue,
@@ -886,6 +898,7 @@ public class WildcardFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
+        this.storeIgnored = storeIgnored;
         this.indexVersionCreated = indexVersionCreated;
         this.ngramFieldType = new FieldType(Defaults.FIELD_TYPE);
         this.ngramFieldType.setTokenized(true);
@@ -927,7 +940,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 createFields(value, parseDoc, fields);
             } else {
                 context.addIgnoredField(name());
-                if (context.isSyntheticSource()) {
+                if (storeIgnored) {
                     parseDoc.add(new StoredField(originalName(), new BytesRef(value)));
                 }
             }

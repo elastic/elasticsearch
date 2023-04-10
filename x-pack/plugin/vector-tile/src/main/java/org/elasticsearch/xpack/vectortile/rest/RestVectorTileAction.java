@@ -56,6 +56,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
 /**
  * Main class handling a call to the _mvt API.
@@ -215,11 +216,17 @@ public class RestVectorTileAction extends BaseRestHandler {
         }
         searchRequestBuilder.setQuery(qBuilder);
         if (request.getGridPrecision() > 0) {
-            final Rectangle rectangle = request.getBoundingBox();
-            final GeoBoundingBox boundingBox = new GeoBoundingBox(
-                new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
-                new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
-            );
+            final GeoBoundingBox boundingBox;
+            if (request.getGridAgg().needsBounding(request.getZ(), request.getGridPrecision())) {
+                final Rectangle rectangle = request.getBoundingBox();
+                boundingBox = new GeoBoundingBox(
+                    new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+                    new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+                );
+            } else {
+                // unbounded
+                boundingBox = new GeoBoundingBox(new GeoPoint(Double.NaN, Double.NaN), new GeoPoint(Double.NaN, Double.NaN));
+            }
             final GeoGridAggregationBuilder tileAggBuilder = request.getGridAgg()
                 .newAgg(GRID_FIELD)
                 .field(request.getField())
@@ -288,7 +295,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                 featureBuilder.clear();
                 featureBuilder.mergeFrom((byte[]) feature);
                 VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());
-                VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, INDEX_TAG, searchHit.getIndex());
+                VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, INDEX_TAG, buildQualifiedIndex(searchHit));
                 addHitsFields(featureBuilder, layerProps, requestField, fields);
                 hitsLayerBuilder.addFeatures(featureBuilder);
             }
@@ -302,7 +309,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                         featureBuilder.clear();
                         featureBuilder.mergeFrom(labelPosFeature);
                         VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());
-                        VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, INDEX_TAG, searchHit.getIndex());
+                        VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, INDEX_TAG, buildQualifiedIndex(searchHit));
                         VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, LABEL_POSITION_FIELD_NAME, true);
                         addHitsFields(featureBuilder, layerProps, requestField, fields);
                         hitsLayerBuilder.addFeatures(featureBuilder);
@@ -325,6 +332,10 @@ public class RestVectorTileAction extends BaseRestHandler {
                 VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, field, fields.get(field).getValue());
             }
         }
+    }
+
+    private static String buildQualifiedIndex(SearchHit hit) {
+        return buildRemoteIndexName(hit.getClusterAlias(), hit.getIndex());
     }
 
     private static VectorTile.Tile.Layer.Builder buildAggsLayer(

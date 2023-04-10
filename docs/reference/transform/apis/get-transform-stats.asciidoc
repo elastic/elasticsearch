@@ -152,18 +152,18 @@ that the {transform} is failing to keep up.
 `status`::
     (string) Health status of this transform. Statuses are:
 
-    `green`:::
-    The transform is healthy.
+   * `green`:
+      The transform is healthy.
 
-    `unknown`:::
-    The health of the transform could not be determined.
+    * `unknown`:
+      The health of the transform could not be determined.
 
-    `yellow`:::
-    The functionality of the transform is in a degraded state and may need remediation
-    to avoid the health becoming `red`.
+    * `yellow`:
+      The functionality of the transform is in a degraded state and may need 
+      remediation to avoid the health becoming `red`.
 
-    `red`:::
-    The transform is experiencing an outage or is unavailable for use.
+    * `red`:
+      The transform is experiencing an outage or is unavailable for use.
 
 `issues`::
     (Optional, array) If a non-healthy status is returned, contains a list of issues

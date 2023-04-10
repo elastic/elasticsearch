@@ -10,14 +10,14 @@ package org.elasticsearch.xpack.eql.analysis;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
 import org.elasticsearch.xpack.eql.expression.OptionalResolvedAttribute;
-import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
+import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
+import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
-import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -39,7 +39,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.eql.analysis.AnalyzerTestUtils.analyzer;
 
 public class AnalyzerTests extends ESTestCase {
 
@@ -88,11 +88,13 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testOptionalFieldsAsSequenceKey() {
-        String eql = "sequence by ?x "
-            + "[any where ?x == 123] by ?pid "
-            + "[any where true] by pid "
-            + "[any where ?y != null] by ?z "
-            + "until [any where string(?t) == \"null\"] by ?w";
+        String eql = """
+            sequence by ?x
+                [any where ?x == 123] by ?pid
+                [any where true] by pid
+                [any where ?y != null] by ?z
+                until [any where string(?t) == \"null\"] by ?w
+            """;
         LogicalPlan plan = accept(index, eql);
         assertTrue(plan instanceof Head);
         Head head = (Head) plan;
@@ -185,9 +187,83 @@ public class AnalyzerTests extends ESTestCase {
         checkMissingOptional(((ToString) equals.left()).value());
     }
 
+    public void testOptionalFieldsAsSampleKey() {
+        String eql = """
+            sample by ?x
+                [any where ?x == 123] by ?pid
+                [any where true] by pid
+                [any where ?y != null] by ?z
+            """;
+        LogicalPlan plan = accept(index, eql);
+        assertTrue(plan instanceof LimitWithOffset);
+        plan = ((LimitWithOffset) plan).child();
+        Sample sample = (Sample) plan;
+        assertEquals(3, sample.children().size());
+        List<KeyedFilter> queries = sample.queries();
+        assertEquals(3, queries.size());
+
+        // any where ?x == 123 by ?x, ?pid
+        KeyedFilter q = queries.get(0);
+        assertEquals(2, q.keys().size());
+        List<? extends NamedExpression> keys = q.keys();
+        assertEquals(OptionalMissingAttribute.class, keys.get(0).getClass());
+        assertEquals(OptionalResolvedAttribute.class, keys.get(1).getClass());
+        OptionalMissingAttribute optional = (OptionalMissingAttribute) keys.get(0);
+        assertEquals(true, optional.resolved());
+        assertEquals("x", optional.name());
+        FieldAttribute field = (FieldAttribute) keys.get(1);
+        assertEquals("pid", field.name());
+
+        assertTrue(q.child() instanceof Filter);
+        Filter filter = (Filter) q.child();
+        assertTrue(filter.condition() instanceof Equals);
+        Equals equals = (Equals) filter.condition();
+        checkMissingOptional(equals.left());
+        assertEquals(123, ((Literal) equals.right()).value());
+
+        // any where true by ?x, pid
+        q = queries.get(1);
+        assertEquals(2, q.keys().size());
+        keys = q.keys();
+        assertEquals(OptionalMissingAttribute.class, keys.get(0).getClass());
+        assertEquals(FieldAttribute.class, keys.get(1).getClass());
+        optional = (OptionalMissingAttribute) keys.get(0);
+        assertEquals(true, optional.resolved());
+        assertEquals("x", optional.name());
+        field = (FieldAttribute) keys.get(1);
+        assertEquals("pid", field.name());
+
+        assertTrue(q.child() instanceof Filter);
+        filter = (Filter) q.child();
+        assertTrue(filter.condition() instanceof Literal);
+        Literal l = (Literal) filter.condition();
+        assertEquals(Literal.TRUE, l);
+
+        // any where ?y != null by ?x, ?z
+        q = queries.get(2);
+        assertEquals(2, q.keys().size());
+        keys = q.keys();
+        assertEquals(OptionalMissingAttribute.class, keys.get(0).getClass());
+        assertEquals(OptionalMissingAttribute.class, keys.get(1).getClass());
+        optional = (OptionalMissingAttribute) keys.get(0);
+        assertEquals(true, optional.resolved());
+        assertEquals("x", optional.name());
+        optional = (OptionalMissingAttribute) keys.get(1);
+        assertEquals(true, optional.resolved());
+        assertEquals("z", optional.name());
+
+        assertTrue(q.child() instanceof Filter);
+        filter = (Filter) q.child();
+        assertTrue(filter.condition() instanceof Not);
+        Not not = (Not) filter.condition();
+        equals = (Equals) not.field();
+        checkMissingOptional(equals.left());
+        checkMissingOptional(equals.right());
+    }
+
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        Analyzer analyzer = analyzer();
         EqlParser parser = new EqlParser();
         LogicalPlan plan = parser.createStatement(eql);
         return analyzer.analyze(preAnalyzer.preAnalyze(plan, resolution));

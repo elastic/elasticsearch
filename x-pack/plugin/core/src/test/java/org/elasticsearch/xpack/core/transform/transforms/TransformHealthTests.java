@@ -29,4 +29,9 @@ public class TransformHealthTests extends AbstractWireSerializingTestCase<Transf
     protected TransformHealth createTestInstance() {
         return randomTransformHealth();
     }
+
+    @Override
+    protected TransformHealth mutateInstance(TransformHealth instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -54,7 +55,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testStoreAndGetLicenses() throws Exception {
-        LicenseService licenseService = getInstanceFromNode(LicenseService.class);
+        MutableLicenseService licenseService = getInstanceFromNode(MutableLicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License goldLicense = TestUtils.generateSignedLicense("gold", TimeValue.timeValueHours(1));
         TestUtils.registerAndAckSignedLicenses(licenseService, goldLicense, LicensesStatus.VALID);
@@ -71,23 +72,23 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     // TODO: Add test/feature blocking the registration of basic license
 
     public void testEffectiveLicenses() throws Exception {
-        final LicenseService licenseService = getInstanceFromNode(LicenseService.class);
+        final ClusterStateLicenseService licenseService = (ClusterStateLicenseService) getInstanceFromNode(MutableLicenseService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License goldLicense = TestUtils.generateSignedLicense("gold", TimeValue.timeValueSeconds(5));
         // put gold license
         TestUtils.registerAndAckSignedLicenses(licenseService, goldLicense, LicensesStatus.VALID);
         LicensesMetadata licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
-        assertThat(LicenseService.getLicense(licensesMetadata), equalTo(goldLicense));
+        assertThat(licenseService.getLicenseFromLicensesMetadata(licensesMetadata), equalTo(goldLicense));
 
         License platinumLicense = TestUtils.generateSignedLicense("platinum", TimeValue.timeValueSeconds(3));
         // put platinum license
         TestUtils.registerAndAckSignedLicenses(licenseService, platinumLicense, LicensesStatus.VALID);
         licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
-        assertThat(LicenseService.getLicense(licensesMetadata), equalTo(platinumLicense));
+        assertThat(licenseService.getLicenseFromLicensesMetadata(licensesMetadata), equalTo(platinumLicense));
     }
 
     public void testInvalidLicenseStorage() throws Exception {
-        LicenseService licenseService = getInstanceFromNode(LicenseService.class);
+        MutableLicenseService licenseService = getInstanceFromNode(MutableLicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License signedLicense = TestUtils.generateSignedLicense(TimeValue.timeValueMinutes(2));
 
@@ -106,7 +107,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveLicenses() throws Exception {
-        LicenseService licenseService = getInstanceFromNode(LicenseService.class);
+        MutableLicenseService licenseService = getInstanceFromNode(MutableLicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
         // generate signed licenses
@@ -121,7 +122,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         assertTrue(License.LicenseType.isBasic(licensesMetadata.getLicense().type()));
     }
 
-    private void removeAndAckSignedLicenses(final LicenseService licenseService) {
+    private void removeAndAckSignedLicenses(final MutableLicenseService licenseService) {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean(false);
         licenseService.removeLicense(new ActionListener<PostStartBasicResponse>() {

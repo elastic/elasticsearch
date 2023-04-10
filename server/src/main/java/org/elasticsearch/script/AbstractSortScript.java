@@ -12,16 +12,18 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.ScorerAware;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 abstract class AbstractSortScript extends DocBasedScript implements ScorerAware {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
+    @SuppressWarnings("unchecked")
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
         deprecationLogger.warn(
             DeprecationCategory.SCRIPTING,
@@ -36,7 +38,7 @@ abstract class AbstractSortScript extends DocBasedScript implements ScorerAware 
             "Accessing variable [doc] via [params._doc] from within an sort-script " + "is deprecated in favor of directly accessing [doc]."
         );
         return value;
-    }, "_source", value -> ((SourceLookup) value).source());
+    }, "_source", value -> ((Supplier<Source>) value).get().source());
 
     /**
      * The generic runtime parameters for the script.

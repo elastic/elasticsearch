@@ -85,7 +85,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     }
 
     @Override
-    protected synchronized void doClose() throws IOException {
+    protected synchronized void doClose() {
         sessionsForShard.clear();
         onGoingRestores.values().forEach(AbstractRefCounted::decRef);
         onGoingRestores.clear();

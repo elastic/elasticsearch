@@ -33,5 +33,10 @@ public final class AuthenticationField {
     public static final String ATTACH_REALM_NAME = "__attach";
     public static final String ATTACH_REALM_TYPE = "__attach";
 
+    public static final String CROSS_CLUSTER_ACCESS_REALM_NAME = "_es_cross_cluster_access";
+    public static final String CROSS_CLUSTER_ACCESS_REALM_TYPE = "_es_cross_cluster_access";
+    public static final String CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY = "_security_cross_cluster_access_authentication";
+    public static final String CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY = "_security_cross_cluster_access_role_descriptors";
+
     private AuthenticationField() {}
 }

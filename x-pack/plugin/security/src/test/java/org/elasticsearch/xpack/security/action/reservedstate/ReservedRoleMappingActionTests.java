@@ -76,6 +76,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
         ReservedRoleMappingAction action = new ReservedRoleMappingAction(nativeRoleMappingStore);
+        action.securityIndexRecovered();
 
         String badPolicyJSON = """
             {
@@ -109,6 +110,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState prevState = new TransformState(state, Collections.emptySet());
         ReservedRoleMappingAction action = new ReservedRoleMappingAction(nativeRoleMappingStore);
+        action.securityIndexRecovered();
 
         String emptyJSON = "";
 
@@ -181,6 +183,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
         TransformState updatedState = new TransformState(state, Collections.emptySet());
         ReservedRoleMappingAction action = new ReservedRoleMappingAction(nativeRoleMappingStore);
+        action.securityIndexRecovered();
 
         String json = """
             {

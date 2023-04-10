@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.ml.aggs.categorization;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -25,7 +27,9 @@ import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation.Bucket;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
@@ -40,7 +44,8 @@ import java.util.Optional;
 public class CategorizeTextAggregator extends DeferableBucketAggregator {
 
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
-    private final SourceLookup sourceLookup;
+    private final SourceProvider sourceProvider;
+    private final SourceFilter sourceFilter;
     private final MappedFieldType fieldType;
     private final CategorizationAnalyzer analyzer;
     private final String sourceFieldName;
@@ -63,8 +68,9 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, metadata);
-        this.sourceLookup = context.lookup().source();
+        this.sourceProvider = context.lookup();
         this.sourceFieldName = sourceFieldName;
+        this.sourceFilter = new SourceFilter(new String[] { sourceFieldName }, Strings.EMPTY_ARRAY);
         this.fieldType = fieldType;
         CategorizationAnalyzerConfig analyzerConfig = Optional.ofNullable(categorizationAnalyzerConfig)
             .orElse(CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(List.of()));
@@ -156,8 +162,8 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
             }
 
             private void collectFromSource(int doc, long owningBucketOrd, TokenListCategorizer categorizer) throws IOException {
-                sourceLookup.setSegmentAndDocument(aggCtx.getLeafReaderContext(), doc);
-                Iterator<String> itr = sourceLookup.extractRawValuesWithoutCaching(sourceFieldName).stream().map(obj -> {
+                Source source = sourceProvider.getSource(aggCtx.getLeafReaderContext(), doc).filter(sourceFilter);
+                Iterator<String> itr = XContentMapValues.extractRawValues(sourceFieldName, source.source()).stream().map(obj -> {
                     if (obj instanceof BytesRef) {
                         return fieldType.valueForDisplay(obj).toString();
                     }

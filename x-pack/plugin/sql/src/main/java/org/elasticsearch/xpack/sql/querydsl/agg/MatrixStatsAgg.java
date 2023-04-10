@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
+import org.elasticsearch.aggregations.metric.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 
 import java.util.List;
-
-import static org.elasticsearch.search.aggregations.matrix.MatrixStatsAggregationBuilders.matrixStats;
 
 public class MatrixStatsAgg extends LeafAgg {
 
@@ -23,6 +22,6 @@ public class MatrixStatsAgg extends LeafAgg {
 
     @Override
     AggregationBuilder toBuilder() {
-        return matrixStats(id()).fields(fields);
+        return new MatrixStatsAggregationBuilder(id()).fields(fields);
     }
 }

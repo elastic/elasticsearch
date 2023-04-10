@@ -29,7 +29,7 @@ public class FilterIntervalsSourceProviderTests extends AbstractXContentSerializ
     }
 
     @Override
-    protected IntervalFilter mutateInstance(IntervalFilter instance) throws IOException {
+    protected IntervalFilter mutateInstance(IntervalFilter instance) {
         return mutateFilter(instance);
     }
 

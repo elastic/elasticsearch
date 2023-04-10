@@ -11,9 +11,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
 import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,9 +51,10 @@ public class NestedValueFetcher implements ValueFetcher {
         for (Object entry : nestedValues) {
             // add this one entry only to the stub and use this as source lookup
             stub.put(nestedFieldName, entry);
-            SourceLookup nestedSourceLookup = new SourceLookup(new SourceLookup.MapSourceProvider(filteredSource));
-
-            Map<String, DocumentField> fetchResult = nestedFieldFetcher.fetch(nestedSourceLookup, doc);
+            Map<String, DocumentField> fetchResult = nestedFieldFetcher.fetch(
+                Source.fromMap(filteredSource, source.sourceContentType()),
+                doc
+            );
 
             Map<String, Object> nestedEntry = new HashMap<>();
             for (DocumentField field : fetchResult.values()) {
@@ -85,5 +86,10 @@ public class NestedValueFetcher implements ValueFetcher {
     @Override
     public void setNextReader(LeafReaderContext context) {
         this.nestedFieldFetcher.setNextReader(context);
+    }
+
+    @Override
+    public StoredFieldsSpec storedFieldsSpec() {
+        return StoredFieldsSpec.NEEDS_SOURCE;
     }
 }

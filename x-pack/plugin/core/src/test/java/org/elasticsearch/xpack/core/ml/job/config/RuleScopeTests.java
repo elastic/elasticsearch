@@ -36,6 +36,11 @@ public class RuleScopeTests extends AbstractWireSerializingTestCase<RuleScope> {
     }
 
     @Override
+    protected RuleScope mutateInstance(RuleScope instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<RuleScope> instanceReader() {
         return RuleScope::new;
     }

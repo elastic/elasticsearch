@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ExternalTestCluster;
@@ -290,7 +291,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         String regressionModelId = "test_regression_simulate";
         putModel(regressionModelId, REGRESSION_CONFIG);
 
-        String source = formatted("""
+        String source = Strings.format("""
             {
               "pipeline": {
                 "processors": [
@@ -390,7 +391,7 @@ public class InferenceIngestIT extends ESRestTestCase {
     public void testSimulateWithDefaultMappedField() throws IOException {
         String classificationModelId = "test_classification_default_mapped_field";
         putModel(classificationModelId, CLASSIFICATION_CONFIG);
-        String source = formatted("""
+        String source = Strings.format("""
             {
               "pipeline": {
                 "processors": [
@@ -674,7 +675,7 @@ public class InferenceIngestIT extends ESRestTestCase {
           }
         }""";
 
-    private static final String REGRESSION_CONFIG = formatted("""
+    private static final String REGRESSION_CONFIG = Strings.format("""
         {
             "input": {
                 "field_names": [
@@ -696,7 +697,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
-    private static final String CLASSIFICATION_CONFIG = formatted("""
+    private static final String CLASSIFICATION_CONFIG = Strings.format("""
         {
           "input": {
             "field_names": [ "col1", "col2", "col3", "col4" ]
@@ -712,7 +713,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         }""", InferenceDefinitionTests.getClassificationDefinition(false));
 
     private static String pipelineDefinition(String modelId, String inferenceConfig) {
-        return formatted("""
+        return Strings.format("""
             {
               "processors": [
                 {

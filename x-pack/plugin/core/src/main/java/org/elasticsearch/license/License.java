@@ -93,7 +93,7 @@ public class License implements ToXContentObject {
                 case "basic" -> BASIC;
                 case "standard" -> STANDARD;
                 case "silver", "gold" -> GOLD;
-                case "platinum", "cloud_internal", "internal" -> // bwc for 1.x subscription_type field
+                case "platinum", "internal" -> // bwc for 1.x subscription_type field
                     PLATINUM;
                 case "enterprise" -> ENTERPRISE;
                 default -> throw new IllegalArgumentException("unknown license type [" + name + "]");
@@ -264,7 +264,7 @@ public class License implements ToXContentObject {
         // We will validate that only a basic license can have the BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS
         // in the validate() method.
         if (expiryDate == -1) {
-            this.expiryDate = LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+            this.expiryDate = LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
         } else {
             this.expiryDate = expiryDate;
         }
@@ -311,7 +311,7 @@ public class License implements ToXContentObject {
     }
 
     /**
-     * The expiration date as it appears in the license. For most uses, prefer {@link LicenseService#getExpiryDate(License)}, as in
+     * The expiration date as it appears in the license. For most uses, prefer {@link LicenseUtils#getExpiryDate(License)}, as in
      * rare cases the effective expiration date may differ from the expiration date specified in the license.
      *
      * @return the expiry date in milliseconds
@@ -358,40 +358,10 @@ public class License implements ToXContentObject {
     }
 
     /**
-     * @return the operation mode of the license as computed from the license type or from
-     * the license mode file
+     * @return the operation mode of the license as computed from the license type
      */
     public OperationMode operationMode() {
-        synchronized (this) {
-            if (canReadOperationModeFromFile() && operationModeFileWatcher != null) {
-                return operationModeFileWatcher.getCurrentOperationMode();
-            }
-        }
         return operationMode;
-    }
-
-    private boolean canReadOperationModeFromFile() {
-        return type.equals("cloud_internal");
-    }
-
-    private volatile OperationModeFileWatcher operationModeFileWatcher;
-
-    /**
-     * Sets the operation mode file watcher for the license and initializes the
-     * file watcher when the license type allows to override operation mode from file
-     */
-    public synchronized void setOperationModeFileWatcher(final OperationModeFileWatcher operationModeFileWatcher) {
-        this.operationModeFileWatcher = operationModeFileWatcher;
-        if (canReadOperationModeFromFile()) {
-            this.operationModeFileWatcher.init();
-        }
-    }
-
-    /**
-     * Removes operation mode file watcher, so unused license objects can be gc'ed
-     */
-    public synchronized void removeOperationModeFileWatcher() {
-        this.operationModeFileWatcher = null;
     }
 
     private void validate() {
@@ -411,7 +381,7 @@ public class License implements ToXContentObject {
             throw new IllegalStateException("feature can not be null");
         } else if (expiryDate == -1) {
             throw new IllegalStateException("expiryDate has to be set");
-        } else if (expiryDate == LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS && LicenseType.isBasic(type) == false) {
+        } else if (expiryDate == LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS && LicenseType.isBasic(type) == false) {
             throw new IllegalStateException("only basic licenses are allowed to have no expiration");
         }
 
@@ -544,7 +514,7 @@ public class License implements ToXContentObject {
             licenseVersion = this.version;
         }
         if (restViewMode) {
-            builder.field(Fields.STATUS, LicenseService.status(this).label());
+            builder.field(Fields.STATUS, LicenseUtils.status(this).label());
         }
         builder.field(Fields.UID, uid);
         final String bwcType = hideEnterprise && LicenseType.isEnterprise(type) ? LicenseType.PLATINUM.getTypeName() : type;
@@ -557,7 +527,7 @@ public class License implements ToXContentObject {
             builder.field(Fields.FEATURE, feature);
         }
 
-        if (expiryDate != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
+        if (expiryDate != LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
             builder.timeField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
         }
 

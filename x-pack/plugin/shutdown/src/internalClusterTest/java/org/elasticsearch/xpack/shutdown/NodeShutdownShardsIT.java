@@ -135,7 +135,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
     public void testNodeReplacementOnlyAllowsShardsFromReplacedNode() throws Exception {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
-        createIndex("myindex", Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build());
+        createIndex("myindex", 3, 1);
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
 
@@ -155,7 +155,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         final String nodeC = internalCluster().startNode();
 
-        createIndex("other", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+        createIndex("other", 1, 1);
 
         ensureYellow("other");
 
@@ -225,7 +225,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertBusy(() -> assertNodeShutdownStatus(nodeAId, COMPLETE));
         assertIndexSetting("myindex", "index.routing.allocation.require._name", nodeA);
 
-        createIndex("other", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+        createIndex("other", 1, 1);
 
         ensureYellow("other");
 
@@ -280,7 +280,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         );
 
         var fakeNodeName = UUIDs.randomBase64UUID();
-        updateIndexSettings("myindex", Settings.builder().put("index.routing.allocation.require._name", fakeNodeName));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", fakeNodeName), "myindex");
 
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
@@ -300,7 +300,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         String nodeA = internalCluster().startNode(
             Settings.builder().put("node.name", "node-a").put("cluster.routing.rebalance.enable", "none")
         );
-        createIndex("myindex", Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0).build());
+        createIndex("myindex", 4, 0);
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t1"; // TODO: fix this to so it's actually overrideable
         final String nodeC = "node_t2"; // TODO: fix this to so it's actually overrideable
@@ -325,7 +325,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
     public void testReallocationForReplicaDuringNodeReplace() throws Exception {
         final String nodeA = internalCluster().startNode();
         final String nodeAId = getNodeId(nodeA);
-        createIndex("myindex", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+        createIndex("myindex", 1, 1);
         ensureYellow("myindex");
 
         // Start a second node, so the replica will be on nodeB
@@ -383,7 +383,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         // RESTART did not reroute, neither should it when we no longer contract replicas, but we provoke it here in the test to ensure
         // that auto-expansion has run.
-        updateIndexSettings("myindex", Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude.name", "non-existent"), "myindex");
 
         assertBusy(() -> {
             assertThat(
@@ -408,6 +408,33 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         });
 
         ensureGreen("myindex");
+    }
+
+    public void testNodeShutdownWithUnassignedShards() throws Exception {
+        final String nodeA = internalCluster().startNode();
+        final String nodeAId = getNodeId(nodeA);
+
+        createIndex(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.routing.allocation.include._name", nodeA)
+                .build()
+        );
+
+        ensureYellow("index");
+
+        // Start a second node, so the replica will be on nodeB
+        final String nodeB = internalCluster().startNode();
+        final String nodeBId = getNodeId(nodeB);
+        ensureGreen("index");
+
+        putNodeShutdown(nodeAId, SingleNodeShutdownMetadata.Type.REMOVE, null);
+
+        internalCluster().stopNode(nodeA);
+
+        assertBusy(() -> assertNodeShutdownStatus(nodeAId, STALLED));
     }
 
     private void indexRandomData(String index) throws Exception {

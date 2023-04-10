@@ -96,7 +96,13 @@ public class DatafeedRunner {
     public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> finishHandler) {
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(datafeedJob -> {
             String jobId = datafeedJob.getJobId();
-            Holder holder = new Holder(task, task.getDatafeedId(), datafeedJob, new ProblemTracker(auditor, jobId), finishHandler);
+            Holder holder = new Holder(
+                task,
+                task.getDatafeedId(),
+                datafeedJob,
+                new ProblemTracker(auditor, jobId, datafeedJob.numberOfSearchesIn24Hours()),
+                finishHandler
+            );
             StoppedOrIsolated stoppedOrIsolated = task.executeIfNotStoppedOrIsolated(
                 () -> runningDatafeedsOnThisNode.put(task.getAllocationId(), holder)
             );
@@ -313,15 +319,15 @@ public class DatafeedRunner {
                     } catch (DatafeedJob.EmptyDataCountException e) {
                         int emptyDataCount = holder.problemTracker.reportEmptyDataCount();
                         if (e.haveEverSeenData == false && holder.shouldStopAfterEmptyData(emptyDataCount)) {
-                            logger.warn(
-                                "Datafeed for ["
-                                    + jobId
-                                    + "] has seen no data in ["
-                                    + emptyDataCount
-                                    + "] attempts, and never seen any data previously, so stopping..."
-                            );
+                            String noDataMessage = "Datafeed for ["
+                                + jobId
+                                + "] has seen no data in ["
+                                + emptyDataCount
+                                + "] attempts, and never seen any data previously, so stopping...";
+                            logger.warn(noDataMessage);
+
                             // In this case we auto-close the job, as though a lookback-only datafeed stopped
-                            holder.stop("no_data", TimeValue.timeValueSeconds(20), e, true);
+                            holder.stop("no_data", TimeValue.timeValueSeconds(20), e, true, noDataMessage);
                             return;
                         }
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
@@ -432,10 +438,10 @@ public class DatafeedRunner {
         }
 
         public void stop(String source, TimeValue timeout, Exception e) {
-            stop(source, timeout, e, defaultAutoCloseJob);
+            stop(source, timeout, e, defaultAutoCloseJob, null);
         }
 
-        public void stop(String source, TimeValue timeout, Exception e, boolean autoCloseJob) {
+        public void stop(String source, TimeValue timeout, Exception e, boolean autoCloseJob, String stoppedReason) {
             if (isNodeShuttingDown) {
                 return;
             }
@@ -466,10 +472,16 @@ public class DatafeedRunner {
                     if (cancellable != null) {
                         cancellable.cancel();
                     }
-                    auditor.info(
-                        datafeedJob.getJobId(),
-                        Messages.getMessage(isIsolated() ? Messages.JOB_AUDIT_DATAFEED_ISOLATED : Messages.JOB_AUDIT_DATAFEED_STOPPED)
-                    );
+                    String auditMessage;
+                    if (isIsolated()) {
+                        auditMessage = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_ISOLATED);
+                    } else {
+                        auditMessage = stoppedReason == null
+                            ? Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED)
+                            : Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED_WITH_REASON, stoppedReason);
+                    }
+                    auditor.info(datafeedJob.getJobId(), auditMessage);
+
                     datafeedJob.finishReportingTimingStats();
                     finishHandler.accept(e);
                     logger.info(

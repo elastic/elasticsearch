@@ -8,17 +8,14 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 public class IngestStatsTests extends ESTestCase {
 
@@ -35,7 +32,7 @@ public class IngestStatsTests extends ESTestCase {
         IngestStats.PipelineStat pipeline1Stats = new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(3, 3, 3, 3));
         IngestStats.PipelineStat pipeline2Stats = new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(47, 97, 197, 297));
         IngestStats.PipelineStat pipeline3Stats = new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(0, 0, 0, 0));
-        return Stream.of(pipeline1Stats, pipeline2Stats, pipeline3Stats).toList();
+        return List.of(pipeline1Stats, pipeline2Stats, pipeline3Stats);
     }
 
     private Map<String, List<IngestStats.ProcessorStat>> createProcessorStats(List<IngestStats.PipelineStat> pipelineStats) {
@@ -48,10 +45,12 @@ public class IngestStatsTests extends ESTestCase {
             new IngestStats.Stats(47, 97, 197, 297)
         );
         // pipeline1 -> processor1,processor2; pipeline2 -> processor3
-        return MapBuilder.<String, List<IngestStats.ProcessorStat>>newMapBuilder()
-            .put(pipelineStats.get(0).getPipelineId(), Stream.of(processor1Stat, processor2Stat).toList())
-            .put(pipelineStats.get(1).getPipelineId(), Collections.singletonList(processor3Stat))
-            .map();
+        return Map.of(
+            pipelineStats.get(0).getPipelineId(),
+            List.of(processor1Stat, processor2Stat),
+            pipelineStats.get(1).getPipelineId(),
+            List.of(processor3Stat)
+        );
     }
 
     private IngestStats serialize(IngestStats stats) throws IOException {

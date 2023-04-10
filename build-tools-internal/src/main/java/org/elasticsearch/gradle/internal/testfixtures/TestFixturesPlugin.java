@@ -117,6 +117,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
             maybeSkipTask(dockerSupport, buildFixture);
 
             ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
+            composeExtension.setProjectName(project.getName());
             composeExtension.getUseComposeFiles().addAll(Collections.singletonList(DOCKER_COMPOSE_YML));
             composeExtension.getRemoveContainers().set(true);
             composeExtension.getCaptureContainersOutput()
@@ -180,7 +181,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
     }
 
     private void maybeSkipTask(Provider<DockerSupportService> dockerSupport, Task task) {
-        task.onlyIf(spec -> {
+        task.onlyIf("docker compose is available", spec -> {
             boolean isComposeAvailable = dockerSupport.get().getDockerAvailability().isComposeAvailable();
             if (isComposeAvailable == false) {
                 LOGGER.info("Task {} requires docker-compose but it is unavailable. Task will be skipped.", task.getPath());

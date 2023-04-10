@@ -30,16 +30,18 @@ import java.util.Map;
 public class ChunkedRestResponseBodyTests extends ESTestCase {
 
     public void testEncodesChunkedXContentCorrectly() throws IOException {
-        final ChunkedToXContent chunkedToXContent = () -> Iterators.forArray(new ToXContent[] { (b, p) -> b.startObject(), (b, p) -> {
-            if (randomBoolean()) {
-                b.flush();
-            }
-            b.mapContents(Map.of("foo", "bar", "some_other_key", "some_other_value"));
-            return b;
-        }, (b, p) -> b.stringListField("list_field", List.of("string", "otherString")).endObject() });
+        final ChunkedToXContent chunkedToXContent = (ToXContent.Params outerParams) -> Iterators.forArray(
+            new ToXContent[] { (b, p) -> b.startObject(), (b, p) -> {
+                if (randomBoolean()) {
+                    b.flush();
+                }
+                b.mapContents(Map.of("foo", "bar", "some_other_key", "some_other_value"));
+                return b;
+            }, (b, p) -> b.stringListField("list_field", List.of("string", "otherString")).endObject() }
+        );
         final XContent randomXContent = randomFrom(XContentType.values()).xContent();
         final XContentBuilder builderDirect = XContentBuilder.builder(randomXContent);
-        var iter = chunkedToXContent.toXContentChunked();
+        var iter = chunkedToXContent.toXContentChunked(ToXContent.EMPTY_PARAMS);
         while (iter.hasNext()) {
             iter.next().toXContent(builderDirect, ToXContent.EMPTY_PARAMS);
         }

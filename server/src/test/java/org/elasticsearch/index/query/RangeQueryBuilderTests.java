@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -123,7 +124,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             rangeQueryBuilder.to(randomIntBetween(101, 200));
         }
 
-        String query = formatted(
+        String query = Strings.format(
             """
                 {
                     "range":{
@@ -272,7 +273,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
     public void testDateRangeQueryFormat() throws IOException {
         // We test 01/01/2012 from gte and 2030 for lt
-        String query = formatted("""
+        String query = Strings.format("""
             {
                 "range" : {
                     "%s" : {
@@ -297,7 +298,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         );
 
         // Test Invalid format
-        final String invalidQuery = formatted("""
+        final String invalidQuery = Strings.format("""
             {
                 "range" : {
                     "%s" : {
@@ -311,7 +312,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testDateRangeBoundaries() throws IOException {
-        String query = formatted("""
+        String query = Strings.format("""
             {
                 "range" : {
                     "%s" : {
@@ -334,7 +335,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             parsedQuery
         );
 
-        query = formatted("""
+        query = Strings.format("""
             {
                 "range" : {
                     "%s" : {
@@ -358,7 +359,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testDateRangeQueryTimezone() throws IOException {
-        String query = formatted("""
+        String query = Strings.format("""
             {
                 "range" : {
                     "%s" : {
@@ -377,7 +378,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
         // TODO what else can we assert
 
-        query = formatted("""
+        query = Strings.format("""
             {
                 "range" : {
                     "%s" : {
@@ -552,7 +553,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testParseFailsWithMultipleFieldsWhenOneIsDate() {
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "range": {
                 "age": {

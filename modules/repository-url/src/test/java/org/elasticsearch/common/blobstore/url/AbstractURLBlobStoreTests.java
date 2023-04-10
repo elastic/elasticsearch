@@ -13,6 +13,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -57,7 +58,7 @@ public abstract class AbstractURLBlobStoreTests extends ESTestCase {
             ignored.read();
             fail("Should have thrown NoSuchFileException exception");
         } catch (NoSuchFileException e) {
-            assertEquals(formatted("blob object [%s] not found", incorrectBlobName), e.getMessage());
+            assertEquals(Strings.format("blob object [%s] not found", incorrectBlobName), e.getMessage());
         }
     }
 }

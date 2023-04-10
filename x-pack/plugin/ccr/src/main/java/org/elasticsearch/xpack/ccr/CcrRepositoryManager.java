@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryA
 import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryRequest;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 
-import java.io.IOException;
 import java.util.Set;
 
 class CcrRepositoryManager extends AbstractLifecycleComponent {
@@ -45,7 +44,7 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
     protected void doStop() {}
 
     @Override
-    protected void doClose() throws IOException {}
+    protected void doClose() {}
 
     private void putRepository(String repositoryName) {
         ActionRequest request = new PutInternalCcrRepositoryRequest(repositoryName, CcrRepository.TYPE);

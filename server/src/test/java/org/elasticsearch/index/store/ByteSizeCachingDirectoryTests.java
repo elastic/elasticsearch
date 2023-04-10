@@ -87,6 +87,26 @@ public class ByteSizeCachingDirectoryTests extends ESTestCase {
             assertEquals(18, countingDir.numFileLengthCalls);
             assertEquals(15, cachingDir.estimateSizeInBytes());
             assertEquals(18, countingDir.numFileLengthCalls);
+
+            // Close more than once
+            IndexOutput out = cachingDir.createOutput("foo", IOContext.DEFAULT);
+            try {
+                out.writeBytes(new byte[5], 5);
+
+                cachingDir.estimateSizeInBytes();
+                // +3 because there are 3 files
+                assertEquals(21, countingDir.numFileLengthCalls);
+                // An index output is open so no caching
+                cachingDir.estimateSizeInBytes();
+                assertEquals(24, countingDir.numFileLengthCalls);
+            } finally {
+                out.close();
+                assertEquals(20, cachingDir.estimateSizeInBytes());
+                assertEquals(27, countingDir.numFileLengthCalls);
+            }
+            out.close();
+            assertEquals(20, cachingDir.estimateSizeInBytes());
+            assertEquals(27, countingDir.numFileLengthCalls);
         }
     }
 

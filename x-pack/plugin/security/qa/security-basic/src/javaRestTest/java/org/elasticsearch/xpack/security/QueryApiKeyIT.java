@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentType;
@@ -21,7 +22,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -58,12 +58,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         });
 
         // An empty request body means search for all keys
-        assertQuery(
-            API_KEY_ADMIN_AUTH_HEADER,
-            randomBoolean() ? "" : """
-                {"query":{"match_all":{}}}""",
-            apiKeys -> assertThat(apiKeys.size(), equalTo(6))
-        );
+        assertQuery(API_KEY_ADMIN_AUTH_HEADER, randomBoolean() ? "" : """
+            {"query":{"match_all":{}}}""", apiKeys -> assertThat(apiKeys.size(), equalTo(6)));
 
         assertQuery(
             API_KEY_ADMIN_AUTH_HEADER,
@@ -113,9 +109,11 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 var subset = randomSubsetOf(randomIntBetween(1, 5), apiKeys);
                 assertQuery(
                     API_KEY_ADMIN_AUTH_HEADER,
-                    formatted("""
-                        { "query": { "ids": { "values": [%s] } } }""",
-                            subset.stream().map(m -> "\"" + m.get("id") + "\"").collect(Collectors.joining(","))),
+                    Strings.format(
+                        """
+                            { "query": { "ids": { "values": [%s] } } }""",
+                        subset.stream().map(m -> "\"" + m.get("id") + "\"").collect(Collectors.joining(","))
+                    ),
                     keys -> {
                         assertThat(keys, hasSize(subset.size()));
                         keys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
@@ -132,7 +130,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
         // Search for fields that are not allowed in Query DSL but used internally by the service itself
         final String fieldName = randomFrom("doc_type", "api_key_invalidated");
-        assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, String.format(Locale.ROOT, """
+        assertQueryError(API_KEY_ADMIN_AUTH_HEADER, 400, Strings.format("""
             { "query": { "term": {"%s": "%s"} } }""", fieldName, randomAlphaOfLengthBetween(3, 8)));
 
         // Search for api keys won't return other entities
@@ -164,7 +162,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
         final String invalidatedApiKeyId1 = createAndInvalidateApiKey("temporary-key-1", authHeader);
         final String queryString = randomFrom("""
-            {"query": { "term": {"name": "temporary-key-1"} } }""", formatted("""
+            {"query": { "term": {"name": "temporary-key-1"} } }""", Strings.format("""
             {"query":{"bool":{"must":[{"term":{"name":{"value":"temporary-key-1"}}},\
             {"term":{"invalidated":{"value":"%s"}}}]}}}
             """, randomBoolean()));
@@ -229,9 +227,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
     public void testPagination() throws IOException, InterruptedException {
         final String authHeader = randomFrom(API_KEY_ADMIN_AUTH_HEADER, API_KEY_USER_AUTH_HEADER);
         final int total = randomIntBetween(8, 12);
-        final List<String> apiKeyNames = IntStream.range(0, total)
-            .mapToObj(i -> formatted("k-%02d", i))
-            .toList();
+        final List<String> apiKeyNames = IntStream.range(0, total).mapToObj(i -> Strings.format("k-%02d", i)).toList();
         final List<String> apiKeyIds = new ArrayList<>(total);
         for (int i = 0; i < total; i++) {
             apiKeyIds.add(createApiKey(apiKeyNames.get(i), null, authHeader).v1());
@@ -260,7 +256,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             } else {
                 searchAfter.append(sortValues.get(0));
             }
-            request2.setJsonEntity(String.format(Locale.ROOT, """
+            request2.setJsonEntity(Strings.format("""
                 {"size":%s,"sort":["%s"],"search_after":[%s]}
                 """, size, sortField, searchAfter));
             actualSize = collectApiKeys(apiKeyInfos, request2, total, size);
@@ -285,14 +281,8 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
                 equalTo(apiKeyInfos.stream().map(m -> (long) extractSortValues(m).get(0)).toList())
             );
         }
-        assertThat(
-            apiKeyInfos.stream().map(m -> (String) m.get("id")).toList(),
-            equalTo(apiKeyIds.subList(from, total))
-        );
-        assertThat(
-            apiKeyInfos.stream().map(m -> (String) m.get("name")).toList(),
-            equalTo(apiKeyNames.subList(from, total))
-        );
+        assertThat(apiKeyInfos.stream().map(m -> (String) m.get("id")).toList(), equalTo(apiKeyIds.subList(from, total)));
+        assertThat(apiKeyInfos.stream().map(m -> (String) m.get("name")).toList(), equalTo(apiKeyNames.subList(from, total)));
 
         // size can be zero, but total should still reflect the number of keys matched
         final Request request2 = new Request("GET", "/_security/_query/api_key");
@@ -378,41 +368,20 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
 
         final long startTime = Instant.now().toEpochMilli();
 
-        assertQuery(
-            authHeader,
-            """
-                {"query": {"exists": {"field": "expiration" }}}""",
-            apiKeys -> {
-                assertThat(
-                    apiKeys.stream().map(k -> (String) k.get("name")).toList(),
-                    containsInAnyOrder("test-exists-2", "test-exists-3")
-                );
-            }
-        );
+        assertQuery(authHeader, """
+            {"query": {"exists": {"field": "expiration" }}}""", apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("name")).toList(), containsInAnyOrder("test-exists-2", "test-exists-3"));
+        });
 
-        assertQuery(
-            authHeader,
-            """
-                {"query": {"exists": {"field": "metadata.value" }}}""",
-            apiKeys -> {
-                assertThat(
-                    apiKeys.stream().map(k -> (String) k.get("name")).toList(),
-                    containsInAnyOrder("test-exists-1", "test-exists-3")
-                );
-            }
-        );
+        assertQuery(authHeader, """
+            {"query": {"exists": {"field": "metadata.value" }}}""", apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("name")).toList(), containsInAnyOrder("test-exists-1", "test-exists-3"));
+        });
 
-        assertQuery(
-            authHeader,
-            """
-                {"query": {"exists": {"field": "metadata.label" }}}""",
-            apiKeys -> {
-                assertThat(
-                    apiKeys.stream().map(k -> (String) k.get("name")).toList(),
-                    containsInAnyOrder("test-exists-2", "test-exists-3")
-                );
-            }
-        );
+        assertQuery(authHeader, """
+            {"query": {"exists": {"field": "metadata.label" }}}""", apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("name")).toList(), containsInAnyOrder("test-exists-2", "test-exists-3"));
+        });
 
         // Create an invalidated API key
         createAndInvalidateApiKey("test-exists-4", authHeader);
@@ -424,46 +393,39 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         }
 
         // Find valid API keys (not invalidated nor expired)
-        assertQuery(
-            authHeader,
-            """
-                {
-                  "query": {
-                    "bool": {
-                      "must": {
-                        "term": {
-                          "invalidated": false
-                        }
-                      },
-                      "should": [
-                        {
-                          "range": {
-                            "expiration": {
-                              "gte": "now"
-                            }
-                          }
-                        },
-                        {
-                          "bool": {
-                            "must_not": {
-                              "exists": {
-                                "field": "expiration"
-                              }
-                            }
-                          }
-                        }
-                      ],
-                      "minimum_should_match": 1
+        assertQuery(authHeader, """
+            {
+              "query": {
+                "bool": {
+                  "must": {
+                    "term": {
+                      "invalidated": false
                     }
-                  }
-                }""",
-            apiKeys -> {
-                assertThat(
-                    apiKeys.stream().map(k -> (String) k.get("name")).toList(),
-                    containsInAnyOrder("test-exists-1", "test-exists-3")
-                );
-            }
-        );
+                  },
+                  "should": [
+                    {
+                      "range": {
+                        "expiration": {
+                          "gte": "now"
+                        }
+                      }
+                    },
+                    {
+                      "bool": {
+                        "must_not": {
+                          "exists": {
+                            "field": "expiration"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "minimum_should_match": 1
+                }
+              }
+            }""", apiKeys -> {
+            assertThat(apiKeys.stream().map(k -> (String) k.get("name")).toList(), containsInAnyOrder("test-exists-1", "test-exists-3"));
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -599,10 +561,10 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final String metadataString = XContentTestUtils.convertToXContent(metadata == null ? Map.of() : metadata, XContentType.JSON)
             .utf8ToString();
         if (expiration == null) {
-            request.setJsonEntity(String.format(Locale.ROOT, """
+            request.setJsonEntity(Strings.format("""
                 {"name":"%s", "role_descriptors":%s, "metadata":%s}""", name, roleDescriptorsString, metadataString));
         } else {
-            request.setJsonEntity(String.format(Locale.ROOT, """
+            request.setJsonEntity(Strings.format("""
                 {"name":"%s", "expiration": "%s", "role_descriptors":%s,\
                 "metadata":%s}""", name, expiration, roleDescriptorsString, metadataString));
         }
@@ -617,7 +579,7 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
         final Tuple<String, String> tuple = createApiKey(name, null, authHeader);
         final Request request = new Request("DELETE", "/_security/api_key");
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {"ids": ["%s"],"owner":true}""", tuple.v1()));
         assertOK(client().performRequest(request));
         return tuple.v1();

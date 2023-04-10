@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -75,6 +76,11 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     @Override
+    protected Classification mutateInstance(Classification instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
@@ -121,7 +127,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         );
     }
 
-    public static Classification mutateForVersion(Classification instance, Version version) {
+    public static Classification mutateForVersion(Classification instance, TransportVersion version) {
         return new Classification(
             instance.getDependentVariable(),
             BoostedTreeParamsTests.mutateForVersion(instance.getBoostedTreeParams(), version),
@@ -550,7 +556,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     @Override
-    protected Classification mutateInstanceForVersion(Classification instance, Version version) {
+    protected Classification mutateInstanceForVersion(Classification instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 

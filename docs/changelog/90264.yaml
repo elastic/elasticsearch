@@ -1,6 +1,0 @@
-pr: 90264
-summary: Allow legacy index settings on legacy indices
-area: Infra/Core
-type: enhancement
-issues:
- - 84992

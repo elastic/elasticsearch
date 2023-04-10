@@ -11,6 +11,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -19,16 +20,25 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -50,19 +60,27 @@ import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -83,23 +101,39 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class IndexModuleTests extends ESTestCase {
@@ -244,6 +278,51 @@ public class IndexModuleTests extends ESTestCase {
         indexService.close("simon says", false);
     }
 
+    public void testDirectoryWrapper() throws IOException {
+        final Path homeDir = createTempDir();
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), homeDir.toString())
+            .build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        final IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            new InternalEngineFactory(),
+            Map.of(),
+            () -> true,
+            indexNameExpressionResolver,
+            Collections.emptyMap()
+        );
+
+        module.setDirectoryWrapper(new TestDirectoryWrapper());
+
+        final IndexService indexService = newIndexService(module);
+        assertSame(indexService.getEngineFactory(), module.getEngineFactory());
+        final IndexStorePlugin.DirectoryFactory directoryFactory = indexService.getDirectoryFactory();
+        assertThat(directoryFactory, notNullValue());
+
+        final ShardId shardId = new ShardId(indexSettings.getIndex(), randomIntBetween(0, 5));
+        final Path dataPath = new NodeEnvironment.DataPath(homeDir).resolve(shardId);
+        Directory directory = directoryFactory.newDirectory(indexSettings, new ShardPath(false, dataPath, dataPath, shardId));
+        assertThat(directory, instanceOf(WrappedDirectory.class));
+        assertThat(((WrappedDirectory) directory).shardRouting, nullValue());
+        assertThat(directory, instanceOf(FilterDirectory.class));
+
+        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            shardId,
+            randomIdentifier(),
+            randomBoolean(),
+            ShardRoutingState.INITIALIZING
+        );
+        directory = directoryFactory.newDirectory(indexSettings, new ShardPath(false, dataPath, dataPath, shardId), shardRouting);
+        assertThat(directory, instanceOf(WrappedDirectory.class));
+        assertThat(((WrappedDirectory) directory).shardRouting, sameInstance(shardRouting));
+        assertThat(directory, instanceOf(FilterDirectory.class));
+
+        indexService.close("test done", false);
+    }
+
     public void testOtherServiceBound() throws IOException {
         final AtomicBoolean atomicBoolean = new AtomicBoolean(false);
         final IndexEventListener eventListener = new IndexEventListener() {
@@ -306,7 +385,7 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(IndexingSlowLog.class, indexService.getIndexOperationListeners().get(0).getClass());
         assertSame(listener, indexService.getIndexOperationListeners().get(1));
 
-        ParsedDocument doc = EngineTestCase.createParsedDoc("1", EngineTestCase.randomIdFieldType(), null);
+        ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
         Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);
         ShardId shardId = new ShardId(new Index("foo", "bar"), 0);
         for (IndexingOperationListener l : indexService.getIndexOperationListeners()) {
@@ -379,6 +458,9 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addSimilarity(null, null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setReaderWrapper(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.forceQueryCacheProvider(null)).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setDirectoryWrapper(null)).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setIndexCommitListener(null)).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setReplicationTrackerFactory(null)).getMessage());
     }
 
     public void testSetupUnknownSimilarity() {
@@ -574,12 +656,185 @@ public class IndexModuleTests extends ESTestCase {
         indexService.close("closing", false);
     }
 
+    public void testIndexCommitListenerIsBound() throws IOException, ExecutionException, InterruptedException {
+        IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            InternalEngine::new,
+            Collections.emptyMap(),
+            () -> true,
+            indexNameExpressionResolver,
+            Collections.emptyMap()
+        );
+
+        final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
+        final AtomicReference<Engine.IndexCommitRef> lastAcquiredCommit = new AtomicReference<>();
+        final AtomicReference<IndexCommit> lastDeletedCommit = new AtomicReference<>();
+
+        module.setIndexCommitListener(new Engine.IndexCommitListener() {
+            @Override
+            public void onNewCommit(
+                ShardId shardId,
+                Store store,
+                long primaryTerm,
+                Engine.IndexCommitRef indexCommitRef,
+                Set<String> additionalFiles
+            ) {
+                lastAcquiredPrimaryTerm.set(primaryTerm);
+                lastAcquiredCommit.set(indexCommitRef);
+            }
+
+            @Override
+            public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {
+                lastDeletedCommit.set(deletedCommit);
+            }
+        });
+
+        final List<Closeable> closeables = new ArrayList<>();
+        try {
+            ShardId shardId = new ShardId("index", UUIDs.randomBase64UUID(random()), 0);
+            ShardRouting shardRouting = ShardRouting.newUnassigned(
+                shardId,
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                ShardRouting.Role.DEFAULT
+            ).initialize("_node_id", null, -1);
+
+            IndexService indexService = newIndexService(module);
+            closeables.add(() -> indexService.close("close index service at end of test", false));
+
+            IndexShard indexShard = indexService.createShard(shardRouting, s -> {}, RetentionLeaseSyncer.EMPTY);
+            closeables.add(() -> indexShard.close("close shard at end of test", true));
+            indexShard.markAsRecovering(
+                "test",
+                new RecoveryState(
+                    shardRouting,
+                    new DiscoveryNode(
+                        "_node_id",
+                        "_node_id",
+                        buildNewFakeTransportAddress(),
+                        Collections.emptyMap(),
+                        DiscoveryNodeRole.roles(),
+                        Version.CURRENT
+                    ),
+                    null
+                )
+            );
+
+            final PlainActionFuture<Boolean> recoveryFuture = PlainActionFuture.newFuture();
+            indexShard.recoverFromStore(recoveryFuture);
+            recoveryFuture.get();
+
+            assertThat(lastAcquiredPrimaryTerm.get(), equalTo(indexShard.getOperationPrimaryTerm()));
+            Engine.IndexCommitRef lastCommitRef = lastAcquiredCommit.get();
+            assertThat(lastCommitRef, notNullValue());
+            IndexCommit lastCommit = lastCommitRef.getIndexCommit();
+            assertThat(lastCommit.getGeneration(), equalTo(2L));
+            IndexCommit lastDeleted = lastDeletedCommit.get();
+            assertThat(lastDeleted, nullValue());
+
+            lastCommitRef.close();
+
+            indexShard.flush(new FlushRequest("index").force(true));
+
+            lastDeleted = lastDeletedCommit.get();
+            assertThat(lastDeleted.getGeneration(), equalTo(lastCommit.getGeneration()));
+            assertThat(lastDeleted.getSegmentsFileName(), equalTo(lastCommit.getSegmentsFileName()));
+            assertThat(lastDeleted.isDeleted(), equalTo(true));
+
+            lastCommitRef = lastAcquiredCommit.get();
+            assertThat(lastCommitRef, notNullValue());
+            lastCommit = lastCommitRef.getIndexCommit();
+            assertThat(lastCommit.getGeneration(), equalTo(3L));
+
+            lastCommitRef.close();
+        } finally {
+            IOUtils.close(closeables);
+        }
+    }
+
+    public void testCustomReplicationTrackerFactory() throws IOException {
+        IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            InternalEngine::new,
+            Collections.emptyMap(),
+            () -> true,
+            indexNameExpressionResolver,
+            Collections.emptyMap()
+        );
+
+        class CustomReplicationTracker extends ReplicationTracker {
+            CustomReplicationTracker(
+                ShardId shardId,
+                String allocationId,
+                IndexSettings indexSettings,
+                long operationPrimaryTerm,
+                long globalCheckpoint,
+                LongConsumer onGlobalCheckpointUpdated,
+                LongSupplier currentTimeMillisSupplier,
+                BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
+                Supplier<SafeCommitInfo> safeCommitInfoSupplier,
+                Consumer<ReplicationGroup> onReplicationGroupUpdated
+            ) {
+                super(
+                    shardId,
+                    allocationId,
+                    indexSettings,
+                    operationPrimaryTerm,
+                    globalCheckpoint,
+                    onGlobalCheckpointUpdated,
+                    currentTimeMillisSupplier,
+                    onSyncRetentionLeases,
+                    safeCommitInfoSupplier,
+                    onReplicationGroupUpdated
+                );
+            }
+        }
+        module.setReplicationTrackerFactory(
+            (
+                shardId,
+                allocationId,
+                indexSettings,
+                operationPrimaryTerm,
+                onGlobalCheckpointUpdated,
+                currentTimeMillisSupplier,
+                onSyncRetentionLeases,
+                safeCommitInfoSupplier,
+                onReplicationGroupUpdated) -> new CustomReplicationTracker(
+                    shardId,
+                    allocationId,
+                    indexSettings,
+                    operationPrimaryTerm,
+                    UNASSIGNED_SEQ_NO,
+                    onGlobalCheckpointUpdated,
+                    currentTimeMillisSupplier,
+                    onSyncRetentionLeases,
+                    safeCommitInfoSupplier,
+                    onReplicationGroupUpdated
+                )
+        );
+        final IndexService indexService = newIndexService(module);
+        ShardId shardId = new ShardId("index", UUIDs.randomBase64UUID(random()), 0);
+        ShardRouting shardRouting = ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+            ShardRouting.Role.DEFAULT
+        ).initialize("_node_id", null, -1);
+        IndexShard indexShard = indexService.createShard(shardRouting, s -> {}, RetentionLeaseSyncer.EMPTY);
+        assertThat(indexShard.getReplicationTracker(), instanceOf(CustomReplicationTracker.class));
+    }
+
     private ShardRouting createInitializedShardRouting() {
         ShardRouting shard = ShardRouting.newUnassigned(
             new ShardId("test", "_na_", 0),
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+            ShardRouting.Role.DEFAULT
         );
         shard = shard.initialize("node1", null, -1);
         return shard;
@@ -657,6 +912,24 @@ public class IndexModuleTests extends ESTestCase {
         @Override
         public DirectoryReader apply(DirectoryReader reader) {
             return null;
+        }
+    }
+
+    private static final class TestDirectoryWrapper implements IndexModule.DirectoryWrapper {
+
+        @Override
+        public Directory wrap(Directory delegate, ShardRouting shardRouting) {
+            return new WrappedDirectory(delegate, shardRouting);
+        }
+    }
+
+    private static final class WrappedDirectory extends FilterDirectory {
+
+        final ShardRouting shardRouting;
+
+        protected WrappedDirectory(Directory in, ShardRouting shardRouting) {
+            super(in);
+            this.shardRouting = shardRouting;
         }
     }
 }

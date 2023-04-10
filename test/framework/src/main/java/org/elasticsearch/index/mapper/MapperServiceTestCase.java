@@ -19,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -62,6 +63,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -118,11 +120,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected static IndexAnalyzers createIndexAnalyzers() {
-        return new IndexAnalyzers(
-            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            Map.of(),
-            Map.of()
-        );
+        return IndexAnalyzers.of(Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())));
     }
 
     protected final String randomIndexOptions() {
@@ -151,16 +149,20 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService.documentMapper();
     }
 
-    protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
-        return createMapperService(Version.CURRENT, mappings);
+    protected final MapperService createMapperService(XContentBuilder mappings) throws IOException {
+        return createMapperService(getVersion(), mappings);
     }
 
-    protected MapperService createMapperService(Settings settings, XContentBuilder mappings) throws IOException {
-        return createMapperService(Version.CURRENT, settings, () -> true, mappings);
+    protected Version getVersion() {
+        return Version.CURRENT;
     }
 
-    protected MapperService createMapperService(BooleanSupplier idFieldEnabled, XContentBuilder mappings) throws IOException {
-        return createMapperService(Version.CURRENT, getIndexSettings(), idFieldEnabled, mappings);
+    protected final MapperService createMapperService(Settings settings, XContentBuilder mappings) throws IOException {
+        return createMapperService(getVersion(), settings, () -> true, mappings);
+    }
+
+    protected final MapperService createMapperService(BooleanSupplier idFieldEnabled, XContentBuilder mappings) throws IOException {
+        return createMapperService(getVersion(), getIndexSettings(), idFieldEnabled, mappings);
     }
 
     protected final MapperService createMapperService(String mappings) throws IOException {
@@ -175,7 +177,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
-    protected MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
+    protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }
 
@@ -202,12 +204,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         return new MapperService(
+            () -> TransportVersion.CURRENT,
             indexSettings,
             createIndexAnalyzers(indexSettings),
             parserConfig(),
             similarityService,
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
             this::compileScript
         );
@@ -235,12 +240,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     protected final void withLuceneIndex(
         MapperService mapperService,
         CheckedConsumer<RandomIndexWriter, IOException> builder,
-        CheckedConsumer<IndexReader, IOException> test
+        CheckedConsumer<DirectoryReader, IOException> test
     ) throws IOException {
         IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService));
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
             builder.accept(iw);
-            try (IndexReader reader = iw.getReader()) {
+            try (DirectoryReader reader = iw.getReader()) {
                 test.accept(reader);
             }
         }
@@ -656,6 +661,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup(
+        MapperService mapperService
+    ) {
+        return fieldDataLookup(mapperService.mappingLookup()::sourcePaths);
+    }
+
+    protected TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup(
         Function<String, Set<String>> sourcePathsLookup
     ) {
         return (mft, lookupSource, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSource, sourcePathsLookup, fdo))
@@ -705,8 +716,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
         LeafReader leafReader = getOnlyLeafReader(reader);
         SourceLoader.Leaf leafLoader = loader.leaf(leafReader, new int[] { docId });
-        BytesReference syntheticSourceBytes = leafLoader.source(syntheticSourceStoredFieldLoader(mapper, leafReader, loader), docId);
-        return syntheticSourceBytes.utf8ToString();
+        Source synthetic = leafLoader.source(syntheticSourceStoredFieldLoader(mapper, leafReader, loader), docId);
+        return synthetic.internalSourceRef().utf8ToString();
     }
 
     protected static LeafStoredFieldLoader syntheticSourceStoredFieldLoader(
@@ -737,6 +748,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             b.startObject("_source").field("mode", "synthetic").endObject();
             b.startObject("properties");
             buildFields.accept(b);
+            b.endObject();
+        });
+    }
+
+    protected final XContentBuilder syntheticSourceFieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField)
+        throws IOException {
+        return syntheticSourceMapping(b -> {
+            b.startObject("field");
+            buildField.accept(b);
             b.endObject();
         });
     }

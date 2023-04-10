@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -159,7 +160,8 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         protected RuntimeField createChildRuntimeField(
             MappingParserContext parserContext,
             String parentName,
-            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory,
+            OnScriptError onScriptError
         ) {
             return createRuntimeField(parserContext);
         }
@@ -243,6 +245,11 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         @Override
         public void setNextReader(LeafReaderContext context) {
             inputFieldValueFetcher.setNextReader(context);
+        }
+
+        @Override
+        public StoredFieldsSpec storedFieldsSpec() {
+            return inputFieldValueFetcher.storedFieldsSpec();
         }
     }
 }

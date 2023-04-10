@@ -19,11 +19,15 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public final class InnerHitsPhase implements FetchSubPhase {
 
@@ -39,10 +43,16 @@ public final class InnerHitsPhase implements FetchSubPhase {
             return null;
         }
         Map<String, InnerHitsContext.InnerHitSubContext> innerHits = searchContext.innerHits().getInnerHits();
+        StoredFieldsSpec storedFieldsSpec = new StoredFieldsSpec(requiresSource(innerHits.values()), false, Set.of());
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
 
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return storedFieldsSpec;
             }
 
             @Override
@@ -52,6 +62,16 @@ public final class InnerHitsPhase implements FetchSubPhase {
                 hitExecute(innerHits, hit, rootSource);
             }
         };
+    }
+
+    private static boolean requiresSource(Collection<? extends SearchContext> subContexts) {
+        boolean requiresSource = false;
+        for (SearchContext sc : subContexts) {
+            requiresSource |= sc.sourceRequested();
+            requiresSource |= sc.fetchFieldsContext() != null;
+            requiresSource |= sc.highlight() != null;
+        }
+        return requiresSource;
     }
 
     private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, SearchHit hit, Source rootSource)

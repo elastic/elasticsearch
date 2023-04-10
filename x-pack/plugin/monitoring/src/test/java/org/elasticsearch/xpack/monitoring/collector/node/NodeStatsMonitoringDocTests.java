@@ -38,6 +38,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -47,7 +48,9 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<NodeStatsMonitoringDoc> {
 
@@ -63,6 +66,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         nodeId = randomAlphaOfLength(5);
         isMaster = randomBoolean();
         nodeStats = mock(NodeStats.class);
+        when(nodeStats.toXContentChunked(any())).thenReturn(Collections.emptyIterator());
         mlockall = randomBoolean();
     }
 

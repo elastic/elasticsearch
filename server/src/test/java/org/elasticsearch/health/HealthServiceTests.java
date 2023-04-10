@@ -16,6 +16,10 @@ import org.elasticsearch.health.node.DiskHealthInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,6 +42,19 @@ import static org.mockito.Mockito.mock;
 
 public class HealthServiceTests extends ESTestCase {
 
+    private ThreadPool threadPool;
+
+    @Before
+    public void setupThreadpool() {
+        threadPool = new TestThreadPool(HealthServiceTests.class.getSimpleName());
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        threadPool.shutdownNow();
+    }
+
     public void testShouldReturnGroupedIndicators() throws Exception {
 
         var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
@@ -50,7 +67,8 @@ public class HealthServiceTests extends ESTestCase {
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
-            )
+            ),
+            threadPool
         );
 
         NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
@@ -70,6 +88,7 @@ public class HealthServiceTests extends ESTestCase {
             client,
             indicatorName,
             false,
+            1000,
             getExpectedHealthIndicatorResultsActionListener(onResponseCalled, expectedHealthIndicatorResults)
         );
         assertBusy(() -> assertThat(onResponseCalled.get(), equalTo(true)));
@@ -94,30 +113,6 @@ public class HealthServiceTests extends ESTestCase {
         };
     }
 
-    public void testDuplicateIndicatorNames() throws Exception {
-        // Same indicator name, should throw exception:
-        var networkLatency = new HealthIndicatorResult(
-            "network_latency",
-            GREEN,
-            null,
-            null,
-            Collections.emptyList(),
-            Collections.emptyList()
-        );
-        var slowTasks = new HealthIndicatorResult("network_latency", YELLOW, null, null, Collections.emptyList(), Collections.emptyList());
-        var service = new HealthService(
-            Collections.emptyList(),
-            List.of(
-                createMockHealthIndicatorService(networkLatency),
-                createMockHealthIndicatorService(slowTasks),
-                createMockHealthIndicatorService(networkLatency)
-            )
-        );
-        NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
-        // This is testing an assertion, so we expect it to blow up in place rather than calling onFailure:
-        assertGetHealthThrowsException(service, client, null, true, AssertionError.class, null, false);
-    }
-
     public void testMissingIndicator() throws Exception {
         var networkLatency = new HealthIndicatorResult("network_latency", GREEN, null, null, null, null);
         var slowTasks = new HealthIndicatorResult("slow_task_assignment", YELLOW, null, null, null, null);
@@ -129,7 +124,8 @@ public class HealthServiceTests extends ESTestCase {
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
-            )
+            ),
+            threadPool
         );
         NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
         assertGetHealthThrowsException(
@@ -143,11 +139,23 @@ public class HealthServiceTests extends ESTestCase {
         );
     }
 
+    public void testValidateSize() {
+        var shardsAvailable = new HealthIndicatorResult("shards_availability", GREEN, null, null, null, null);
+
+        var service = new HealthService(Collections.emptyList(), List.of(createMockHealthIndicatorService(shardsAvailable)), threadPool);
+        NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.getHealth(client, null, true, -1, ActionListener.noop())
+        );
+        assertThat(illegalArgumentException.getMessage(), is("The max number of resources must be a positive integer"));
+    }
+
     private <T extends Throwable> void assertGetHealthThrowsException(
         HealthService service,
         NodeClient client,
         String indicatorName,
-        boolean explain,
+        boolean verbose,
         Class<T> expectedType,
         String expectedMessage,
         boolean expectOnFailCalled
@@ -159,7 +167,7 @@ public class HealthServiceTests extends ESTestCase {
             expectedMessage
         );
         try {
-            service.getHealth(client, indicatorName, explain, listener);
+            service.getHealth(client, indicatorName, verbose, 1000, listener);
         } catch (Throwable t) {
             if (expectOnFailCalled || (expectedType.isInstance(t) == false)) {
                 throw new RuntimeException("Unexpected throwable", t);
@@ -216,7 +224,8 @@ public class HealthServiceTests extends ESTestCase {
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
-            )
+            ),
+            threadPool
         );
         NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
 
@@ -255,7 +264,8 @@ public class HealthServiceTests extends ESTestCase {
                 createMockHealthIndicatorService(networkLatency, healthInfo),
                 createMockHealthIndicatorService(slowTasks, healthInfo),
                 createMockHealthIndicatorService(shardsAvailable, healthInfo)
-            )
+            ),
+            threadPool
         );
         NodeClient client = getTestClient(healthInfo);
 
@@ -283,7 +293,8 @@ public class HealthServiceTests extends ESTestCase {
                 createMockHealthIndicatorService(networkLatency),
                 createMockHealthIndicatorService(slowTasks),
                 createMockHealthIndicatorService(shardsAvailable)
-            )
+            ),
+            threadPool
         );
         NodeClient client = getTestClient(HealthInfo.EMPTY_HEALTH_INFO);
         {
@@ -327,7 +338,7 @@ public class HealthServiceTests extends ESTestCase {
                 throw new RuntimeException(e);
             }
         };
-        service.getHealth(client, indicatorName, false, listener);
+        service.getHealth(client, indicatorName, false, 1000, listener);
         assertBusy(() -> assertNotNull(resultReference.get()));
         return resultReference.get();
     }
@@ -368,7 +379,7 @@ public class HealthServiceTests extends ESTestCase {
             }
 
             @Override
-            public HealthIndicatorResult calculate(boolean explain, HealthInfo healthInfo) {
+            public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
                 if (expectedHealthInfo != null) {
                     assertThat(healthInfo, equalTo(expectedHealthInfo));
                 }

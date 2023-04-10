@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
 
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR;
@@ -41,7 +40,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     }
 
     @Override
-    protected GetFeatureUpgradeStatusResponse mutateInstance(GetFeatureUpgradeStatusResponse instance) throws IOException {
+    protected GetFeatureUpgradeStatusResponse mutateInstance(GetFeatureUpgradeStatusResponse instance) {
         return new GetFeatureUpgradeStatusResponse(
             randomList(
                 8,

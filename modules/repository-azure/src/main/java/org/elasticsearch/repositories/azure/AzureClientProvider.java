@@ -9,7 +9,6 @@
 package org.elasticsearch.repositories.azure;
 
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -29,14 +28,9 @@ import com.azure.core.http.HttpResponse;
 import com.azure.core.http.ProxyOptions;
 import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 import com.azure.core.http.policy.HttpPipelinePolicy;
-import com.azure.core.util.logging.ClientLogger;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
-import com.azure.storage.common.StorageSharedKeyCredential;
-import com.azure.storage.common.implementation.connectionstring.StorageAuthenticationSettings;
-import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
-import com.azure.storage.common.implementation.connectionstring.StorageEndpoint;
 import com.azure.storage.common.policy.RequestRetryOptions;
 
 import org.apache.logging.log4j.LogManager;
@@ -48,6 +42,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.azure.executors.PrivilegedExecutor;
 import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.io.IOException;
 import java.net.URL;
@@ -98,7 +93,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private final EventLoopGroup eventLoopGroup;
     private final ConnectionProvider connectionProvider;
     private final ByteBufAllocator byteBufAllocator;
-    private final ClientLogger clientLogger = new ClientLogger(AzureClientProvider.class);
     private final LoopResources nioLoopResources;
     private volatile boolean closed = false;
 
@@ -144,22 +138,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             .maxIdleTime(Duration.ofMillis(maxIdleTime.millis()))
             .build();
 
-        ByteBufAllocator pooledByteBufAllocator = createByteBufAllocator();
-
         // Just to verify that this executor exists
         threadPool.executor(REPOSITORY_THREAD_POOL_NAME);
-        return new AzureClientProvider(threadPool, REPOSITORY_THREAD_POOL_NAME, eventLoopGroup, provider, pooledByteBufAllocator);
-    }
-
-    private static ByteBufAllocator createByteBufAllocator() {
-        int nHeapArena = 1;
-        int pageSize = PooledByteBufAllocator.defaultPageSize();
-        int maxOrder = PooledByteBufAllocator.defaultMaxOrder();
-        int tinyCacheSize = PooledByteBufAllocator.defaultTinyCacheSize();
-        int smallCacheSize = PooledByteBufAllocator.defaultSmallCacheSize();
-        int normalCacheSize = PooledByteBufAllocator.defaultNormalCacheSize();
-
-        return new PooledByteBufAllocator(false, nHeapArena, 0, pageSize, maxOrder, tinyCacheSize, smallCacheSize, normalCacheSize, false);
+        return new AzureClientProvider(threadPool, REPOSITORY_THREAD_POOL_NAME, eventLoopGroup, provider, NettyAllocator.getAllocator());
     }
 
     AzureBlobServiceClient createClient(
@@ -183,34 +164,19 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true).proxy(proxyOptions).build();
 
         final String connectionString = settings.getConnectString();
-        final StorageConnectionString storageConnectionString = StorageConnectionString.create(connectionString, clientLogger);
-        final StorageEndpoint endpoint = storageConnectionString.getBlobEndpoint();
-        final StorageAuthenticationSettings authSettings = storageConnectionString.getStorageAuthSettings();
-
-        BlobServiceClientBuilder builder = new BlobServiceClientBuilder().endpoint(endpoint.getPrimaryUri())
+        BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
             .httpClient(httpClient)
             .retryOptions(retryOptions);
-
-        if (authSettings.getType() == StorageAuthenticationSettings.Type.ACCOUNT_NAME_KEY) {
-            builder.credential(
-                new StorageSharedKeyCredential(authSettings.getAccount().getName(), authSettings.getAccount().getAccessKey())
-            );
-        } else if (authSettings.getType() == StorageAuthenticationSettings.Type.SAS_TOKEN) {
-            // Notice that we used the SAS token as it is provided in settings,
-            // this avoids going through the SDK SAS token sanitation process
-            // which can provide an invalid signature (see #88140)
-            builder.sasToken(settings.getSasToken());
-        }
 
         if (successfulRequestConsumer != null) {
             builder.addPolicy(new SuccessfulRequestTracker(successfulRequestConsumer));
         }
 
         if (locationMode.isSecondary()) {
-            String secondaryUri = storageConnectionString.getBlobEndpoint().getSecondaryUri();
+            String secondaryUri = settings.getStorageEndpoint().secondaryURI();
             if (secondaryUri == null) {
                 throw new IllegalArgumentException(
-                    "Unable to configure an AzureClient using a secondary location without a secondary " + "endpoint"
+                    "Unable to configure an AzureClient using a secondary location without a secondary endpoint"
                 );
             }
 

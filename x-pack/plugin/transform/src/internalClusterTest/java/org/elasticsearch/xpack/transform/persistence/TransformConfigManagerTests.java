@@ -233,7 +233,13 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // expand 1 id
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds(transformConfig1.getId(), PageParams.defaultParams(), true, listener),
+            listener -> transformConfigManager.expandTransformIds(
+                transformConfig1.getId(),
+                PageParams.defaultParams(),
+                null,
+                true,
+                listener
+            ),
             tuple(1L, tuple(singletonList("transform1_expand"), singletonList(transformConfig1))),
             null,
             null
@@ -244,6 +250,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             listener -> transformConfigManager.expandTransformIds(
                 "transform1_expand,transform2_expand",
                 PageParams.defaultParams(),
+                null,
                 true,
                 listener
             ),
@@ -257,6 +264,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             listener -> transformConfigManager.expandTransformIds(
                 "transform1*,transform2_expand,transform3_expand",
                 PageParams.defaultParams(),
+                null,
                 true,
                 listener
             ),
@@ -273,7 +281,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // expand 3 ids _all
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("_all", PageParams.defaultParams(), true, listener),
+            listener -> transformConfigManager.expandTransformIds("_all", PageParams.defaultParams(), null, true, listener),
             tuple(
                 3L,
                 tuple(
@@ -287,7 +295,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // expand 1 id _all with pagination
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("_all", new PageParams(0, 1), true, listener),
+            listener -> transformConfigManager.expandTransformIds("_all", new PageParams(0, 1), null, true, listener),
             tuple(3L, tuple(singletonList("transform1_expand"), singletonList(transformConfig1))),
             null,
             null
@@ -295,7 +303,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // expand 2 later ids _all with pagination
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("_all", new PageParams(1, 2), true, listener),
+            listener -> transformConfigManager.expandTransformIds("_all", new PageParams(1, 2), null, true, listener),
             tuple(3L, tuple(Arrays.asList("transform2_expand", "transform3_expand"), Arrays.asList(transformConfig2, transformConfig3))),
             null,
             null
@@ -303,7 +311,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // expand 1 id explicitly that does not exist
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("unknown,unknown2", new PageParams(1, 2), true, listener),
+            listener -> transformConfigManager.expandTransformIds("unknown,unknown2", new PageParams(1, 2), null, true, listener),
             (Tuple<Long, Tuple<List<String>, List<TransformConfig>>>) null,
             null,
             e -> {
@@ -317,7 +325,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // expand 1 id implicitly that does not exist
         assertAsync(
-            listener -> transformConfigManager.expandTransformIds("unknown*", new PageParams(1, 2), false, listener),
+            listener -> transformConfigManager.expandTransformIds("unknown*", new PageParams(1, 2), null, false, listener),
             (Tuple<Long, Tuple<List<String>, List<TransformConfig>>>) null,
             null,
             e -> {
@@ -348,6 +356,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             listener -> transformConfigManager.expandTransformIds(
                 "transform1_expand,transform2_expand",
                 PageParams.defaultParams(),
+                null,
                 true,
                 listener
             ),
@@ -368,25 +377,25 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(id);
             assertAsync(listener -> transformConfigManager.putTransformConfiguration(transformConfig, listener), true, null, null);
         }
-        assertAsync(listener -> transformConfigManager.getAllTransformIds(listener), transformIds, null, null);
+        assertAsync(listener -> transformConfigManager.getAllTransformIds(null, listener), transformIds, null, null);
 
         // test recursive retrieval
         assertAsync(
-            listener -> transformConfigManager.expandAllTransformIds(false, 10, listener),
+            listener -> transformConfigManager.expandAllTransformIds(false, 10, null, listener),
             tuple(Long.valueOf(numberOfTransformsToGenerate), transformIds),
             null,
             null
         );
 
         assertAsync(
-            listener -> transformConfigManager.getAllOutdatedTransformIds(listener),
+            listener -> transformConfigManager.getAllOutdatedTransformIds(null, listener),
             tuple(Long.valueOf(numberOfTransformsToGenerate), Collections.<String>emptySet()),
             null,
             null
         );
 
         assertAsync(
-            listener -> transformConfigManager.expandAllTransformIds(true, 10, listener),
+            listener -> transformConfigManager.expandAllTransformIds(true, 10, null, listener),
             tuple(Long.valueOf(numberOfTransformsToGenerate), Collections.<String>emptySet()),
             null,
             null
@@ -410,9 +419,9 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             client().index(request).actionGet();
         }
 
-        assertAsync(listener -> transformConfigManager.getAllTransformIds(listener), transformIds, null, null);
+        assertAsync(listener -> transformConfigManager.getAllTransformIds(null, listener), transformIds, null, null);
         assertAsync(
-            listener -> transformConfigManager.getAllOutdatedTransformIds(listener),
+            listener -> transformConfigManager.getAllOutdatedTransformIds(null, listener),
             tuple(Long.valueOf(numberOfTransformsToGenerate), Collections.<String>emptySet()),
             null,
             null
@@ -443,16 +452,16 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         );
 
         transformIds.add(oldTransformId);
-        assertAsync(listener -> transformConfigManager.getAllTransformIds(listener), transformIds, null, null);
+        assertAsync(listener -> transformConfigManager.getAllTransformIds(null, listener), transformIds, null, null);
         assertAsync(
-            listener -> transformConfigManager.getAllOutdatedTransformIds(listener),
+            listener -> transformConfigManager.getAllOutdatedTransformIds(null, listener),
             tuple(Long.valueOf(numberOfTransformsToGenerate + 1), Collections.singleton(oldTransformId)),
             null,
             null
         );
 
         assertAsync(
-            listener -> transformConfigManager.expandAllTransformIds(true, 10, listener),
+            listener -> transformConfigManager.expandAllTransformIds(true, 10, null, listener),
             tuple(Long.valueOf(numberOfTransformsToGenerate + 1), Collections.singleton(oldTransformId)),
             null,
             null
@@ -517,7 +526,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         // returned docs will be ordered by id
         expectedDocs.sort(Comparator.comparing(TransformStoredDoc::getId));
-        assertAsync(listener -> transformConfigManager.getTransformStoredDocs(ids, listener), expectedDocs, null, null);
+        assertAsync(listener -> transformConfigManager.getTransformStoredDocs(ids, null, listener), expectedDocs, null, null);
     }
 
     public void testDeleteOldTransformConfigurations() throws Exception {

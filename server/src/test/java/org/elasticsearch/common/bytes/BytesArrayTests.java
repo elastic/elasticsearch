@@ -83,7 +83,7 @@ public class BytesArrayTests extends AbstractBytesReferenceTestCase {
         assertThat(ref.getLongLE(0), equalTo(888L));
         assertThat(ref.getLongLE(8), equalTo(Long.MAX_VALUE));
         Exception e = expectThrows(ArrayIndexOutOfBoundsException.class, () -> ref.getLongLE(9));
-        assertThat(e.getMessage(), equalTo("Index 16 out of bounds for length 16"));
+        assertThat(e.getMessage(), equalTo("Index 9 out of bounds for length 9"));
     }
 
     public void testGetDoubleLE() {

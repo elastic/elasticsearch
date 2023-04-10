@@ -12,6 +12,8 @@ import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.geo.Point;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
@@ -50,6 +52,13 @@ public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShape
     }
 
     /**
+     * Geo data is limited to geographic lat/lon degrees, so we use the GeographyValidator
+     */
+    public GeometryValidator geometryValidator() {
+        return GeographyValidator.instance(true);
+    }
+
+    /**
      * thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using the Geo decoder
      */
     public static class GeoShapeValue extends ShapeValues.ShapeValue {
@@ -71,7 +80,7 @@ public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShape
          */
         public GeoRelation relate(int minX, int maxX, int minY, int maxY) throws IOException {
             tile2DVisitor.reset(minX, minY, maxX, maxY);
-            reader.visit(tile2DVisitor);
+            visit(tile2DVisitor);
             return tile2DVisitor.relation();
         }
 

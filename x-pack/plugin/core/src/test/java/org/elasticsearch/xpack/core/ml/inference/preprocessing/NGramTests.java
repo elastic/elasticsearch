@@ -37,6 +37,11 @@ public class NGramTests extends PreProcessingTests<NGram> {
         return createRandom();
     }
 
+    @Override
+    protected NGram mutateInstance(NGram instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static NGram createRandom() {
         return createRandom(randomBoolean() ? randomBoolean() : null);
     }

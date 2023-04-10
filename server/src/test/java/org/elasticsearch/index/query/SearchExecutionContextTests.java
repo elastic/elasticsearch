@@ -23,8 +23,10 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -57,6 +59,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
@@ -68,11 +71,15 @@ import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
+import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -104,7 +111,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     public void testFailIfFieldMappingNotFound() {
         SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         context.setAllowUnmappedFields(false);
-        MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text");
+        MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text", randomBoolean());
         MappedFieldType result = context.failIfFieldMappingNotFound("name", fieldType);
         assertThat(result, sameInstance(fieldType));
         QueryShardException e = expectThrows(QueryShardException.class, () -> context.failIfFieldMappingNotFound("name", null));
@@ -304,7 +311,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.addRuntimeFields(runtimeFieldTypes);
-        Mapping mapping = new Mapping(builder.build(MapperBuilderContext.ROOT), new MetadataFieldMapper[0], Collections.emptyMap());
+        Mapping mapping = new Mapping(builder.build(MapperBuilderContext.root(false)), new MetadataFieldMapper[0], Collections.emptyMap());
         return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), Collections.emptyList());
     }
 
@@ -390,6 +397,30 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertTrue(mappingLookup.isMultiField("cat.subfield"));
     }
 
+    public void testSyntheticSourceScriptLoading() throws IOException {
+
+        // Build a mapping using synthetic source
+        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null).setSynthetic().build();
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).build(MapperBuilderContext.root(true));
+        Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
+        MappingLookup lookup = MappingLookup.fromMapping(mapping);
+
+        SearchExecutionContext sec = createSearchExecutionContext("index", "", lookup, Map.of());
+
+        // Attempting to access synthetic source via this context should throw an error
+        SearchLookup searchLookup = sec.lookup();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> searchLookup.getSource(null, 0));
+        assertThat(e.getMessage(), equalTo("Cannot access source from scripts in synthetic mode"));
+
+        // Setting the source provider explicitly then gives us a new SearchLookup that can use source
+        Source source = Source.fromMap(Map.of("field", "value"), XContentType.JSON);
+        sec.setLookupProviders((ctx, doc) -> source, LeafFieldLookupProvider.fromStoredFields());
+        SearchLookup searchLookup1 = sec.lookup();
+        assertNotSame(searchLookup, searchLookup1);
+        assertSame(source, searchLookup1.getSource(null, 0));
+
+    }
+
     public static SearchExecutionContext createSearchExecutionContext(String indexUuid, String clusterAlias) {
         return createSearchExecutionContext(indexUuid, clusterAlias, MappingLookup.EMPTY, Map.of());
     }
@@ -445,11 +476,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static MapperService createMapperService(IndexSettings indexSettings, MappingLookup mappingLookup) {
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
-            singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
-            emptyMap(),
-            emptyMap()
-        );
+        IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)));
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         Supplier<SearchExecutionContext> searchExecutionContextSupplier = () -> { throw new UnsupportedOperationException(); };
@@ -461,8 +488,8 @@ public class SearchExecutionContextTests extends ESTestCase {
                 type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
                 mapperRegistry.getRuntimeFieldParsers()::get,
                 indexSettings.getIndexVersionCreated(),
+                () -> TransportVersion.CURRENT,
                 searchExecutionContextSupplier,
-                null,
                 ScriptCompiler.NONE,
                 indexAnalyzers,
                 indexSettings,

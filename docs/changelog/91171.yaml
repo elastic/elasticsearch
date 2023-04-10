@@ -1,5 +1,0 @@
-pr: 91171
-summary: Fix NPE in auditing `authenticationSuccess` for non-existing run-as user
-area: Audit
-type: bug
-issues: []

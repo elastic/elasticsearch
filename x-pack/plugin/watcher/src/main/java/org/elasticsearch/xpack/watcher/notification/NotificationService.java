@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.notification;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -141,11 +142,12 @@ public abstract class NotificationService<Account> {
         return settings.getByPrefix(getNotificationsAccountPrefix()).names();
     }
 
-    private @Nullable String getDefaultAccountName(Settings settings) {
+    @Nullable
+    protected String getDefaultAccountName(Settings settings) {
         return settings.get("xpack.notification." + type + ".default_account");
     }
 
-    private Map<String, LazyInitializable<Account, SettingsException>> createAccounts(
+    protected Map<String, LazyInitializable<Account, SettingsException>> createAccounts(
         Settings settings,
         Set<String> accountNames,
         BiFunction<String, Settings, Account> accountFactory
@@ -153,7 +155,7 @@ public abstract class NotificationService<Account> {
         final Map<String, LazyInitializable<Account, SettingsException>> accounts = new HashMap<>();
         for (final String accountName : accountNames) {
             final Settings accountSettings = settings.getAsSettings(getNotificationsAccountPrefix() + accountName);
-            accounts.put(accountName, new LazyInitializable<>(() -> { return accountFactory.apply(accountName, accountSettings); }));
+            accounts.put(accountName, new LazyInitializable<>(() -> accountFactory.apply(accountName, accountSettings)));
         }
         return Collections.unmodifiableMap(accounts);
     }
@@ -209,7 +211,6 @@ public abstract class NotificationService<Account> {
             }
         }
         return new SecureSettings() {
-
             @Override
             public boolean isLoaded() {
                 return true;
@@ -237,6 +238,11 @@ public abstract class NotificationService<Account> {
 
             @Override
             public void close() throws IOException {}
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                throw new IllegalStateException("Unsupported operation");
+            }
         };
     }
 }

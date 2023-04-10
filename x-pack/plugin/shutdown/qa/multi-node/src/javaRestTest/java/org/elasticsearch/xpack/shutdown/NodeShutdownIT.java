@@ -122,7 +122,7 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
         String[] readinessAddresses = readinessPorts.split(",");
         String readinessAddress = readinessAddresses[nodeIndex];
 
-        String portStr = readinessAddress.split(":")[1];
+        String portStr = readinessAddress.substring(readinessAddress.lastIndexOf(':') + 1);
         Integer port = Integer.parseInt(portStr);
 
         // Once we have the right port, check to see if it's ready, has to be for a properly started cluster
@@ -344,7 +344,7 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
         // Create an index, pin the allocation to the node we're about to shut down
         final String indexName = "test-idx";
         Request createIndexRequest = new Request("PUT", indexName);
-        createIndexRequest.setJsonEntity(formatted("""
+        createIndexRequest.setJsonEntity(Strings.format("""
             {
               "settings": {
                 "number_of_shards": %s,

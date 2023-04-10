@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -32,7 +31,7 @@ import java.util.stream.Collectors;
  */
 public final class IndexMetaDataGenerations {
 
-    public static final IndexMetaDataGenerations EMPTY = new IndexMetaDataGenerations(Collections.emptyMap(), Collections.emptyMap());
+    public static final IndexMetaDataGenerations EMPTY = new IndexMetaDataGenerations(Map.of(), Map.of());
 
     /**
      * Map of {@link SnapshotId} to a map of the indices in a snapshot mapping {@link IndexId} to metadata identifiers.
@@ -94,7 +93,7 @@ public final class IndexMetaDataGenerations {
      */
     @Nullable
     public String snapshotIndexMetadataIdentifier(SnapshotId snapshotId, IndexId indexId) {
-        return lookup.getOrDefault(snapshotId, Collections.emptyMap()).get(indexId);
+        return lookup.getOrDefault(snapshotId, Map.of()).get(indexId);
     }
 
     /**

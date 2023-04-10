@@ -16,12 +16,15 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 public class HighlightPhase implements FetchSubPhase {
@@ -43,12 +46,7 @@ public class HighlightPhase implements FetchSubPhase {
 
     public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchHighlightContext highlightContext, Query query) {
         Map<String, Object> sharedCache = new HashMap<>();
-        Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = contextBuilders(
-            context,
-            highlightContext,
-            query,
-            sharedCache
-        );
+        FieldContext fieldContext = contextBuilders(context, highlightContext, query, sharedCache);
 
         return new FetchSubPhaseProcessor() {
             @Override
@@ -57,8 +55,14 @@ public class HighlightPhase implements FetchSubPhase {
             }
 
             @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return fieldContext.storedFieldsSpec;
+            }
+
+            @Override
             public void process(HitContext hitContext) throws IOException {
                 Map<String, HighlightField> highlightFields = new HashMap<>();
+                Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = fieldContext.builders;
                 for (String field : contextBuilders.keySet()) {
                     FieldHighlightContext fieldContext = contextBuilders.get(field).apply(hitContext);
                     Highlighter highlighter = getHighlighter(fieldContext.field);
@@ -87,25 +91,24 @@ public class HighlightPhase implements FetchSubPhase {
         return highlighter;
     }
 
-    private Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders(
+    private record FieldContext(StoredFieldsSpec storedFieldsSpec, Map<String, Function<HitContext, FieldHighlightContext>> builders) {}
+
+    private FieldContext contextBuilders(
         FetchContext context,
         SearchHighlightContext highlightContext,
         Query query,
         Map<String, Object> sharedCache
     ) {
         Map<String, Function<HitContext, FieldHighlightContext>> builders = new LinkedHashMap<>();
+        StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
         for (SearchHighlightContext.Field field : highlightContext.fields()) {
             Highlighter highlighter = getHighlighter(field);
 
             Collection<String> fieldNamesToHighlight = context.getSearchExecutionContext().getMatchingFieldNames(field.field());
 
-            if (highlightContext.forceSource(field)) {
-                if (context.getSearchExecutionContext().isSourceEnabled() == false) {
-                    throw new IllegalArgumentException("source is forced for fields " + fieldNamesToHighlight + " but _source is disabled");
-                }
-            }
-
             boolean fieldNameContainsWildcards = field.field().contains("*");
+            Set<String> storedFields = new HashSet<>();
+            boolean sourceRequired = false;
             for (String fieldName : fieldNamesToHighlight) {
                 MappedFieldType fieldType = context.getSearchExecutionContext().getFieldType(fieldName);
 
@@ -129,9 +132,14 @@ public class HighlightPhase implements FetchSubPhase {
                     }
                 }
 
+                if (fieldType.isStored()) {
+                    storedFields.add(fieldType.name());
+                } else {
+                    sourceRequired = true;
+                }
+
                 Query highlightQuery = field.fieldOptions().highlightQuery();
 
-                boolean forceSource = highlightContext.forceSource(field);
                 builders.put(
                     fieldName,
                     hc -> new FieldHighlightContext(
@@ -141,12 +149,12 @@ public class HighlightPhase implements FetchSubPhase {
                         context,
                         hc,
                         highlightQuery == null ? query : highlightQuery,
-                        forceSource,
                         sharedCache
                     )
                 );
             }
+            storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(sourceRequired, false, storedFields));
         }
-        return builders;
+        return new FieldContext(storedFieldsSpec, builders);
     }
 }

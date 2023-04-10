@@ -15,7 +15,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -28,10 +29,10 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
             String fieldName,
             ValuesSourceType valuesSourceType,
             ValueFetcher valueFetcher,
-            SourceLookup sourceLookup,
+            SourceProvider sourceProvider,
             ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
         ) {
-            super(fieldName, valuesSourceType, valueFetcher, sourceLookup, toScriptFieldFactory);
+            super(fieldName, valuesSourceType, valueFetcher, sourceProvider, toScriptFieldFactory);
         }
 
         @Override
@@ -40,7 +41,7 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
                 fieldName,
                 valuesSourceType,
                 valueFetcher,
-                sourceLookup,
+                sourceProvider,
                 toScriptFieldFactory
             );
         }
@@ -50,15 +51,15 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
         String fieldName,
         ValuesSourceType valuesSourceType,
         ValueFetcher valueFetcher,
-        SourceLookup sourceLookup,
+        SourceProvider sourceProvider,
         ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
     ) {
-        super(fieldName, valuesSourceType, valueFetcher, sourceLookup, toScriptFieldFactory);
+        super(fieldName, valuesSourceType, valueFetcher, sourceProvider, toScriptFieldFactory);
     }
 
     @Override
     public SourceValueFetcherLeafFieldData<SortedNumericDocValues> loadDirect(LeafReaderContext context) throws Exception {
-        return new SourceValueFetcherSortedBooleanLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceLookup);
+        return new SourceValueFetcherSortedBooleanLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceProvider);
     }
 
     private static class SourceValueFetcherSortedBooleanLeafFieldData extends SourceValueFetcherLeafFieldData<SortedNumericDocValues> {
@@ -67,15 +68,15 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
             ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
-            SourceLookup sourceLookup
+            SourceProvider sourceProvider
         ) {
-            super(toScriptFieldFactory, leafReaderContext, valueFetcher, sourceLookup);
+            super(toScriptFieldFactory, leafReaderContext, valueFetcher, sourceProvider);
         }
 
         @Override
         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
             return toScriptFieldFactory.getScriptFieldFactory(
-                new SourceValueFetcherSortedBooleanDocValues(leafReaderContext, valueFetcher, sourceLookup),
+                new SourceValueFetcherSortedBooleanDocValues(leafReaderContext, valueFetcher, sourceProvider),
                 name
             );
         }
@@ -86,7 +87,7 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
         private final LeafReaderContext leafReaderContext;
 
         private final ValueFetcher valueFetcher;
-        private final SourceLookup sourceLookup;
+        private final SourceProvider sourceProvider;
 
         private int trueCount;
         private int falseCount;
@@ -95,21 +96,19 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
         SourceValueFetcherSortedBooleanDocValues(
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
-            SourceLookup sourceLookup
+            SourceProvider sourceProvider
         ) {
             this.leafReaderContext = leafReaderContext;
             this.valueFetcher = valueFetcher;
-            this.sourceLookup = sourceLookup;
+            this.sourceProvider = sourceProvider;
         }
 
         @Override
         public boolean advanceExact(int doc) throws IOException {
-            sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
-
             trueCount = 0;
             falseCount = 0;
-
-            for (Object value : valueFetcher.fetchValues(sourceLookup, doc, Collections.emptyList())) {
+            Source source = sourceProvider.getSource(leafReaderContext, doc);
+            for (Object value : valueFetcher.fetchValues(source, doc, Collections.emptyList())) {
                 assert value instanceof Boolean;
                 if ((Boolean) value) {
                     ++trueCount;

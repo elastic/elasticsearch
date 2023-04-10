@@ -44,6 +44,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -56,7 +57,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -85,6 +85,7 @@ import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -112,10 +113,13 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests.nestedObject;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -184,7 +188,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("keyword")),
             dataset,
             () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped"))),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Only aggregate on unmapped field, missing bucket => one null bucket with all values
@@ -211,7 +217,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 "name",
                 Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true))
             ).aggregateAfter(Collections.singletonMap("unmapped", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Mapped field first, then unmapped, no missing bucket => no results
@@ -225,7 +233,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped")
                 )
             ),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Mapped + unmapped, include missing => 3 buckets
@@ -279,7 +289,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true).missingOrder(MissingOrder.FIRST)
                 )
             ).aggregateAfter(Collections.singletonMap("unmapped", "cat")),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Unmapped field, number after key, unmapped sorts after, include unmapped => 1 bucket
@@ -310,7 +322,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true).missingOrder(MissingOrder.FIRST)
                 )
             ).aggregateAfter(Collections.singletonMap("unmapped", 42)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
     }
@@ -333,7 +347,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             dataset,
             () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped")))
                 .aggregateAfter(Collections.singletonMap("unmapped", 42)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
     }
 
@@ -589,7 +605,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("long")),
             dataset,
             () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped"))),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -614,7 +632,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 "name",
                 Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true))
             ).aggregateAfter(Collections.singletonMap("unmapped", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -627,7 +647,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped")
                 )
             ),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -772,13 +794,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             // Root docs
             LuceneDocument root;
             root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("1"), Field.Store.YES));
             sequenceIDFields.addFields(root);
             root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
             documents.add(root);
 
             root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("2"), Field.Store.YES));
             root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
             sequenceIDFields.addFields(root);
             documents.add(root);
@@ -831,13 +853,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             // Root docs
             LuceneDocument root;
             root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("1"), Field.Store.YES));
             sequenceIDFields.addFields(root);
             root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
             documents.add(root);
 
             root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("2"), Field.Store.YES));
             root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
             sequenceIDFields.addFields(root);
             documents.add(root);
@@ -1603,7 +1625,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                         .order(SortOrder.ASC)
                 )
             ).aggregateAfter(createAfterKey("keyword", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -1687,7 +1711,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                         .order(SortOrder.ASC)
                 )
             ).aggregateAfter(createAfterKey("hist", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -3079,34 +3105,44 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-                CompositeAggregationBuilder compositeBuilder = AggregationBuilders.composite(
-                    "composite",
-                    List.of(new TermsValuesSourceBuilder("term").field("term-field"))
-                );
-                FilterAggregationBuilder goodParentFilter = AggregationBuilders.filter("bad-parent", new MatchAllQueryBuilder())
-                    .subAggregation(compositeBuilder);
-                // should not throw
-                createAggregator(goodParentFilter, indexSearcher, keywordField("term-field"));
+                try (
+                    AggregationContext context = createAggregationContext(
+                        indexSearcher,
+                        new MatchAllDocsQuery(),
+                        keywordField("term-field"),
+                        longField("time")
+                    )
+                ) {
 
-                RandomSamplerAggregationBuilder goodParentRandom = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
-                    .subAggregation(compositeBuilder);
+                    CompositeAggregationBuilder compositeBuilder = AggregationBuilders.composite(
+                        "composite",
+                        List.of(new TermsValuesSourceBuilder("term").field("term-field"))
+                    );
 
-                // Should not throw
-                createAggregator(goodParentRandom, indexSearcher, keywordField("term-field"));
+                    FilterAggregationBuilder goodParentFilter = AggregationBuilders.filter("bad-parent", new MatchAllQueryBuilder())
+                        .subAggregation(compositeBuilder);
+                    // should not throw
+                    createAggregator(goodParentFilter, context);
 
-                RandomSamplerAggregationBuilder goodParentRandomFilter = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
-                    .subAggregation(goodParentFilter);
-                // Should not throw
-                createAggregator(goodParentRandomFilter, indexSearcher, keywordField("term-field"));
+                    RandomSamplerAggregationBuilder goodParentRandom = new RandomSamplerAggregationBuilder("sample").setProbability(0.2)
+                        .subAggregation(compositeBuilder);
 
-                DateHistogramAggregationBuilder badParent = AggregationBuilders.dateHistogram("date")
-                    .field("time")
-                    .subAggregation(randomFrom(goodParentFilter, compositeBuilder));
+                    // Should not throw
+                    createAggregator(goodParentRandom, context);
 
-                expectThrows(
-                    IllegalArgumentException.class,
-                    () -> createAggregator(badParent, indexSearcher, keywordField("term-field"), longField("time"))
-                );
+                    RandomSamplerAggregationBuilder goodParentRandomFilter = new RandomSamplerAggregationBuilder("sample").setProbability(
+                        0.2
+                    ).subAggregation(goodParentFilter);
+                    // Should not throw
+                    createAggregator(goodParentRandomFilter, context);
+
+                    DateHistogramAggregationBuilder badParent = AggregationBuilders.dateHistogram("date")
+                        .field("time")
+                        .subAggregation(randomFrom(goodParentFilter, compositeBuilder));
+
+                    expectThrows(IllegalArgumentException.class, () -> createAggregator(badParent, context));
+
+                }
             }
         }
     }
@@ -3242,6 +3278,310 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertThat(composite.afterKey(), is(nullValue()));
             })
         );
+    }
+
+    public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsNotApplicableDueToMissingBucket() throws Exception {
+        final CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
+            "name",
+            List.of(new TermsValuesSourceBuilder("leading").field("keyword").missingBucket(true))
+        ).size(2);
+        final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
+        final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
+
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 1; i <= 100; i++) {
+                addDocWithKeywordFields(iw, "keyword", "a_" + i, "foo", "bar");
+            }
+        };
+
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("foo", "bar")),
+            buildIndex,
+            (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(2));
+                assertEquals(CompositeAggregator.class, impl);
+                assertEquals("{leading=a_10}", result.afterKey().toString());
+                assertEquals("{leading=a_1}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{leading=a_10}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("sources.leading.segments_dynamic_pruning_used", equalTo(0))
+                            .entry("sources.leading.segments_collected", greaterThanOrEqualTo(1))
+                    )
+                );
+            },
+            keywordMapping,
+            fooMapping
+        );
+    }
+
+    public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsNotApplicableDueToSize() throws Exception {
+        final CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
+            "name",
+            List.of(new TermsValuesSourceBuilder("leading").field("keyword").missingBucket(true))
+        ).size(13); // We need a size that is more than 1/8 of the total count.
+        final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
+        final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
+
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 1; i <= 100; i++) {
+                addDocWithKeywordFields(iw, "keyword", "a_" + i, "foo", "bar");
+            }
+        };
+
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("foo", "bar")),
+            buildIndex,
+            (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(13));
+                assertEquals(CompositeAggregator.class, impl);
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("sources.leading.segments_dynamic_pruning_used", equalTo(0))
+                            .entry("sources.leading.segments_collected", greaterThanOrEqualTo(1))
+                    )
+                );
+            },
+            keywordMapping,
+            fooMapping
+        );
+    }
+
+    public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsApplicableAndAscendingOrder() throws Exception {
+        CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
+            "name",
+            List.of(new TermsValuesSourceBuilder("leading").field("keyword"))
+        ).size(2);
+        final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
+        final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
+
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 1; i <= 100; i++) {
+                addDocWithKeywordFields(iw, "keyword", "a_" + i, "foo", "bar");
+            }
+        };
+
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("foo", "bar")),
+            buildIndex,
+            (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(2));
+                assertEquals(CompositeAggregator.class, impl);
+                assertEquals("{leading=a_10}", result.afterKey().toString());
+                assertEquals("{leading=a_1}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{leading=a_10}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("sources.leading.segments_dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("sources.leading.segments_collected", greaterThanOrEqualTo(1))
+                    )
+                );
+            },
+            keywordMapping,
+            fooMapping
+        );
+
+        aggregationBuilder = new CompositeAggregationBuilder("name", List.of(new TermsValuesSourceBuilder("leading").field("keyword")))
+            .size(2)
+            .aggregateAfter(Collections.singletonMap("leading", "a_10"));
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("foo", "bar")),
+            buildIndex,
+            (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(2));
+                assertEquals(CompositeAggregator.class, impl);
+                assertEquals("{leading=a_11}", result.afterKey().toString());
+                assertEquals("{leading=a_100}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{leading=a_11}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("sources.leading.segments_dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("sources.leading.segments_collected", greaterThanOrEqualTo(1))
+                    )
+                );
+            },
+            keywordMapping,
+            fooMapping
+        );
+    }
+
+    public void testWithKeywordGivenNoIndexSortingAndDynamicPruningIsApplicableAndDescendingOrder() throws Exception {
+        CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
+            "name",
+            List.of(new TermsValuesSourceBuilder("leading").field("keyword").order(SortOrder.DESC))
+        ).size(2);
+        final MappedFieldType keywordMapping = new KeywordFieldMapper.KeywordFieldType("keyword");
+        final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
+
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 1; i <= 100; i++) {
+                addDocWithKeywordFields(iw, "keyword", "a_" + i, "foo", "bar");
+            }
+        };
+
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("foo", "bar")),
+            buildIndex,
+            (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(2));
+                assertEquals(CompositeAggregator.class, impl);
+                assertEquals("{leading=a_98}", result.afterKey().toString());
+                assertEquals("{leading=a_99}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{leading=a_98}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("sources.leading.segments_dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("sources.leading.segments_collected", greaterThanOrEqualTo(1))
+                    )
+                );
+            },
+            keywordMapping,
+            fooMapping
+        );
+
+        aggregationBuilder = new CompositeAggregationBuilder(
+            "name",
+            List.of(new TermsValuesSourceBuilder("leading").field("keyword").order(SortOrder.DESC))
+        ).size(2).aggregateAfter(Collections.singletonMap("leading", "a_98"));
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("foo", "bar")),
+            buildIndex,
+            (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(2));
+                assertEquals(CompositeAggregator.class, impl);
+                assertEquals("{leading=a_96}", result.afterKey().toString());
+                assertEquals("{leading=a_97}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{leading=a_96}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("sources.leading.segments_dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("sources.leading.segments_collected", greaterThanOrEqualTo(1))
+                    )
+                );
+            },
+            keywordMapping,
+            fooMapping
+        );
+    }
+
+    public void testWithKeywordGivenSecondarySourceAndDynamicPruningIsApplicable() throws Exception {
+        CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
+            "name",
+            List.of(
+                new TermsValuesSourceBuilder("leading_keyword").field("leading_keyword"),
+                new TermsValuesSourceBuilder("secondary_keyword").field("secondary_keyword")
+            )
+        ).size(2);
+        final MappedFieldType leadingKeywordMapping = new KeywordFieldMapper.KeywordFieldType("leading_keyword");
+        final MappedFieldType secondaryKeywordMapping = new KeywordFieldMapper.KeywordFieldType("secondary_keyword");
+        final MappedFieldType fooMapping = new KeywordFieldMapper.KeywordFieldType("foo");
+
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 1; i <= 100; i++) {
+                addDocWithKeywordFields(iw, "leading_keyword", "a_" + i, "secondary_keyword", "alpha", "foo", "bar");
+                addDocWithKeywordFields(iw, "leading_keyword", "a_" + i, "secondary_keyword", "beta", "foo", "bar");
+            }
+        };
+
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("foo", "bar")),
+            buildIndex,
+            (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(2));
+                assertEquals(CompositeAggregator.class, impl);
+                assertEquals("{leading_keyword=a_1, secondary_keyword=beta}", result.afterKey().toString());
+                assertEquals("{leading_keyword=a_1, secondary_keyword=alpha}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{leading_keyword=a_1, secondary_keyword=beta}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("sources.leading_keyword.segments_dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("sources.leading_keyword.segments_collected", greaterThanOrEqualTo(1))
+                    )
+                );
+            },
+            leadingKeywordMapping,
+            secondaryKeywordMapping,
+            fooMapping
+        );
+
+        aggregationBuilder = new CompositeAggregationBuilder(
+            "name",
+            List.of(
+                new TermsValuesSourceBuilder("leading_keyword").field("leading_keyword"),
+                new TermsValuesSourceBuilder("secondary_keyword").field("secondary_keyword")
+            )
+        ).size(2).aggregateAfter(Map.of("leading_keyword", "a_1", "secondary_keyword", "beta"));
+        debugTestCase(
+            aggregationBuilder,
+            new TermQuery(new Term("foo", "bar")),
+            buildIndex,
+            (InternalComposite result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(2));
+                assertEquals(CompositeAggregator.class, impl);
+                assertEquals("{leading_keyword=a_10, secondary_keyword=beta}", result.afterKey().toString());
+                assertEquals("{leading_keyword=a_10, secondary_keyword=alpha}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{leading_keyword=a_10, secondary_keyword=beta}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "name",
+                        matchesMap().entry("sources.leading_keyword.segments_dynamic_pruning_used", greaterThanOrEqualTo(1))
+                            .entry("sources.leading_keyword.segments_collected", greaterThanOrEqualTo(1))
+                    )
+                );
+            },
+            leadingKeywordMapping,
+            secondaryKeywordMapping,
+            fooMapping
+        );
+    }
+
+    private static void addDocWithKeywordFields(RandomIndexWriter iw, String... fieldValuePairs) throws IOException {
+        assertThat(fieldValuePairs.length, greaterThan(0));
+        assertThat(fieldValuePairs.length % 2, equalTo(0));
+        List<Field> fields = new ArrayList<>();
+        for (int i = 0; i < fieldValuePairs.length; i = i + 2) {
+            String field = fieldValuePairs[i];
+            String value = fieldValuePairs[i + 1];
+            fields.add(new StringField(field, value, Field.Store.NO));
+            fields.add(new SortedSetDocValuesField(field, new BytesRef(value)));
+        }
+        iw.addDocument(fields);
     }
 
     private <T extends AggregationBuilder, V extends InternalAggregation> void testSearchCase(
@@ -3431,8 +3771,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     private Document createNestedDocument(String id, String nestedPath, Object... rawFields) {
         assert rawFields.length % 2 == 0;
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-        doc.add(new Field(NestedPathFieldMapper.NAME, nestedPath, NestedPathFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO));
+        doc.add(new StringField(NestedPathFieldMapper.NAME, nestedPath, Field.Store.NO));
         Object[] fields = new Object[rawFields.length];
         for (int i = 0; i < fields.length; i += 2) {
             assert rawFields[i] instanceof String;

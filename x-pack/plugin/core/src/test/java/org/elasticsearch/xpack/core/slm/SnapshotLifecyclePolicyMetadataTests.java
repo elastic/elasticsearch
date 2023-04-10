@@ -48,7 +48,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
     }
 
     @Override
-    protected SnapshotLifecyclePolicyMetadata mutateInstance(SnapshotLifecyclePolicyMetadata instance) throws IOException {
+    protected SnapshotLifecyclePolicyMetadata mutateInstance(SnapshotLifecyclePolicyMetadata instance) {
         return switch (between(0, 5)) {
             case 0 -> SnapshotLifecyclePolicyMetadata.builder(instance)
                 .setPolicy(randomValueOtherThan(instance.getPolicy(), () -> randomSnapshotLifecyclePolicy(randomAlphaOfLength(10))))

@@ -490,6 +490,21 @@ public final class IndexSettings {
         Setting.Property.IndexScope,
         Property.DeprecatedWarning
     );
+    public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
+    public static final Setting<Long> LIFECYCLE_ORIGINATION_DATE_SETTING = Setting.longSetting(
+        LIFECYCLE_ORIGINATION_DATE,
+        -1,
+        -1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final String LIFECYCLE_PARSE_ORIGINATION_DATE = "index.lifecycle.parse_origination_date";
+    public static final Setting<Boolean> LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING = Setting.boolSetting(
+        LIFECYCLE_PARSE_ORIGINATION_DATE,
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
 
     /**
      * Is the {@code index.mode} enabled? It should only be enabled if you
@@ -742,10 +757,9 @@ public final class IndexSettings {
         mode = scopedSettings.get(MODE);
         this.timestampBounds = mode.getTimestampBound(indexMetadata);
         if (timestampBounds != null) {
-            scopedSettings.addSettingsUpdateConsumer(
-                IndexSettings.TIME_SERIES_END_TIME,
-                endTime -> { this.timestampBounds = TimestampBounds.updateEndTime(this.timestampBounds, endTime); }
-            );
+            scopedSettings.addSettingsUpdateConsumer(IndexSettings.TIME_SERIES_END_TIME, endTime -> {
+                this.timestampBounds = TimestampBounds.updateEndTime(this.timestampBounds, endTime);
+            });
         }
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);

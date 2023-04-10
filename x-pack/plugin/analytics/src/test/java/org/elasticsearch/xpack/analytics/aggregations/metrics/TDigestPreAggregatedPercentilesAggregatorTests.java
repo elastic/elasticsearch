@@ -69,27 +69,23 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
     }
 
     public void testEmptyField() throws IOException {
-        testCase(
-            new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(singleton(histogramFieldDocValues("number", new double[0]))); },
-            hdr -> { assertFalse(AggregationInspectionHelper.hasValue(hdr)); }
-        );
+        testCase(new MatchAllDocsQuery(), iw -> { iw.addDocument(singleton(histogramFieldDocValues("number", new double[0]))); }, hdr -> {
+            assertFalse(AggregationInspectionHelper.hasValue(hdr));
+        });
     }
 
     public void testSomeMatchesBinaryDocValues() throws IOException {
-        testCase(
-            new FieldExistsQuery("number"),
-            iw -> { iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 }))); },
-            hdr -> {
-                // assertEquals(4L, hdr.state.getTotalCount());
-                double approximation = 0.05d;
-                assertEquals(15.0d, hdr.percentile(25), approximation);
-                assertEquals(30.0d, hdr.percentile(50), approximation);
-                assertEquals(50.0d, hdr.percentile(75), approximation);
-                assertEquals(60.0d, hdr.percentile(99), approximation);
-                assertTrue(AggregationInspectionHelper.hasValue(hdr));
-            }
-        );
+        testCase(new FieldExistsQuery("number"), iw -> {
+            iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 })));
+        }, hdr -> {
+            // assertEquals(4L, hdr.state.getTotalCount());
+            double approximation = 0.05d;
+            assertEquals(15.0d, hdr.percentile(25), approximation);
+            assertEquals(30.0d, hdr.percentile(50), approximation);
+            assertEquals(50.0d, hdr.percentile(75), approximation);
+            assertEquals(60.0d, hdr.percentile(99), approximation);
+            assertTrue(AggregationInspectionHelper.hasValue(hdr));
+        });
     }
 
     public void testSomeMatchesMultiBinaryDocValues() throws IOException {

@@ -123,7 +123,8 @@ public class PerFieldMapperCodec extends Lucene95Codec {
             final MappingLookup mappingLookup = mapperService.mappingLookup();
             if (mappingLookup.getMapper(field) instanceof NumberFieldMapper) {
                 final MappedFieldType fieldType = mappingLookup.getFieldType(field);
-                return TimeSeriesParams.MetricType.COUNTER.equals(fieldType.getMetricType());
+                return TimeSeriesParams.MetricType.COUNTER.equals(fieldType.getMetricType())
+                    || TimeSeriesParams.MetricType.GAUGE.equals(fieldType.getMetricType());
             }
         }
         return false;

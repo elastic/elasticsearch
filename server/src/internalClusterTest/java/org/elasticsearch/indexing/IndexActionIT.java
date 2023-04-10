@@ -14,7 +14,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -263,11 +263,10 @@ public class IndexActionIT extends ESIntegTestCase {
     }
 
     public void testDocumentWithBlankFieldName() {
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> { client().prepareIndex("test").setId("1").setSource("", "value1_2").execute().actionGet(); }
-        );
+        Exception e = expectThrows(DocumentParsingException.class, () -> {
+            client().prepareIndex("test").setId("1").setSource("", "value1_2").execute().actionGet();
+        });
         assertThat(e.getMessage(), containsString("failed to parse"));
-        assertThat(e.getRootCause().getMessage(), containsString("field name cannot be an empty string"));
+        assertThat(e.getCause().getMessage(), containsString("field name cannot be an empty string"));
     }
 }

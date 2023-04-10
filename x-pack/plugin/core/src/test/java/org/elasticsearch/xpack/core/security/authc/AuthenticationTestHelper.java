@@ -252,21 +252,16 @@ public class AuthenticationTestHelper {
         }
     }
 
-    public static CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfoForInternalUser(boolean emptyRoleDescriptors) {
+    public static CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfoForInternalUser() {
         final Authentication authentication = AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE).build();
-        return emptyRoleDescriptors
-            ? CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
-                authentication.getEffectiveSubject().getTransportVersion(),
-                authentication.getEffectiveSubject().getRealm().getNodeName()
-            )
-            : CrossClusterAccessUser.subjectInfoWithRoleDescriptors(
-                authentication.getEffectiveSubject().getTransportVersion(),
-                authentication.getEffectiveSubject().getRealm().getNodeName()
-            );
+        return CrossClusterAccessUser.subjectInfo(
+            authentication.getEffectiveSubject().getTransportVersion(),
+            authentication.getEffectiveSubject().getRealm().getNodeName()
+        );
     }
 
     private static Authentication randomCrossClusterAccessSupportedAuthenticationSubject(boolean allowInternalUser) {
-        final Set<String> allowedTypes = new HashSet<>(Set.of("realm", "apikey"));
+        final Set<String> allowedTypes = new HashSet<>(Set.of("realm", "apikey", "service_account"));
         if (allowInternalUser) {
             allowedTypes.add("internal");
         }
@@ -275,6 +270,7 @@ public class AuthenticationTestHelper {
             case "realm" -> AuthenticationTestHelper.builder().realm().build();
             case "apikey" -> AuthenticationTestHelper.builder().apiKey().build();
             case "internal" -> AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE).build();
+            case "service_account" -> AuthenticationTestHelper.builder().serviceAccount().build();
             default -> throw new UnsupportedOperationException("unknown type " + type);
         };
     }
@@ -290,7 +286,7 @@ public class AuthenticationTestHelper {
 
     public static CrossClusterAccessSubjectInfo randomCrossClusterAccessSubjectInfo(final Authentication authentication) {
         if (CrossClusterAccessUser.is(authentication.getEffectiveSubject().getUser())) {
-            return crossClusterAccessSubjectInfoForInternalUser(false);
+            return crossClusterAccessSubjectInfoForInternalUser();
         }
         final int numberOfRoleDescriptors;
         if (authentication.isApiKey()) {

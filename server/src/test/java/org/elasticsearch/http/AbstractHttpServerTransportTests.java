@@ -287,10 +287,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             }
         ) {
             transport.dispatchRequest(fakeRequest, channel, null);
+            // headers are "null" here, aka not present, because the thread context changes containing them is to be confined to the request
             assertNull(threadPool.getThreadContext().getHeader("header.1"));
             assertNull(threadPool.getThreadContext().getHeader("header.2"));
             assertNull(threadPool.getThreadContext().getHeader("header.3"));
             transport.dispatchRequest(null, null, new Exception());
+            // headers are "null" here, aka not present, because the thread context changes containing them is to be confined to the request
             assertNull(threadPool.getThreadContext().getHeader("header.1"));
             assertNull(threadPool.getThreadContext().getHeader("header.2"));
             assertNull(threadPool.getThreadContext().getHeader("header.3"));
@@ -368,10 +370,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             }
         ) {
             transport.dispatchRequest(fakeRequest, channel, null);
+            // headers are "null" here, aka not present, because the thread context changes containing them is to be confined to the request
             assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_ID), nullValue());
             assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
             assertThat(threadPool.getThreadContext().getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), nullValue());
             transport.dispatchRequest(null, null, new Exception());
+            // headers are "null" here, aka not present, because the thread context changes containing them is to be confined to the request
             assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_ID), nullValue());
             assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
             assertThat(threadPool.getThreadContext().getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER), nullValue());

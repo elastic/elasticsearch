@@ -1,5 +1,5 @@
 {
-  "search_application.put_behavior_analytics": {
+  "search_application.put_behavioral_analytics": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-analytics-collection.html",
       "description": "Creates a behavioral analytics collection."

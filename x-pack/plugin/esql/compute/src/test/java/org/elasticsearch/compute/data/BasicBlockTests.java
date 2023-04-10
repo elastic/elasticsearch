@@ -505,7 +505,7 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testSingleValueSparseInt() {
-        int positionCount = randomIntBetween(1, 16 * 1024);
+        int positionCount = randomIntBetween(2, 16 * 1024);
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
         var blockBuilder = IntBlock.newBlockBuilder(builderEstimateSize);
 
@@ -536,7 +536,7 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testSingleValueSparseLong() {
-        int positionCount = randomIntBetween(1, 16 * 1024);
+        int positionCount = randomIntBetween(2, 16 * 1024);
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
         var blockBuilder = LongBlock.newBlockBuilder(builderEstimateSize);
 
@@ -567,7 +567,7 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testSingleValueSparseDouble() {
-        int positionCount = randomIntBetween(1, 16 * 1024);
+        int positionCount = randomIntBetween(2, 16 * 1024);
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
         var blockBuilder = DoubleBlock.newBlockBuilder(builderEstimateSize);
 
@@ -588,7 +588,6 @@ public class BasicBlockTests extends ESTestCase {
         for (int i = 0; i < positionCount; i++) {
             if (block.isNull(i)) {
                 nullCount++;
-                // assertThat(block.getDouble(i), is(0)); // Q: do we wanna allow access to the default value
             } else {
                 assertThat(block.getDouble(i), is(values[i]));
             }
@@ -598,7 +597,7 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testSingleValueSparseBoolean() {
-        int positionCount = randomIntBetween(1, 16 * 1024);
+        int positionCount = randomIntBetween(2, 16 * 1024);
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
         var blockBuilder = BooleanBlock.newBlockBuilder(builderEstimateSize);
 

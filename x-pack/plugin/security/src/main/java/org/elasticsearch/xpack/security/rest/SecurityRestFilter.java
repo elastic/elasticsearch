@@ -17,7 +17,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -29,7 +28,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
-import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,7 +43,6 @@ public class SecurityRestFilter implements RestHandler {
     private final XPackLicenseState licenseState;
     private final AuditTrailService auditTrailService;
     private final ThreadContext threadContext;
-    private final boolean extractClientCertificate;
 
     public SecurityRestFilter(
         XPackLicenseState licenseState,
@@ -53,8 +50,7 @@ public class SecurityRestFilter implements RestHandler {
         AuthenticationService authenticationService,
         SecondaryAuthenticator secondaryAuthenticator,
         AuditTrailService auditTrailService,
-        RestHandler restHandler,
-        boolean extractClientCertificate
+        RestHandler restHandler
     ) {
         this.licenseState = licenseState;
         this.threadContext = threadContext;
@@ -62,7 +58,6 @@ public class SecurityRestFilter implements RestHandler {
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.auditTrailService = auditTrailService;
         this.restHandler = restHandler;
-        this.extractClientCertificate = extractClientCertificate;
     }
 
     @Override
@@ -74,14 +69,9 @@ public class SecurityRestFilter implements RestHandler {
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (licenseState.isSecurityEnabled() && request.method() != Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request
-            if (extractClientCertificate) {
-                HttpChannel httpChannel = request.getHttpChannel();
-                SSLEngineUtils.extractClientCertificates(logger, threadContext, httpChannel);
-            }
 
             final String requestUri = request.uri();
             final RestRequest wrappedRequest = maybeWrapRestRequest(request);
-            RemoteHostHeader.process(request, threadContext);
             authenticationService.authenticate(wrappedRequest.getHttpRequest(), ActionListener.wrap(authentication -> {
                 if (authentication == null) {
                     logger.trace("No authentication available for REST request [{}]", requestUri);

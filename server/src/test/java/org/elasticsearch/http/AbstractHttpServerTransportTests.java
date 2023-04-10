@@ -11,6 +11,7 @@ package org.elasticsearch.http;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -20,14 +21,19 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Map;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestControllerTests;
+import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -39,6 +45,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
 import org.junit.Before;
@@ -46,6 +53,8 @@ import org.junit.Before;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -56,6 +65,7 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.http.AbstractHttpServerTransport.resolvePublishPort;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AbstractHttpServerTransportTests extends ESTestCase {
 
@@ -189,6 +199,177 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.dispatchRequest(null, null, new Exception());
             assertNull(threadPool.getThreadContext().getHeader("foo_bad"));
             assertNull(threadPool.getThreadContext().getTransient("bar_bad"));
+        }
+    }
+
+    public void testRequestHeadersPopulateThreadContext() {
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                // specified request headers value are copied into the thread context
+                assertEquals("true", threadContext.getHeader("header.1"));
+                assertEquals("true", threadContext.getHeader("header.2"));
+                // but unknown headers are not copied at all
+                assertNull(threadContext.getHeader("header.3"));
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                // no request headers are copied in to the context of malformed requests
+                assertNull(threadContext.getHeader("header.1"));
+                assertNull(threadContext.getHeader("header.2"));
+                assertNull(threadContext.getHeader("header.3"));
+            }
+
+        };
+        // the set of headers to copy
+        final List<RestHeaderDefinition> headers = Arrays.asList(
+            new RestHeaderDefinition("header.1", true),
+            new RestHeaderDefinition("header.2", true)
+        );
+        // sample request headers to test with
+        final RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of(
+                "header.1",
+                Collections.singletonList("true"),
+                "header.2",
+                Collections.singletonList("true"),
+                "header.3",
+                Collections.singletonList("true")
+            )
+        ).build();
+        final RestControllerTests.AssertingChannel channel = new RestControllerTests.AssertingChannel(
+            fakeRequest,
+            false,
+            RestStatus.BAD_REQUEST
+        );
+
+        try (
+            AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
+                Settings.EMPTY,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            ) {
+
+                @Override
+                protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                    return null;
+                }
+
+                @Override
+                protected void doStart() {
+
+                }
+
+                @Override
+                protected void stopInternal() {
+
+                }
+
+                @Override
+                public HttpStats stats() {
+                    return null;
+                }
+
+                @Override
+                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    getFakeActionModule(headers).copyRequestHeadersToThreadContext(restRequest.getHttpRequest(), threadContext);
+                }
+            }
+        ) {
+            transport.dispatchRequest(fakeRequest, channel, null);
+            // headers are "null" here, aka not present, because the thread context changes containing them is to be confined to the request
+            assertNull(threadPool.getThreadContext().getHeader("header.1"));
+            assertNull(threadPool.getThreadContext().getHeader("header.2"));
+            assertNull(threadPool.getThreadContext().getHeader("header.3"));
+            transport.dispatchRequest(null, null, new Exception());
+            // headers are "null" here, aka not present, because the thread context changes containing them is to be confined to the request
+            assertNull(threadPool.getThreadContext().getHeader("header.1"));
+            assertNull(threadPool.getThreadContext().getHeader("header.2"));
+            assertNull(threadPool.getThreadContext().getHeader("header.3"));
+        }
+    }
+
+    /**
+     * Check that the REST controller picks up and propagates W3C trace context headers via the {@link ThreadContext}.
+     * @see <a href="https://www.w3.org/TR/trace-context/">Trace Context - W3C Recommendation</a>
+     */
+    public void testTraceParentAndTraceId() {
+        final String traceParentValue = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                assertThat(threadContext.getHeader(Task.TRACE_ID), equalTo("0af7651916cd43dd8448eb211c80319c"));
+                assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                // but they're not copied in for bad requests
+                assertThat(threadContext.getHeader(Task.TRACE_ID), nullValue());
+                assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
+            }
+
+        };
+        // the set of headers to copy
+        List<RestHeaderDefinition> headers = Arrays.asList(new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false));
+        // sample request headers to test with
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of(Task.TRACE_PARENT_HTTP_HEADER, Collections.singletonList(traceParentValue))
+        ).build();
+        RestControllerTests.AssertingChannel channel = new RestControllerTests.AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+
+        try (
+            AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
+                Settings.EMPTY,
+                networkService,
+                bigArrays,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            ) {
+
+                @Override
+                protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                    return null;
+                }
+
+                @Override
+                protected void doStart() {
+
+                }
+
+                @Override
+                protected void stopInternal() {
+
+                }
+
+                @Override
+                public HttpStats stats() {
+                    return null;
+                }
+
+                @Override
+                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    getFakeActionModule(headers).copyRequestHeadersToThreadContext(restRequest.getHttpRequest(), threadContext);
+                }
+            }
+        ) {
+            transport.dispatchRequest(fakeRequest, channel, null);
+            // headers are "null" here, aka not present, because the thread context changes containing them is to be confined to the request
+            assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_ID), nullValue());
+            assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
+            transport.dispatchRequest(null, null, new Exception());
+            // headers are "null" here, aka not present, because the thread context changes containing them is to be confined to the request
+            assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_ID), nullValue());
+            assertThat(threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
         }
     }
 
@@ -610,5 +791,29 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             addresses.add(randomAddress());
         }
         return addresses;
+    }
+
+    private ActionModule getFakeActionModule(List<RestHeaderDefinition> headersToCopy) {
+        SettingsModule settings = new SettingsModule(Settings.EMPTY);
+        ActionPlugin copyHeadersPlugin = new ActionPlugin() {
+            @Override
+            public Collection<RestHeaderDefinition> getRestHeaders() {
+                return headersToCopy;
+            }
+        };
+        return new ActionModule(
+            false,
+            settings.getSettings(),
+            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+            settings.getIndexScopedSettings(),
+            settings.getClusterSettings(),
+            settings.getSettingsFilter(),
+            threadPool,
+            Arrays.asList(copyHeadersPlugin),
+            null,
+            null,
+            new UsageService(),
+            null
+        );
     }
 }

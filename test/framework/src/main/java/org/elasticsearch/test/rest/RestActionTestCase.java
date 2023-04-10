@@ -40,7 +40,7 @@ public abstract class RestActionTestCase extends ESTestCase {
     @Before
     public void setUpController() {
         verifyingClient = new VerifyingClient(this.getTestName());
-        controller = new RestController(Collections.emptySet(), null, verifyingClient, new NoneCircuitBreakerService(), new UsageService());
+        controller = new RestController(null, verifyingClient, new NoneCircuitBreakerService(), new UsageService());
     }
 
     @After

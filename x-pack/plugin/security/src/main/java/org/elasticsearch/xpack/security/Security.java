@@ -46,6 +46,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
 import org.elasticsearch.index.IndexModule;
@@ -70,6 +72,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -157,7 +160,6 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TLSLicenseBootstrapCheck;
@@ -249,6 +251,7 @@ import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
+import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction;
@@ -343,6 +346,7 @@ import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERA
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_TOKENS_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
+import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
 
 public class Security extends Plugin
     implements
@@ -1475,10 +1479,17 @@ public class Security extends Plugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings
     ) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
+        }
+        final BiConsumer<HttpChannel, ThreadContext> populateClientCertificate;
+        if (HTTP_SSL_ENABLED.get(settings) && getSslService().isSSLClientAuthEnabled(getSslService().getHttpTransportSSLConfiguration())) {
+            populateClientCertificate = (channel, threadContext) -> extractClientCertificates(logger, threadContext, channel);
+        } else {
+            populateClientCertificate = (channel, threadContext) -> {};
         }
 
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
@@ -1496,7 +1507,14 @@ public class Security extends Plugin
                 clusterSettings,
                 getNettySharedGroupFactory(settings),
                 Netty4HttpHeaderValidator.NOOP_VALIDATOR
-            )
+            ) {
+                @Override
+                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    perRequestThreadContext.accept(restRequest.getHttpRequest(), threadContext);
+                    populateClientCertificate.accept(restRequest.getHttpChannel(), threadContext);
+                    RemoteHostHeader.process(restRequest, threadContext);
+                }
+            }
         );
         httpTransports.put(
             SecurityField.NIO,
@@ -1512,7 +1530,14 @@ public class Security extends Plugin
                 getSslService(),
                 getNioGroupFactory(settings),
                 clusterSettings
-            )
+            ) {
+                @Override
+                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    perRequestThreadContext.accept(restRequest.getHttpRequest(), threadContext);
+                    populateClientCertificate.accept(restRequest.getHttpChannel(), threadContext);
+                    RemoteHostHeader.process(restRequest, threadContext);
+                }
+            }
         );
 
         return httpTransports;
@@ -1523,21 +1548,13 @@ public class Security extends Plugin
         if (enabled == false || transportClientMode) {
             return null;
         }
-        boolean extractClientCertificate;
-        if (HTTP_SSL_ENABLED.get(settings)) {
-            final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
-            extractClientCertificate = getSslService().isSSLClientAuthEnabled(httpSSLConfig);
-        } else {
-            extractClientCertificate = false;
-        }
         return handler -> new SecurityRestFilter(
             getLicenseState(),
             threadContext,
             authcService.get(),
             secondayAuthc.get(),
             auditTrailService.get(),
-            handler,
-            extractClientCertificate
+            handler
         );
     }
 

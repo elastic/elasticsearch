@@ -19,17 +19,20 @@ import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
@@ -84,6 +87,20 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final DiskIoBufferPool diskIoBufferPool;
 
+    private final SingleObjectCache<LastModifiedTime> lastModifiedTime;
+
+    private static class LastModifiedTime {
+        final long lastModifiedTime;
+        final int operationCounter;
+        final Checkpoint lastSyncedCheckpoint;
+
+        LastModifiedTime(long lastModifiedTime, int operationCounter, Checkpoint lastSyncedCheckpoint) {
+            this.lastModifiedTime = lastModifiedTime;
+            this.operationCounter = operationCounter;
+            this.lastSyncedCheckpoint = lastSyncedCheckpoint;
+        }
+    }
+
     private TranslogWriter(
         final ShardId shardId,
         final Checkpoint initialCheckpoint,
@@ -127,6 +144,27 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
         this.operationListener = operationListener;
+        this.lastModifiedTime = new SingleObjectCache<>(TimeValue.ZERO, new LastModifiedTime(0L, -1, null)) {
+            @Override
+            protected LastModifiedTime refresh() {
+                final long lastModifiedTime;
+                try {
+                    lastModifiedTime = TranslogWriter.super.getLastModifiedTime();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                return new LastModifiedTime(lastModifiedTime, operationCounter, lastSyncedCheckpoint);
+            }
+
+            @Override
+            protected boolean needsRefresh() {
+                LastModifiedTime cached = getNoRefresh();
+                if (cached.operationCounter == operationCounter && cached.lastSyncedCheckpoint == lastSyncedCheckpoint) {
+                    return false;
+                }
+                return true;
+            }
+        };
     }
 
     public static TranslogWriter create(
@@ -641,5 +679,15 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     protected final boolean isClosed() {
         return closed.get();
+    }
+
+    @Override
+    public long getLastModifiedTime() throws IOException {
+        try {
+            return lastModifiedTime.getOrRefresh().lastModifiedTime;
+        } catch (UncheckedIOException e) {
+            // wrapped in the cache and unwrap here
+            throw e.getCause();
+        }
     }
 }

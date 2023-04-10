@@ -14,3 +14,7 @@ dependencies {
   implementation project(':libs:elasticsearch-logging')
   implementation "net.java.dev.jna:jna:${versions.jna}"
 }
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}

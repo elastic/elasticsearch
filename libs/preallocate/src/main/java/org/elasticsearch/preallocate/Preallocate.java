@@ -1,16 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
+package org.elasticsearch.preallocate;
 
-package org.elasticsearch.blobcache.preallocate;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -51,7 +50,7 @@ public class Preallocate {
                 try (FileOutputStream fileChannel = new FileOutputStream(cacheFile.toFile())) {
                     long currentSize = fileChannel.getChannel().size();
                     if (currentSize < fileSize) {
-                        logger.info("pre-allocating cache file [{}] ({}) using native methods", cacheFile, ByteSizeValue.ofBytes(fileSize));
+                        logger.info("pre-allocating cache file [{}] ({} bytes) using native methods", cacheFile, fileSize);
                         final Field field = AccessController.doPrivileged(new FileDescriptorFieldAction(fileChannel));
                         final int errno = prealloactor.preallocate(
                             (int) field.get(fileChannel.getFD()),
@@ -77,7 +76,7 @@ public class Preallocate {
             // even if allocation was successful above, verify again here
             try (RandomAccessFile raf = new RandomAccessFile(cacheFile.toFile(), "rw")) {
                 if (raf.length() != fileSize) {
-                    logger.info("pre-allocating cache file [{}] ({}) using setLength method", cacheFile, ByteSizeValue.ofBytes(fileSize));
+                    logger.info("pre-allocating cache file [{}] ({} bytes) using setLength method", cacheFile, fileSize);
                     raf.setLength(fileSize);
                     logger.debug("pre-allocated cache file [{}] using setLength method", cacheFile);
                 }

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
@@ -42,10 +44,14 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.ClusterStateLicenseService;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.MutableLicenseService;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -120,6 +126,7 @@ public class XPackPlugin extends XPackClientPlugin
 
     public static final String ASYNC_RESULTS_INDEX = ".async-search";
     public static final String XPACK_INSTALLED_NODE_ATTR = "xpack.installed";
+    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
 
     // TODO: clean up this library to not ask for write access to all system properties!
     static {
@@ -156,18 +163,20 @@ public class XPackPlugin extends XPackClientPlugin
     // private final Environment env;
     protected final Licensing licensing;
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
-    private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
-    private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
-    private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
+    // non-final to allow for testing
+    private static SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
+    private static SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
+    private static SetOnce<LicenseService> licenseService = new SetOnce<>();
 
     public XPackPlugin(final Settings settings) {
         super();
         // FIXME: The settings might be changed after this (e.g. from "additionalSettings" method in other plugins)
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
-
-        setLicenseState(new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong()));
+        licenseState = new SetOnce<>();
+        licenseService = new SetOnce<>();
+        epochMillisSupplier = new SetOnce<>();
 
         this.licensing = new Licensing(settings);
     }
@@ -314,14 +323,18 @@ public class XPackPlugin extends XPackClientPlugin
         List<Object> components = new ArrayList<>();
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
-        LicenseService licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
-        setLicenseService(licenseService);
+
+        LicenseService licenseService = getLicenseService();
+        if (licenseService == null) {
+            licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, getClock(), getLicenseState());
+            setLicenseService(licenseService);
+        }
 
         setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);
-        components.add(new PluginComponentBinding<>(LicenseService.MutableLicenseService.class, licenseService));
+        components.add(new PluginComponentBinding<>(MutableLicenseService.class, licenseService));
         components.add(new PluginComponentBinding<>(LicenseService.class, licenseService));
         components.add(getLicenseState());
 
@@ -477,5 +490,30 @@ public class XPackPlugin extends XPackClientPlugin
         reloader.setSSLService(sslService);
         setSslService(sslService);
         return sslService;
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        List<MutableLicenseService> licenseServices = loader.loadExtensions(MutableLicenseService.class);
+        if (licenseServices.size() > 1) {
+            throw new IllegalStateException(MutableLicenseService.class + " may not have multiple implementations");
+        } else if (licenseServices.size() == 1) {
+            MutableLicenseService licenseService = licenseServices.get(0);
+            logger.debug("Loaded implementation [{}] for interface MutableLicenseService", licenseService.getClass().getCanonicalName());
+            setLicenseService(licenseService);
+            setLicenseState(
+                new XPackLicenseState(
+                    () -> getEpochMillisSupplier().getAsLong(),
+                    LicenseUtils.getXPackLicenseStatus(licenseService.getLicense(), getClock())
+                )
+            );
+        } else {
+            setLicenseState(
+                new XPackLicenseState(
+                    () -> getEpochMillisSupplier().getAsLong(),
+                    new XPackLicenseStatus(License.OperationMode.TRIAL, true, null)
+                )
+            );
+        }
     }
 }

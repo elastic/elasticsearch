@@ -68,9 +68,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
      */
     static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
 
-    public static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
+    static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_INTERNAL_ORIGIN_HTTP_HEADER = "X-elastic-internal-origin";
-    public static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
+    static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
     private static final BytesReference FAVICON_RESPONSE;
 

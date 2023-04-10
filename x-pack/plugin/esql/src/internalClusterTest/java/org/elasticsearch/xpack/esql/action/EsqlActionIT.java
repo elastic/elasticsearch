@@ -53,7 +53,6 @@ import java.util.stream.LongStream;
 import static java.util.Comparator.comparing;
 import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
-import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -625,7 +624,8 @@ public class EsqlActionIT extends ESIntegTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(
-                    builder().put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), 0)
+                    Settings.builder()
+                        .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), 0)
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 )
@@ -665,7 +665,7 @@ public class EsqlActionIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
-                .setSettings(builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
                 .get()
         );
         ensureYellow(indexName);
@@ -702,7 +702,7 @@ public class EsqlActionIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
-                .setSettings(builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
                 .setMapping("val", "type=long", "tag", "type=keyword")
                 .get()
         );
@@ -771,7 +771,7 @@ public class EsqlActionIT extends ESIntegTestCase {
                 client().admin()
                     .indices()
                     .prepareCreate(indexName)
-                    .setSettings(builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
                     .setMapping("data", "type=long", "count", "type=long")
                     .get()
             );
@@ -920,7 +920,10 @@ public class EsqlActionIT extends ESIntegTestCase {
      */
     public void testTopNPushedToLuceneOnSortedIndex() {
         var sortOrder = randomFrom("asc", "desc");
-        createAndPopulateIndex("sorted_test_index", builder().put("index.sort.field", "time").put("index.sort.order", sortOrder).build());
+        createAndPopulateIndex(
+            "sorted_test_index",
+            Settings.builder().put("index.sort.field", "time").put("index.sort.order", sortOrder).build()
+        );
 
         int limit = randomIntBetween(1, 5);
         EsqlQueryResponse results = run("from sorted_test_index | sort time " + sortOrder + " | limit " + limit + " | project time");
@@ -1007,7 +1010,7 @@ public class EsqlActionIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
-                .setSettings(builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 3)))
+                .setSettings(Settings.builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 3)))
                 .setMapping(builder)
                 .get()
         );
@@ -1083,7 +1086,7 @@ public class EsqlActionIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
-                .setSettings(builder().put(additionalSettings).put("index.number_of_shards", ESTestCase.randomIntBetween(1, 5)))
+                .setSettings(Settings.builder().put(additionalSettings).put("index.number_of_shards", ESTestCase.randomIntBetween(1, 5)))
                 .setMapping(
                     "data",
                     "type=long",
@@ -1126,7 +1129,7 @@ public class EsqlActionIT extends ESIntegTestCase {
     }
 
     private static QueryPragmas randomPragmas() {
-        Settings.Builder settings = builder();
+        Settings.Builder settings = Settings.builder();
         // pragmas are only enabled on snapshot builds
         if (Build.CURRENT.isSnapshot()) {
             if (randomBoolean()) {

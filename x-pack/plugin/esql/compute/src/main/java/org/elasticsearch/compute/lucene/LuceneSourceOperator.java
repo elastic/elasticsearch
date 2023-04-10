@@ -35,6 +35,10 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     private int numCollectedDocs = 0;
 
+    private final int maxCollectedDocs;
+
+    private IntVector.Builder currentDocsBuilder;
+
     public static class LuceneSourceOperatorFactory extends LuceneOperatorFactory {
 
         public LuceneSourceOperatorFactory(
@@ -65,11 +69,15 @@ public class LuceneSourceOperator extends LuceneOperator {
     }
 
     public LuceneSourceOperator(IndexReader reader, int shardId, Query query, int maxPageSize, int limit) {
-        super(reader, shardId, query, maxPageSize, limit);
+        super(reader, shardId, query, maxPageSize);
+        this.currentDocsBuilder = IntVector.newVectorBuilder(maxPageSize);
+        this.maxCollectedDocs = limit;
     }
 
     LuceneSourceOperator(Weight weight, int shardId, List<PartialLeafReaderContext> leaves, int maxPageSize, int maxCollectedDocs) {
-        super(weight, shardId, leaves, maxPageSize, maxCollectedDocs);
+        super(weight, shardId, leaves, maxPageSize);
+        this.currentDocsBuilder = IntVector.newVectorBuilder(maxPageSize);
+        this.maxCollectedDocs = maxCollectedDocs;
     }
 
     @Override
@@ -120,7 +128,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 @Override
                 public void collect(int doc) {
                     if (numCollectedDocs < maxCollectedDocs) {
-                        currentBlockBuilder.appendInt(doc);
+                        currentDocsBuilder.appendInt(doc);
                         numCollectedDocs++;
                         currentPagePos++;
                     }
@@ -142,11 +150,11 @@ public class LuceneSourceOperator extends LuceneOperator {
                     new DocVector(
                         IntBlock.newConstantBlockWith(shardId, currentPagePos).asVector(),
                         IntBlock.newConstantBlockWith(currentLeafReaderContext.leafReaderContext.ord, currentPagePos).asVector(),
-                        currentBlockBuilder.build(),
+                        currentDocsBuilder.build(),
                         true
                     ).asBlock()
                 );
-                currentBlockBuilder = IntVector.newVectorBuilder(maxPageSize);
+                currentDocsBuilder = IntVector.newVectorBuilder(maxPageSize);
                 currentPagePos = 0;
             }
 

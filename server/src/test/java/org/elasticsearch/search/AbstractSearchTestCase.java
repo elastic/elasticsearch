@@ -64,7 +64,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         namedXContents.add(
             new NamedXContentRegistry.Entry(RankBuilder.class, new ParseField(TestRankBuilder.NAME), TestRankBuilder::fromXContent)
         );
-        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
+        xContentRegistry = new NamedXContentRegistry(namedXContents);
     }
 
     @Override

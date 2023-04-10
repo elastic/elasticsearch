@@ -130,6 +130,16 @@ Service.
 `manage_transform`::
 All operations related to managing {transforms}.
 
+`manage_autoscaling`::
+All operations related to managing autoscaling policies.
+
+`manage_data_frame_transforms`::
+All operations related to managing {transforms}.
+deprecated[7.5] Use `manage_transform` instead.
+
+`manage_enrich`::
+All operations related to managing and executing enrich policies.
+
 `manage_watcher`::
 All watcher operations, such as putting watches, executing, activate or acknowledging.
 +

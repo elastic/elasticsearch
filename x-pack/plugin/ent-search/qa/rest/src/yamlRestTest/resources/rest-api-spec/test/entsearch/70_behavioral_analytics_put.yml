@@ -1,13 +1,13 @@
 teardown:
   - do:
-      behavioral_analytics.delete:
+      search_application.delete_behavioral_analytics:
         name: test-analytics-collection
         ignore: 404
 
 ---
 "Create Analytics Collection":
   - do:
-      behavioral_analytics.put:
+      search_application.put_behavioral_analytics:
         name: test-analytics-collection
 
   - match: { acknowledged: true }
@@ -16,14 +16,14 @@ teardown:
 ---
 "Create Analytics Collection - analytics collection already exists":
   - do:
-      behavioral_analytics.put:
+      search_application.put_behavioral_analytics:
         name: test-analytics-collection
 
   - match: { acknowledged: true }
 
   - do:
       catch: bad_request
-      behavioral_analytics.put:
+      search_application.put_behavioral_analytics:
         name: test-analytics-collection
 
   - match: { error.type: "resource_already_exists_exception" }

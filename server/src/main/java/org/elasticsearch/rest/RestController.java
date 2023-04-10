@@ -44,7 +44,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -93,15 +92,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private final CircuitBreakerService circuitBreakerService;
 
-    /** Rest headers that are copied to internal requests made during a rest request. */
-    private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
     private final Tracer tracer;
     // If true, the ServerlessScope annotations will be enforced
     private final boolean serverlessEnabled;
 
     public RestController(
-        Set<RestHeaderDefinition> headersToCopy,
         UnaryOperator<RestHandler> handlerWrapper,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
@@ -109,7 +105,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         Tracer tracer,
         boolean serverlessEnabled
     ) {
-        this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         this.tracer = tracer;
         if (handlerWrapper == null) {
@@ -510,7 +505,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
         try {
-            copyRestHeaders(request, threadContext);
             validateErrorTrace(request, channel);
         } catch (IllegalArgumentException e) {
             startTrace(threadContext, channel);
@@ -562,30 +556,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // we consume the error_trace parameter first to ensure that it is always consumed
         if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
             throw new IllegalArgumentException("error traces in responses are disabled.");
-        }
-    }
-
-    private void copyRestHeaders(RestRequest request, ThreadContext threadContext) {
-        for (final RestHeaderDefinition restHeader : headersToCopy) {
-            final String name = restHeader.getName();
-            final List<String> headerValues = request.getAllHeaderValues(name);
-            if (headerValues != null && headerValues.isEmpty() == false) {
-                final List<String> distinctHeaderValues = headerValues.stream().distinct().toList();
-                if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
-                    throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
-                } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {
-                    String traceparent = distinctHeaderValues.get(0);
-                    Optional<String> traceId = RestUtils.extractTraceId(traceparent);
-                    if (traceId.isPresent()) {
-                        threadContext.putHeader(Task.TRACE_ID, traceId.get());
-                        threadContext.putTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER, traceparent);
-                    }
-                } else if (name.equals(Task.TRACE_STATE)) {
-                    threadContext.putTransient("parent_" + Task.TRACE_STATE, distinctHeaderValues.get(0));
-                } else {
-                    threadContext.putHeader(name, String.join(",", distinctHeaderValues));
-                }
-            }
         }
     }
 

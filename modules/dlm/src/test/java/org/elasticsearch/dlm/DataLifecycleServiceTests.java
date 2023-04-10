@@ -17,9 +17,10 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
@@ -35,7 +36,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -51,7 +52,6 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -60,9 +60,10 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
+import static org.elasticsearch.dlm.DLMFixtures.createDataStream;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -120,7 +121,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle(TimeValue.timeValueMillis(0))
+            new DataLifecycle(TimeValue.timeValueMillis(0)),
+            now
         );
         builder.put(dataStream);
 
@@ -152,7 +154,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle((TimeValue) null)
+            new DataLifecycle((TimeValue) null),
+            now
         );
         builder.put(dataStream);
 
@@ -171,7 +174,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle(TimeValue.timeValueDays(700))
+            new DataLifecycle(TimeValue.timeValueDays(700)),
+            now
         );
         builder.put(dataStream);
 
@@ -190,7 +194,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy").put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
-            new DataLifecycle(TimeValue.timeValueMillis(0))
+            new DataLifecycle(TimeValue.timeValueMillis(0)),
+            now
         );
         builder.put(dataStream);
 
@@ -208,7 +213,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy").put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
-            null
+            null,
+            now
         );
         builder.put(dataStream);
 
@@ -226,7 +232,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
-            new DataLifecycle()
+            new DataLifecycle(),
+            now
         );
         builder.put(dataStream);
         String nodeId = "localNode";
@@ -274,7 +281,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle(TimeValue.timeValueDays(700))
+            new DataLifecycle(TimeValue.timeValueDays(700)),
+            now
         );
         // all backing indices are in the error store
         for (Index index : dataStream.getIndices()) {
@@ -304,19 +312,18 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
     @TestLogging(value = "org.elasticsearch:trace", reason = "Logging information about locks useful for tracking down deadlock")
     public void testForceMerge() throws Exception {
-//        Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
-//        client = getTransportRequestsRecordingClient();
-//        dataLifecycleService = new DataLifecycleService(
-//            Settings.EMPTY,
-//            client,
-//            clusterService,
-//            clock,
-//            threadPool,
-//            () -> now,
-//            new DataLifecycleErrorStore()
-//        );
-//        dataLifecycleService.init();
-
+        // Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
+        // client = getTransportRequestsRecordingClient();
+        // dataLifecycleService = new DataLifecycleService(
+        // Settings.EMPTY,
+        // client,
+        // clusterService,
+        // clock,
+        // threadPool,
+        // () -> now,
+        // new DataLifecycleErrorStore()
+        // );
+        // dataLifecycleService.init();
 
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
@@ -326,7 +333,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle(TimeValue.MAX_VALUE)
+            new DataLifecycle(TimeValue.MAX_VALUE),
+            now
         );
         builder.put(dataStream);
 
@@ -373,7 +381,83 @@ public class DataLifecycleServiceTests extends ESTestCase {
         dataLifecycleService.run(clusterService.state());
         assertBusy(() -> { assertThat(clientSeenRequests.size(), is(4)); });
         assertThat(((ForceMergeRequest) clientSeenRequests.get(3)).indices().length, is(1));
-        assertThat(((ForceMergeRequest) clientSeenRequests.get(3)).indices()[0], is(1));
+    }
+
+    public void testDefaultRolloverRequest() {
+        // test auto max_age and another concrete condition
+        {
+            RolloverConditions randomConcreteRolloverConditions = randomRolloverConditions(false);
+            RolloverRequest rolloverRequest = DataLifecycleService.getDefaultRolloverRequest(
+                new RolloverConfiguration(randomConcreteRolloverConditions, Set.of("max_age")),
+                "my-data-stream",
+                null
+            );
+            assertThat(rolloverRequest.getRolloverTarget(), equalTo("my-data-stream"));
+            assertThat(
+                rolloverRequest.getConditions(),
+                equalTo(
+                    RolloverConditions.newBuilder(randomConcreteRolloverConditions)
+                        .addMaxIndexAgeCondition(TimeValue.timeValueDays(30))
+                        .build()
+                )
+            );
+            RolloverRequest rolloverRequestWithRetention = DataLifecycleService.getDefaultRolloverRequest(
+                new RolloverConfiguration(randomConcreteRolloverConditions, Set.of("max_age")),
+                "my-data-stream",
+                TimeValue.timeValueDays(3)
+            );
+            assertThat(
+                rolloverRequestWithRetention.getConditions(),
+                equalTo(
+                    RolloverConditions.newBuilder(randomConcreteRolloverConditions)
+                        .addMaxIndexAgeCondition(TimeValue.timeValueDays(1))
+                        .build()
+                )
+            );
+        }
+        // test without any automatic conditions
+        {
+            RolloverConditions randomConcreteRolloverConditions = randomRolloverConditions(true);
+            RolloverRequest rolloverRequest = DataLifecycleService.getDefaultRolloverRequest(
+                new RolloverConfiguration(randomConcreteRolloverConditions),
+                "my-data-stream",
+                null
+            );
+            assertThat(rolloverRequest.getRolloverTarget(), equalTo("my-data-stream"));
+            assertThat(rolloverRequest.getConditions(), equalTo(randomConcreteRolloverConditions));
+            RolloverRequest rolloverRequestWithRetention = DataLifecycleService.getDefaultRolloverRequest(
+                new RolloverConfiguration(randomConcreteRolloverConditions),
+                "my-data-stream",
+                TimeValue.timeValueDays(1)
+            );
+            assertThat(rolloverRequestWithRetention.getConditions(), equalTo(randomConcreteRolloverConditions));
+        }
+    }
+
+    private static RolloverConditions randomRolloverConditions(boolean includeMaxAge) {
+        ByteSizeValue maxSize = randomBoolean() ? randomByteSizeValue() : null;
+        ByteSizeValue maxPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
+        Long maxDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        TimeValue maxAge = includeMaxAge && randomBoolean() ? TimeValue.timeValueMillis(randomMillisUpToYear9999()) : null;
+        Long maxPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
+        ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
+        Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        TimeValue minAge = randomBoolean() ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test") : null;
+        Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
+
+        return RolloverConditions.newBuilder()
+            .addMaxIndexSizeCondition(maxSize)
+            .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
+            .addMaxIndexAgeCondition(maxAge)
+            .addMaxIndexDocsCondition(maxDocs)
+            .addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs)
+            .addMinIndexSizeCondition(minSize)
+            .addMinPrimaryShardSizeCondition(minPrimaryShardSize)
+            .addMinIndexAgeCondition(minAge)
+            .addMinIndexDocsCondition(minDocs)
+            .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
+            .build();
     }
 
     private static DiscoveryNodes.Builder buildNodes(String nodeId) {
@@ -397,32 +481,6 @@ public class DataLifecycleServiceTests extends ESTestCase {
         );
     }
 
-    private DataStream createDataStream(
-        Metadata.Builder builder,
-        String dataStreamName,
-        int backingIndicesCount,
-        Settings.Builder backingIndicesSettings,
-        @Nullable DataLifecycle lifecycle
-    ) {
-        final List<Index> backingIndices = new ArrayList<>();
-        for (int k = 1; k <= backingIndicesCount; k++) {
-            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k))
-                .settings(backingIndicesSettings)
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .creationDate(now - 3000L);
-            if (k < backingIndicesCount) {
-                // add rollover info only for non-write indices
-                MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(now - 2000L));
-                indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
-            }
-            IndexMetadata indexMetadata = indexMetaBuilder.build();
-            builder.put(indexMetadata, false);
-            backingIndices.add(indexMetadata.getIndex());
-        }
-        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle);
-    }
-
     private NoOpClient getTransportRequestsRecordingClient() {
         return new NoOpClient(getTestName()) {
             @Override
@@ -434,8 +492,6 @@ public class DataLifecycleServiceTests extends ESTestCase {
                 clientSeenRequests.add(request);
                 if (action.name().equals("indices:admin/forcemerge")) {
                     listener.onResponse((Response) new ForceMergeResponse(5, 1, 0, List.of()));
-                } else if (action.name().equals("indices:admin/rollover")) {
-                    listener.onResponse(new RolloverResponse());
                 }
             }
         };

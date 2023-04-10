@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
@@ -41,7 +42,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -52,6 +53,7 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -75,7 +77,9 @@ public class DataLifecycleServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private DataLifecycleService dataLifecycleService;
     private List<TransportRequest> clientSeenRequests;
-    private NoOpClient client;
+    private Client client;
+    @SuppressWarnings("rawtypes")
+    private List<DoExecuteDelegate> clientDelegates;
     private ClusterService clusterService;
 
     @Before
@@ -100,6 +104,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
             () -> now,
             new DataLifecycleErrorStore()
         );
+        clientDelegates = new ArrayList<>();
         dataLifecycleService.init();
     }
 
@@ -310,21 +315,13 @@ public class DataLifecycleServiceTests extends ESTestCase {
         }
     }
 
-    @TestLogging(value = "org.elasticsearch:trace", reason = "Logging information about locks useful for tracking down deadlock")
     public void testForceMerge() throws Exception {
-        // Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
-        // client = getTransportRequestsRecordingClient();
-        // dataLifecycleService = new DataLifecycleService(
-        // Settings.EMPTY,
-        // client,
-        // clusterService,
-        // clock,
-        // threadPool,
-        // () -> now,
-        // new DataLifecycleErrorStore()
-        // );
-        // dataLifecycleService.init();
-
+        // We want this test method to get fake force merge responses, because this is what triggers a cluster state update
+        clientDelegates.add((action, request, listener) -> {
+            if (action.name().equals("indices:admin/forcemerge")) {
+                listener.onResponse(new ForceMergeResponse(5, 1, 0, List.of()));
+            }
+        });
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
         Metadata.Builder builder = Metadata.builder();
@@ -345,12 +342,20 @@ public class DataLifecycleServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).nodes(nodesBuilder).build();
         setState(clusterService, state);
         dataLifecycleService.run(clusterService.state());
+
+        // There are 3 backing indices. One gets rolled over. The other two get force merged:
         assertBusy(() -> {
             assertThat(clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData("dlm"), notNullValue());
             assertThat(clusterService.state().metadata().index(dataStream.getIndices().get(1)).getCustomData("dlm"), notNullValue());
-        }, 30, TimeUnit.SECONDS);
-
-        // There are 3 backing indices. One gets rolled over. The other two get force merged:
+            assertThat(
+                clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData("dlm").get("forcemerge"),
+                equalTo("complete")
+            );
+            assertThat(
+                clusterService.state().metadata().index(dataStream.getIndices().get(1)).getCustomData("dlm").get("forcemerge"),
+                equalTo("complete")
+            );
+        });
         assertBusy(() -> { assertThat(clientSeenRequests.size(), is(3)); }, 30, TimeUnit.SECONDS);
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
         assertThat(((RolloverRequest) clientSeenRequests.get(0)).getRolloverTarget(), is(dataStreamName));
@@ -360,6 +365,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             .toList();
         assertThat(forceMergeRequests.get(0).indices()[0], is(dataStream.getIndices().get(0).getName()));
         assertThat(forceMergeRequests.get(1).indices()[0], is(dataStream.getIndices().get(1).getName()));
+
+        // No changes, so running should not create any more requests
         dataLifecycleService.run(clusterService.state());
         assertThat(clientSeenRequests.size(), is(3));
 
@@ -381,6 +388,13 @@ public class DataLifecycleServiceTests extends ESTestCase {
         dataLifecycleService.run(clusterService.state());
         assertBusy(() -> { assertThat(clientSeenRequests.size(), is(4)); });
         assertThat(((ForceMergeRequest) clientSeenRequests.get(3)).indices().length, is(1));
+        assertBusy(() -> {
+            assertThat(clusterService.state().metadata().index(dataStream2.getIndices().get(2)).getCustomData("dlm"), notNullValue());
+            assertThat(
+                clusterService.state().metadata().index(dataStream2.getIndices().get(2)).getCustomData("dlm").get("forcemerge"),
+                equalTo("complete")
+            );
+        });
     }
 
     public void testDefaultRolloverRequest() {
@@ -481,6 +495,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
     private NoOpClient getTransportRequestsRecordingClient() {
         return new NoOpClient(getTestName()) {
             @Override
@@ -490,10 +505,13 @@ public class DataLifecycleServiceTests extends ESTestCase {
                 ActionListener<Response> listener
             ) {
                 clientSeenRequests.add(request);
-                if (action.name().equals("indices:admin/forcemerge")) {
-                    listener.onResponse((Response) new ForceMergeResponse(5, 1, 0, List.of()));
-                }
+                clientDelegates.forEach(clientDelegate -> clientDelegate.apply(action, request, listener));
             }
         };
+    }
+
+    @FunctionalInterface
+    public interface DoExecuteDelegate<Request extends ActionRequest, Response extends ActionResponse> {
+        void apply(ActionType<Response> action, Request request, ActionListener<Response> listener);
     }
 }

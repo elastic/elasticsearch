@@ -1597,7 +1597,7 @@ public class Security extends Plugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        BiConsumer<HttpPreRequest, ThreadContext> setDispatchContext,
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
@@ -1655,8 +1655,8 @@ public class Security extends Plugin
                 Netty4HttpHeaderValidator.NOOP_VALIDATOR
             ) {
                 @Override
-                protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    setDispatchContext.accept(restRequest.getHttpRequest(), threadContext);
+                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    perRequestThreadContext.accept(restRequest.getHttpRequest(), threadContext);
                     populateClientCertificate.accept(restRequest.getHttpChannel(), threadContext);
                     RemoteHostHeader.process(restRequest, threadContext);
                 }

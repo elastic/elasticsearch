@@ -125,7 +125,7 @@ public final class NetworkModule {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        BiConsumer<HttpPreRequest, ThreadContext> dispatcherContext,
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
@@ -140,7 +140,7 @@ public final class NetworkModule {
                 xContentRegistry,
                 networkService,
                 dispatcher,
-                dispatcherContext,
+                perRequestThreadContext,
                 clusterSettings,
                 tracer
             );

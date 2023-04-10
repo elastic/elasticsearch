@@ -272,7 +272,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
                     ActionModule.copyRequestHeadersToThreadContext(restRequest.getHttpRequest(), headers, threadContext);
                 }
             }
@@ -352,7 +352,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
                     ActionModule.copyRequestHeadersToThreadContext(restRequest.getHttpRequest(), headers, threadContext);
                 }
             }

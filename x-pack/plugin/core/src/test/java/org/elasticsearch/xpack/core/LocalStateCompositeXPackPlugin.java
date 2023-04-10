@@ -413,7 +413,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        BiConsumer<HttpPreRequest, ThreadContext> dispatcherContext,
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
@@ -430,7 +430,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         xContentRegistry,
                         networkService,
                         dispatcher,
-                        dispatcherContext,
+                        perRequestThreadContext,
                         clusterSettings,
                         tracer
                     )

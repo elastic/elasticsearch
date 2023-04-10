@@ -78,7 +78,7 @@ public interface NetworkPlugin {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        BiConsumer<HttpPreRequest, ThreadContext> dispatcherContext,
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {

@@ -377,15 +377,15 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             if (badRequestCause != null) {
                 dispatcher.dispatchBadRequest(channel, threadContext, badRequestCause);
             } else {
-                populateRequestThreadContext0(restRequest, channel, threadContext);
+                populatePerRequestThreadContext0(restRequest, channel, threadContext);
                 dispatcher.dispatchRequest(restRequest, channel, threadContext);
             }
         }
     }
 
-    private void populateRequestThreadContext0(RestRequest restRequest, RestChannel channel, ThreadContext threadContext) {
+    private void populatePerRequestThreadContext0(RestRequest restRequest, RestChannel channel, ThreadContext threadContext) {
         try {
-            populateRequestThreadContext(restRequest, threadContext);
+            populatePerRequestThreadContext(restRequest, threadContext);
         } catch (Exception e) {
             try {
                 channel.sendResponse(new RestResponse(channel, e));
@@ -396,7 +396,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
     }
 
-    protected void populateRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {}
+    protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {}
 
     private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
         if (exception == null) {

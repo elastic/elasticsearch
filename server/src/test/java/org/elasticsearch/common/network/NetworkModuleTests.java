@@ -122,7 +122,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
-                BiConsumer<HttpPreRequest, ThreadContext> dispatcherContext,
+                BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
                 ClusterSettings clusterSettings,
                 Tracer tracer
             ) {
@@ -169,7 +169,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
-                BiConsumer<HttpPreRequest, ThreadContext> dispatcherContext,
+                BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
                 ClusterSettings clusterSettings,
                 Tracer tracer
             ) {
@@ -214,7 +214,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
-                BiConsumer<HttpPreRequest, ThreadContext> dispatcherContext,
+                BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
                 ClusterSettings clusterSettings,
                 Tracer tracer
             ) {

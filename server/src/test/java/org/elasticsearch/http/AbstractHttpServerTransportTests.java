@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
@@ -22,10 +23,13 @@ import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestControllerTests;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -42,6 +46,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
 import org.junit.Assert;
@@ -51,6 +56,7 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -67,6 +73,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class AbstractHttpServerTransportTests extends ESTestCase {
 
@@ -273,7 +280,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 @Override
                 protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    ActionModule.copyRequestHeadersToThreadContext(restRequest.getHttpRequest(), headers, threadContext);
+                    getFakeActionModule(headers).copyRequestHeadersToThreadContext(restRequest.getHttpRequest(), threadContext);
                 }
             }
         ) {
@@ -353,7 +360,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 @Override
                 protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    ActionModule.copyRequestHeadersToThreadContext(restRequest.getHttpRequest(), headers, threadContext);
+                    getFakeActionModule(headers).copyRequestHeadersToThreadContext(restRequest.getHttpRequest(), threadContext);
                 }
             }
         ) {
@@ -880,5 +887,31 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             addresses.add(randomAddress());
         }
         return addresses;
+    }
+
+    private ActionModule getFakeActionModule(Set<RestHeaderDefinition> headersToCopy) {
+        SettingsModule settings = new SettingsModule(Settings.EMPTY);
+        ActionPlugin copyHeadersPlugin = new ActionPlugin() {
+            @Override
+            public Collection<RestHeaderDefinition> getRestHeaders() {
+                return headersToCopy;
+            }
+        };
+        return new ActionModule(
+            settings.getSettings(),
+            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+            settings.getIndexScopedSettings(),
+            settings.getClusterSettings(),
+            settings.getSettingsFilter(),
+            threadPool,
+            List.of(copyHeadersPlugin),
+            null,
+            null,
+            new UsageService(),
+            null,
+            null,
+            mock(ClusterService.class),
+            List.of()
+        );
     }
 }

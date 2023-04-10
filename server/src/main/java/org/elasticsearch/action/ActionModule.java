@@ -556,15 +556,6 @@ public class ActionModule extends AbstractModule {
      * finishes and returns.
      */
     public void copyRequestHeadersToThreadContext(HttpPreRequest request, ThreadContext threadContext) {
-        copyRequestHeadersToThreadContext(request, headersToCopy, threadContext);
-    }
-
-    // to be used in tests
-    public static void copyRequestHeadersToThreadContext(
-        HttpPreRequest request,
-        Set<RestHeaderDefinition> headersToCopy,
-        ThreadContext threadContext
-    ) {
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getHeaders().get(name);

@@ -216,15 +216,16 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                // specified request headers are copied into the thread context
+                // specified request headers value are copied into the thread context
                 assertEquals("true", threadContext.getHeader("header.1"));
                 assertEquals("true", threadContext.getHeader("header.2"));
+                // but unknown headers are not copied at all
                 assertNull(threadContext.getHeader("header.3"));
             }
 
             @Override
             public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                // but they're not copied in for bad requests
+                // no request headers are copied in to the context of malformed requests
                 assertNull(threadContext.getHeader("header.1"));
                 assertNull(threadContext.getHeader("header.2"));
                 assertNull(threadContext.getHeader("header.3"));
@@ -235,10 +236,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         final Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", true))
         );
+        // sample request headers to test with
         final Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("true"));
         restHeaders.put("header.2", Collections.singletonList("true"));
-        restHeaders.put("header.3", Collections.singletonList("false"));
+        restHeaders.put("header.3", Collections.singletonList("true"));
         final RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
         final RestControllerTests.AssertingChannel channel = new RestControllerTests.AssertingChannel(
             fakeRequest,
@@ -321,6 +323,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         };
         // the set of headers to copy
         Set<RestHeaderDefinition> headers = Set.of(new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false));
+        // sample request headers to test with
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put(Task.TRACE_PARENT_HTTP_HEADER, Collections.singletonList(traceParentValue));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();

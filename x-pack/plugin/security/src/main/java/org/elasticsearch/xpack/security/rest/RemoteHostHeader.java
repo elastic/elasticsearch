@@ -6,8 +6,9 @@
  */
 package org.elasticsearch.xpack.security.rest;
 
+import io.netty.channel.Channel;
+
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestRequest;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -20,8 +21,8 @@ public class RemoteHostHeader {
      * Extracts the remote address from the given rest request and puts in the request context. This will
      * then be copied to the subsequent action requests.
      */
-    public static void process(RestRequest request, ThreadContext threadContext) {
-        threadContext.putTransient(KEY, request.getHttpChannel().getRemoteAddress());
+    public static void process(Channel channel, ThreadContext threadContext) {
+        threadContext.putTransient(KEY, channel.remoteAddress());
     }
 
     /**

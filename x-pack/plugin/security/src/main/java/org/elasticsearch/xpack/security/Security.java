@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security;
 
+import io.netty.channel.Channel;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
@@ -14,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
@@ -26,6 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
@@ -49,11 +53,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
-import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.HttpHeaderValidator;
-import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -1624,7 +1626,7 @@ public class Security extends Plugin
             final boolean ssl = HTTP_SSL_ENABLED.get(settings);
             final SSLService sslService = getSslService();
             final SslConfiguration sslConfiguration;
-            final BiConsumer<HttpChannel, ThreadContext> populateClientCertificate;
+            final BiConsumer<Channel, ThreadContext> populateClientCertificate;
             if (ssl) {
                 sslConfiguration = sslService.getHttpTransportSSLConfiguration();
                 if (SSLService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
@@ -1642,6 +1644,45 @@ public class Security extends Plugin
                 sslConfiguration = null;
                 populateClientCertificate = (channel, threadContext) -> {};
             }
+            final AuthenticationService authenticationService = this.authcService.get();
+            final ThreadContext threadContext = this.threadContext.get();
+            final BiConsumer<HttpPreRequest, Channel> populatePerRequestThreadContext = (httpRequest, channel) -> {
+                perRequestThreadContext.accept(httpRequest, threadContext);
+                populateClientCertificate.accept(channel, threadContext);
+                RemoteHostHeader.process(channel, threadContext);
+            };
+            final BiConsumer<HttpPreRequest, ActionListener<Void>> authenticate = (httpRequest, listener) -> {
+                authenticationService.authenticate(httpRequest, listener.map(authentication -> {
+                    if (authentication == null) {
+                        logger.trace("No authentication available for HTTP request [{}]", httpRequest.uri());
+                    } else {
+                        logger.trace("Authenticated HTTP request [{}] as {}", httpRequest.uri(), authentication);
+                    }
+                    return null;
+                }));
+            };
+            final TriConsumer<
+                HttpPreRequest,
+                Channel,
+                ActionListener<HttpHeaderValidator.ValidatableHttpHeaders.ValidationContext>> authenticateMessage = (
+                    httpRequest,
+                    channel,
+                    listener) -> {
+                    var contextPreservingListener = new ContextPreservingActionListener<>(
+                        threadContext.wrapRestorable(threadContext.newStoredContext()),
+                        listener
+                    );
+                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                        populatePerRequestThreadContext.accept(httpRequest, channel);
+                        authenticate.accept(
+                            httpRequest,
+                            ActionListener.wrap(
+                                ignored -> contextPreservingListener.onResponse(threadContext.newStoredContext()::restore),
+                                contextPreservingListener::onFailure
+                            )
+                        );
+                    }
+                };
             return new Netty4HttpServerTransport(
                 settings,
                 networkService,
@@ -1653,13 +1694,14 @@ public class Security extends Plugin
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
-                new HttpHeaderValidator(Netty4HttpHeaderValidator.NOOP_VALIDATOR)
+                new HttpHeaderValidator(authenticateMessage)
             ) {
                 @Override
                 protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    perRequestThreadContext.accept(restRequest.getHttpRequest(), threadContext);
-                    populateClientCertificate.accept(restRequest.getHttpChannel(), threadContext);
-                    RemoteHostHeader.process(restRequest, threadContext);
+                    HttpHeaderValidator.ValidatableHttpHeaders.ValidationContext validationContext = HttpHeaderValidator
+                        .extractValidationContext(restRequest.getHttpRequest());
+                    assert validationContext != null : "all HTTP requests must be authenticated";
+                    validationContext.assertValid();
                 }
             };
         });

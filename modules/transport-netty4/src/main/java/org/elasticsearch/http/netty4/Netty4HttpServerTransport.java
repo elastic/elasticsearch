@@ -383,12 +383,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 ) {
                     @Override
                     protected HttpMessage createMessage(String[] initialLine) throws Exception {
-                        return headerValidator.wrapNewlyDecodedMessage(super.createMessage(initialLine));
+                        return headerValidator.wrapAsValidatableMessage(super.createMessage(initialLine));
                     }
 
                     @Override
                     protected HttpMessage createInvalidMessage() {
-                        return headerValidator.wrapNewlyDecodedMessage(super.createInvalidMessage());
+                        return headerValidator.wrapAsValidatableMessage(super.createInvalidMessage());
                     }
                 };
             } else {

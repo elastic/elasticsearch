@@ -18,28 +18,82 @@ import io.netty.handler.codec.http.HttpRequest;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.http.HttpPreRequest;
+import org.elasticsearch.http.netty4.HttpHeaderValidator.ValidatableHttpHeaders.ValidationContext;
+import org.elasticsearch.rest.RestRequest;
 
-public class HttpHeaderValidator {
+import java.util.List;
+import java.util.Map;
 
-    private final TriConsumer<HttpRequest, Channel, ActionListener<Void>> validator;
+public final class HttpHeaderValidator {
 
-    public HttpHeaderValidator(TriConsumer<HttpRequest, Channel, ActionListener<Void>> validator) {
+    public static HttpHeaderValidator NOOP_VALIDATOR = new HttpHeaderValidator(
+        ((httpPreRequest, channel, listener) -> listener.onResponse(null))
+    );
+
+    private final TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationContext>> validator;
+
+    public HttpHeaderValidator(TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationContext>> validator) {
         this.validator = validator;
     }
 
     public Netty4HttpHeaderValidator getValidatorInboundHandler() {
-        return new Netty4HttpHeaderValidator(validator);
+        TriConsumer<HttpRequest, Channel, ActionListener<Void>> nettyValidator = (httpRequest, channel, listener) -> this.validator.apply(
+            asHttpPreRequest(httpRequest),
+            channel,
+            listener.delegateFailure((l, response) -> {
+                ((ValidatableHttpHeaders) httpRequest.headers()).markValidationSucceeded(response);
+                l.onResponse(null);
+            })
+        );
+        return new Netty4HttpHeaderValidator(nettyValidator);
     }
 
-    public HttpMessage wrapNewlyDecodedMessage(HttpMessage newlyDecodedMessage) {
+    public HttpMessage wrapAsValidatableMessage(HttpMessage newlyDecodedMessage) {
         DefaultHttpRequest httpRequest = (DefaultHttpRequest) newlyDecodedMessage;
         ValidatableHttpHeaders validatableHttpHeaders = new ValidatableHttpHeaders(newlyDecodedMessage.headers());
         return new DefaultHttpRequest(httpRequest.protocolVersion(), httpRequest.method(), httpRequest.uri(), validatableHttpHeaders);
     }
 
+    public static ValidationContext extractValidationContext(HttpPreRequest request) {
+        ValidatableHttpHeaders authenticatedHeaders = unwrapValidatableHeaders(request);
+        return authenticatedHeaders != null ? authenticatedHeaders.validationContextSetOnce.get() : null;
+    }
+
+    private static ValidatableHttpHeaders unwrapValidatableHeaders(HttpPreRequest request) {
+        if (request instanceof Netty4HttpRequest == false) {
+            return null;
+        }
+        if (((Netty4HttpRequest) request).getNettyRequest().headers() instanceof ValidatableHttpHeaders == false) {
+            return null;
+        }
+        return (ValidatableHttpHeaders) (((Netty4HttpRequest) request).getNettyRequest().headers());
+    }
+
+    private static HttpPreRequest asHttpPreRequest(HttpRequest request) {
+        return new HttpPreRequest() {
+
+            @Override
+            public RestRequest.Method method() {
+                return Netty4HttpRequest.translateRequestMethod(request.method());
+            }
+
+            @Override
+            public String uri() {
+                return request.uri();
+            }
+
+            @Override
+            public Map<String, List<String>> getHeaders() {
+                return Netty4HttpRequest.getHttpHeadersAsMap(request.headers());
+            }
+        };
+    }
+
     public static final class ValidatableHttpHeaders extends DefaultHttpHeaders {
 
-        interface ValidationContext {
+        @FunctionalInterface
+        public interface ValidationContext {
             void assertValid();
         }
 

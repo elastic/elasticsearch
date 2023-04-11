@@ -238,20 +238,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                             e
                         );
                         collectRemoteNodes(seedNodesSuppliers, listener);
-                    } else {
-                        logger.warn(
-                            () -> "fetching nodes from external cluster [" + clusterAlias + "] failed due to running out of seed nodes",
-                            e
-                        );
-                        listener.onFailure(getNoSeedNodeLeftException(Set.of(e)));
+                        return;
                     }
-                } else {
-                    logger.warn(
-                        () -> "fetching nodes from external cluster [" + clusterAlias + "] failed due to non-retryable exception",
-                        e
-                    );
-                    listener.onFailure(e);
                 }
+                logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed due to non-retryable exception", e);
+                listener.onFailure(e);
             };
 
             final DiscoveryNode seedNode = seedNodesSuppliers.next().get();

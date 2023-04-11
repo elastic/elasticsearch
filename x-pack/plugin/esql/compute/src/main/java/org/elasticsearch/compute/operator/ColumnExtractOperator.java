@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import java.util.function.Supplier;
 
 @Experimental
-public class ColumnExtractOperator implements Operator {
+public class ColumnExtractOperator extends AbstractPageMappingOperator {
 
     public record Factory(
         ElementType[] types,
@@ -40,10 +40,6 @@ public class ColumnExtractOperator implements Operator {
     private final EvalOperator.ExpressionEvaluator inputEvaluator;
     private final ColumnExtractOperator.Evaluator evaluator;
 
-    boolean finished;
-
-    Page lastInput;
-
     public ColumnExtractOperator(
         ElementType[] types,
         EvalOperator.ExpressionEvaluator inputEvaluator,
@@ -55,21 +51,16 @@ public class ColumnExtractOperator implements Operator {
     }
 
     @Override
-    public Page getOutput() {
-        if (lastInput == null) {
-            return null;
-        }
-
-        int rowsCount = lastInput.getPositionCount();
+    protected Page process(Page page) {
+        int rowsCount = page.getPositionCount();
 
         Block.Builder[] blockBuilders = new Block.Builder[types.length];
         for (int i = 0; i < types.length; i++) {
             blockBuilders[i] = types[i].newBlockBuilder(rowsCount);
         }
 
-        Page lastPage = lastInput;
         for (int row = 0; row < rowsCount; row++) {
-            Object input = inputEvaluator.computeRow(lastPage, row);
+            Object input = inputEvaluator.computeRow(page, row);
             evaluator.computeRow(BytesRefs.toBytesRef(input), blockBuilders);
         }
 
@@ -77,36 +68,7 @@ public class ColumnExtractOperator implements Operator {
         for (int i = 0; i < blockBuilders.length; i++) {
             blocks[i] = blockBuilders[i].build();
         }
-        lastPage = lastPage.appendBlocks(blocks);
-
-        lastInput = null;
-
-        return lastPage;
-    }
-
-    @Override
-    public boolean isFinished() {
-        return lastInput == null && finished;
-    }
-
-    @Override
-    public void finish() {
-        finished = true;
-    }
-
-    @Override
-    public boolean needsInput() {
-        return lastInput == null && finished == false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        lastInput = page;
-    }
-
-    @Override
-    public void close() {
-
+        return page.appendBlocks(blocks);
     }
 
     @Override

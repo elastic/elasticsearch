@@ -20,7 +20,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 @Experimental
-public class StringExtractOperator implements Operator {
+public class StringExtractOperator extends AbstractPageMappingOperator {
 
     public record StringExtractOperatorFactory(
         String[] fieldNames,
@@ -41,12 +41,7 @@ public class StringExtractOperator implements Operator {
 
     private final String[] fieldNames;
     private final EvalOperator.ExpressionEvaluator inputEvaluator;
-
-    Function<String, Map<String, String>> parser;
-
-    boolean finished;
-
-    Page lastInput;
+    private final Function<String, Map<String, String>> parser;  // TODO parser should consume ByteRef instead of String
 
     public StringExtractOperator(
         String[] fieldNames,
@@ -59,21 +54,16 @@ public class StringExtractOperator implements Operator {
     }
 
     @Override
-    public Page getOutput() {
-        if (lastInput == null) {
-            return null;
-        }
-
-        int rowsCount = lastInput.getPositionCount();
+    protected Page process(Page page) {
+        int rowsCount = page.getPositionCount();
 
         BytesRefBlock.Builder[] blockBuilders = new BytesRefBlock.Builder[fieldNames.length];
         for (int i = 0; i < fieldNames.length; i++) {
             blockBuilders[i] = BytesRefBlock.newBlockBuilder(rowsCount);
         }
 
-        Page lastPage = lastInput;
         for (int row = 0; row < rowsCount; row++) {
-            Object input = inputEvaluator.computeRow(lastPage, row);
+            Object input = inputEvaluator.computeRow(page, row);
             if (input == null) {
                 for (int i = 0; i < fieldNames.length; i++) {
                     blockBuilders[i].appendNull();
@@ -99,35 +89,7 @@ public class StringExtractOperator implements Operator {
         for (int i = 0; i < blockBuilders.length; i++) {
             blocks[i] = blockBuilders[i].build();
         }
-        lastPage = lastPage.appendBlocks(blocks);
-
-        lastInput = null;
-        return lastPage;
-    }
-
-    @Override
-    public boolean isFinished() {
-        return lastInput == null && finished;
-    }
-
-    @Override
-    public void finish() {
-        finished = true;
-    }
-
-    @Override
-    public boolean needsInput() {
-        return lastInput == null && finished == false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        lastInput = page;
-    }
-
-    @Override
-    public void close() {
-
+        return page.appendBlocks(blocks);
     }
 
     @Override

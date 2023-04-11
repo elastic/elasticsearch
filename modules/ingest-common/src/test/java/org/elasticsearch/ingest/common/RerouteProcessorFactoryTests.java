@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -23,11 +22,11 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
     public void testDefaults() throws Exception {
         RerouteProcessor processor = create(null, null);
         assertThat(
-            processor.getDataStreamDataset().stream().map(RerouteProcessor.DataStreamValueSource::toString).collect(Collectors.toList()),
+            processor.getDataStreamDataset().stream().map(RerouteProcessor.DataStreamValueSource::toString).toList(),
             equalTo(List.of("{{data_stream.dataset}}"))
         );
         assertThat(
-            processor.getDataStreamNamespace().stream().map(RerouteProcessor.DataStreamValueSource::toString).collect(Collectors.toList()),
+            processor.getDataStreamNamespace().stream().map(RerouteProcessor.DataStreamValueSource::toString).toList(),
             equalTo(List.of("{{data_stream.namespace}}"))
         );
     }

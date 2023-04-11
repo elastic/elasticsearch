@@ -17,7 +17,6 @@ import org.elasticsearch.ingest.WrappingProcessor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -188,8 +187,8 @@ public class RerouteProcessorTests extends ESTestCase {
         return new RerouteProcessor(
             null,
             null,
-            dataset.stream().map(RerouteProcessor.DataStreamValueSource::dataset).collect(Collectors.toList()),
-            namespace.stream().map(RerouteProcessor.DataStreamValueSource::namespace).collect(Collectors.toList()),
+            dataset.stream().map(RerouteProcessor.DataStreamValueSource::dataset).toList(),
+            namespace.stream().map(RerouteProcessor.DataStreamValueSource::namespace).toList(),
             null
         );
     }

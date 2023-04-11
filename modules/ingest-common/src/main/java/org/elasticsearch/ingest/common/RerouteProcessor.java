@@ -19,7 +19,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.common.RerouteProcessor.DataStreamValueSource.DATASET_VALUE_SOURCE;
@@ -164,7 +163,7 @@ public final class RerouteProcessor extends AbstractProcessor {
                 dataset = ConfigurationUtils.readOptionalListOrString(TYPE, tag, config, "dataset")
                     .stream()
                     .map(DataStreamValueSource::dataset)
-                    .collect(Collectors.toList());
+                    .toList();
             } catch (IllegalArgumentException e) {
                 throw newConfigurationException(TYPE, tag, "dataset", e.getMessage());
             }
@@ -173,7 +172,7 @@ public final class RerouteProcessor extends AbstractProcessor {
                 namespace = ConfigurationUtils.readOptionalListOrString(TYPE, tag, config, "namespace")
                     .stream()
                     .map(DataStreamValueSource::namespace)
-                    .collect(Collectors.toList());
+                    .toList();
             } catch (IllegalArgumentException e) {
                 throw newConfigurationException(TYPE, tag, "namespace", e.getMessage());
             }

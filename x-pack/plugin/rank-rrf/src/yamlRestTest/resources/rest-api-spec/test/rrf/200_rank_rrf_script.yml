@@ -57,7 +57,145 @@ setup:
           { "vector_asc": [11.0], "vector_desc": [1.0], "int": 2, "text": "term 11" }
 
 ---
-"Simple rank with bm25 search and kNN search":
+"RRF using single knn and single BM25 with a scripted metric aggregation":
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text" ]
+          knn: [
+            {
+              field: vector_asc,
+              query_vector: [ 5.0 ],
+              k: 5,
+              num_candidates: 11
+            }
+          ]
+          query:
+            bool:
+              should:
+                - term:
+                    text:
+                      value: "6"
+                      boost: 10.0
+                - term:
+                    text:
+                      value: "5"
+                      boost: 7.0
+                - term:
+                    text:
+                      value: "7"
+                      boost: 7.0
+                - term:
+                    text:
+                      value: "4"
+                      boost: 3.0
+                - term:
+                    text:
+                      value: "3"
+                      boost: 2.0
+          aggs:
+            sums:
+              scripted_metric:
+                init_script: |
+                  state['sums'] = ['asc': [], 'text': []]
+                map_script: |
+                  state['sums']['asc'].add($('vector_asc', null).getVector()[0]);
+                  state['sums']['text'].add(Integer.parseInt($('text', null).substring(5)));
+                combine_script: |
+                  [
+                    'asc_total': state['sums']['asc'].stream().mapToDouble(v -> v).sum(),
+                    'text_total': state['sums']['text'].stream().mapToInt(v -> v).sum()
+                  ]
+                reduce_script: |
+                  [
+                    'asc_total': states.stream().mapToDouble(v -> v['asc_total']).sum(),
+                    'text_total': states.stream().mapToInt(v -> v['text_total']).sum()
+                  ]
+          rank:
+            rrf:
+              window_size: 100
+              rank_constant: 1
+          size: 5
+
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.0._rank: 1 }
+
+  - match: { hits.hits.1._id: "6" }
+  - match: { hits.hits.1._rank: 2 }
+
+  - match: { hits.hits.2._id: "4" }
+  - match: { hits.hits.2._rank: 3 }
+
+  - match: { hits.hits.3._id: "7" }
+  - match: { hits.hits.3._rank: 4 }
+
+  - match: { hits.hits.4._id: "3" }
+  - match: { hits.hits.4._rank: 5 }
+
+  - close_to: { aggregations.sums.value.asc_total: { value: 25.0, error: 0.001 }}
+  - match: { aggregations.sums.value.text_total: 25 }
+
+---
+"RRF using multi-knn only with a scripted metric aggregation":
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text" ]
+          knn: [
+            {
+              field: vector_asc,
+              query_vector: [ 6.0 ],
+              k: 5,
+              num_candidates: 11
+            },
+            {
+              field: vector_desc,
+              query_vector: [ 8.0 ],
+              k: 3,
+              num_candidates: 11
+            }
+          ]
+          aggs:
+            sums:
+              scripted_metric:
+                init_script: |
+                  state['sums'] = ['asc': [], 'desc': []]
+                map_script: |
+                  state['sums']['asc'].add($('vector_asc', null).getVector()[0]);
+                  state['sums']['desc'].add($('vector_desc', null).getVector()[0])
+                combine_script: |
+                  [
+                    'asc_total': state['sums']['asc'].stream().mapToDouble(v -> v).sum(),
+                    'desc_total': state['sums']['desc'].stream().mapToDouble(v -> v).sum()
+                  ]
+                reduce_script: |
+                  [
+                    'asc_total': states.stream().mapToDouble(v -> v['asc_total']).sum(),
+                    'desc_total': states.stream().mapToDouble(v -> v['desc_total']).sum()
+                  ]
+          rank:
+            rrf:
+              window_size: 3
+              rank_constant: 1
+          size: 1
+
+  - match: { hits.total.value: 6 }
+
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.0._rank: 1 }
+
+  - close_to: { aggregations.sums.value.asc_total: { value: 33.0, error: 0.001 }}
+  - close_to: { aggregations.sums.value.desc_total: { value: 39.0, error: 0.001 }}
+
+
+---
+"RRF using multi-knn and single BM25 with a scripted metric aggregation":
 
   - do:
       search:
@@ -102,18 +240,21 @@ setup:
             sums:
               scripted_metric:
                 init_script: |
-                  state['sums'] = ['asc': [], 'text': []]
+                  state['sums'] = ['asc': [], 'desc': [], 'text': []]
                 map_script: |
                   state['sums']['asc'].add($('vector_asc', null).getVector()[0]);
+                  state['sums']['desc'].add($('vector_asc', null).getVector()[0]);
                   state['sums']['text'].add(Integer.parseInt($('text', null).substring(5)));
                 combine_script: |
                   [
                     'asc_total': state['sums']['asc'].stream().mapToDouble(v -> v).sum(),
+                    'desc_total': state['sums']['asc'].stream().mapToDouble(v -> v).sum(),
                     'text_total': state['sums']['text'].stream().mapToInt(v -> v).sum()
                   ]
                 reduce_script: |
                   [
                     'asc_total': states.stream().mapToDouble(v -> v['asc_total']).sum(),
+                    'desc_total': states.stream().mapToDouble(v -> v['desc_total']).sum(),
                     'text_total': states.stream().mapToInt(v -> v['text_total']).sum()
                   ]
           rank:
@@ -138,4 +279,5 @@ setup:
   - match: { hits.hits.4._rank: 5 }
 
   - close_to: { aggregations.sums.value.asc_total: { value: 30.0, error: 0.001 }}
+  - close_to: { aggregations.sums.value.desc_total: { value: 30.0, error: 0.001 }}
   - match: { aggregations.sums.value.text_total: 30 }

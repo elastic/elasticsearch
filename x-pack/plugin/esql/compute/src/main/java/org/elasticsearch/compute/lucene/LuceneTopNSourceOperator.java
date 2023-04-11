@@ -52,10 +52,6 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
 
     private LeafCollector currentLeafCollector;
 
-    private IntVector.Builder currentSegmentBuilder;
-
-    private IntVector.Builder currentDocsBuilder;
-
     private final List<LeafReaderContext> leafReaderContexts;
 
     private final CollectorManager<TopFieldCollector, TopFieldDocs> collectorManager;// one for each shard
@@ -244,8 +240,8 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         Page page = null;
 
         if (positions > 0) {
-            this.currentSegmentBuilder = IntVector.newVectorBuilder(positions);
-            this.currentDocsBuilder = IntVector.newVectorBuilder(positions);
+            IntVector.Builder currentSegmentBuilder = IntVector.newVectorBuilder(positions);
+            IntVector.Builder currentDocsBuilder = IntVector.newVectorBuilder(positions);
 
             for (ScoreDoc doc : scoreDocs) {
                 int segment = ReaderUtil.subIndex(doc.doc, leafReaderContexts);

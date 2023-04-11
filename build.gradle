@@ -322,8 +322,14 @@ tasks.named("precommit") {
 tasks.named("checkPart1").configure {
   dependsOn gradle.includedBuild('build-tools').task(':check')
   dependsOn gradle.includedBuild('build-tools-internal').task(':check')
+  dependsOn ':transportMethodCoverageVerifier'
 }
-
+tasks.named("checkPart2").configure {
+  dependsOn ':transportMethodCoverageVerifier'
+}
+tasks.named("checkPart3").configure {
+  dependsOn ':transportMethodCoverageVerifier'
+}
 tasks.named("assemble").configure {
   dependsOn gradle.includedBuild('build-tools').task(':assemble')
 }

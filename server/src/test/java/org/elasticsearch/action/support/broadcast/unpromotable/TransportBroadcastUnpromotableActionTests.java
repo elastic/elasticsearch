@@ -151,6 +151,9 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
             super(indexShardRoutingTable);
         }
 
+        TestBroadcastUnpromotableRequest(IndexShardRoutingTable indexShardRoutingTable, boolean failShardOnError) {
+            super(indexShardRoutingTable, failShardOnError);
+        }
     }
 
     private static List<ShardRouting.Role> getReplicaRoles(int numPromotableReplicas, int numSearchReplicas) {
@@ -306,7 +309,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
                     f -> ActionTestUtils.execute(
                         broadcastUnpromotableAction,
                         null,
-                        new TestBroadcastUnpromotableRequest(wrongRoutingTable),
+                        new TestBroadcastUnpromotableRequest(wrongRoutingTable, true),
                         f
                     ),
                     10,

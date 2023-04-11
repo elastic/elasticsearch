@@ -114,7 +114,8 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             assert replicaRequest.primaryRefreshResult.refreshed() : "primary has not refreshed";
             UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
                 indexShardRoutingTable,
-                replicaRequest.primaryRefreshResult.generation()
+                replicaRequest.primaryRefreshResult.generation(),
+                false
             );
             transportService.sendRequest(
                 transportService.getLocalNode(),

@@ -77,7 +77,9 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
                         request,
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(
-                            listeners.acquire(ignored -> {}).delegateResponse((l, e) -> failShard(shardRouting, clusterState, l, e)),
+                            request.failShardOnError()
+                                ? listeners.acquire(ignored -> {}).delegateResponse((l, e) -> failShard(shardRouting, clusterState, l, e))
+                                : listeners.acquire(ignored -> {}),
                             (in) -> TransportResponse.Empty.INSTANCE,
                             executor
                         )

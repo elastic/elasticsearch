@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -502,7 +503,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     }
 
     public void testParsingOriginationDateBeforeIndexCreation() {
-        Settings indexSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true).build();
+        Settings indexSettings = Settings.builder().put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true).build();
         Index index = new Index("invalid_index_name", UUID.randomUUID().toString());
         expectThrows(
             IllegalArgumentException.class,

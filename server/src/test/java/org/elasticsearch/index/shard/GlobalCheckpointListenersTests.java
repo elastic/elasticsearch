@@ -598,11 +598,9 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         }).when(mockLogger).warn(any(String.class), any(RuntimeException.class));
         final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, scheduler, mockLogger);
         final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(1, 50));
-        globalCheckpointListeners.add(
-            NO_OPS_PERFORMED,
-            maybeMultipleInvocationProtectingListener((g, e) -> { throw new RuntimeException("failure"); }),
-            timeout
-        );
+        globalCheckpointListeners.add(NO_OPS_PERFORMED, maybeMultipleInvocationProtectingListener((g, e) -> {
+            throw new RuntimeException("failure");
+        }), timeout);
         latch.await();
         final ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
         final ArgumentCaptor<RuntimeException> t = ArgumentCaptor.forClass(RuntimeException.class);

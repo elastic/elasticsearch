@@ -50,19 +50,19 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
 
     public void testInvalidDocument_NegativeDocCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, -100))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, -100))));
         assertThat(e.getCause().getMessage(), containsString("Field [_doc_count] must be a positive integer"));
     }
 
     public void testInvalidDocument_ZeroDocCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, 0))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, 0))));
         assertThat(e.getCause().getMessage(), containsString("Field [_doc_count] must be a positive integer"));
     }
 
     public void testInvalidDocument_NonNumericDocCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, "foo"))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, "foo"))));
         assertThat(
             e.getCause().getMessage(),
             containsString("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]")
@@ -71,13 +71,13 @@ public class DocCountFieldMapperTests extends MetadataMapperTestCase {
 
     public void testInvalidDocument_FractionalDocCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, 100.23))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field(CONTENT_TYPE, 100.23))));
         assertThat(e.getCause().getMessage(), containsString("100.23 cannot be converted to Integer without data loss"));
     }
 
     public void testInvalidDocument_ArrayDocCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array(CONTENT_TYPE, 10, 20, 30))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array(CONTENT_TYPE, 10, 20, 30))));
         assertThat(e.getCause().getMessage(), containsString("Arrays are not allowed for field [_doc_count]."));
     }
 

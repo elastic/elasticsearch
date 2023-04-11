@@ -55,7 +55,9 @@ public class FeatureMigrationResults implements Metadata.Custom {
         PARSER.declareNamedObjects(
             ConstructingObjectParser.constructorArg(),
             (p, c, n) -> new Tuple<>(n, SingleFeatureMigrationResult.fromXContent(p)),
-            v -> { throw new IllegalArgumentException("ordered " + RESULTS_FIELD.getPreferredName() + " are not supported"); },
+            v -> {
+                throw new IllegalArgumentException("ordered " + RESULTS_FIELD.getPreferredName() + " are not supported");
+            },
             RESULTS_FIELD
         );
     }

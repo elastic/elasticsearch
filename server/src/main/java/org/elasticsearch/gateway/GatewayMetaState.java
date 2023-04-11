@@ -503,6 +503,12 @@ public class GatewayMetaState implements Closeable {
             // this is true if there's only one data path on this master node, and the commit we just loaded was already written out
             // by this version of Elasticsearch. TODO TBD should we avoid indexing when possible?
             final PersistedClusterStateService.Writer writer = persistedClusterStateService.createWriter();
+            maybeWriteInitialState(currentTerm, lastAcceptedState, writer);
+            persistenceWriter.set(writer);
+        }
+
+        protected void maybeWriteInitialState(long currentTerm, ClusterState lastAcceptedState, PersistedClusterStateService.Writer writer)
+            throws IOException {
             try {
                 writer.writeFullStateAndCommit(currentTerm, lastAcceptedState);
             } catch (Exception e) {
@@ -513,7 +519,6 @@ public class GatewayMetaState implements Closeable {
                 }
                 throw e;
             }
-            persistenceWriter.set(writer);
         }
 
         @Override
@@ -528,6 +533,11 @@ public class GatewayMetaState implements Closeable {
 
         @Override
         public void setCurrentTerm(long currentTerm) {
+            writeCurrentTermToDisk(currentTerm);
+            this.currentTerm = currentTerm;
+        }
+
+        protected void writeCurrentTermToDisk(long currentTerm) {
             try {
                 if (writeNextStateFully) {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, lastAcceptedState);
@@ -544,11 +554,15 @@ public class GatewayMetaState implements Closeable {
             }
 
             writeNextStateFully = false;
-            this.currentTerm = currentTerm;
         }
 
         @Override
         public void setLastAcceptedState(ClusterState clusterState) {
+            writeClusterStateToDisk(clusterState);
+            lastAcceptedState = clusterState;
+        }
+
+        protected void writeClusterStateToDisk(ClusterState clusterState) {
             try {
                 if (writeNextStateFully) {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, clusterState);
@@ -567,9 +581,7 @@ public class GatewayMetaState implements Closeable {
             } catch (IOException e) {
                 throw new ElasticsearchException(e);
             }
-
             writeNextStateFully = false;
-            lastAcceptedState = clusterState;
         }
 
         private PersistedClusterStateService.Writer getWriterSafe() {

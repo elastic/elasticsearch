@@ -49,7 +49,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -75,6 +78,7 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -166,6 +170,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapper;
@@ -282,6 +287,7 @@ import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.profile.ProfileService;
+import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction;
@@ -377,6 +383,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
+import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
 
 public class Security extends Plugin
     implements
@@ -758,6 +765,7 @@ public class Security extends Plugin
             clusterService
         );
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
+        RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
         for (SecurityExtension extension : securityExtensions) {
@@ -910,6 +918,7 @@ public class Security extends Plugin
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             failureHandler,
@@ -928,7 +937,11 @@ public class Security extends Plugin
         components.add(allRolesStore); // for SecurityInfoTransportAction and clear roles cache
         components.add(authzService);
 
-        final SecondaryAuthenticator secondaryAuthenticator = new SecondaryAuthenticator(securityContext.get(), authcService.get());
+        final SecondaryAuthenticator secondaryAuthenticator = new SecondaryAuthenticator(
+            securityContext.get(),
+            authcService.get(),
+            auditTrailService
+        );
         this.secondayAuthc.set(secondaryAuthenticator);
         components.add(secondaryAuthenticator);
 
@@ -1398,10 +1411,7 @@ public class Security extends Plugin
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Collections.singletonMap(
-            SetSecurityUserProcessor.TYPE,
-            new SetSecurityUserProcessor.Factory(securityContext::get, settings)
-        );
+        return Map.of(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(securityContext::get, settings));
     }
 
     @Override
@@ -1587,6 +1597,7 @@ public class Security extends Plugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
@@ -1610,8 +1621,9 @@ public class Security extends Plugin
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
         httpTransports.put(SecurityField.NAME4, () -> {
             final boolean ssl = HTTP_SSL_ENABLED.get(settings);
-            SSLService sslService = getSslService();
+            final SSLService sslService = getSslService();
             final SslConfiguration sslConfiguration;
+            final BiConsumer<HttpChannel, ThreadContext> populateClientCertificate;
             if (ssl) {
                 sslConfiguration = sslService.getHttpTransportSSLConfiguration();
                 if (SSLService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
@@ -1620,8 +1632,14 @@ public class Security extends Plugin
                             + "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting"
                     );
                 }
+                if (SSLService.isSSLClientAuthEnabled(sslConfiguration)) {
+                    populateClientCertificate = (channel, threadContext) -> extractClientCertificates(logger, threadContext, channel);
+                } else {
+                    populateClientCertificate = (channel, threadContext) -> {};
+                }
             } else {
                 sslConfiguration = null;
+                populateClientCertificate = (channel, threadContext) -> {};
             }
             return new Netty4HttpServerTransport(
                 settings,
@@ -1633,28 +1651,29 @@ public class Security extends Plugin
                 getNettySharedGroupFactory(settings),
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
-                acceptPredicate
-            );
+                acceptPredicate,
+                Netty4HttpHeaderValidator.NOOP_VALIDATOR
+            ) {
+                @Override
+                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    perRequestThreadContext.accept(restRequest.getHttpRequest(), threadContext);
+                    populateClientCertificate.accept(restRequest.getHttpChannel(), threadContext);
+                    RemoteHostHeader.process(restRequest, threadContext);
+                }
+            };
         });
         return httpTransports;
     }
 
     @Override
     public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-        final boolean extractClientCertificate;
-        if (enabled && HTTP_SSL_ENABLED.get(settings)) {
-            final SslConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
-            extractClientCertificate = SSLService.isSSLClientAuthEnabled(httpSSLConfig);
-        } else {
-            extractClientCertificate = false;
-        }
         return handler -> new SecurityRestFilter(
             enabled,
             threadContext,
             authcService.get(),
             secondayAuthc.get(),
-            handler,
-            extractClientCertificate
+            auditTrailService.get(),
+            handler
         );
     }
 

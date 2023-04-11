@@ -1554,9 +1554,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
+        RemoteHostHeader.process(request, threadContext);
 
         final String requestId = randomRequestId();
-        auditTrail.anonymousAccessDenied(requestId, request);
+        auditTrail.anonymousAccessDenied(requestId, request.getHttpRequest());
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "anonymous_access_denied")
@@ -1565,9 +1566,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
             .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
-        if (includeRequestBody && Strings.hasLength(expectedMessage)) {
-            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, expectedMessage);
-        }
         opaqueId(threadContext, checkedFields);
         traceId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
@@ -1578,7 +1576,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         updateLoggerSettings(
             Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "anonymous_access_denied").build()
         );
-        auditTrail.anonymousAccessDenied(requestId, request);
+        auditTrail.anonymousAccessDenied(requestId, request.getHttpRequest());
         assertEmptyLog(logger);
     }
 
@@ -1656,9 +1654,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
         final AuthenticationToken authToken = createAuthenticationToken();
+        RemoteHostHeader.process(request, threadContext);
 
         final String requestId = randomRequestId();
-        auditTrail.authenticationFailed(requestId, authToken, request);
+        auditTrail.authenticationFailed(requestId, authToken, request.getHttpRequest());
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_failed")
@@ -1670,9 +1669,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
         if (authToken instanceof ServiceAccountToken) {
             checkedFields.put(LoggingAuditTrail.SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) authToken).getTokenName());
-        }
-        if (includeRequestBody && Strings.hasLength(expectedMessage)) {
-            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, expectedMessage);
         }
         if (params.isEmpty() == false) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "foo=bar");
@@ -1687,7 +1683,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         updateLoggerSettings(
             Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "authentication_failed").build()
         );
-        auditTrail.authenticationFailed(requestId, createAuthenticationToken(), request);
+        auditTrail.authenticationFailed(requestId, createAuthenticationToken(), request.getHttpRequest());
         assertEmptyLog(logger);
     }
 
@@ -1703,9 +1699,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
+        RemoteHostHeader.process(request, threadContext);
 
         final String requestId = randomRequestId();
-        auditTrail.authenticationFailed(requestId, request);
+        auditTrail.authenticationFailed(requestId, request.getHttpRequest());
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_failed")
@@ -1714,9 +1711,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
             .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
-        if (includeRequestBody && Strings.hasLength(expectedMessage)) {
-            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, expectedMessage);
-        }
         if (params.isEmpty() == false) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "bar=baz");
         }
@@ -1730,7 +1724,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         updateLoggerSettings(
             Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "authentication_failed").build()
         );
-        auditTrail.authenticationFailed(requestId, request);
+        auditTrail.authenticationFailed(requestId, request.getHttpRequest());
         assertEmptyLog(logger);
     }
 
@@ -1778,15 +1772,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final RestRequest request = tuple.v2();
         final AuthenticationToken authToken = mockToken();
         final String realm = randomAlphaOfLengthBetween(1, 6);
+        RemoteHostHeader.process(request, threadContext);
         final String requestId = randomRequestId();
-        auditTrail.authenticationFailed(requestId, realm, authToken, request);
+        auditTrail.authenticationFailed(requestId, realm, authToken, request.getHttpRequest());
         assertEmptyLog(logger);
 
         // test enabled
         updateLoggerSettings(
             Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "realm_authentication_failed").build()
         );
-        auditTrail.authenticationFailed(requestId, realm, authToken, request);
+        auditTrail.authenticationFailed(requestId, realm, authToken, request.getHttpRequest());
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "realm_authentication_failed")
@@ -1797,9 +1792,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
             .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
-        if (includeRequestBody && Strings.hasLength(expectedMessage)) {
-            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, expectedMessage);
-        }
         if (params.isEmpty() == false) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "_param=baz");
         }
@@ -2164,8 +2156,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
+        RemoteHostHeader.process(request, threadContext);
         final String requestId = randomRequestId();
-        auditTrail.tamperedRequest(requestId, request);
+        auditTrail.tamperedRequest(requestId, request.getHttpRequest());
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "tampered_request")
@@ -2174,9 +2167,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
             .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
-        if (includeRequestBody && Strings.hasLength(expectedMessage)) {
-            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, expectedMessage);
-        }
         if (params.isEmpty() == false) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "_param=baz");
         }
@@ -2190,7 +2180,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         updateLoggerSettings(
             Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "tampered_request").build()
         );
-        auditTrail.tamperedRequest(requestId, request);
+        auditTrail.tamperedRequest(requestId, request.getHttpRequest());
         assertEmptyLog(logger);
     }
 
@@ -2444,18 +2434,20 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final String expectedMessage = tuple.v1().expectedMessage();
         final RestRequest request = tuple.v2();
-        final String requestId = randomRequestId();
+        String requestId = AuditUtil.generateRequestId(threadContext);
         MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         Authentication authentication = createAuthentication();
+        authentication.writeToContext(threadContext);
+        RemoteHostHeader.process(request, threadContext);
 
         // event by default disabled
-        auditTrail.authenticationSuccess(requestId, authentication, request);
+        auditTrail.authenticationSuccess(request);
         assertEmptyLog(logger);
 
         updateLoggerSettings(
             Settings.builder().put(this.settings).put("xpack.security.audit.logfile.events.include", "authentication_success").build()
         );
-        auditTrail.authenticationSuccess(requestId, authentication, request);
+        auditTrail.authenticationSuccess(request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
             .put(LoggingAuditTrail.REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName())
@@ -2476,11 +2468,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields.map());
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        threadContext.stashContext();
 
         // audit for authn with API Key
+        requestId = AuditUtil.generateRequestId(threadContext);
         authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
+        authentication.writeToContext(threadContext);
         checkedFields = new MapBuilder<>(commonFields);
-        auditTrail.authenticationSuccess(requestId, authentication, request);
+        RemoteHostHeader.process(request, threadContext);
+        auditTrail.authenticationSuccess(request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
             .put(LoggingAuditTrail.REALM_FIELD_NAME, "_es_api_key")
@@ -2501,11 +2497,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields.map());
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        threadContext.stashContext();
 
         // authentication success but run-as user does not exist
+        requestId = AuditUtil.generateRequestId(threadContext);
         authentication = AuthenticationTestHelper.builder().realm().build(false).runAs(new User(randomAlphaOfLengthBetween(3, 8)), null);
+        authentication.writeToContext(threadContext);
         checkedFields = new MapBuilder<>(commonFields);
-        auditTrail.authenticationSuccess(requestId, authentication, request);
+        RemoteHostHeader.process(request, threadContext);
+        auditTrail.authenticationSuccess(request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
             .put(LoggingAuditTrail.REALM_FIELD_NAME, authentication.getAuthenticatingSubject().getRealm().getName())
@@ -2526,6 +2526,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         forwardedFor(threadContext, checkedFields);
         assertMsg(logger, checkedFields.map());
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        threadContext.stashContext();
     }
 
     public void testAuthenticationSuccessTransport() throws Exception {
@@ -2583,12 +2584,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final Authentication remoteAuthentication = randomFrom(
             AuthenticationTestHelper.builder().realm(false),
             AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE),
+            AuthenticationTestHelper.builder().serviceAccount(),
             AuthenticationTestHelper.builder().apiKey().metadata(Map.of(AuthenticationField.API_KEY_NAME_KEY, randomAlphaOfLength(42)))
         ).build(false);
         final Authentication authentication = AuthenticationTestHelper.builder()
             .crossClusterAccess(
                 randomAlphaOfLength(42),
-                new CrossClusterAccessSubjectInfo(remoteAuthentication, RoleDescriptorsIntersection.EMPTY)
+                new CrossClusterAccessSubjectInfo(remoteAuthentication, RoleDescriptorsIntersection.EMPTY).cleanAndValidate()
             )
             .build();
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
@@ -2996,6 +2998,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 remoteAuthentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY),
                 remoteAuthentication.getEffectiveSubject().getUser().principal(),
                 remoteAuthentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME)
+            );
+            case SERVICE_ACCOUNT -> Strings.format(
+                "{\"authentication.token.name\":\"%s\",\"authentication.token.type\":\"%s\","
+                    + "\"authentication.type\":\"TOKEN\",\"user.name\":\"%s\",\"user.realm\":\"%s\"}",
+                remoteAuthentication.getAuthenticatingSubject().getMetadata().get(TOKEN_NAME_FIELD),
+                ServiceAccountSettings.REALM_TYPE
+                    + "_"
+                    + remoteAuthentication.getAuthenticatingSubject().getMetadata().get(TOKEN_SOURCE_FIELD),
+                remoteAuthentication.getEffectiveSubject().getUser().principal(),
+                remoteAuthentication.getEffectiveSubject().getRealm().getName()
             );
             default -> throw new IllegalArgumentException("unsupported type " + remoteAuthentication.getEffectiveSubject().getType());
         };

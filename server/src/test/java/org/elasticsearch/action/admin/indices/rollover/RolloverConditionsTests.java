@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -19,14 +18,8 @@ import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class RolloverConditionsTests extends AbstractXContentSerializingTestCase<RolloverConditions> {
 
@@ -69,11 +62,6 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
             .addMinIndexDocsCondition(minDocs)
             .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
             .build();
-    }
-
-    private static ByteSizeValue randomByteSizeValue() {
-        ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
-        return new ByteSizeValue(randomNonNegativeLong() / unit.toBytes(1), unit);
     }
 
     @Override
@@ -139,13 +127,6 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         return RolloverConditions.fromXContent(parser);
     }
 
-    public void testSameConditionCanOnlyBeAddedOnce() {
-        RolloverConditions.Builder builder = RolloverConditions.newBuilder();
-        Consumer<RolloverConditions.Builder> rolloverRequestConsumer = randomFrom(conditionsGenerator);
-        rolloverRequestConsumer.accept(builder);
-        expectThrows(IllegalArgumentException.class, () -> rolloverRequestConsumer.accept(builder));
-    }
-
     public void testConditionsAreMet() {
         RolloverConditions rolloverConditions = new RolloverConditions();
         assertTrue(rolloverConditions.areConditionsMet(Collections.emptyMap()));
@@ -177,100 +158,4 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         assertFalse(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true)));
         assertTrue(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true, minAgeCondition, true)));
     }
-
-    public void testClusterSettingParsing() {
-        RolloverConditions defaultSetting = RolloverConditions.parseSetting(
-            "max_age=7d,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000",
-            "test-setting"
-        );
-
-        assertThat(defaultSetting.getMaxSize(), nullValue());
-        assertThat(defaultSetting.getMaxPrimaryShardSize(), equalTo(ByteSizeValue.ofGb(50)));
-        assertThat(defaultSetting.getMaxAge(), equalTo(TimeValue.timeValueDays(7)));
-        assertThat(defaultSetting.getMaxDocs(), nullValue());
-        assertThat(defaultSetting.getMaxPrimaryShardDocs(), equalTo(200_000_000L));
-
-        assertThat(defaultSetting.getMinSize(), nullValue());
-        assertThat(defaultSetting.getMinPrimaryShardSize(), nullValue());
-        assertThat(defaultSetting.getMinAge(), nullValue());
-        assertThat(defaultSetting.getMinDocs(), equalTo(1L));
-        assertThat(defaultSetting.getMinPrimaryShardDocs(), nullValue());
-
-        var maxSize = ByteSizeValue.ofGb(randomIntBetween(1, 100));
-        var maxPrimaryShardSize = ByteSizeValue.ofGb(randomIntBetween(1, 50));
-        var maxAge = TimeValue.timeValueMillis(randomMillisUpToYear9999());
-        var maxDocs = randomLongBetween(1_000_000, 1_000_000_000);
-        var maxPrimaryShardDocs = randomLongBetween(1_000_000, 1_000_000_000);
-
-        var minSize = ByteSizeValue.ofGb(randomIntBetween(1, 100));
-        var minPrimaryShardSize = ByteSizeValue.ofGb(randomIntBetween(1, 50));
-        var minAge = TimeValue.timeValueMillis(randomMillisUpToYear9999());
-        var minDocs = randomLongBetween(1_000_000, 1_000_000_000);
-        var minPrimaryShardDocs = randomLongBetween(1_000_000, 1_000_000_000);
-        String setting = "max_size="
-            + maxSize.getStringRep()
-            + ",max_primary_shard_size="
-            + maxPrimaryShardSize.getStringRep()
-            + ",max_age="
-            + maxAge.getStringRep()
-            + ",max_docs="
-            + maxDocs
-            + ",max_primary_shard_docs="
-            + maxPrimaryShardDocs
-            + ",min_size="
-            + minSize.getStringRep()
-            + ",min_primary_shard_size="
-            + minPrimaryShardSize.getStringRep()
-            + ",min_age="
-            + minAge.getStringRep()
-            + ",min_docs="
-            + minDocs
-            + ",min_primary_shard_docs="
-            + minPrimaryShardDocs;
-        RolloverConditions randomSetting = RolloverConditions.parseSetting(setting, "test2");
-        assertThat(randomSetting.getMaxAge(), equalTo(maxAge));
-        assertThat(randomSetting.getMaxPrimaryShardSize(), equalTo(maxPrimaryShardSize));
-        assertThat(randomSetting.getMaxDocs(), equalTo(maxDocs));
-        assertThat(randomSetting.getMaxPrimaryShardDocs(), equalTo(maxPrimaryShardDocs));
-        assertThat(randomSetting.getMaxSize(), equalTo(maxSize));
-
-        assertThat(randomSetting.getMinAge(), equalTo(minAge));
-        assertThat(randomSetting.getMinPrimaryShardSize(), equalTo(minPrimaryShardSize));
-        assertThat(randomSetting.getMinPrimaryShardDocs(), equalTo(minPrimaryShardDocs));
-        assertThat(randomSetting.getMinDocs(), equalTo(minDocs));
-        assertThat(randomSetting.getMinSize(), equalTo(minSize));
-
-        IllegalArgumentException invalid = expectThrows(
-            IllegalArgumentException.class,
-            () -> RolloverConditions.parseSetting("", "empty-setting")
-        );
-        assertEquals("The rollover conditions cannot be null or blank", invalid.getMessage());
-        SettingsException unknown = expectThrows(
-            SettingsException.class,
-            () -> RolloverConditions.parseSetting("unknown_condition=?", "unknown-setting")
-        );
-        assertEquals("Unknown condition: 'unknown_condition'", unknown.getMessage());
-        SettingsException numberFormat = expectThrows(
-            SettingsException.class,
-            () -> RolloverConditions.parseSetting("max_docs=one", "invalid-number-setting")
-        );
-        assertEquals(
-            "Invalid value 'one' in setting 'invalid-number-setting', the value is expected to be of type long",
-            numberFormat.getMessage()
-        );
-    }
-
-    private static final List<Consumer<RolloverConditions.Builder>> conditionsGenerator = Arrays.asList(
-        (builder) -> builder.addMaxIndexDocsCondition(randomNonNegativeLong()),
-        (builder) -> builder.addMaxIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-        (builder) -> builder.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
-        (builder) -> builder.addMaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-        (builder) -> builder.addMaxPrimaryShardDocsCondition(randomNonNegativeLong()),
-        (builder) -> builder.addMinIndexDocsCondition(randomNonNegativeLong()),
-        (builder) -> builder.addMinIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-        (builder) -> builder.addMinIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
-        (builder) -> builder.addMinPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-        (builder) -> builder.addMinPrimaryShardDocsCondition(randomNonNegativeLong())
-    );
-
 }

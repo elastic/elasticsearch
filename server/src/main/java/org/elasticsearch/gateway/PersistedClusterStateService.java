@@ -632,7 +632,9 @@ public class PersistedClusterStateService {
             builder.put(indexMetadata, false);
         });
 
-        OnDiskStateMetadata onDiskStateMetadata = readOnDiskStateMetadata(reader);
+        final Map<String, String> userData = reader.getIndexCommit().getUserData();
+        logger.trace("loaded metadata [{}] from [{}]", userData, reader.directory());
+        OnDiskStateMetadata onDiskStateMetadata = loadOnDiskStateMetadataFromUserData(userData);
         return new OnDiskState(
             onDiskStateMetadata.nodeId(),
             dataPath,
@@ -644,9 +646,7 @@ public class PersistedClusterStateService {
         );
     }
 
-    public OnDiskStateMetadata readOnDiskStateMetadata(DirectoryReader reader) throws IOException {
-        final Map<String, String> userData = reader.getIndexCommit().getUserData();
-        logger.trace("loaded metadata [{}] from [{}]", userData, reader.directory());
+    public OnDiskStateMetadata loadOnDiskStateMetadataFromUserData(Map<String, String> userData) {
         assert userData.get(CURRENT_TERM_KEY) != null;
         assert userData.get(LAST_ACCEPTED_VERSION_KEY) != null;
         assert userData.get(NODE_ID_KEY) != null;

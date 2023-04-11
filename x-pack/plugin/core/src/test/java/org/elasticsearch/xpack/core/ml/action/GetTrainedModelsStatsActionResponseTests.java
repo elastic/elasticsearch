@@ -29,8 +29,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
 
     @Override
     protected Response createTestInstance() {
-        // int listSize = randomInt(10);
-        int listSize = 1;
+        int listSize = randomInt(10);
         List<Response.TrainedModelStats> trainedModelStats = Stream.generate(() -> randomAlphaOfLength(10))
             .limit(listSize)
             .map(
@@ -117,6 +116,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                     ? null
                                     : new AssignmentStats(
                                         stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
                                         stats.getDeploymentStats().getQueueCapacity(),
@@ -173,6 +173,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
+                                        stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
@@ -231,6 +232,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                     ? null
                                     : new AssignmentStats(
                                         stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
                                         stats.getDeploymentStats().getQueueCapacity(),
@@ -288,6 +290,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                     ? null
                                     : new AssignmentStats(
                                         stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
                                         stats.getDeploymentStats().getQueueCapacity(),
@@ -329,6 +332,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                 )
             );
         } else if (version.before(TransportVersion.V_8_6_0)) {
+            // priority added
             return new Response(
                 new QueryPage<>(
                     instance.getResources()
@@ -344,6 +348,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
+                                        stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
@@ -377,6 +382,65 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                             )
                                             .toList(),
                                         Priority.NORMAL
+                                    )
+                            )
+                        )
+                        .toList(),
+                    instance.getResources().count(),
+                    RESULTS_FIELD
+                )
+            );
+        } else if (version.before(TransportVersion.V_8_8_0)) {
+            // deployment_id added
+            return new Response(
+                new QueryPage<>(
+                    instance.getResources()
+                        .results()
+                        .stream()
+                        .map(
+                            stats -> new Response.TrainedModelStats(
+                                stats.getModelId(),
+                                stats.getModelSizeStats(),
+                                stats.getIngestStats(),
+                                stats.getPipelineCount(),
+                                stats.getInferenceStats(),
+                                stats.getDeploymentStats() == null
+                                    ? null
+                                    : new AssignmentStats(
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
+                                        stats.getDeploymentStats().getQueueCapacity(),
+                                        stats.getDeploymentStats().getCacheSize(),
+                                        stats.getDeploymentStats().getStartTime(),
+                                        stats.getDeploymentStats()
+                                            .getNodeStats()
+                                            .stream()
+                                            .map(
+                                                nodeStats -> new AssignmentStats.NodeStats(
+                                                    nodeStats.getNode(),
+                                                    nodeStats.getInferenceCount().orElse(null),
+                                                    nodeStats.getAvgInferenceTime().orElse(null),
+                                                    nodeStats.getAvgInferenceTimeExcludingCacheHit().orElse(null),
+                                                    nodeStats.getLastAccess(),
+                                                    nodeStats.getPendingCount(),
+                                                    nodeStats.getErrorCount(),
+                                                    nodeStats.getCacheHitCount().orElse(null),
+                                                    nodeStats.getRejectedExecutionCount(),
+                                                    nodeStats.getTimeoutCount(),
+                                                    nodeStats.getRoutingState(),
+                                                    nodeStats.getStartTime(),
+                                                    nodeStats.getThreadsPerAllocation(),
+                                                    nodeStats.getNumberOfAllocations(),
+                                                    nodeStats.getPeakThroughput(),
+                                                    nodeStats.getThroughputLastPeriod(),
+                                                    nodeStats.getAvgInferenceTimeLastPeriod(),
+                                                    nodeStats.getCacheHitCountLastPeriod().orElse(null)
+                                                )
+                                            )
+                                            .toList(),
+                                        stats.getDeploymentStats().getPriority()
                                     )
                             )
                         )

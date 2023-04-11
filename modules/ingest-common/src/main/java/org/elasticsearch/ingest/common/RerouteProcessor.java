@@ -20,12 +20,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.common.RerouteProcessor.DataStreamValueSource.DATASET_VALUE_SOURCE;
 import static org.elasticsearch.ingest.common.RerouteProcessor.DataStreamValueSource.NAMESPACE_VALUE_SOURCE;
 
 public final class RerouteProcessor extends AbstractProcessor {
+
     public static final String TYPE = "reroute";
+
+    private static final String NAMING_SCHEME_ERROR_MESSAGE =
+        "invalid data stream name: [%s]; must follow naming scheme <type>-<dataset>-<namespace>";
+
     private static final String DATA_STREAM_PREFIX = "data_stream.";
     private static final String DATA_STREAM_TYPE = DATA_STREAM_PREFIX + "type";
     private static final String DATA_STREAM_DATASET = DATA_STREAM_PREFIX + "dataset";
@@ -72,11 +78,11 @@ public final class RerouteProcessor extends AbstractProcessor {
         // parse out the <type>-<dataset>-<namespace> components from _index
         int indexOfFirstDash = indexName.indexOf('-');
         if (indexOfFirstDash < 0) {
-            throw createInvalidDataStreamNameException(indexName);
+            throw new IllegalArgumentException(format(NAMING_SCHEME_ERROR_MESSAGE, indexName));
         }
         int indexOfSecondDash = indexName.indexOf('-', indexOfFirstDash + 1);
         if (indexOfSecondDash < 0) {
-            throw createInvalidDataStreamNameException(indexName);
+            throw new IllegalArgumentException(format(NAMING_SCHEME_ERROR_MESSAGE, indexName));
         }
         type = parseDataStreamType(indexName, indexOfFirstDash);
         currentDataset = parseDataStreamDataset(indexName, indexOfFirstDash, indexOfSecondDash);
@@ -95,12 +101,6 @@ public final class RerouteProcessor extends AbstractProcessor {
             ingestDocument.setFieldValue(EVENT_DATASET, dataset);
         }
         return ingestDocument;
-    }
-
-    private static IllegalArgumentException createInvalidDataStreamNameException(String indexName) {
-        return new IllegalArgumentException(
-            "invalid data stream name: [" + indexName + "]; must follow naming scheme <type>-<dataset>-<namespace>"
-        );
     }
 
     private static String parseDataStreamType(String dataStreamName, int indexOfFirstDash) {

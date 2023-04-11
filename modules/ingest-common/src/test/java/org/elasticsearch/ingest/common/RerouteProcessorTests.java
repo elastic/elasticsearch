@@ -183,6 +183,23 @@ public class RerouteProcessorTests extends ESTestCase {
         assertDataSetFields(ingestDocument, "logs", "generic", "default");
     }
 
+    public void testInvalidDataStreamName() throws Exception {
+        {
+            IngestDocument ingestDocument = createIngestDocument("foo");
+            RerouteProcessor processor = createRerouteProcessor(List.of(), List.of());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+            assertThat(e.getMessage(), equalTo("invalid data stream name: [foo]; must follow naming scheme <type>-<dataset>-<namespace>"));
+        }
+
+        {
+            // naturally, though, a plain destination doesn't have to match the data stream naming convention
+            IngestDocument ingestDocument = createIngestDocument("foo");
+            RerouteProcessor processor = createRerouteProcessor("bar");
+            processor.execute(ingestDocument);
+            assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("bar"));
+        }
+    }
+
     private RerouteProcessor createRerouteProcessor(List<String> dataset, List<String> namespace) {
         return new RerouteProcessor(
             null,

@@ -70,6 +70,8 @@ include::settings/health-diagnostic-settings.asciidoc[]
 
 include::settings/ilm-settings.asciidoc[]
 
+include::settings/dlm-settings.asciidoc[]
+
 include::modules/indices/index_management.asciidoc[]
 
 include::modules/indices/recovery.asciidoc[]

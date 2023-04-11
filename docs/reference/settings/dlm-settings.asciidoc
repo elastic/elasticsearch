@@ -1,0 +1,18 @@
+[role="xpack"]
+[[dlm-settings]]
+=== {dlm-cap} settings in {es}
+[subs="attributes"]
+++++
+<titleabbrev>{dlm-cap} settings</titleabbrev>
+++++
+
+experimental::[]
+
+These are the settings available for configuring <<data-lifecycle-management, {dlm}>> ({dlm-init}).
+
+==== Cluster level settings
+
+[[indices-dlm-poll-interval]]
+`indices.dlm.poll_interval`::
+(<<dynamic-cluster-setting,Dynamic>>, <<time-units, time unit value>>)
+How often {dlm} checks what is the next action for all managed data streams. Defaults to `10m`.

@@ -163,7 +163,7 @@ type.
 [[counter-field-limitation]]
 .Counter field limitation
 ****
- Note that counter fields do come with a limitation. Only the following aggregations are supported with counter field:
+ Note that counter fields do come with a limitation in aggregations. Only the following aggregations are supported with counter field:
  `rate`, `histogram`, `range`, `min`, `max`, `top_metrics` and `variable_width_histogram`.
 ****
 

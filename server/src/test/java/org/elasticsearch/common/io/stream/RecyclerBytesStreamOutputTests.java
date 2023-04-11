@@ -1058,4 +1058,11 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         out.writeByte(b);
         assertEquals(b, out.bytes().get(PageCacheRecycler.BYTE_PAGE_SIZE));
     }
+
+    public void testSeekBeyondLastPage() {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        int maxSize = Integer.MAX_VALUE - Integer.MAX_VALUE % PageCacheRecycler.BYTE_PAGE_SIZE;
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> out.seek(maxSize));
+        assertEquals("RecyclerBytesStreamOutput cannot hold more than 2GB of data", iae.getMessage());
+    }
 }

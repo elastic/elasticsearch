@@ -151,8 +151,15 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     public void seek(long position) {
         ensureCapacityFromPosition(position);
-        this.pageIndex = (int) position / pageSize;
-        this.currentPageOffset = (int) position % pageSize;
+        int offsetInPage = (int) (position % pageSize);
+        int pageIndex = (int) position / pageSize;
+        if (offsetInPage == 0) {
+            this.pageIndex = pageIndex - 1;
+            this.currentPageOffset = pageSize;
+        } else {
+            this.pageIndex = pageIndex;
+            this.currentPageOffset = offsetInPage;
+        }
     }
 
     public void skip(int length) {
@@ -220,15 +227,17 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     private void ensureCapacityFromPosition(long newPosition) {
         // Integer.MAX_VALUE is not a multiple of the page size so we can only allocate the largest multiple of the pagesize that is less
         // than Integer.MAX_VALUE
-        if (newPosition > Integer.MAX_VALUE - (Integer.MAX_VALUE % pageSize) - 1) {
+        if (newPosition > Integer.MAX_VALUE - (Integer.MAX_VALUE % pageSize)) {
             throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
         }
-        while (newPosition > currentCapacity - 1) {
-            Recycler.V<BytesRef> newPage = recycler.obtain();
-            assert pageSize == newPage.v().length;
-            pages.add(newPage);
-            // We are at the end of the current page, increment page index
-            currentCapacity += pageSize;
+        if (newPosition > currentCapacity) {
+            int pagesNeeded = Math.toIntExact((newPosition - currentCapacity) / pageSize) + (newPosition % pageSize == 0 ? 0 : 1);
+            for (int i = 0; i < pagesNeeded; i++) {
+                Recycler.V<BytesRef> newPage = recycler.obtain();
+                assert pageSize == newPage.v().length;
+                pages.add(newPage);
+            }
+            currentCapacity += pagesNeeded * pageSize;
         }
         if (currentPageOffset == pageSize) {
             pageIndex++;

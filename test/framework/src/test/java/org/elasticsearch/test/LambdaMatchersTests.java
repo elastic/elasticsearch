@@ -11,12 +11,8 @@ package org.elasticsearch.test;
 import org.hamcrest.Matcher;
 import org.hamcrest.StringDescription;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.function.Predicate;
 
-import static org.elasticsearch.test.LambdaMatchers.everyItemMatches;
-import static org.elasticsearch.test.LambdaMatchers.matches;
 import static org.elasticsearch.test.LambdaMatchers.transformed;
 import static org.elasticsearch.test.LambdaMatchers.transformedArrayItems;
 import static org.elasticsearch.test.LambdaMatchers.transformedItems;
@@ -25,9 +21,7 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 
 public class LambdaMatchersTests extends ESTestCase {
 
@@ -53,59 +47,6 @@ public class LambdaMatchersTests extends ESTestCase {
         public String toString() {
             return "B[" + str + "]";
         }
-    }
-
-    private static class ToStringPredicate<T> implements Predicate<T> {
-        private final Predicate<T> predicate;
-        private final String toString;
-
-        private ToStringPredicate(Predicate<T> predicate, String toString) {
-            this.predicate = predicate;
-            this.toString = toString;
-        }
-
-        @Override
-        public boolean test(T t) {
-            return predicate.test(t);
-        }
-
-        @Override
-        public String toString() {
-            return toString;
-        }
-    }
-
-    public void testPredicateMatcher() {
-        assertThat(new A(""), matches(a -> a.str.isEmpty()));
-        assertThat(new B(""), matches((A a) -> a.str.isEmpty()));   // check the types all fit together
-
-        assertMismatch(new A("x"), matches(a -> a.str.isEmpty(), "MyPredicate"), startsWith("<A[x]> did not match predicate MyPredicate"));
-    }
-
-    public void testPredicateDescription() {
-        assertDescribeTo(matches(o -> true, "MyPredicate"), equalTo("matches predicate MyPredicate"));
-        assertDescribeTo(matches(new ToStringPredicate<>(o -> true, "MyPredicate")), equalTo("matches predicate <MyPredicate>"));
-    }
-
-    public void testCollectionPredicate() {
-        // just to check the types all work with everyItem
-        Collection<A> as = List.of(new A("1"), new A("2"), new A("3"));
-        assertThat(as, everyItem(matches(a -> a.str.isEmpty() == false)));
-    }
-
-    public void testArrayPredicate() {
-        A[] as = new A[] { new A("1"), new A("2"), new A("3") };
-        assertThat(as, everyItemMatches(a -> a.str.isEmpty() == false));
-
-        assertMismatch(
-            as,
-            everyItemMatches(a -> a.str.isEmpty(), "empty string"),
-            equalTo("an item <A[1]> did not match predicate empty string")
-        );
-    }
-
-    public void testArrayDescription() {
-        assertDescribeTo(everyItemMatches((A a) -> a.str.isEmpty(), "empty string"), equalTo("every item matches predicate empty string"));
     }
 
     public void testTransformMatcher() {

@@ -33,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * {@link IndexShardRoutingTable} encapsulates all instances of a single shard.
@@ -133,6 +134,10 @@ public class IndexShardRoutingTable {
 
     public ShardRouting shard(int idx) {
         return shards[idx];
+    }
+
+    public Stream<ShardRouting> allShards() {
+        return Stream.of(shards);
     }
 
     /**

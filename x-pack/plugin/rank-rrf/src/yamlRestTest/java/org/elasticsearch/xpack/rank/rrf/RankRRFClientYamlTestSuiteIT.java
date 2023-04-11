@@ -21,6 +21,7 @@ public class RankRRFClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(2)
+        .module("lang-painless")
         .plugin("rank-rrf")
         .setting("xpack.license.self_generated.type", "trial")
         .build();

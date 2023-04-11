@@ -4,8 +4,6 @@ setup:
       version: ' - 8.7.99'
       reason: 'rank added in 8.8'
 
----
-"Simple rank with bm25 search and kNN search":
   - do:
       indices.create:
         index: test
@@ -49,6 +47,9 @@ setup:
 
   - do:
       indices.refresh: {}
+
+---
+"Simple rank with bm25 search and kNN search":
 
   - do:
       search:

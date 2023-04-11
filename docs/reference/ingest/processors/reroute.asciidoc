@@ -23,7 +23,7 @@ See <<reroute-options>> for more details.
 
 NOTE: It's not possible to change the `type` of the data stream with the `reroute` processor.
 
-After a `reroute` processor has been executed, all the other processors of the current pipeline are skipped.
+After a `reroute` processor has been executed, all the other processors of the current pipeline are skipped, including the final pipeline.
 If the current pipeline is executed in the context of a <<pipeline-processor>>, the calling pipeline will be skipped, too.
 This means that at most one `reroute` processor is ever executed within a pipeline,
 allowing to define mutually exclusive routing conditions,

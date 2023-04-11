@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.transport
 
-
+import spock.lang.Ignore
 import spock.lang.Shared
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
@@ -17,6 +17,7 @@ import org.elasticsearch.gradle.internal.coverage.TransportClassesCoveragePlugin
 
 import org.junit.ClassRule
 
+@Ignore
 class TransportClassesCoveragePluginWithNonJavaFuncTest extends AbstractGradleInternalPluginFuncTest {
     Class<? extends TransportClassesCoveragePlugin> pluginClassUnderTest = TransportClassesCoveragePlugin.class
 

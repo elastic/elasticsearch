@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.service;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -24,8 +25,12 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * This fixes up the transport version from pre-8.8.0 cluster state that was inferred as the minimum possible,
@@ -41,16 +46,17 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
 
     private final MasterServiceTaskQueue<NodeTransportVersionTask> masterService;
     private final ClusterAdminClient client;
+    private final Set<String> pendingNodes = Collections.synchronizedSet(new HashSet<>());
 
     public TransportVersionsFixupListener(ClusterService service, ClusterAdminClient client) {
-        masterService = service.createTaskQueue("fixup-transport-versions", Priority.LANGUID, new TransportVersionUpdater());
+        masterService = service.createTaskQueue("fixup-transport-versions", Priority.LOW, new TransportVersionUpdater());
         this.client = client;
     }
 
-    private record NodeTransportVersionTask(String nodeId, TransportVersion version) implements ClusterStateTaskListener {
+    private record NodeTransportVersionTask(Map<String, TransportVersion> results) implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
-            Log.error("Could not apply transport version for node {} to cluster state", nodeId, e);
+            Log.error("Could not apply transport version for nodes {} to cluster state", results.keySet(), e);
         }
     }
 
@@ -59,10 +65,12 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         public ClusterState execute(BatchExecutionContext<NodeTransportVersionTask> context) throws Exception {
             ClusterState.Builder builder = ClusterState.builder(context.initialState());
             for (var c : context.taskContexts()) {
-                var t = c.getTask();
-                // this node's transport version might have been updated already/node has gone away
-                if (Objects.equals(builder.transportVersions().get(t.nodeId()), INFERRED_VERSION)) {
-                    builder.putTransportVersion(t.nodeId(), t.version());
+                NodeTransportVersionTask t = c.getTask();
+                for (var e : t.results().entrySet()) {
+                    // this node's transport version might have been updated already/node has gone away
+                    if (Objects.equals(builder.transportVersions().get(e.getKey()), INFERRED_VERSION)) {
+                        builder.putTransportVersion(e.getKey(), e.getValue());
+                    }
                 }
             }
             return builder.build();
@@ -78,35 +86,51 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         // now that everything should understand cluster state with transport versions
         if (event.state().nodes().getMinNodeVersion().onOrAfter(Version.V_8_8_0)
             && event.state().getMinTransportVersion().equals(INFERRED_VERSION)) {
-            // find all the relevant nodes
-            String[] nodes = event.state()
-                .transportVersions()
-                .entrySet()
-                .stream()
-                .filter(e -> e.getValue().equals(INFERRED_VERSION))
-                .map(Map.Entry::getKey)
-                .toArray(String[]::new);
 
-            NodesInfoRequest request = new NodesInfoRequest(nodes);
+            // find all the relevant nodes
+            Set<String> nodes = new HashSet<>();
+            synchronized (pendingNodes) {
+                for (Map.Entry<String, TransportVersion> e : event.state().transportVersions().entrySet()) {
+                    if (e.getValue().equals(INFERRED_VERSION) && pendingNodes.add(e.getKey())) {
+                        nodes.add(e.getKey());
+                    }
+                }
+            }
+            if (nodes.isEmpty()) {
+                // all nodes already got in-progress requests
+                return;
+            }
+
+            NodesInfoRequest request = new NodesInfoRequest(nodes.toArray(String[]::new));
             request.clear().addMetric(ClusterState.Metric.NODES.toString());
             client.nodesInfo(request, new ActionListener<>() {
                 @Override
                 public void onResponse(NodesInfoResponse response) {
-                    for (NodeInfo n : response.getNodes()) {
-                        String nodeId = n.getNode().getId();
-                        masterService.submitTask(
-                            "update-transport-version[" + nodeId + "]",
-                            new NodeTransportVersionTask(nodeId, n.getTransportVersion()),
-                            null
-                        );
-                    }
+                    pendingNodes.removeAll(nodes);
+                    handleResponse(response);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
+                    pendingNodes.removeAll(nodes);
                     Log.warn("Could not read transport versions from nodes", e);
                 }
             });
+        }
+    }
+
+    private void handleResponse(NodesInfoResponse response) {
+        for (FailedNodeException fne : response.failures()) {
+            Log.warn("Failed to read transport version info from node {}", fne.nodeId(), fne);
+        }
+        // carry on and read what we can
+
+        Map<String, TransportVersion> results = response.getNodes()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(n -> n.getNode().getId(), NodeInfo::getTransportVersion));
+
+        if (results.isEmpty() == false) {
+            masterService.submitTask("update-transport-version", new NodeTransportVersionTask(results), null);
         }
     }
 }

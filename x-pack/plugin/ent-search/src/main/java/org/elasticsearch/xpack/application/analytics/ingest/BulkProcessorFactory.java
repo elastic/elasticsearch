@@ -36,8 +36,7 @@ public class BulkProcessorFactory {
     }
 
     public BulkProcessor2 create(Client client) {
-        BulkProcessor2.Listener listener = new BulkProcessorListener();
-        return BulkProcessor2.builder(client::bulk, listener, client.threadPool())
+        return BulkProcessor2.builder(client::bulk, new BulkProcessorListener(), client.threadPool())
             .setMaxNumberOfRetries(config.maxNumberOfRetries())
             .setBulkActions(config.maxNumberOfEventsPerBulk())
             .setBulkSize(new ByteSizeValue(-1, ByteSizeUnit.BYTES))

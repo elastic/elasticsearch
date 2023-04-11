@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class FieldDataStatsTests extends ESTestCase {
@@ -36,5 +37,50 @@ public class FieldDataStatsTests extends ESTestCase {
         assertEquals(stats.getEvictions(), read.getEvictions());
         assertEquals(stats.getMemorySize(), read.getMemorySize());
         assertEquals(stats.getFields(), read.getFields());
+    }
+
+    public void testAdd() {
+        FieldDataStats fieldDataStats = createInstance(1L, 1L, 1L, List.of());
+        fieldDataStats.add(createInstance(1L, 1L, 1L, List.of()));
+        assertEquals(fieldDataStats.getMemorySizeInBytes(), 2L);
+        assertEquals(fieldDataStats.getEvictions(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getBuildTimeMillis(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().size(), 0);
+
+        fieldDataStats = createInstance(2L, 2L, 2L, List.of(Map.entry("field1", new long[] { 2L, 2L })));
+        fieldDataStats.add(createInstance(2L, 2L, 2L, List.of(Map.entry("field1", new long[] { 2L, 2L }))));
+        assertEquals(fieldDataStats.getMemorySizeInBytes(), 4L);
+        assertEquals(fieldDataStats.getEvictions(), 4L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getBuildTimeMillis(), 4L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().size(), 1);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").getValueCount(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").getTotalBuildingTime(), 4L);
+
+        fieldDataStats = createInstance(2L, 2L, 2L, List.of(Map.entry("field1", new long[] { 2L, 2L })));
+        fieldDataStats.add(
+            createInstance(2L, 2L, 4L, List.of(Map.entry("field1", new long[] { 2L, 2L }), Map.entry("field2", new long[] { 2L, 2L })))
+        );
+        assertEquals(fieldDataStats.getMemorySizeInBytes(), 4L);
+        assertEquals(fieldDataStats.getEvictions(), 4L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getBuildTimeMillis(), 6L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().size(), 2);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").getValueCount(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").getTotalBuildingTime(), 4L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().size(), 2);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field2").getValueCount(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field2").getTotalBuildingTime(), 2L);
+    }
+
+    private static FieldDataStats createInstance(
+        long memoryInSize,
+        long evictions,
+        long buildTime,
+        List<Map.Entry<String, long[]>> entries
+    ) {
+        Map<String, FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats> f = new HashMap<>();
+        for (Map.Entry<String, long[]> entry : entries) {
+            f.put(entry.getKey(), new FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats(entry.getValue()[0], entry.getValue()[1]));
+        }
+        return new FieldDataStats(memoryInSize, evictions, null, new FieldDataStats.GlobalOrdinalsStats(buildTime, f));
     }
 }

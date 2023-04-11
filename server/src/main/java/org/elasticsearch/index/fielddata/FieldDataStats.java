@@ -105,6 +105,10 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         return fields;
     }
 
+    public GlobalOrdinalsStats getGlobalOrdinalsStats() {
+        return globalOrdinalsStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(memorySize);
@@ -134,7 +138,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
                 builder.startObject(FIELDS);
                 for (var entry : globalOrdinalsStats.fieldGlobalOrdinalsStats.entrySet()) {
                     builder.startObject(entry.getKey());
-                    builder.humanReadableField(BUILD_TIME + "in_millis", BUILD_TIME, new TimeValue(entry.getValue().totalBuildingTime));
+                    builder.humanReadableField(BUILD_TIME + "_in_millis", BUILD_TIME, new TimeValue(entry.getValue().totalBuildingTime));
                     builder.field(MAX_SHARD_VALUE_COUNT, entry.getValue().valueCount);
                     builder.endObject();
                 }
@@ -172,7 +176,15 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
             this.fieldGlobalOrdinalsStats = Objects.requireNonNull(fieldGlobalOrdinalsStats);
         }
 
-        public void add(GlobalOrdinalsStats other) {
+        public long getBuildTimeMillis() {
+            return buildTimeMillis;
+        }
+
+        public Map<String, GlobalOrdinalFieldStats> getFieldGlobalOrdinalsStats() {
+            return fieldGlobalOrdinalsStats;
+        }
+
+        void add(GlobalOrdinalsStats other) {
             buildTimeMillis += other.buildTimeMillis;
             for (var entry : other.fieldGlobalOrdinalsStats.entrySet()) {
                 fieldGlobalOrdinalsStats.merge(
@@ -207,6 +219,14 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
             public GlobalOrdinalFieldStats(long totalBuildingTime, long valueCount) {
                 this.totalBuildingTime = totalBuildingTime;
                 this.valueCount = valueCount;
+            }
+
+            public long getTotalBuildingTime() {
+                return totalBuildingTime;
+            }
+
+            public long getValueCount() {
+                return valueCount;
             }
 
             @Override

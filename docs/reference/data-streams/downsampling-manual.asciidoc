@@ -295,8 +295,8 @@ as well as the various CPU and memory time series metrics.
 // TEST[skip:todo]
 // TEST[continued]
 
-Next, run a terms aggregation on the set of time series dimensions (`_tsid`) to
-create a date histogram on a fixed interval of one day.
+Next, you can run a terms aggregation on the set of time series dimensions (`_tsid`) to
+view a date histogram on a fixed interval of one day.
 
 [source,console]
 ----
@@ -336,14 +336,6 @@ GET /sample-01*/_search
         }
     }
 }
-----
-// TEST[continued]
-
-Re-run your search query to view the aggregated time series data.
-
-[source,console]
-----
-GET /sample-01*/_search
 ----
 // TEST[continued]
 

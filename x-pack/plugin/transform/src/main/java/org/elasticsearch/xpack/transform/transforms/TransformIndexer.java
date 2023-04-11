@@ -733,7 +733,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             context.getStateReason(),
             getProgress(),
             null,
-            shouldStopAtCheckpoint
+            shouldStopAtCheckpoint,
+            context.getAuthState()
         );
         logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
 
@@ -845,7 +846,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     context.getStateReason(),
                     getProgress(),
                     null,
-                    newIndexerState == IndexerState.STARTED
+                    newIndexerState == IndexerState.STARTED,
+                    context.getAuthState()
                 );
 
                 // because save state is async we need to block the call until state is persisted, so that the job can not

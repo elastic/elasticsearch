@@ -376,6 +376,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+    uses org.elasticsearch.jdk.ModuleQualifiedExportsService;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

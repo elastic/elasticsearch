@@ -10,8 +10,8 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditionsTests;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
@@ -1146,6 +1146,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             metadata = Map.of("key", "value");
         }
 
+        DataLifecycle lifecycle = new DataLifecycle(randomMillisUpToYear9999());
         DataStream dataStream = new DataStream(
             dataStreamName,
             indices,
@@ -1157,16 +1158,16 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             System::currentTimeMillis,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
-            new DataLifecycle(randomMillisUpToYear9999())
+            lifecycle
         );
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);
-            RolloverConditions rolloverConditions = RolloverConditionsTests.randomRolloverConditions();
-            dataStream.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConditions);
+            RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
+            dataStream.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConditions.getConditions().keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getDataRetention()).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }
         }

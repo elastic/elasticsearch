@@ -23,7 +23,11 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
 
     private final long segmentGeneration;
 
-    public UnpromotableShardRefreshRequest(IndexShardRoutingTable indexShardRoutingTable, long segmentGeneration, boolean failShardOnError) {
+    public UnpromotableShardRefreshRequest(
+        IndexShardRoutingTable indexShardRoutingTable,
+        long segmentGeneration,
+        boolean failShardOnError
+    ) {
         super(indexShardRoutingTable, failShardOnError);
         this.segmentGeneration = segmentGeneration;
     }

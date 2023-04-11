@@ -263,10 +263,5 @@ public final class RerouteProcessor extends AbstractProcessor {
                 return value;
             }
         }
-
-        @Override
-        public String toString() {
-            return value;
-        }
     }
 }

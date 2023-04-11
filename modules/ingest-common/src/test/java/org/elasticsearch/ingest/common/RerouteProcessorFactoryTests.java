@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.common.RerouteProcessor.DataStreamValueSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -21,14 +22,8 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
 
     public void testDefaults() throws Exception {
         RerouteProcessor processor = create(null, null);
-        assertThat(
-            processor.getDataStreamDataset().stream().map(RerouteProcessor.DataStreamValueSource::toString).toList(),
-            equalTo(List.of("{{data_stream.dataset}}"))
-        );
-        assertThat(
-            processor.getDataStreamNamespace().stream().map(RerouteProcessor.DataStreamValueSource::toString).toList(),
-            equalTo(List.of("{{data_stream.namespace}}"))
-        );
+        assertThat(processor.getDataStreamDataset(), equalTo(List.of(DataStreamValueSource.DATASET_VALUE_SOURCE)));
+        assertThat(processor.getDataStreamNamespace(), equalTo(List.of(DataStreamValueSource.NAMESPACE_VALUE_SOURCE)));
     }
 
     public void testInvalidDataset() throws Exception {

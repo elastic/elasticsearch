@@ -824,7 +824,7 @@ flattened field:
             _source:
               mode: synthetic
             properties:
-              flattened_a:
+              flattened:
                 type: flattened
               flattened_object_array:
                 type: flattened
@@ -838,7 +838,7 @@ flattened field:
         index: test
         id: 1
         body:
-          flattened_a:
+          flattened:
             top1: "876"
             dict1:
               abc: def
@@ -871,7 +871,7 @@ flattened field:
   - match: { found: true }
   - match:
       _source:
-        flattened_a:
+        flattened:
           top1: "876"
           dict1:
             abc: def
@@ -885,7 +885,7 @@ flattened field:
               third: [ "1", "2", "3" ]
           # NOTE 2: the missing '1213' value below is not a mistake.
           # Flattened fields use SortedSetDocValues, which means they discard duplicate key/value pairs
-          # like `flattened_a.list1` => `1213` which exists twice in the input document.
+          # like `flattened.list1` => `1213` which exists twice in the input document.
           # NOTE 3: watch out for string vs numeric sorting
           list1: [ "1011", "1213", "789" ]
         single_flattened:

@@ -157,7 +157,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                     return new InternalEngine(config);
                 } else {
                     try {
-                        config.getStore().createEmpty(config.getIndexCommitListener());
+                        config.getStore().createEmpty();
                     } catch (IOException e) {
                         logger.error("Error creating empty store", e);
                         throw new RuntimeException(e);

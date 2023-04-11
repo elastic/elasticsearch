@@ -1467,18 +1467,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
+     * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
      */
     public void createEmpty() throws IOException {
-        createEmpty(Map.of());
-    }
-
-    private void createEmpty(Map<String, String> extraUserData) throws IOException {
         Version luceneVersion = indexSettings.getIndexVersionCreated().luceneVersion;
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newTemporaryEmptyIndexWriter(directory, luceneVersion)) {
             final Map<String, String> map = new HashMap<>();
-            map.putAll(extraUserData);
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
@@ -1486,21 +1481,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             updateCommitData(writer, map);
         } finally {
             metadataLock.writeLock().unlock();
-        }
-    }
-
-    /**
-     * Creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
-     *
-     * @param indexCommitListener the {@link org.elasticsearch.index.engine.Engine.IndexCommitListener} which, if not null, defines any
-     *                            extra user data to be placed in the commit. Note that any conflicting keys used internally by the store
-     *                            will not take effect.
-     */
-    public void createEmpty(@Nullable Engine.IndexCommitListener indexCommitListener) throws IOException {
-        if (indexCommitListener == null) {
-            createEmpty();
-        } else {
-            createEmpty(indexCommitListener.getCommitExtraUserData());
         }
     }
 
@@ -1627,8 +1607,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     private static void updateCommitData(IndexWriter writer, Map<String, String> keysToUpdate) throws IOException {
         final Map<String, String> userData = getUserData(writer);
-        userData.putAll(keysToUpdate);
         userData.put(Engine.ES_VERSION, org.elasticsearch.Version.CURRENT.toString());
+        userData.putAll(keysToUpdate);
         writer.setLiveCommitData(userData.entrySet());
         writer.commit();
     }

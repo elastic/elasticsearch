@@ -284,7 +284,7 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private FollowingEngine createEngine(Store store, EngineConfig config) throws IOException {
-        store.createEmpty(config.getIndexCommitListener());
+        store.createEmpty();
         final String translogUuid = Translog.createEmptyTranslog(
             config.getTranslogConfig().getTranslogPath(),
             SequenceNumbers.NO_OPS_PERFORMED,
@@ -523,7 +523,7 @@ public class FollowingEngineTests extends ESTestCase {
         IndexSettings followerIndexSettings = new IndexSettings(followerIndexMetadata, Settings.EMPTY);
         try (Store followerStore = createStore(shardId, followerIndexSettings, newDirectory())) {
             EngineConfig followerConfig = engineConfig(shardId, followerIndexSettings, threadPool, followerStore);
-            followerStore.createEmpty(followerConfig.getIndexCommitListener());
+            followerStore.createEmpty();
             String translogUuid = Translog.createEmptyTranslog(
                 followerConfig.getTranslogConfig().getTranslogPath(),
                 SequenceNumbers.NO_OPS_PERFORMED,
@@ -632,8 +632,8 @@ public class FollowingEngineTests extends ESTestCase {
         IndexMetadata leaderIndexMetadata = IndexMetadata.builder(index.getName()).settings(leaderSettings).build();
         IndexSettings leaderIndexSettings = new IndexSettings(leaderIndexMetadata, leaderSettings);
         try (Store leaderStore = createStore(shardId, leaderIndexSettings, newDirectory())) {
+            leaderStore.createEmpty();
             EngineConfig leaderConfig = engineConfig(shardId, leaderIndexSettings, threadPool, leaderStore);
-            leaderStore.createEmpty(leaderConfig.getIndexCommitListener());
             leaderStore.associateIndexWithNewTranslog(
                 Translog.createEmptyTranslog(
                     leaderConfig.getTranslogConfig().getTranslogPath(),

@@ -3146,7 +3146,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             // create
             {
-                store.createEmpty(config.getIndexCommitListener());
+                store.createEmpty();
                 final String translogUUID = Translog.createEmptyTranslog(
                     config.getTranslogConfig().getTranslogPath(),
                     SequenceNumbers.NO_OPS_PERFORMED,
@@ -3314,20 +3314,23 @@ public class InternalEngineTests extends EngineTestCase {
             final Path translogPath = createTempDir();
             final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
             final LongSupplier globalCheckpointSupplier = () -> globalCheckpoint.get();
-            EngineConfig engineConfig = config(indexSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpointSupplier);
-            store.createEmpty(engineConfig.getIndexCommitListener());
+            store.createEmpty();
             final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId, primaryTerm.get());
             store.associateIndexWithNewTranslog(translogUUID);
-            try (InternalEngine engine = new InternalEngine(engineConfig) {
+            try (
+                InternalEngine engine = new InternalEngine(
+                    config(indexSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpointSupplier)
+                ) {
 
-                @Override
-                protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
-                    super.commitIndexWriter(writer, translog);
-                    if (throwErrorOnCommit.get()) {
-                        throw new RuntimeException("power's out");
+                    @Override
+                    protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+                        super.commitIndexWriter(writer, translog);
+                        if (throwErrorOnCommit.get()) {
+                            throw new RuntimeException("power's out");
+                        }
                     }
                 }
-            }) {
+            ) {
                 engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
                 engine.index(indexForDoc(doc1));
@@ -5539,6 +5542,10 @@ public class InternalEngineTests extends EngineTestCase {
         final Path translogPath = createTempDir();
         store = createStore();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        store.createEmpty();
+        final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId, primaryTerm.get());
+        store.associateIndexWithNewTranslog(translogUUID);
+
         final EngineConfig engineConfig = config(
             defaultSettings,
             store,
@@ -5548,10 +5555,6 @@ public class InternalEngineTests extends EngineTestCase {
             null,
             () -> globalCheckpoint.get()
         );
-        store.createEmpty(engineConfig.getIndexCommitListener());
-        final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId, primaryTerm.get());
-        store.associateIndexWithNewTranslog(translogUUID);
-
         final AtomicLong lastSyncedGlobalCheckpointBeforeCommit = new AtomicLong(Translog.readGlobalCheckpoint(translogPath, translogUUID));
         try (InternalEngine engine = new InternalEngine(engineConfig) {
             @Override
@@ -7381,7 +7384,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
 
-            store.createEmpty(config.getIndexCommitListener());
+            store.createEmpty();
             final String translogUUID = Translog.createEmptyTranslog(
                 config.getTranslogConfig().getTranslogPath(),
                 SequenceNumbers.NO_OPS_PERFORMED,
@@ -7400,68 +7403,22 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testExtraUserDataIsCommitted() throws IOException {
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        try (Store store = createStore()) {
-            EngineConfig config = config(
-                defaultSettings,
-                store,
-                createTempDir(),
-                newMergePolicy(),
-                null,
-                null,
-                null,
-                globalCheckpoint::get,
-                () -> RetentionLeases.EMPTY,
-                new NoneCircuitBreakerService(),
-                new Engine.IndexCommitListener() {
-
-                    @Override
-                    public Map<String, String> getCommitExtraUserData() {
-                        return Map.of("userkey", "userdata", ES_VERSION, Version.V_EMPTY.toString());
-                    }
-
-                    @Override
-                    public void onNewCommit(
-                        ShardId shardId,
-                        Store store,
-                        long primaryTerm,
-                        Engine.IndexCommitRef indexCommitRef,
-                        Set<String> additionalFiles
-                    ) {
-                        try {
-                            indexCommitRef.close();
-                        } catch (IOException e) {
-                            throw new AssertionError("Failed to release commit " + e);
-                        }
-                    }
-
-                    @Override
-                    public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {
-                        ;
-                    }
-                }
-            );
-
-            store.createEmpty(config.getIndexCommitListener());
-            final String translogUUID = Translog.createEmptyTranslog(
-                config.getTranslogConfig().getTranslogPath(),
-                SequenceNumbers.NO_OPS_PERFORMED,
-                shardId,
-                primaryTerm.get()
-            );
-            store.associateIndexWithNewTranslog(translogUUID);
-
-            try (InternalEngine engine = createEngine(config)) {
-                Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
-                assertThat(userData, hasEntry("userkey", "userdata"));
-                assertThat(userData, hasEntry(ES_VERSION, Version.CURRENT.toString()));
-
-                engine.flush(true, true);
-                userData = engine.getLastCommittedSegmentInfos().getUserData();
-                assertThat(userData, hasEntry("userkey", "userdata"));
-                assertThat(userData, hasEntry(ES_VERSION, Version.CURRENT.toString()));
+        engine.close();
+        engine = new InternalEngine(engine.config()) {
+            @Override
+            protected Map<String, String> getCommitExtraUserData() {
+                return Map.of("userkey", "userdata", ES_VERSION, Version.V_EMPTY.toString());
             }
-        }
+        };
+        engine.skipTranslogRecovery();
+
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+        engine.index(indexForDoc(doc));
+        engine.flush();
+
+        Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+        assertThat(userData, hasEntry("userkey", "userdata"));
+        assertThat(userData, hasEntry(ES_VERSION, Version.CURRENT.toString()));
     }
 
     public void testTrimUnsafeCommitHasESVersionInUserData() throws IOException {

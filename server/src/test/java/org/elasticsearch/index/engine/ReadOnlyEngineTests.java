@@ -214,7 +214,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            store.createEmpty(config.getIndexCommitListener());
+            store.createEmpty();
             try (
                 ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(
                     config,
@@ -245,7 +245,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            store.createEmpty(config.getIndexCommitListener());
+            store.createEmpty();
             try (
                 ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(
                     config,

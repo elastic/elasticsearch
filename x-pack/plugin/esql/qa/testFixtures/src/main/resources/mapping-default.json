@@ -58,6 +58,9 @@
         },
         "job_positions" : {
           "type" : "keyword"
+        },
+        "is_rehired" : {
+          "type" : "boolean"
         }
     }
 }

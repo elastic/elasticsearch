@@ -19,6 +19,8 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -37,6 +39,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -57,6 +60,11 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     private static final String[] PREFIX = new String[] { "a", "b", "c" };
+    private static final boolean[][] BOOLEANS = new boolean[][] {
+        { true },
+        { false, true },
+        { false, true, true },
+        { false, false, true, true } };
 
     private Directory directory = newDirectory();
     private IndexReader reader;
@@ -105,10 +113,12 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 doc.add(
                     new KeywordFieldMapper.KeywordField("kwd", new BytesRef(Integer.toString(d)), KeywordFieldMapper.Defaults.FIELD_TYPE)
                 );
+                doc.add(new SortedNumericDocValuesField("bool", d % 2 == 0 ? 1 : 0));
                 for (int v = 0; v <= d % 3; v++) {
                     doc.add(
                         new KeywordFieldMapper.KeywordField("mv_kwd", new BytesRef(PREFIX[v] + d), KeywordFieldMapper.Defaults.FIELD_TYPE)
                     );
+                    doc.add(new SortedNumericDocValuesField("mv_bool", v % 2 == 0 ? 1 : 0));
                 }
                 writer.addDocument(doc);
                 if (d % commitEvery == 0) {
@@ -203,7 +213,9 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG)
                     ).get(),
                     factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("kwd")).get(),
-                    factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("mv_kwd")).get()
+                    factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("mv_kwd")).get(),
+                    factory(CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("bool")).get(),
+                    factory(CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("mv_bool")).get()
                 ),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
@@ -213,11 +225,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
         assertThat(results, hasSize(input.size()));
         for (Page p : results) {
-            assertThat(p.getBlockCount(), equalTo(5));
+            assertThat(p.getBlockCount(), equalTo(7));
             IntVector keys = p.<IntBlock>getBlock(1).asVector();
             LongVector longs = p.<LongBlock>getBlock(2).asVector();
             BytesRefVector keywords = p.<BytesRefBlock>getBlock(3).asVector();
             BytesRefBlock mvKeywords = p.getBlock(4);
+            BooleanVector bools = p.<BooleanBlock>getBlock(5).asVector();
+            BooleanBlock mvBools = p.getBlock(6);
             for (int i = 0; i < p.getPositionCount(); i++) {
                 int key = keys.getInt(i);
                 assertThat(longs.getLong(i), equalTo((long) key));
@@ -227,6 +241,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 int offset = mvKeywords.getFirstValueIndex(i);
                 for (int v = 0; v <= key % 3; v++) {
                     assertThat(mvKeywords.getBytesRef(offset + v, new BytesRef()).utf8ToString(), equalTo(PREFIX[v] + key));
+                }
+
+                assertThat(bools.getBoolean(i), equalTo(key % 2 == 0));
+                assertThat(mvBools.getValueCount(i), equalTo(key % 3 + 1));
+                offset = mvBools.getFirstValueIndex(i);
+                for (int v = 0; v <= key % 3; v++) {
+                    assertThat(mvBools.getBoolean(offset + v), equalTo(BOOLEANS[key % 3][v]));
                 }
             }
         }

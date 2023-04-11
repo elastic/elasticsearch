@@ -602,33 +602,38 @@ public abstract class BlockDocValuesReader {
         public BooleanBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
             var blockBuilder = builder(positionCount);
-            int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
-                if (lastDoc >= doc) {
+                if (this.docID >= doc) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
-                if (numericDocValues.advanceExact(doc)) {
-                    blockBuilder.appendBoolean(numericDocValues.nextValue() != 0);
-                } else {
-                    blockBuilder.appendNull();
-                }
-                lastDoc = doc;
-                this.docID = doc;
+                read(doc, blockBuilder);
             }
             return blockBuilder.build();
         }
 
         @Override
         public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
-            this.docID = docId;
-            BooleanBlock.Builder blockBuilder = (BooleanBlock.Builder) builder;
-            if (numericDocValues.advanceExact(this.docID)) {
-                blockBuilder.appendBoolean(numericDocValues.nextValue() != 0);
-            } else {
-                blockBuilder.appendNull();
+            read(docId, (BooleanBlock.Builder) builder);
+        }
+
+        private void read(int doc, BooleanBlock.Builder builder) throws IOException {
+            this.docID = doc;
+            if (false == numericDocValues.advanceExact(doc)) {
+                builder.appendNull();
+                return;
             }
+            int count = numericDocValues.docValueCount();
+            if (count == 1) {
+                builder.appendBoolean(numericDocValues.nextValue() != 0);
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                builder.appendBoolean(numericDocValues.nextValue() != 0);
+            }
+            builder.endPositionEntry();
         }
 
         @Override

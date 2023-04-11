@@ -226,3 +226,33 @@ scaled_float:
   - match: {columns.0.type: double}
   - length: {values: 1}
   - match: {values.0.0: 113.01}
+
+---
+multivalued boolean:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              booleans:
+                type: boolean
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "booleans": [ true, false, false, false ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: booleans }
+  - match: { columns.0.type: boolean }
+  - length: { values: 1 }
+  - match: { values.0.0: [ false, false, false, true ] }

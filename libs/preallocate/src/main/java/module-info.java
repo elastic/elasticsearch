@@ -6,15 +6,12 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-test-artifact'
+module org.elasticsearch.preallocate {
+    requires org.elasticsearch.base;
+    requires org.elasticsearch.logging;
+    requires com.sun.jna;
 
-esplugin {
-    name 'blob-cache'
-    description 'Provides a blob store cache'
-    classname 'org.elasticsearch.blobcache.BlobCachePlugin'
-}
+    exports org.elasticsearch.preallocate to org.elasticsearch.blobcache;
 
-dependencies {
-    compileOnly project(path: ':libs:elasticsearch-preallocate')
+    provides org.elasticsearch.jdk.ModuleQualifiedExportsService with org.elasticsearch.preallocate.PreallocateModuleExportsService;
 }

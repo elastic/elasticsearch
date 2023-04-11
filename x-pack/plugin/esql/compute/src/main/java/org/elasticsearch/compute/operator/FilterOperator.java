@@ -26,7 +26,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            return "FilterOperator()";
+            return "FilterOperator{evaluator=" + evaluatorSupplier.get() + "}";
         }
     }
 

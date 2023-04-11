@@ -59,8 +59,6 @@ import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.Driver;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -70,7 +68,6 @@ import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -101,15 +98,12 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INTERMEDIATE;
 import static org.elasticsearch.compute.operator.DriverRunner.runToCompletion;
-import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -635,89 +629,6 @@ public class OperatorTests extends ESTestCase {
                 assertThat(actualCounts, equalTo(expectedCounts));
             }
         }
-    }
-
-    private static List<Page> drainSourceToPages(Operator source) {
-        List<Page> rawPages = new ArrayList<>();
-        Page page;
-        while ((page = source.getOutput()) != null) {
-            rawPages.add(page);
-        }
-        assert rawPages.size() > 0;
-        // shuffling provides a basic level of randomness to otherwise quite boring data
-        Collections.shuffle(rawPages, random());
-        return rawPages;
-    }
-
-    public void testFilterOperator() {
-        var positions = 1000;
-        var values = randomList(positions, positions, ESTestCase::randomLong);
-        Predicate<Long> condition = l -> l % 2 == 0;
-
-        var results = new ArrayList<Long>();
-
-        try (
-            var driver = new Driver(
-                new SequenceLongBlockSourceOperator(values),
-                List.of(new FilterOperator((page, position) -> condition.test(page.<LongBlock>getBlock(0).getLong(position)))),
-                new PageConsumerOperator(page -> {
-                    LongBlock block = page.getBlock(0);
-                    for (int i = 0; i < page.getPositionCount(); i++) {
-                        results.add(block.getLong(i));
-                    }
-                }),
-                () -> {}
-            )
-        ) {
-            driver.run();
-        }
-
-        assertThat(results, contains(values.stream().filter(condition).toArray()));
-    }
-
-    public void testFilterEvalFilter() {
-        var positions = 1000;
-        var values = randomList(positions, positions, ESTestCase::randomLong);
-        Predicate<Long> condition1 = l -> l % 2 == 0;
-        Function<Long, Long> transformation = l -> l + 1;
-        Predicate<Long> condition2 = l -> l % 3 == 0;
-
-        var results = new ArrayList<Tuple<Long, Long>>();
-
-        try (
-            var driver = new Driver(
-                new SequenceLongBlockSourceOperator(values),
-                List.of(
-                    new FilterOperator((page, position) -> condition1.test(page.<LongBlock>getBlock(0).getLong(position))),
-                    new EvalOperator(
-                        (page, position) -> transformation.apply(page.<LongBlock>getBlock(0).getLong(position)),
-                        ElementType.LONG
-                    ),
-                    new FilterOperator((page, position) -> condition2.test(page.<LongBlock>getBlock(1).getLong(position)))
-                ),
-                new PageConsumerOperator(page -> {
-                    LongBlock block1 = page.getBlock(0);
-                    LongBlock block2 = page.getBlock(1);
-                    for (int i = 0; i < page.getPositionCount(); i++) {
-                        results.add(tuple(block1.getLong(i), block2.getLong(i)));
-                    }
-                }),
-                () -> {}
-            )
-        ) {
-            driver.run();
-        }
-
-        assertThat(
-            results,
-            contains(
-                values.stream()
-                    .filter(condition1)
-                    .map(l -> tuple(l, transformation.apply(l)))
-                    .filter(t -> condition2.test(t.v2()))
-                    .toArray()
-            )
-        );
     }
 
     public void testLimitOperator() {

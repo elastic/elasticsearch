@@ -91,3 +91,14 @@ emp_no:integer | x:null | last_name:keyword
 10100          | null   | Haraldson
 10099          | null   | Sullins
 ;
+
+
+filterEvalFilter
+from test | where emp_no < 100010 | eval name_len = length(first_name) | where name_len < 4 | project first_name | sort first_name;
+
+first_name:keyword
+Gao
+Tse
+Udi
+Uri
+;

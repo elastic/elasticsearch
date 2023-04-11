@@ -214,18 +214,24 @@ allprojects {
       if (project.path.contains("security") || project.path.contains(":ml")) {
         tasks.register('checkPart3') {
           dependsOn 'check'
-          dependsOn 'transportMethodCoverageVerifier'
+          if(tasks.findByName('transportMethodCoverageVerifier')!=null){
+            dependsOn 'transportMethodCoverageVerifier'
+          }
         }
       } else {
         tasks.register('checkPart2') {
           dependsOn 'check'
-          dependsOn 'transportMethodCoverageVerifier'
+          if(tasks.findByName('transportMethodCoverageVerifier')!=null){
+            dependsOn 'transportMethodCoverageVerifier'
+          }
         }
       }
     } else {
       tasks.register('checkPart1') {
         dependsOn 'check'
-        dependsOn 'transportMethodCoverageVerifier'
+        if(tasks.findByName('transportMethodCoverageVerifier')!=null){
+          dependsOn 'transportMethodCoverageVerifier'
+        }
       }
     }
   }

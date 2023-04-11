@@ -1,16 +1,13 @@
 {
-  "behavioral_analytics.delete": {
+  "search_application.put_behavioral_analytics": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-analytics-collection.html",
-      "description": "Delete a behavioral analytics collection."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-analytics-collection.html",
+      "description": "Creates a behavioral analytics collection."
     },
     "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [
-        "application/json"
-      ],
-      "content_type": [
         "application/json"
       ]
     },
@@ -19,12 +16,12 @@
         {
           "path": "/_application/analytics/{name}",
           "methods": [
-            "DELETE"
+            "PUT"
           ],
           "parts": {
             "name": {
               "type": "string",
-              "description": "The name of the analytics collection to be deleted"
+              "description": "The name of the analytics collection to be created or updated"
             }
           }
         }

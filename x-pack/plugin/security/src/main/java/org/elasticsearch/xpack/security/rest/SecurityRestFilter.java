@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -25,7 +24,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
-import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -42,7 +40,6 @@ public class SecurityRestFilter implements RestHandler {
     private final AuditTrailService auditTrailService;
     private final boolean enabled;
     private final ThreadContext threadContext;
-    private final boolean extractClientCertificate;
 
     public enum ActionType {
         Authentication("Authentication"),
@@ -67,8 +64,7 @@ public class SecurityRestFilter implements RestHandler {
         AuthenticationService authenticationService,
         SecondaryAuthenticator secondaryAuthenticator,
         AuditTrailService auditTrailService,
-        RestHandler restHandler,
-        boolean extractClientCertificate
+        RestHandler restHandler
     ) {
         this.enabled = enabled;
         this.threadContext = threadContext;
@@ -76,7 +72,6 @@ public class SecurityRestFilter implements RestHandler {
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.auditTrailService = auditTrailService;
         this.restHandler = restHandler;
-        this.extractClientCertificate = extractClientCertificate;
     }
 
     @Override
@@ -101,13 +96,7 @@ public class SecurityRestFilter implements RestHandler {
             return;
         }
 
-        if (extractClientCertificate) {
-            HttpChannel httpChannel = request.getHttpChannel();
-            SSLEngineUtils.extractClientCertificates(logger, threadContext, httpChannel);
-        }
-
         final RestRequest wrappedRequest = maybeWrapRestRequest(request);
-        RemoteHostHeader.process(request, threadContext);
         authenticationService.authenticate(wrappedRequest.getHttpRequest(), ActionListener.wrap(authentication -> {
             if (authentication == null) {
                 logger.trace("No authentication available for REST request [{}]", request.uri());

@@ -1,0 +1,5 @@
+pr: 95126
+summary: Fix codebase name in `security.policy` for lib/preallocate
+area: Infra/Core
+type: bug
+issues: []

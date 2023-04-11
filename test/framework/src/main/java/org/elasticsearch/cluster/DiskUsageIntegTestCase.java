@@ -11,7 +11,6 @@ package org.elasticsearch.cluster;
 import org.apache.lucene.tests.mockfile.FilterFileStore;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterPath;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
@@ -224,9 +223,9 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
                 return fileStore;
             }
 
-            // On Linux, and only Linux, Lucene obtains a filestore for the index in order to determine whether it's on a spinning disk or
-            // not so it can configure the merge scheduler accordingly
-            assertTrue(path + " not tracked and not on Linux", Constants.LINUX);
+            // We check the total size available for translog in InternalEngine constructor and we allow that here,
+            // expecting to match a unique root path.
+            assertTrue(path + " not tracked and not translog", path.getFileName().toString().equals("translog"));
             final Set<Path> containingPaths = trackedPaths.keySet().stream().filter(path::startsWith).collect(Collectors.toSet());
             assertThat(path + " not contained in a unique tracked path", containingPaths, hasSize(1));
             return trackedPaths.get(containingPaths.iterator().next());

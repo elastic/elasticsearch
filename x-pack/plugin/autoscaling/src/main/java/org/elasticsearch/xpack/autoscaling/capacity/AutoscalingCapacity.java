@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -24,12 +24,12 @@ import java.util.Objects;
 /**
  * Represents current/required capacity of a single tier.
  */
-public class AutoscalingCapacity implements ToXContent, Writeable {
+public class AutoscalingCapacity implements ToXContentObject, Writeable {
 
     private final AutoscalingResources total;
     private final AutoscalingResources node;
 
-    public static class AutoscalingResources implements ToXContent, Writeable {
+    public static class AutoscalingResources implements ToXContentObject, Writeable {
         private final ByteSizeValue storage;
         private final ByteSizeValue memory;
         private final Processors processors;
@@ -82,11 +82,6 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
             }
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public boolean isFragment() {
-            return false;
         }
 
         @Override
@@ -239,11 +234,6 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         builder.field("total", total);
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 
     public static AutoscalingCapacity upperBound(AutoscalingCapacity c1, AutoscalingCapacity c2) {

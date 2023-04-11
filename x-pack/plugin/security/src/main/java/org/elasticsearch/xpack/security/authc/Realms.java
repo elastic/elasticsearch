@@ -167,9 +167,9 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
 
         // Stop license-tracking for any previously-active realms that are no longer allowed
         if (activeRealms != null) {
-            activeRealms.stream()
-                .filter(r -> licensedRealms.contains(r) == false)
-                .forEach(realm -> { handleDisabledRealmDueToLicenseChange(realm, licenseStateSnapshot); });
+            activeRealms.stream().filter(r -> licensedRealms.contains(r) == false).forEach(realm -> {
+                handleDisabledRealmDueToLicenseChange(realm, licenseStateSnapshot);
+            });
         }
 
         activeRealms = licensedRealms;

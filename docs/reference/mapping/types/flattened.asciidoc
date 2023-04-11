@@ -322,7 +322,7 @@ Flattened fields support <<synthetic-source,synthetic`_source`>> in their defaul
 configuration. Synthetic `_source` cannot be used with <<doc-values,`doc_values`>>
 disabled.
 
-Synthetic source always sorts alphabetically and de-duplicates keyword fields.
+Synthetic source always sorts alphabetically and de-duplicates flattened fields.
 For example:
 [source,console,id=synthetic-source-flattened-sorting-example]
 ----
@@ -331,13 +331,13 @@ PUT idx
   "mappings": {
     "_source": { "mode": "synthetic" },
     "properties": {
-      "keywords": { "type": "flattened" }
+      "flattened": { "type": "flattened" }
     }
   }
 }
 PUT idx/_doc/1
 {
-  "keywords": {
+  "flattened": {
     "field": [ "apple", "apple", "banana", "avocado", "10", "200", "AVOCADO", "Banana", "Tangerine" ]
   }
 }
@@ -348,7 +348,7 @@ Will become:
 [source,console-result]
 ----
 {
-  "keywords": {
+  "flattened": {
     "field": [ "10", "200", "AVOCADO", "Banana", "Tangerine", "apple", "avocado", "banana" ]
   }
 }
@@ -364,13 +364,13 @@ PUT idx
   "mappings": {
     "_source": { "mode": "synthetic" },
     "properties": {
-      "keywords": { "type": "flattened" }
+      "flattened": { "type": "flattened" }
     }
   }
 }
 PUT idx/_doc/1
 {
-  "keywords": {
+  "flattened": {
       "field": [
         { "id": 1, "name": "foo" },
         { "id": 2, "name": "bar" },
@@ -381,11 +381,11 @@ PUT idx/_doc/1
 ----
 // TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
-Will become (note the nested objects instead of the "keywords" array):
+Will become (note the nested objects instead of the "flattened" array):
 [source,console-result]
 ----
 {
-    "keywords": {
+    "flattened": {
       "field": {
           "id": [ "1", "2", "3" ],
           "name": [ "bar", "baz", "foo" ]
@@ -404,24 +404,24 @@ PUT idx
   "mappings": {
     "_source": { "mode": "synthetic" },
     "properties": {
-      "keywords": { "type": "flattened" }
+      "flattened": { "type": "flattened" }
     }
   }
 }
 PUT idx/_doc/1
 {
-  "keywords": {
+  "flattened": {
     "field": [ "foo" ]
   }
 }
 ----
 // TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
 
-Will become (note the nested objects instead of the "keywords" array):
+Will become (note the nested objects instead of the "flattened" array):
 [source,console-result]
 ----
 {
-  "keywords": {
+  "flattened": {
     "field": "foo"
   }
 }

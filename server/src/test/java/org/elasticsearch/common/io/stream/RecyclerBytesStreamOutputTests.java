@@ -1058,5 +1058,4 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         out.writeByte(b);
         assertEquals(b, out.bytes().get(PageCacheRecycler.BYTE_PAGE_SIZE));
     }
-
 }

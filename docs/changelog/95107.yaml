@@ -1,0 +1,5 @@
+pr: 95107
+summary: Cache mtime of translog writer file which not be written anymore
+area: Engine
+type: enhancement
+issues: []

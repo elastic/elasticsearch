@@ -174,7 +174,7 @@ public class InferenceProcessor extends AbstractProcessor {
             response.getInferenceResults().get(0),
             ingestDocument,
             targetField,
-            response.getModelId() != null ? response.getModelId() : modelId
+            response.getId() != null ? response.getId() : modelId
         );
     }
 

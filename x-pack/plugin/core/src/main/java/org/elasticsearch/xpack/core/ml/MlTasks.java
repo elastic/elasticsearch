@@ -108,8 +108,10 @@ public final class MlTasks {
         return taskId.substring(DATA_FRAME_ANALYTICS_TASK_ID_PREFIX.length());
     }
 
-    public static String trainedModelAssignmentTaskDescription(String modelId) {
-        return TrainedModelConfig.MODEL_ID.getPreferredName() + "[" + modelId + "]";
+    public static String trainedModelAssignmentTaskDescription(String deploymentId) {
+        // A description containing deployment_id[XXX] is more accurate
+        // than model_id[XXX] but the legacy description cannot be changed now
+        return TrainedModelConfig.MODEL_ID.getPreferredName() + "[" + deploymentId + "]";
     }
 
     @Nullable

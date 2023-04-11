@@ -413,6 +413,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         }
     }
 
+    private final String deploymentId;
     private final String modelId;
     private AssignmentState state;
     private AllocationStatus allocationStatus;
@@ -430,6 +431,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     private final List<AssignmentStats.NodeStats> nodeStats;
 
     public AssignmentStats(
+        String deploymentId,
         String modelId,
         @Nullable Integer threadsPerAllocation,
         @Nullable Integer numberOfAllocations,
@@ -439,6 +441,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         List<AssignmentStats.NodeStats> nodeStats,
         Priority priority
     ) {
+        this.deploymentId = deploymentId;
         this.modelId = modelId;
         this.threadsPerAllocation = threadsPerAllocation;
         this.numberOfAllocations = numberOfAllocations;
@@ -471,6 +474,15 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         } else {
             priority = Priority.NORMAL;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            deploymentId = in.readString();
+        } else {
+            deploymentId = modelId;
+        }
+    }
+
+    public String getDeploymentId() {
+        return deploymentId;
     }
 
     public String getModelId() {
@@ -533,7 +545,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     }
 
     /**
-     * @return The overall inference stats for the model assignment
+     * @return The overall inference stats for the assignment
      */
     public InferenceStats getOverallInferenceStats() {
         return new InferenceStats(
@@ -555,6 +567,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("deployment_id", deploymentId);
         builder.field("model_id", modelId);
         if (threadsPerAllocation != null) {
             builder.field(StartTrainedModelDeploymentAction.TaskParams.THREADS_PER_ALLOCATION.getPreferredName(), threadsPerAllocation);
@@ -633,6 +646,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
             out.writeEnum(priority);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeString(deploymentId);
+        }
     }
 
     @Override
@@ -640,7 +656,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AssignmentStats that = (AssignmentStats) o;
-        return Objects.equals(modelId, that.modelId)
+        return Objects.equals(deploymentId, that.deploymentId)
+            && Objects.equals(modelId, that.modelId)
             && Objects.equals(threadsPerAllocation, that.threadsPerAllocation)
             && Objects.equals(numberOfAllocations, that.numberOfAllocations)
             && Objects.equals(queueCapacity, that.queueCapacity)
@@ -656,6 +673,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(
+            deploymentId,
             modelId,
             threadsPerAllocation,
             numberOfAllocations,

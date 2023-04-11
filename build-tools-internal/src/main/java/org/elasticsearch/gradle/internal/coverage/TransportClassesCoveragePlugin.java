@@ -30,9 +30,9 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
 
         project.getExtensions().configure(ReportingExtension.class, reports -> {
-            reports.getReports()
-                .register("testCodeCoverageReport", JacocoCoverageReport.class)
-                .configure(report -> { report.getTestType().set(TestSuiteType.UNIT_TEST); });
+            reports.getReports().register("testCodeCoverageReport", JacocoCoverageReport.class).configure(report -> {
+                report.getTestType().set(TestSuiteType.UNIT_TEST);
+            });
             // the test is failing .. but the 'real' run needs the above
             // reports.getReports().withType(JacocoCoverageReport.class)
             // .all(report -> {
@@ -67,10 +67,10 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
                     jacocoTestReport.configure(task -> {
                         task.reports(reports -> reports.getXml().getRequired().set(true));
 
-                        task.mustRunAfter(project.getTasks().named("test"));
+                        task.dependsOn(project.getTasks().named("test"));
                         Task internalClusterTest = project.getTasks().findByName("internalClusterTest");
                         if (internalClusterTest != null) {
-                            task.mustRunAfter(internalClusterTest);
+                            task.dependsOn(internalClusterTest);
                         }
                     });
 

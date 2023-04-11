@@ -231,21 +231,26 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         if (seedNodesSuppliers.hasNext()) {
             final Consumer<Exception> onFailure = e -> {
-                if (e instanceof ConnectTransportException || e instanceof IOException || e instanceof IllegalStateException) {
-                    // ISE if we fail the handshake with an version incompatible node
+                if (isRetryableException(e)) {
+                    // ISE if we fail the handshake with a version incompatible node
                     if (seedNodesSuppliers.hasNext()) {
                         logger.debug(
                             () -> format("fetching nodes from external cluster [%s] failed moving to next seed node", clusterAlias),
                             e
                         );
                         collectRemoteNodes(seedNodesSuppliers, listener);
-                        return;
+                    } else {
+                        logger.warn(
+                            () -> "fetching nodes from external cluster [" + clusterAlias + "] failed due to running out of seed nodes",
+                            e
+                        );
+                        listener.onFailure(getNoSeedNodeLeftException(Set.of(e)));
                     }
-                }
-                logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
-                if (seedNodesSuppliers.hasNext()) {
-                    listener.onFailure(getNoSeedNodeLeftException(Set.of(e)));
                 } else {
+                    logger.warn(
+                        () -> "fetching nodes from external cluster [" + clusterAlias + "] failed due to non-retryable exception",
+                        e
+                    );
                     listener.onFailure(e);
                 }
             };

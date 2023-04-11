@@ -112,6 +112,7 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
     }
 
     public void testCrossClusterAccessFeatureTrackingAndLicensing() throws Exception {
+        Thread.sleep(5000);
         final boolean useProxyMode = randomBoolean();
         configureRemoteClusters(useProxyMode);
 

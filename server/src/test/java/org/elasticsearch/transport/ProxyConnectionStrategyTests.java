@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -33,7 +34,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -256,15 +256,73 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
-                    final NoSeedNodeLeftException exception = (NoSeedNodeLeftException) expectThrows(
-                        ExecutionException.class,
-                        connectFuture::get
-                    ).getCause();
+                    final NoSeedNodeLeftException exception = expectThrows(NoSeedNodeLeftException.class, connectFuture::actionGet);
                     assertThat(
                         exception.getMessage(),
-                        allOf(containsString("Unable to open any proxy connections"), containsString('[' + clusterAlias + ']'))
+                        allOf(
+                            containsString("Unable to open any proxy connections"),
+                            containsString('[' + clusterAlias + ']'),
+                            containsString("at address [" + address1 + "]")
+                        )
                     );
                     assertThat(exception.getSuppressed(), hasItemInArray(instanceOf(ConnectTransportException.class)));
+
+                    assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
+                    assertEquals(0, connectionManager.size());
+                    assertTrue(strategy.assertNoRunningConnections());
+                }
+            }
+        }
+    }
+
+    public void testConnectFailsWithNonRetryableException() {
+        try (MockTransportService transport1 = startTransport("remote", Version.CURRENT, TransportVersion.CURRENT)) {
+            TransportAddress address1 = transport1.boundAddress().publishAddress();
+
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool
+                )
+            ) {
+                if (randomBoolean()) {
+                    transport1.addRequestHandlingBehavior(
+                        TransportService.HANDSHAKE_ACTION_NAME,
+                        (handler, request, channel, task) -> channel.sendResponse(new ElasticsearchException("non-retryable"))
+                    );
+                } else {
+                    localService.addSendBehavior(address1, (connection, requestId, action, request, options) -> {
+                        throw new ElasticsearchException("non-retryable");
+                    });
+                }
+
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
+                int numOfConnections = randomIntBetween(4, 8);
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    ProxyConnectionStrategy strategy = new ProxyConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        Settings.EMPTY,
+                        numOfConnections,
+                        address1.toString()
+                    )
+                ) {
+
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    final ElasticsearchException exception = expectThrows(ElasticsearchException.class, connectFuture::actionGet);
+                    assertThat(exception.getMessage(), containsString("non-retryable"));
 
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertEquals(0, connectionManager.size());

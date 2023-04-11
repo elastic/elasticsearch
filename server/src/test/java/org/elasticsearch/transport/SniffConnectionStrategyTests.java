@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
@@ -51,6 +52,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
@@ -467,9 +469,72 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
 
-                    expectThrows(ConnectTransportException.class, connectFuture::actionGet);
+                    final NoSeedNodeLeftException e = expectThrows(NoSeedNodeLeftException.class, connectFuture::actionGet);
+                    assertThat(
+                        e.getMessage(),
+                        allOf(containsString("no seed node left for cluster"), containsString('[' + clusterAlias + ']'))
+                    );
 
                     assertFalse(connectionManager.nodeConnected(incompatibleSeedNode));
+                    assertTrue(strategy.assertNoRunningConnections());
+                }
+            }
+        }
+    }
+
+    public void testConnectFailsWithNonRetryableException() {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService transport1 = startTransport("remote", knownNodes, Version.CURRENT, TransportVersion.CURRENT)) {
+            DiscoveryNode seedNode = getLocalNode(transport1);
+            knownNodes.add(seedNode);
+
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool
+                )
+            ) {
+                if (randomBoolean()) {
+                    transport1.addRequestHandlingBehavior(
+                        TransportService.HANDSHAKE_ACTION_NAME,
+                        (handler, request, channel, task) -> channel.sendResponse(new ElasticsearchException("non-retryable"))
+                    );
+                } else {
+                    localService.addSendBehavior(seedNode.getAddress(), (connection, requestId, action, request, options) -> {
+                        throw new ElasticsearchException("non-retryable");
+                    });
+                }
+
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                final ClusterConnectionManager connectionManager = new ClusterConnectionManager(
+                    profile,
+                    localService.transport,
+                    threadPool.getThreadContext()
+                );
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    SniffConnectionStrategy strategy = new SniffConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        null,
+                        Settings.EMPTY,
+                        3,
+                        n -> true,
+                        seedNodes(seedNode)
+                    )
+                ) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+
+                    final ElasticsearchException e = expectThrows(ElasticsearchException.class, connectFuture::actionGet);
+                    assertThat(e.getMessage(), containsString("non-retryable"));
+
+                    assertFalse(connectionManager.nodeConnected(seedNode));
                     assertTrue(strategy.assertNoRunningConnections());
                 }
             }

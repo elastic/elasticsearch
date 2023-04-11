@@ -258,6 +258,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                         if (shouldOpenMoreConnections()) {
                             openConnections(finished, attemptNumber + 1);
                         } else {
+                            assert connectionManager.size() > 0 : "must have at least one opened connection";
                             finished.onResponse(v);
                         }
                     }
@@ -269,7 +270,12 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     if (countDown.countDown()) {
                         if (attemptNumber >= MAX_CONNECT_ATTEMPTS_PER_RUN && connectionManager.size() == 0) {
                             logger.warn(() -> "failed to open any proxy connections to cluster [" + clusterAlias + "]", e);
-                            finished.onFailure(getNoSeedNodeLeftException(exceptions.values()));
+                            if (exceptions.values().stream().allMatch(ProxyConnectionStrategy.this::isRetryableException)) {
+                                finished.onFailure(getNoSeedNodeLeftException(exceptions.values()));
+                            } else {
+                                exceptions.values().stream().filter(e1 -> e1 != e).forEach(e::addSuppressed);
+                                finished.onFailure(e);
+                            }
                         } else {
                             openConnections(finished, attemptNumber + 1);
                         }
@@ -304,6 +310,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         } else {
             int openConnections = connectionManager.size();
             if (openConnections == 0) {
+                assert false : "should not happen since onFailure should catch it and report with underlying cause";
                 finished.onFailure(getNoSeedNodeLeftException(Set.of()));
             } else {
                 logger.debug(

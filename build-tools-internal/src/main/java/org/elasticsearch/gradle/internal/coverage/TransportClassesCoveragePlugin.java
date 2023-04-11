@@ -44,10 +44,25 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
             .register("transportMethodCoverageVerifier", TransportMethodCoverageVerifierTask.class);
         methodCoverageVerifier.configure(task -> { task.dependsOn("testCodeCoverageReport"); });
 
-//        project.getTasks().named("check").configure(task -> task.dependsOn(methodCoverageVerifier));
+        // project.getTasks().named("check").configure(task -> task.dependsOn(methodCoverageVerifier));
+        checkDependencies(project, methodCoverageVerifier, "checkPart1", "checkPart2", "checkPart3");
 
         for (Project subproject : project.getSubprojects()) {
             configureSubproject(subproject);
+        }
+
+    }
+
+    private static void checkDependencies(
+        Project project,
+        TaskProvider<TransportMethodCoverageVerifierTask> methodCoverageVerifier,
+        String... checkParts
+    ) {
+        for (String checkPart : checkParts) {
+            Task check = project.getTasks().findByName(checkPart);
+            if (check != null) {
+                check.dependsOn(methodCoverageVerifier);
+            }
         }
 
     }
@@ -67,10 +82,10 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
                     jacocoTestReport.configure(task -> {
                         task.reports(reports -> reports.getXml().getRequired().set(true));
 
-                        task.dependsOn(project.getTasks().named("test"));
+                        task.mustRunAfter(project.getTasks().named("test"));
                         Task internalClusterTest = project.getTasks().findByName("internalClusterTest");
                         if (internalClusterTest != null) {
-                            task.dependsOn(internalClusterTest);
+                            task.mustRunAfter(internalClusterTest);
                         }
                     });
 

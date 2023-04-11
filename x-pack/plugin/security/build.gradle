@@ -68,7 +68,7 @@ dependencies {
   runtimeOnly "joda-time:joda-time:2.10.10"
 
   // Dependencies for oidc
-  api "com.nimbusds:oauth2-oidc-sdk:9.3.1"
+  api "com.nimbusds:oauth2-oidc-sdk:10.7.1"
   api "com.nimbusds:nimbus-jose-jwt:9.8.1"
   api "com.nimbusds:lang-tag:1.4.4"
   api "com.sun.mail:jakarta.mail:1.6.3"

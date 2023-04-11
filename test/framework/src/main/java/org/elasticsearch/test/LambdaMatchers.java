@@ -16,6 +16,7 @@ import org.hamcrest.TypeSafeMatcher;
 
 import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -174,11 +175,16 @@ public class LambdaMatchers {
 
         private List<U> transform(Iterable<T> it, Description description) {
             List<U> us = new ArrayList<>();
-            for (T i : it) {
+            int i = 0;
+            for (Iterator<T> iterator = it.iterator(); iterator.hasNext(); i++) {
                 try {
-                    us.add(transform.apply(i)); // this might not actually be a T
+                    us.add(transform.apply(iterator.next())); // this might not actually be a T
                 } catch (ClassCastException e) {
-                    description.appendValue(i).appendText(" is not of the correct type (").appendText(e.getMessage()).appendText(")");
+                    description.appendValue(i)
+                        .appendText(" at index " + i)
+                        .appendText(" is not of the correct type (")
+                        .appendText(e.getMessage())
+                        .appendText(")");
                     return null;
                 }
             }
@@ -229,7 +235,11 @@ public class LambdaMatchers {
                 try {
                     u = transform.apply(array[i]);   // this might not actually be a T
                 } catch (ClassCastException e) {
-                    description.appendValue(i).appendText(" is not of the correct type (").appendText(e.getMessage()).appendText(")");
+                    description.appendValue(i)
+                        .appendText(" at index " + i)
+                        .appendText(" is not of the correct type (")
+                        .appendText(e.getMessage())
+                        .appendText(")");
                     return null;
                 }
                 if (us == null) {

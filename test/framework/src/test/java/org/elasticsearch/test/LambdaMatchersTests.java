@@ -122,6 +122,7 @@ public class LambdaMatchersTests extends ESTestCase {
     public void testListTransformMatcher() {
         List<A> as = List.of(new A("1"), new A("2"), new A("3"));
         assertThat(as, transformedItems(a -> a.str, containsInAnyOrder("1", "2", "3")));
+        assertThat(as, transformedItems(a -> a.str, containsInAnyOrder("1", "2", "3")));
 
         assertMismatch(as, transformedItems(a -> a.str, containsInAnyOrder("1", "2", "4")), equalTo("transformed item not matched: \"3\""));
     }

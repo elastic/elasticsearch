@@ -96,8 +96,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
             authcService,
             secondaryAuthenticator,
             new AuditTrailService(null, null),
-            restHandler,
-            false
+            restHandler
         );
         RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
         Authentication primaryAuthentication = AuthenticationTestHelper.builder().build();
@@ -136,8 +135,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
             authcService,
             secondaryAuthenticator,
             mock(AuditTrailService.class),
-            restHandler,
-            false
+            restHandler
         );
         RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
         doAnswer((i) -> {

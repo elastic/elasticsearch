@@ -573,10 +573,21 @@ public class NodeStatsTests extends ESTestCase {
         );
     }
 
-    private int expectedChunks(NodeStats nodeStats, NodeStatsLevel level) {
-        return 3 + expectedChunks(nodeStats.getHttp()) + expectedChunks(nodeStats.getIndices(), level) + expectedChunks(
+    private static int expectedChunks(NodeStats nodeStats, NodeStatsLevel level) {
+        return 4 + expectedChunks(nodeStats.getHttp()) + expectedChunks(nodeStats.getIndices(), level) + expectedChunks(
             nodeStats.getTransport()
-        );
+        ) + expectedChunks(nodeStats.getIngestStats());
+    }
+
+    private static int expectedChunks(@Nullable IngestStats ingestStats) {
+        return ingestStats == null
+            ? 0
+            : 2 + ingestStats.getPipelineStats()
+                .stream()
+                .mapToInt(
+                    pipelineStats -> 2 + ingestStats.getProcessorStats().getOrDefault(pipelineStats.getPipelineId(), List.of()).size()
+                )
+                .sum();
     }
 
     private static int expectedChunks(@Nullable HttpStats httpStats) {

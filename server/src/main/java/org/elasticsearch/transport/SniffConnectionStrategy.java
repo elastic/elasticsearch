@@ -232,7 +232,6 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         if (seedNodesSuppliers.hasNext()) {
             final Consumer<Exception> onFailure = e -> {
                 if (isRetryableException(e)) {
-                    // ISE if we fail the handshake with a version incompatible node
                     if (seedNodesSuppliers.hasNext()) {
                         logger.debug(
                             () -> format("fetching nodes from external cluster [%s] failed moving to next seed node", clusterAlias),

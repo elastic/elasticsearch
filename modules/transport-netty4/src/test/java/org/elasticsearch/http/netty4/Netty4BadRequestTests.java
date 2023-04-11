@@ -88,7 +88,7 @@ public class Netty4BadRequestTests extends ESTestCase {
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(Netty4HttpHeaderValidatorInboundHandler.NOOP_VALIDATOR, null)
+                randomFrom(new Netty4HttpHeaderValidator(Netty4HttpHeaderValidatorInboundHandler.NOOP_VALIDATOR), null)
             )
         ) {
             httpServerTransport.start();

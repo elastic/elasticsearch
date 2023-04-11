@@ -108,7 +108,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(Netty4HttpHeaderValidatorInboundHandler.NOOP_VALIDATOR, null)
+                randomFrom(new Netty4HttpHeaderValidator(Netty4HttpHeaderValidatorInboundHandler.NOOP_VALIDATOR), null)
             );
         }
 

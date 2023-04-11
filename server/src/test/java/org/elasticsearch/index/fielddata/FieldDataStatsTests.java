@@ -21,14 +21,11 @@ public class FieldDataStatsTests extends ESTestCase {
 
     public void testSerialize() throws IOException {
         FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
-        Map<String, FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldOrdinalStats = null;
-        if (randomBoolean()) {
-            fieldOrdinalStats = new HashMap<>();
-            fieldOrdinalStats.put(
-                randomAlphaOfLength(4),
-                new FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats(randomNonNegativeLong(), randomNonNegativeLong())
-            );
-        }
+        Map<String, FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldOrdinalStats = new HashMap<>();
+        fieldOrdinalStats.put(
+            randomAlphaOfLength(4),
+            new FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats(randomNonNegativeLong(), randomNonNegativeLong())
+        );
         FieldDataStats.GlobalOrdinalsStats glob = new FieldDataStats.GlobalOrdinalsStats(randomNonNegativeLong(), fieldOrdinalStats);
         FieldDataStats stats = new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), map, glob);
         BytesStreamOutput out = new BytesStreamOutput();

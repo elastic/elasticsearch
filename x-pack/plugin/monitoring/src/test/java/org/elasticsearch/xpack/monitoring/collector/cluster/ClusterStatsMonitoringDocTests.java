@@ -525,7 +525,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   },
                   "fielddata": {
                     "memory_size_in_bytes": 0,
-                    "evictions": 0
+                    "evictions": 0,
+                    "global_ordinals":{"build_time_in_millis":0}
                   },
                   "query_cache": {
                     "memory_size_in_bytes": 0,

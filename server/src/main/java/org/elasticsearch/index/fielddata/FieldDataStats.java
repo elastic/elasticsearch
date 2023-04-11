@@ -51,12 +51,10 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             globalOrdinalsStats = new GlobalOrdinalsStats(
                 in.readVLong(),
-                in.readBoolean()
-                    ? in.readMap(
-                        StreamInput::readString,
-                        in1 -> new GlobalOrdinalsStats.GlobalOrdinalFieldStats(in1.readVLong(), in1.readVLong())
-                    )
-                    : null
+                in.readMap(
+                    StreamInput::readString,
+                    in1 -> new GlobalOrdinalsStats.GlobalOrdinalFieldStats(in1.readVLong(), in1.readVLong())
+                )
             );
         } else {
             globalOrdinalsStats = new GlobalOrdinalsStats(0, new HashMap<>());
@@ -67,7 +65,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         this.memorySize = memorySize;
         this.evictions = evictions;
         this.fields = fields;
-        this.globalOrdinalsStats = globalOrdinalsStats;
+        this.globalOrdinalsStats = Objects.requireNonNull(globalOrdinalsStats);
     }
 
     public void add(FieldDataStats stats) {
@@ -114,15 +112,10 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(fields);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeVLong(globalOrdinalsStats.buildTimeMillis);
-            if (globalOrdinalsStats.fieldGlobalOrdinalsStats != null) {
-                out.writeBoolean(true);
-                out.writeMap(globalOrdinalsStats.fieldGlobalOrdinalsStats, StreamOutput::writeString, (out1, value) -> {
-                    out1.writeVLong(value.totalBuildingTime);
-                    out1.writeVLong(value.valueCount);
-                });
-            } else {
-                out.writeBoolean(false);
-            }
+            out.writeMap(globalOrdinalsStats.fieldGlobalOrdinalsStats, StreamOutput::writeString, (out1, value) -> {
+                out1.writeVLong(value.totalBuildingTime);
+                out1.writeVLong(value.valueCount);
+            });
         }
     }
 
@@ -137,7 +130,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         if (globalOrdinalsStats != null) {
             builder.startObject(GLOBAL_ORDINALS);
             builder.humanReadableField(BUILD_TIME + "_in_millis", BUILD_TIME, new TimeValue(globalOrdinalsStats.buildTimeMillis));
-            if (globalOrdinalsStats.fieldGlobalOrdinalsStats != null) {
+            if (globalOrdinalsStats.fieldGlobalOrdinalsStats.isEmpty() == false) {
                 builder.startObject(FIELDS);
                 for (var entry : globalOrdinalsStats.fieldGlobalOrdinalsStats.entrySet()) {
                     builder.startObject(entry.getKey());
@@ -176,22 +169,20 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
 
         public GlobalOrdinalsStats(long buildTimeMillis, Map<String, GlobalOrdinalFieldStats> fieldGlobalOrdinalsStats) {
             this.buildTimeMillis = buildTimeMillis;
-            this.fieldGlobalOrdinalsStats = fieldGlobalOrdinalsStats;
+            this.fieldGlobalOrdinalsStats = Objects.requireNonNull(fieldGlobalOrdinalsStats);
         }
 
         public void add(GlobalOrdinalsStats other) {
             buildTimeMillis += other.buildTimeMillis;
-            if (other.fieldGlobalOrdinalsStats != null) {
-                for (var entry : other.fieldGlobalOrdinalsStats.entrySet()) {
-                    fieldGlobalOrdinalsStats.merge(
-                        entry.getKey(),
-                        entry.getValue(),
-                        (value1, value2) -> new GlobalOrdinalFieldStats(
-                            value1.totalBuildingTime + value2.totalBuildingTime,
-                            Math.max(value1.valueCount, value2.valueCount)
-                        )
-                    );
-                }
+            for (var entry : other.fieldGlobalOrdinalsStats.entrySet()) {
+                fieldGlobalOrdinalsStats.merge(
+                    entry.getKey(),
+                    entry.getValue(),
+                    (value1, value2) -> new GlobalOrdinalFieldStats(
+                        value1.totalBuildingTime + value2.totalBuildingTime,
+                        Math.max(value1.valueCount, value2.valueCount)
+                    )
+                );
             }
         }
 

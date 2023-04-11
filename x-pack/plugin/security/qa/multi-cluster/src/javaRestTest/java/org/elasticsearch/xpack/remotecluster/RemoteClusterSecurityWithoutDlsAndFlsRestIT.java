@@ -17,6 +17,7 @@ import org.junit.rules.TestRule;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteClusterSecurityWithDlsAndFlsRestIT {
 
@@ -56,7 +57,7 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .keystore(
                 "cluster.remote." + REMOTE_CLUSTER_NO_DLS_FLS + ".credentials",
-                () -> createApiKeyForRemoteCluster(API_KEY_ROLE, API_KEY_REFERENCE)
+                () -> createCrossClusterAccessApiKey(API_KEY_ROLE, API_KEY_REFERENCE)
             )
             .build();
     }
@@ -75,7 +76,7 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
             "GET",
             Strings.format(
                 "/%s:%s/_search?ccs_minimize_roundtrips=%s",
-                randomFrom(REMOTE_CLUSTER_NO_DLS_FLS),
+                REMOTE_CLUSTER_NO_DLS_FLS,
                 randomFrom("remote_index*", "*"),
                 randomBoolean()
             )
@@ -83,18 +84,56 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
 
         // Running a CCS request with a user without DLS/FLS should return all remote indices and their fields.
         {
-            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_NO_DLS_FLS);
+            Response searchResponse = performRequestWithUserOrApiKey(searchRequest, REMOTE_SEARCH_USER_NO_DLS_FLS);
+
+            Consumer<Response> searchResponseAssertion = response -> {
+                assertOK(response);
+                assertSearchResponseContainsExpectedIndicesAndFields(
+                    response,
+                    new String[] { "remote_index1", "remote_index2", "remote_index3", "remote_index4" },
+                    new String[] { "field1", "field2", "field3" }
+                );
+            };
+            searchResponseAssertion.accept(searchResponse);
+
+            final String apiKeyNoDlsFls = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_NO_DLS_FLS, "{}").v2();
+            searchResponse = performRequestWithApiKey(searchRequest, apiKeyNoDlsFls);
+            searchResponseAssertion.accept(searchResponse);
+
+            String apiKeyNoDlsFlsRestricted = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_NO_DLS_FLS, """
+                {
+                    "role1": {
+                      "remote_indices": [
+                        {
+                          "names": ["remote_index1"],
+                          "privileges": ["read", "read_cross_cluster"],
+                          "clusters": ["*"]
+                        }
+                      ]
+                    },
+                    "role2": {
+                      "remote_indices": [
+                        {
+                          "names": ["remote_index2"],
+                          "privileges": ["read", "read_cross_cluster"],
+                          "clusters": ["*"]
+                        }
+                      ]
+                    }
+                }
+                """).v2();
+            searchResponse = performRequestWithApiKey(searchRequest, apiKeyNoDlsFlsRestricted);
             assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
                 searchResponse,
-                new String[] { "remote_index1", "remote_index2", "remote_index3", "remote_index4" },
+                new String[] { "remote_index1", "remote_index2" },
                 new String[] { "field1", "field2", "field3" }
             );
         }
 
         // Running a CCS request with a user with DLS and FLS.
         {
-            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_DLS_FLS);
+            final Response searchResponse = performRequestWithUserOrApiKey(searchRequest, REMOTE_SEARCH_USER_DLS_FLS);
             assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
                 searchResponse,
@@ -105,7 +144,7 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
 
         // Running a CCS request with a user with DLS only.
         {
-            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_DLS);
+            final Response searchResponse = performRequestWithUserOrApiKey(searchRequest, REMOTE_SEARCH_USER_DLS);
             assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
                 searchResponse,
@@ -116,7 +155,7 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
 
         // Running a CCS request with a user with FLS only.
         {
-            final Response searchResponse = performRequestAgainstQueryingCluster(searchRequest, REMOTE_SEARCH_USER_FLS);
+            final Response searchResponse = performRequestWithUserOrApiKey(searchRequest, REMOTE_SEARCH_USER_FLS);
             assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
                 searchResponse,

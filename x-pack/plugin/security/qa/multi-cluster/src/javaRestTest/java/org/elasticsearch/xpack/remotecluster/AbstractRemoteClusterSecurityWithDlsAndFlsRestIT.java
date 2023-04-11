@@ -12,15 +12,19 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends AbstractRemoteClusterSecurityTestCase {
 
@@ -36,7 +40,7 @@ public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends A
      */
     private void createRemoteSearchUsers() throws IOException {
 
-        createRemoteSearchUserAndRole(REMOTE_SEARCH_USER_NO_DLS_FLS, REMOTE_SEARCH_ROLE + "_no_dls_fls", """
+        createRemoteSearchUserAndRole(REMOTE_SEARCH_USER_NO_DLS_FLS, REMOTE_SEARCH_USER_NO_DLS_FLS + "_role", """
             {
               "cluster": ["manage_own_api_key"],
               "remote_indices": [
@@ -48,7 +52,7 @@ public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends A
               ]
             }""");
 
-        createRemoteSearchUserAndRole(REMOTE_SEARCH_USER_DLS_FLS, REMOTE_SEARCH_ROLE + "_dls_fls", """
+        createRemoteSearchUserAndRole(REMOTE_SEARCH_USER_DLS_FLS, REMOTE_SEARCH_USER_DLS_FLS + "_role", """
             {
               "cluster": ["manage_own_api_key"],
               "remote_indices": [
@@ -85,7 +89,7 @@ public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends A
               ]
             }""");
 
-        createRemoteSearchUserAndRole(REMOTE_SEARCH_USER_DLS, REMOTE_SEARCH_ROLE + "_dls", """
+        createRemoteSearchUserAndRole(REMOTE_SEARCH_USER_DLS, REMOTE_SEARCH_USER_DLS + "_role", """
             {
               "cluster": ["manage_own_api_key"],
               "remote_indices": [
@@ -104,7 +108,7 @@ public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends A
               ]
             }""");
 
-        createRemoteSearchUserAndRole(REMOTE_SEARCH_USER_FLS, REMOTE_SEARCH_ROLE + "_fls", """
+        createRemoteSearchUserAndRole(REMOTE_SEARCH_USER_FLS, REMOTE_SEARCH_USER_FLS + "_role", """
             {
               "cluster": ["manage_own_api_key"],
               "remote_indices": [
@@ -160,22 +164,45 @@ public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends A
         Response searchResponse,
         String[] expectedRemoteIndices,
         String[] expectedFields
-    ) throws IOException {
-        final var searchResult = Arrays.stream(SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits().getHits())
-            .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
+    ) {
+        try {
+            final var searchResult = Arrays.stream(SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits().getHits())
+                .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
 
-        assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
-        for (String remoteIndex : expectedRemoteIndices) {
-            assertThat(searchResult.get(remoteIndex).keySet(), containsInAnyOrder(expectedFields));
+            assertThat(searchResult.keySet(), containsInAnyOrder(expectedRemoteIndices));
+            for (String remoteIndex : expectedRemoteIndices) {
+                assertThat(searchResult.get(remoteIndex).keySet(), containsInAnyOrder(expectedFields));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
-    protected Response performRequestAgainstQueryingCluster(final Request request, final String username) throws IOException {
+    protected Response performRequestWithUser(final Request request, final String username) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(username, PASS)));
         return client().performRequest(request);
     }
 
-    protected static String createApiKeyForRemoteCluster(String roleDescriptorsJson, AtomicReference<Map<String, Object>> apiKeyRef) {
+    protected Tuple<String, String> createRemoteSearchApiKeyWithUser(String username, String roleDescriptorsJson) throws IOException {
+        final Request request = new Request("PUT", "/_security/api_key");
+        request.setJsonEntity(Strings.format("""
+            {
+              "name": "%s",
+              "role_descriptors": %s
+              }
+            }""", username + "_" + randomAlphaOfLength(5), roleDescriptorsJson));
+        final Response response = performRequestWithUser(request, username);
+        assertOK(response);
+
+        ObjectPath path = ObjectPath.createFromResponse(response);
+        final String apiKeyEncoded = path.evaluate("encoded");
+        final String apiKeyId = path.evaluate("id");
+        assertThat(apiKeyEncoded, notNullValue());
+        assertThat(apiKeyId, notNullValue());
+        return Tuple.tuple(apiKeyId, apiKeyEncoded);
+    }
+
+    protected static String createCrossClusterAccessApiKey(String roleDescriptorsJson, AtomicReference<Map<String, Object>> apiKeyRef) {
         if (apiKeyRef.get() == null) {
             apiKeyRef.set(createCrossClusterAccessApiKey(roleDescriptorsJson));
         }
@@ -194,6 +221,23 @@ public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends A
               "roles" : ["%s"]
             }""", PASS, roleName));
         assertOK(adminClient().performRequest(putUserRequest));
+    }
+
+    protected Response performRequestWithApiKey(final Request request, final String encoded) throws IOException {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + encoded));
+        return client().performRequest(request);
+    }
+
+    protected Response performRequestWithUserOrApiKey(final Request request, final String username) throws IOException {
+        final boolean performWithUser = randomBoolean();
+        if (performWithUser) {
+            return performRequestWithUser(request, username);
+        } else {
+            // Not providing role descriptors, means that API key will have the same permissions as the owner user.
+            // Hence, we can expect to get the same results.
+            final String apiKeyEncoded = createRemoteSearchApiKeyWithUser(username, "{}").v2();
+            return performRequestWithApiKey(request, apiKeyEncoded);
+        }
     }
 
 }

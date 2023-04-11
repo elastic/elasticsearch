@@ -12,7 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
@@ -117,26 +117,26 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
 
         private final Map<String, ComponentTemplate> componentTemplates;
         @Nullable
-        private final RolloverConditions rolloverConditions;
+        private final RolloverConfiguration rolloverConfiguration;
 
         public Response(StreamInput in) throws IOException {
             super(in);
             componentTemplates = in.readMap(StreamInput::readString, ComponentTemplate::new);
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-                rolloverConditions = in.readOptionalWriteable(RolloverConditions::new);
+                rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
             } else {
-                rolloverConditions = null;
+                rolloverConfiguration = null;
             }
         }
 
         public Response(Map<String, ComponentTemplate> componentTemplates) {
             this.componentTemplates = componentTemplates;
-            this.rolloverConditions = null;
+            this.rolloverConfiguration = null;
         }
 
-        public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable RolloverConditions rolloverConditions) {
+        public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable RolloverConfiguration rolloverConfiguration) {
             this.componentTemplates = componentTemplates;
-            this.rolloverConditions = rolloverConditions;
+            this.rolloverConfiguration = rolloverConfiguration;
         }
 
         public Map<String, ComponentTemplate> getComponentTemplates() {
@@ -147,7 +147,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(componentTemplates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-                out.writeOptionalWriteable(rolloverConditions);
+                out.writeOptionalWriteable(rolloverConfiguration);
             }
         }
 
@@ -157,12 +157,12 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             if (o == null || getClass() != o.getClass()) return false;
             Response that = (Response) o;
             return Objects.equals(componentTemplates, that.componentTemplates)
-                && Objects.equals(rolloverConditions, that.rolloverConditions);
+                && Objects.equals(rolloverConfiguration, that.rolloverConfiguration);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(componentTemplates, rolloverConditions);
+            return Objects.hash(componentTemplates, rolloverConfiguration);
         }
 
         @Override
@@ -173,7 +173,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), componentTemplate.getKey());
                 builder.field(COMPONENT_TEMPLATE.getPreferredName());
-                componentTemplate.getValue().toXContent(builder, params, rolloverConditions);
+                componentTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
                 builder.endObject();
             }
             builder.endArray();

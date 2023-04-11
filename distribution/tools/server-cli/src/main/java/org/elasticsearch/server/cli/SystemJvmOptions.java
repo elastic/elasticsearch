@@ -59,7 +59,7 @@ final class SystemJvmOptions {
              * Temporarily suppress illegal reflective access in searchable snapshots shared cache preallocation; this is temporary while we
              * explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
              */
-            "--add-opens=java.base/java.io=org.elasticsearch.blobcache.preallocate",
+            "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
             maybeOverrideDockerCgroup()
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }

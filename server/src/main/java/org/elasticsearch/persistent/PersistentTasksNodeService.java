@@ -176,6 +176,11 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             }
 
             @Override
+            public void setRequestId(long requestId) {
+                throw new UnsupportedOperationException("does not have a request ID");
+            }
+
+            @Override
             public TaskId getParentTask() {
                 return parentTaskId;
             }
@@ -358,11 +363,6 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         @Override
         public String toString() {
             return Strings.toString(this);
-        }
-
-        @Override
-        public boolean isFragment() {
-            return false;
         }
 
         @Override

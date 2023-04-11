@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -214,8 +215,9 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
 
             final long lastCheckpoint = stateHolder.get().getCheckpoint();
+            final AuthorizationState authState = stateHolder.get().getAuthState();
 
-            startTask(buildTask, indexerBuilder, lastCheckpoint, startTaskListener);
+            startTask(buildTask, indexerBuilder, authState, lastCheckpoint, startTaskListener);
         }, error -> {
             // TODO: do not use the same error message as for loading the last checkpoint
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
@@ -282,7 +284,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     markAsFailed(buildTask, msg);
                 } else {
                     logger.trace("[{}] No stats found (new transform), starting the task", transformId);
-                    startTask(buildTask, indexerBuilder, null, startTaskListener);
+                    startTask(buildTask, indexerBuilder, null, null, startTaskListener);
                 }
             }
         );
@@ -377,12 +379,14 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private void startTask(
         TransformTask buildTask,
         ClientTransformIndexerBuilder indexerBuilder,
+        AuthorizationState authState,
         Long previousCheckpoint,
         ActionListener<StartTransformAction.Response> listener
     ) {
         // switch the threadpool to generic, because the caller is on the system_read threadpool
         threadPool.generic().execute(() -> {
             buildTask.initializeIndexer(indexerBuilder);
+            buildTask.setAuthState(authState);
             // TransformTask#start will fail if the task state is FAILED
             buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, listener);
         });

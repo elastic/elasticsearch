@@ -1001,10 +1001,14 @@ public class ApiKeyService {
                                 // move on
                                 validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                             } else {
-                                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                                listener.onResponse(
+                                    AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                                );
                             }
                         } else if (result.verify(credentials.getKey())) { // same key, pass the same result
-                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            listener.onResponse(
+                                AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                            );
                         } else {
                             apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
                             validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener);
@@ -1017,7 +1021,9 @@ public class ApiKeyService {
                             // move on
                             validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                         } else {
-                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            listener.onResponse(
+                                AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                            );
                         }
                     }, listener::onFailure));
                 }
@@ -1027,7 +1033,9 @@ public class ApiKeyService {
                         // move on
                         validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                     } else {
-                        listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                        listener.onResponse(
+                            AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                        );
                     }
                 }, listener::onFailure));
             }

@@ -182,10 +182,9 @@ public class DiscoveryModuleTests extends ESTestCase {
     }
 
     public void testLazyConstructionSeedsProvider() {
-        DummyHostsProviderPlugin plugin = () -> Collections.singletonMap(
-            "custom",
-            () -> { throw new AssertionError("created hosts provider which was not selected"); }
-        );
+        DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom", () -> {
+            throw new AssertionError("created hosts provider which was not selected");
+        });
         newModule(Settings.EMPTY, List.of(plugin), List.of());
     }
 

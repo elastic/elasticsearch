@@ -22,6 +22,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
@@ -115,7 +116,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
-        licenseState.update(License.OperationMode.PLATINUM, true, null);
+        licenseState.update(new XPackLicenseStatus(License.OperationMode.PLATINUM, true, null));
 
         final Clock clock = Clock.systemUTC();
 
@@ -155,7 +156,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             serviceAccountService,
             OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE
         );
-        authenticator = new SecondaryAuthenticator(securityContext, authenticationService);
+        authenticator = new SecondaryAuthenticator(securityContext, authenticationService, auditTrail);
     }
 
     @After

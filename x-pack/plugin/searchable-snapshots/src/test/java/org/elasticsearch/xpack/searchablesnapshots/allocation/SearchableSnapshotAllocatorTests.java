@@ -160,11 +160,9 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             }
         };
 
-        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(
-            client,
-            (reason, priority, listener) -> { throw new AssertionError("Expecting no reroutes"); },
-            testFrozenCacheSizeService()
-        );
+        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(client, (reason, priority, listener) -> {
+            throw new AssertionError("Expecting no reroutes");
+        }, testFrozenCacheSizeService());
         allocateAllUnassigned(allocation, allocator);
         assertTrue(allocation.routingNodesChanged());
         assertThat(allocation.routingNodes().assignedShards(shardId), empty());
@@ -199,11 +197,9 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             }
         };
 
-        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(
-            client,
-            (reason, priority, listener) -> { throw new AssertionError("Expecting no reroutes"); },
-            testFrozenCacheSizeService()
-        );
+        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(client, (reason, priority, listener) -> {
+            throw new AssertionError("Expecting no reroutes");
+        }, testFrozenCacheSizeService());
         allocateAllUnassigned(allocation, allocator);
         assertThat(allocation.routingNodes().assignedShards(shardId), empty());
         assertTrue(allocation.routingTable().index(shardId.getIndex()).allPrimaryShardsUnassigned());

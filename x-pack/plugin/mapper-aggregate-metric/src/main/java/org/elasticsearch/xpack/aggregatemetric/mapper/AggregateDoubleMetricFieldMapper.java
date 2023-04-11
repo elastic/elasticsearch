@@ -240,14 +240,9 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
             EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields = metricMappers.entrySet()
                 .stream()
-                .collect(
-                    Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> e.getValue().fieldType(),
-                        (l, r) -> { throw new IllegalArgumentException("Duplicate keys " + l + "and " + r + "."); },
-                        () -> new EnumMap<>(Metric.class)
-                    )
-                );
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().fieldType(), (l, r) -> {
+                    throw new IllegalArgumentException("Duplicate keys " + l + "and " + r + ".");
+                }, () -> new EnumMap<>(Metric.class)));
 
             AggregateDoubleMetricFieldType metricFieldType = new AggregateDoubleMetricFieldType(
                 context.buildFullName(name),

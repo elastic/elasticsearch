@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -22,9 +21,9 @@ import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
-import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -38,9 +37,9 @@ public class SecurityRestFilter implements RestHandler {
     private final RestHandler restHandler;
     private final AuthenticationService authenticationService;
     private final SecondaryAuthenticator secondaryAuthenticator;
+    private final AuditTrailService auditTrailService;
     private final boolean enabled;
     private final ThreadContext threadContext;
-    private final boolean extractClientCertificate;
 
     public enum ActionType {
         Authentication("Authentication"),
@@ -64,15 +63,15 @@ public class SecurityRestFilter implements RestHandler {
         ThreadContext threadContext,
         AuthenticationService authenticationService,
         SecondaryAuthenticator secondaryAuthenticator,
-        RestHandler restHandler,
-        boolean extractClientCertificate
+        AuditTrailService auditTrailService,
+        RestHandler restHandler
     ) {
         this.enabled = enabled;
         this.threadContext = threadContext;
         this.authenticationService = authenticationService;
         this.secondaryAuthenticator = secondaryAuthenticator;
+        this.auditTrailService = auditTrailService;
         this.restHandler = restHandler;
-        this.extractClientCertificate = extractClientCertificate;
     }
 
     @Override
@@ -97,22 +96,18 @@ public class SecurityRestFilter implements RestHandler {
             return;
         }
 
-        if (extractClientCertificate) {
-            HttpChannel httpChannel = request.getHttpChannel();
-            SSLEngineUtils.extractClientCertificates(logger, threadContext, httpChannel);
-        }
-
-        authenticationService.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(authentication -> {
+        final RestRequest wrappedRequest = maybeWrapRestRequest(request);
+        authenticationService.authenticate(wrappedRequest.getHttpRequest(), ActionListener.wrap(authentication -> {
             if (authentication == null) {
                 logger.trace("No authentication available for REST request [{}]", request.uri());
             } else {
                 logger.trace("Authenticated REST request [{}] as {}", request.uri(), authentication);
             }
-            secondaryAuthenticator.authenticateAndAttachToContext(request, ActionListener.wrap(secondaryAuthentication -> {
+            auditTrailService.get().authenticationSuccess(wrappedRequest);
+            secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
                 if (secondaryAuthentication != null) {
                     logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, request.uri());
                 }
-                RemoteHostHeader.process(request, threadContext);
                 try {
                     doHandleRequest(request, channel, client);
                 } catch (Exception e) {

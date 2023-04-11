@@ -212,12 +212,27 @@ allprojects {
   plugins.withId('lifecycle-base') {
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
-        tasks.register('checkPart3') { dependsOn 'check' }
+        tasks.register('checkPart3') {
+          dependsOn 'check'
+          if(tasks.findByName('transportMethodCoverageVerifier')!=null){
+            dependsOn 'transportMethodCoverageVerifier'
+          }
+        }
       } else {
-        tasks.register('checkPart2') { dependsOn 'check' }
+        tasks.register('checkPart2') {
+          dependsOn 'check'
+          if(tasks.findByName('transportMethodCoverageVerifier')!=null){
+            dependsOn 'transportMethodCoverageVerifier'
+          }
+        }
       }
     } else {
-      tasks.register('checkPart1') { dependsOn 'check' }
+      tasks.register('checkPart1') {
+        dependsOn 'check'
+        if(tasks.findByName('transportMethodCoverageVerifier')!=null){
+          dependsOn 'transportMethodCoverageVerifier'
+        }
+      }
     }
   }
 
@@ -322,17 +337,6 @@ tasks.named("precommit") {
 tasks.named("checkPart1").configure {
   dependsOn gradle.includedBuild('build-tools').task(':check')
   dependsOn gradle.includedBuild('build-tools-internal').task(':check')
-  dependsOn ':transportMethodCoverageVerifier'
-}
-if(tasks.findByName("checkPart2") != null){
-  tasks.named("checkPart2").configure {
-    dependsOn ':transportMethodCoverageVerifier'
-  }
-}
-if(tasks.findByName("checkPart3") != null){
-  tasks.named("checkPart3").configure {
-    dependsOn ':transportMethodCoverageVerifier'
-  }
 }
 
 tasks.named("assemble").configure {

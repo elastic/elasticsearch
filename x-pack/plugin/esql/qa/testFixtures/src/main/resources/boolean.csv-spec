@@ -1,5 +1,5 @@
 simple
-from test | sort emp_no | project emp_no, still_hired | limit 3;
+from employees | sort emp_no | project emp_no, still_hired | limit 3;
 
 emp_no:integer | still_hired:boolean
 10001          | true
@@ -8,7 +8,7 @@ emp_no:integer | still_hired:boolean
 ;
 
 directFilter
-from test | sort emp_no | where still_hired | project emp_no | limit 3;
+from employees | sort emp_no | where still_hired | project emp_no | limit 3;
 
 emp_no:integer
 10001
@@ -17,7 +17,7 @@ emp_no:integer
 ;
 
 sort
-from test | sort still_hired, emp_no | project emp_no, still_hired | limit 3;
+from employees | sort still_hired, emp_no | project emp_no, still_hired | limit 3;
 
 emp_no:integer | still_hired:boolean
 10003          | false
@@ -26,7 +26,7 @@ emp_no:integer | still_hired:boolean
 ;
 
 statsBy
-from test | stats avg(salary) by still_hired | sort still_hired;
+from employees | stats avg(salary) by still_hired | sort still_hired;
 
 avg(salary):double | still_hired:boolean
 50625.163636363635 | false
@@ -34,14 +34,14 @@ avg(salary):double | still_hired:boolean
 ;
 
 statsByAlwaysTrue
-from test | eval always_true = starts_with(first_name, "") | stats avg(salary) by always_true;
+from employees | eval always_true = starts_with(first_name, "") | stats avg(salary) by always_true;
 
 avg(salary):double | always_true:boolean
  48353.72222222222 | true
 ;
 
 statsByAlwaysFalse
-from test | eval always_false = starts_with(first_name, "nonestartwiththis") | stats avg(salary) by always_false;
+from employees | eval always_false = starts_with(first_name, "nonestartwiththis") | stats avg(salary) by always_false;
 
 avg(salary):double | always_false:boolean
  48353.72222222222 | false

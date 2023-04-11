@@ -1,19 +1,19 @@
 sortWithLimitOne_DropHeight
-from test | sort languages | limit 1 | drop height*;
+from employees | sort languages | limit 1 | drop height*;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | still_hired:boolean
 244294991 | 1955-01-21T00:00:00.000Z | 10005 | Kyoichi | M | 1989-09-12T00:00:00.000Z | null | 1 | 1 | 1 | 1 | Maliniak | 63528 | true
 ;
 
 simpleEvalWithSortAndLimitOne_DropHeight
-from test | eval x = languages + 7 | sort x | limit 1 | drop height*;
+from employees | eval x = languages + 7 | sort x | limit 1 | drop height*;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | still_hired:boolean | x:integer
 244294991 | 1955-01-21T00:00:00.000Z | 10005 | Kyoichi | M | 1989-09-12T00:00:00.000Z |null           | 1 | 1 | 1 | 1 | Maliniak | 63528 | true | 8
 ;
 
 whereWithEvalGeneratedValue_DropHeight
-from test | eval x = salary / 2 | where x > 37000 | drop height*;
+from employees | eval x = salary / 2 | where x > 37000 | drop height*;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | still_hired:boolean | x:integer
 393084805 | 1957-05-23T00:00:00.000Z | 10007 | Tzvetan | F | 1989-02-10T00:00:00.000Z |null                                                                        |    4 |    4 |    4 |    4 | Zielinski  | 74572 | true  | 37286
@@ -29,7 +29,7 @@ b:integer | x:integer
 ;
 
 dropAllColumns
-from test | project height | drop height | eval x = 1 | limit 3;
+from employees | project height | drop height | eval x = 1 | limit 3;
 x:integer
 1
 1
@@ -37,7 +37,7 @@ x:integer
 ;
 
 dropAllColumns_WithCount
-from test | project height | drop height | eval x = 1 | stats c=count(x);
+from employees | project height | drop height | eval x = 1 | stats c=count(x);
 c:long
 100
 ;

@@ -49,6 +49,8 @@ import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.SpecReader;
+import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
+import org.elasticsearch.xpack.ql.analyzer.TableInfo;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -113,7 +115,7 @@ public class CsvTests extends ESTestCase {
     private final String testName;
     private final Integer lineNumber;
     private final CsvSpecReader.CsvTestCase testCase;
-    private IndexResolution indexResolution = loadIndexResolution();
+    private final IndexResolution indexResolution = loadIndexResolution();
     private final EsqlConfiguration configuration = new EsqlConfiguration(
         ZoneOffset.UTC,
         null,
@@ -196,6 +198,12 @@ public class CsvTests extends ESTestCase {
 
     private PhysicalPlan physicalPlan() {
         var parsed = parser.createStatement(testCase.query);
+        var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
+        for (TableInfo t : preAnalysis.indices) {
+            if (false == t.id().index().equals("employees")) {
+                throw new IllegalArgumentException("only [employees] table available");
+            }
+        }
         var analyzed = analyzer.analyze(parsed);
         var logicalOptimized = logicalPlanOptimizer.optimize(analyzed);
         var physicalPlan = mapper.map(logicalOptimized);

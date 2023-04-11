@@ -1,5 +1,5 @@
 simple
-from test | sort emp_no | project emp_no, hire_date | limit 1;
+from employees | sort emp_no | project emp_no, hire_date | limit 1;
 
 emp_no:integer | hire_date:date 
 10001          | 1986-06-26T00:00:00.000Z            
@@ -7,7 +7,7 @@ emp_no:integer | hire_date:date
 
 
 sort
-from test | sort hire_date | project emp_no, hire_date | limit 5; 
+from employees | sort hire_date | project emp_no, hire_date | limit 5; 
 
 emp_no:integer | hire_date:date
 10009          | 1985-02-18T00:00:00.000Z            
@@ -20,7 +20,7 @@ emp_no:integer | hire_date:date
 
 
 sortDesc
-from test | sort hire_date desc | project emp_no, hire_date | limit 5; 
+from employees | sort hire_date desc | project emp_no, hire_date | limit 5; 
 
 emp_no:integer | hire_date:date
 10019          | 1999-04-30T00:00:00.000Z            
@@ -32,7 +32,7 @@ emp_no:integer | hire_date:date
 
 
 evalAssign
-from test | sort hire_date | eval x = hire_date | project emp_no, x | limit 5;
+from employees | sort hire_date | eval x = hire_date | project emp_no, x | limit 5;
 
 emp_no:integer | x:date
 10009          | 1985-02-18T00:00:00.000Z            
@@ -45,7 +45,7 @@ emp_no:integer | x:date
 
 
 evalDateFormat
-from test | sort hire_date | eval x = date_format(hire_date), y = date_format(hire_date, "YYYY-MM-dd") | project emp_no, x, y | limit 5;
+from employees | sort hire_date | eval x = date_format(hire_date), y = date_format(hire_date, "YYYY-MM-dd") | project emp_no, x, y | limit 5;
 
 emp_no:integer | x:keyword                     | y:keyword
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-18            
@@ -57,7 +57,7 @@ emp_no:integer | x:keyword                     | y:keyword
 
 
 nullDate
-from test | where emp_no == 10040 | eval x = date_format(birth_date) | project emp_no, birth_date, hire_date, x;
+from employees | where emp_no == 10040 | eval x = date_format(birth_date) | project emp_no, birth_date, hire_date, x;
 
 emp_no:integer | birth_date:date                     | hire_date:date             | x:keyword
 10040          | null                                | 1993-02-14T00:00:00.000Z   | null  
@@ -65,14 +65,14 @@ emp_no:integer | birth_date:date                     | hire_date:date           
 
 // not supported yet
 minMax-Ignore
-from test | stats min = min(hire_date), max = max(hire_date);
+from employees | stats min = min(hire_date), max = max(hire_date);
 
 min:date                  | max:date
 1985-02-18T00:00:00.000Z  | 1999-04-30T00:00:00.000Z
 ;
 
 evalDateTruncIntervalExpressionPeriod
-from test | sort hire_date | eval x = date_trunc(hire_date, 1 month) | project emp_no, hire_date, x | limit 5;
+from employees | sort hire_date | eval x = date_trunc(hire_date, 1 month) | project emp_no, hire_date, x | limit 5;
 
 emp_no:integer | hire_date:date                | x:date                    
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-01T00:00:00.000Z         
@@ -83,7 +83,7 @@ emp_no:integer | hire_date:date                | x:date
 ;
 
 evalDateTruncIntervalExpressionDuration
-from test | sort hire_date | eval x = date_trunc(hire_date, 240 hours) | project emp_no, hire_date, x | limit 5;
+from employees | sort hire_date | eval x = date_trunc(hire_date, 240 hours) | project emp_no, hire_date, x | limit 5;
 
 emp_no:integer | hire_date:date                | x:date                  
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-11T00:00:00.000Z       
@@ -94,7 +94,7 @@ emp_no:integer | hire_date:date                | x:date
 ;
 
 evalDateTruncWeeklyInterval
-from test | sort hire_date | eval x = date_trunc(hire_date, 1 week) | project emp_no, hire_date, x | limit 5;
+from employees | sort hire_date | eval x = date_trunc(hire_date, 1 week) | project emp_no, hire_date, x | limit 5;
 
 emp_no:integer | hire_date:date                | x:date                  
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-18T00:00:00.000Z       
@@ -105,7 +105,7 @@ emp_no:integer | hire_date:date                | x:date
 ;
 
 evalDateTruncQuarterlyInterval
-from test | sort hire_date | eval x = date_trunc(hire_date, 3 month) | project emp_no, hire_date, x | limit 5;
+from employees | sort hire_date | eval x = date_trunc(hire_date, 3 month) | project emp_no, hire_date, x | limit 5;
 
 emp_no:integer | hire_date:date                | x:date                    
 10009          | 1985-02-18T00:00:00.000Z      | 1985-01-01T00:00:00.000Z         
@@ -116,14 +116,14 @@ emp_no:integer | hire_date:date                | x:date
 ;
 
 evalDateTruncNullDate
-from test | where emp_no == 10040 | eval x = date_trunc(birth_date, 1 day) | project emp_no, birth_date, x;
+from employees | where emp_no == 10040 | eval x = date_trunc(birth_date, 1 day) | project emp_no, birth_date, x;
 
 emp_no:integer | birth_date:date               | x:date
 10040          | null                          | null  
 ;
 
 evalDateTruncGrouping
-from test | eval y = date_trunc(hire_date, 1 year) | stats count(emp_no) by y | sort y | project y, count(emp_no) | limit 5;
+from employees | eval y = date_trunc(hire_date, 1 year) | stats count(emp_no) by y | sort y | project y, count(emp_no) | limit 5;
 
 y:date                        | count(emp_no):long
 1985-01-01T00:00:00.000Z      | 11       

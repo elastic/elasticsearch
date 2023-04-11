@@ -1,12 +1,12 @@
 maxOfLong
-from test | stats l = max(languages.long);
+from employees | stats l = max(languages.long);
 
 l:long
 5
 ;
 
 maxOfInteger
-from test | stats l = max(languages);
+from employees | stats l = max(languages);
 
 l:integer
 5
@@ -14,7 +14,7 @@ l:integer
 
 maxOfShort
 // short becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
-from test | stats l = max(languages.short);
+from employees | stats l = max(languages.short);
 
 l:integer
 5
@@ -22,14 +22,14 @@ l:integer
 
 maxOfByte
 // byte becomes int until https://github.com/elastic/elasticsearch-internal/issues/724
-from test | stats l = max(languages.byte);
+from employees | stats l = max(languages.byte);
 
 l:integer
 5
 ;
 
 maxOfDouble
-from test | stats h = max(height);
+from employees | stats h = max(height);
 
 h:double
 2.1
@@ -37,7 +37,7 @@ h:double
 
 maxOfFloat
 // float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
-from test | stats h = max(height.float);
+from employees | stats h = max(height.float);
 
 h:double
 2.0999999046325684
@@ -45,7 +45,7 @@ h:double
 
 maxOfHalfFloat
 // float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
-from test | stats h = max(height.half_float);
+from employees | stats h = max(height.half_float);
 
 h:double
 2.099609375
@@ -54,7 +54,7 @@ h:double
 
 maxOfScaledFloat
 // float becomes double until https://github.com/elastic/elasticsearch-internal/issues/724
-from test | stats h = max(height.scaled_float);
+from employees | stats h = max(height.scaled_float);
 
 h:double
 2.1
@@ -62,111 +62,111 @@ h:double
 
 
 avgOfLong
-from test | stats l = avg(languages.long);
+from employees | stats l = avg(languages.long);
 
 l:double
 3.1222222222222222
 ;
 
 avgOfInteger
-from test | stats l = avg(languages);
+from employees | stats l = avg(languages);
 
 l:double
 3.1222222222222222
 ;
 
 avgOfShort
-from test | stats l = avg(languages.short);
+from employees | stats l = avg(languages.short);
 
 l:double
 3.1222222222222222
 ;
 
 avgOfByte
-from test | stats l = avg(languages.byte);
+from employees | stats l = avg(languages.byte);
 
 l:double
 3.1222222222222222
 ;
 
 avgOfDouble
-from test | stats h = avg(height);
+from employees | stats h = avg(height);
 
 h:double
 1.7682
 ;
 
 avgOfFloat
-from test | stats h = avg(height.float);
+from employees | stats h = avg(height.float);
 
 h:double
 1.7681999909877777
 ;
 
 avgOfHalfFloat
-from test | stats h = avg(height.half_float);
+from employees | stats h = avg(height.half_float);
 
 h:double
 1.76818359375
 ;
 avgOfScaledFloat
-from test | stats h = avg(height.scaled_float);
+from employees | stats h = avg(height.scaled_float);
 
 h:double
 1.7682
 ;
 
 sumOfLong
-from test | stats l = sum(languages.long);
+from employees | stats l = sum(languages.long);
 
 l:long
 281
 ;
 
 sumOfInteger
-from test | stats l = sum(languages);
+from employees | stats l = sum(languages);
 
 l:long
 281
 ;
 
 sumOfByte
-from test | stats l = sum(languages.byte);
+from employees | stats l = sum(languages.byte);
 
 l:long
 281
 ;
 
 sumOfShort
-from test | stats l = sum(languages.short);
+from employees | stats l = sum(languages.short);
 
 l:long
 281
 ;
 
 sumOfDouble
-from test | stats h = sum(height);
+from employees | stats h = sum(height);
 
 h:double
 176.82
 ;
 
 sumOfFloat
-from test | stats h = sum(height.float);
+from employees | stats h = sum(height.float);
 
 h:double
 176.81999909877777
 ;
 
 sumOfHalfFloat
-from test | stats h = sum(height.half_float);
+from employees | stats h = sum(height.half_float);
 
 h:double
 176.818359375
 ;
 
 sumOfScaledFloat
-from test | stats h = sum(height.scaled_float);
+from employees | stats h = sum(height.scaled_float);
 
 h:double
 176.82
@@ -174,7 +174,7 @@ h:double
 
 groupWithMin
 // declared to double check the tests below
-from test | stats m = min(height) by languages | sort languages;
+from employees | stats m = min(height) by languages | sort languages;
 
 m:d  | languages:i
 1.42 | 1
@@ -185,7 +185,7 @@ m:d  | languages:i
 ; 
 
 IfDuplicateNamesLastOneWins
-from test | stats h = avg(height), h = min(height) by languages | sort languages;
+from employees | stats h = avg(height), h = min(height) by languages | sort languages;
 
 h:d  | languages:i
 1.42 | 1
@@ -196,7 +196,7 @@ h:d  | languages:i
 ;
 
 groupByAlias
-from test | rename l = languages | project l, height | stats m = min(height) by l | sort l;
+from employees | rename l = languages | project l, height | stats m = min(height) by l | sort l;
 
 m:d  | l:i
 1.42 | 1
@@ -207,7 +207,7 @@ m:d  | l:i
 ; 
 
 IfDuplicateNamesGroupingHasPriority
-from test | stats languages = avg(height), languages = min(height) by languages | sort languages;
+from employees | stats languages = avg(height), languages = min(height) by languages | sort languages;
 
 languages:i
 1
@@ -218,7 +218,7 @@ languages:i
 ;
 
 byStringAndLong
-from test | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by gender, trunk_worked_seconds | sort c desc;
+from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by gender, trunk_worked_seconds | sort c desc;
 
 c:long | gender:keyword | trunk_worked_seconds:long
 30 | M | 300000000
@@ -228,7 +228,7 @@ c:long | gender:keyword | trunk_worked_seconds:long
 ;
 
 byStringAndLongWithAlias
-from test | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | rename g = gender, tws = trunk_worked_seconds | project g, tws | stats c = count(g) by g, tws | sort c desc;
+from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | rename g = gender, tws = trunk_worked_seconds | project g, tws | stats c = count(g) by g, tws | sort c desc;
 
 c:long | g:keyword | tws:long
 30 | M | 300000000
@@ -238,7 +238,7 @@ c:long | g:keyword | tws:long
 ;
 
 byStringAndString
-from test | eval hire_year_str = date_format(hire_date, "yyyy") | stats c = count(gender) by gender, hire_year_str | sort c desc, gender, hire_year_str | where c >= 5;
+from employees | eval hire_year_str = date_format(hire_date, "yyyy") | stats c = count(gender) by gender, hire_year_str | sort c desc, gender, hire_year_str | where c >= 5;
 
 c:long | gender:keyword | hire_year_str:keyword
 8 | F | 1989
@@ -252,7 +252,7 @@ c:long | gender:keyword | hire_year_str:keyword
 ;
 
 byLongAndLong
-from test | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(languages.long) by languages.long, trunk_worked_seconds | sort c desc;
+from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(languages.long) by languages.long, trunk_worked_seconds | sort c desc;
 
 c:long | languages.long:long | trunk_worked_seconds:long
 15 | 5 | 300000000
@@ -268,7 +268,7 @@ c:long | languages.long:long | trunk_worked_seconds:long
 ;
 
 byUnmentionedLongAndLong
-from test | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by languages.long, trunk_worked_seconds | sort c desc;
+from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by languages.long, trunk_worked_seconds | sort c desc;
 
 c:long | languages.long:long | trunk_worked_seconds:long
 13 | 5 | 300000000
@@ -284,7 +284,7 @@ c:long | languages.long:long | trunk_worked_seconds:long
 ;
 
 byUnmentionedIntAndLong
-from test | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by languages, trunk_worked_seconds | sort c desc;
+from employees | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000 | stats c = count(gender) by languages, trunk_worked_seconds | sort c desc;
 
 c:long | languages:integer | trunk_worked_seconds:long
 13 | 5 | 300000000
@@ -300,7 +300,7 @@ c:long | languages:integer | trunk_worked_seconds:long
 ;
 
 byUnmentionedIntAndBoolean
-from test | stats c = count(gender) by languages, still_hired | sort c desc, languages desc;
+from employees | stats c = count(gender) by languages, still_hired | sort c desc, languages desc;
 
 c:long | languages:integer | still_hired:boolean
 11 | 3 | false
@@ -316,7 +316,7 @@ c:long | languages:integer | still_hired:boolean
 ;
 
 byDateAndKeywordAndInt
-from test | eval d = date_trunc(hire_date, 1 year) | stats c = count(emp_no) by d, gender, languages | sort c desc, d, languages desc | limit 10;
+from employees | eval d = date_trunc(hire_date, 1 year) | stats c = count(emp_no) by d, gender, languages | sort c desc, d, languages desc | limit 10;
 
 c:long | d:date | gender:keyword | languages:integer
 3 | 1986-01-01T00:00:00.000Z | M | 2
@@ -332,7 +332,7 @@ c:long | d:date | gender:keyword | languages:integer
 ;
 
 byDateAndKeywordAndIntWithAlias
-from test | eval d = date_trunc(hire_date, 1 year) | rename g = gender, l = languages, e = emp_no | project d, g, l, e | stats c = count(e) by d, g, l | sort c desc, d, l desc | limit 10;
+from employees | eval d = date_trunc(hire_date, 1 year) | rename g = gender, l = languages, e = emp_no | project d, g, l, e | stats c = count(e) by d, g, l | sort c desc, d, l desc | limit 10;
 
 c:long | d:date | g:keyword | l:integer
 3 | 1986-01-01T00:00:00.000Z | M | 2
@@ -348,7 +348,7 @@ c:long | d:date | g:keyword | l:integer
 ;
 
 byDoubleAndBoolean
-from test | stats c = count(gender) by height, still_hired | sort c desc, height | limit 10;
+from employees | stats c = count(gender) by height, still_hired | sort c desc, height | limit 10;
 
 c:long | height:double | still_hired:boolean
 4 | 1.52 | true

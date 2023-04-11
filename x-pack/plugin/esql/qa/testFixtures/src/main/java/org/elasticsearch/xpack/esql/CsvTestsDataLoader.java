@@ -46,7 +46,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 
 public class CsvTestsDataLoader {
-    public static final String TEST_INDEX_SIMPLE = "test";
+    public static final String TEST_INDEX_SIMPLE = "employees";
     public static final String MAPPING = "mapping-default.json";
     public static final String DATA = "employees.csv";
 

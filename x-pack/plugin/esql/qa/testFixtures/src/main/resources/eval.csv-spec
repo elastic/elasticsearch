@@ -83,9 +83,8 @@ x:integer | a2:integer | a3:integer | a1:integer
 1         | 2          | 4          | 4         
 ;
 
-
 evalNullSort
-from test | eval x = null | sort x asc, emp_no desc | project emp_no, x, last_name | limit 2;
+from employees | eval x = null | sort x asc, emp_no desc | project emp_no, x, last_name | limit 2;
 
 emp_no:integer | x:null | last_name:keyword
 10100          | null   | Haraldson
@@ -94,7 +93,7 @@ emp_no:integer | x:null | last_name:keyword
 
 
 filterEvalFilter
-from test | where emp_no < 100010 | eval name_len = length(first_name) | where name_len < 4 | project first_name | sort first_name;
+from employees | where emp_no < 100010 | eval name_len = length(first_name) | where name_len < 4 | project first_name | sort first_name;
 
 first_name:keyword
 Gao

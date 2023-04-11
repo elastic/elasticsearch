@@ -3,7 +3,7 @@
 
 from
 // tag::from[]
-FROM test
+FROM employees
 // end::from[]
 | PROJECT emp_no
 | SORT emp_no

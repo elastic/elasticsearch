@@ -29,7 +29,7 @@ a:integer | b:integer
 
 
 length
-from test | sort emp_no | limit 3 | eval l = length(first_name) | project emp_no, l;
+from employees | sort emp_no | limit 3 | eval l = length(first_name) | project emp_no, l;
 
 emp_no:integer | l:integer
 10001 | 6
@@ -38,7 +38,7 @@ emp_no:integer | l:integer
 ;
 
 startsWithConstant
-from test | sort emp_no | limit 10 | eval f_S = starts_with(first_name, "S") | project emp_no, first_name, f_S;
+from employees | sort emp_no | limit 10 | eval f_S = starts_with(first_name, "S") | project emp_no, first_name, f_S;
 
 emp_no:integer | first_name:keyword  | f_S:boolean
 10001 | Georgi    | false
@@ -54,7 +54,7 @@ emp_no:integer | first_name:keyword  | f_S:boolean
 ;
 
 startsWithField
-from test | where emp_no <= 10010 | eval f_l = starts_with(last_name, gender) | project emp_no, last_name, gender, f_l;
+from employees | where emp_no <= 10010 | eval f_l = starts_with(last_name, gender) | project emp_no, last_name, gender, f_l;
 
 emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
 10001 | Facello   | M    | false
@@ -70,7 +70,7 @@ emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
 ;
 
 substring
-from test | where emp_no <= 10010 | eval f_l = substring(last_name, 3) | project emp_no, last_name, f_l;
+from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3) | project emp_no, last_name, f_l;
 
 emp_no:integer | last_name:keyword | f_l:keyword
 10001 | Facello   | cello
@@ -86,7 +86,7 @@ emp_no:integer | last_name:keyword | f_l:keyword
 ;
 
 substring with length
-from test | where emp_no <= 10010 | eval f_l = substring(last_name, 3, 1) | project emp_no, last_name, f_l;
+from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3, 1) | project emp_no, last_name, f_l;
 
 emp_no:integer | last_name:keyword | f_l:keyword
 10001 | Facello   | c
@@ -102,7 +102,7 @@ emp_no:integer | last_name:keyword | f_l:keyword
 ;
 
 substring negative start
-from test | where emp_no <= 10010 | eval f_l = substring(last_name, -3) | project emp_no, last_name, f_l;
+from employees | where emp_no <= 10010 | eval f_l = substring(last_name, -3) | project emp_no, last_name, f_l;
 
 emp_no:integer | last_name:keyword | f_l:keyword
 10001 | Facello   | llo
@@ -118,7 +118,7 @@ emp_no:integer | last_name:keyword | f_l:keyword
 ;
 
 substring nested negative start
-from test | where emp_no <= 10010 | eval f_l = substring(substring(last_name, -3),-1) | project emp_no, last_name, f_l;
+from employees | where emp_no <= 10010 | eval f_l = substring(substring(last_name, -3),-1) | project emp_no, last_name, f_l;
 
 emp_no:integer | last_name:keyword | f_l:keyword
 10001 | Facello   | o
@@ -134,7 +134,7 @@ emp_no:integer | last_name:keyword | f_l:keyword
 ;
 
 substring length
-from test | where emp_no <= 10010 | eval f_l = length(substring(last_name, 3)) | project emp_no, last_name, f_l;
+from employees | where emp_no <= 10010 | eval f_l = length(substring(last_name, 3)) | project emp_no, last_name, f_l;
 
 emp_no:integer | last_name:keyword | f_l:integer
 10001 | Facello   | 5
@@ -150,7 +150,7 @@ emp_no:integer | last_name:keyword | f_l:integer
 ;
 
 substring pair
-from test | where emp_no <= 10010 | eval x = substring(last_name, 1, 1), y = 1, z = substring("abcdef", y, y) | project emp_no, last_name, x, z;
+from employees | where emp_no <= 10010 | eval x = substring(last_name, 1, 1), y = 1, z = substring("abcdef", y, y) | project emp_no, last_name, x, z;
 
 emp_no:integer | last_name:keyword | x:keyword | z:keyword
 10001 | Facello   | F | a
@@ -166,7 +166,7 @@ emp_no:integer | last_name:keyword | x:keyword | z:keyword
 ;
 
 concat
-from test | sort emp_no | limit 10 | eval name = concat(first_name, " ", last_name) | project emp_no, name;
+from employees | sort emp_no | limit 10 | eval name = concat(first_name, " ", last_name) | project emp_no, name;
 
 emp_no:integer | name:keyword
 10001 | Georgi Facello
@@ -182,7 +182,7 @@ emp_no:integer | name:keyword
 ;
 
 concatComplex
-from test | sort emp_no | limit 10 | eval foo = " - ", x = concat(gender, foo) | eval name = concat(x, first_name, " ", last_name, ", ", concat(first_name, last_name)) | project emp_no, name;
+from employees | sort emp_no | limit 10 | eval foo = " - ", x = concat(gender, foo) | eval name = concat(x, first_name, " ", last_name, ", ", concat(first_name, last_name)) | project emp_no, name;
 
 emp_no:integer | name:keyword
 10001          | M - Georgi Facello, GeorgiFacello

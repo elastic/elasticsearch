@@ -1,5 +1,5 @@
 twoConditionsWithDefault
-from test
+from employees
 | eval type = case(
     languages <= 1, "monolingual",
     languages <= 2, "bilingual",
@@ -21,7 +21,7 @@ emp_no:integer | type:keyword
 ;
 
 singleCondition
-from test
+from employees
 | eval g = case(gender == "F", true)
 | project gender, g
 | limit 10;
@@ -40,7 +40,7 @@ null           |null
 ;
 
 conditionIsNull
-from test 
+from employees 
 | eval g = case(
     gender == "F", 1,
     languages > 1, 2,
@@ -77,7 +77,7 @@ M              |null             |3
 ;
 
 nullValue
-from test
+from employees
 | eval g = case(gender == "F", 1 + null, 10)
 | project gender, g
 | limit 5;
@@ -91,7 +91,7 @@ M              |10
 ;
 
 isNull
-from test
+from employees
 | where is_null(gender)
 | sort first_name
 | project first_name, gender
@@ -104,7 +104,7 @@ Duangkaew         |null
 ;
 
 notIsNull
-from test
+from employees
 | where not is_null(gender)
 | sort first_name
 | project first_name, gender

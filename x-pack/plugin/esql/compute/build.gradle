@@ -7,6 +7,7 @@ dependencies {
   annotationProcessor project('gen')
 
   testImplementation project(':test:framework')
+  testImplementation(project(xpackModule('ql')))
 }
 
 tasks.named("compileJava").configure {

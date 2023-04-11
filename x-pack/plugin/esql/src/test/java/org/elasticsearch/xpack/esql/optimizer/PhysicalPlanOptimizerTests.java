@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -987,6 +988,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "emp_no" : {
                   "value" : 10011
             """));
+    }
+
+    public void testTopNNotPushedDownOnOverlimit() {
+        var optimized = optimizedPlan(
+            physicalPlan("from test | sort emp_no | limit " + (LuceneOperator.PAGE_SIZE + 1) + " | project emp_no")
+        );
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+        project = as(exchange.child(), ProjectExec.class);
+        List<String> projectionNames = project.projections().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertTrue(projectionNames.containsAll(List.of("emp_no")));
+        var extract = as(project.child(), FieldExtractExec.class);
+        var source = source(extract.child());
+        assertThat(source.limit(), is(topN.limit()));
+        assertThat(source.sorts(), is(sorts(topN.order())));
+        assertThat(source.limit(), equalTo(l(10000)));
     }
 
     private static EsQueryExec source(PhysicalPlan plan) {

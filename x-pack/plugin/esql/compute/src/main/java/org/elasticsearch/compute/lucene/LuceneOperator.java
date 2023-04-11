@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
@@ -51,7 +50,7 @@ public abstract class LuceneOperator extends SourceOperator {
     final IndexReader indexReader;
     final int shardId;
     @Nullable
-    private final Query query;
+    final Query query;
     final List<LuceneSourceOperator.PartialLeafReaderContext> leaves;
     final int maxPageSize;
     final int minPageSize;
@@ -63,27 +62,19 @@ public abstract class LuceneOperator extends SourceOperator {
     BulkScorer currentScorer = null;
 
     int currentPagePos;
-
-    IntVector.Builder currentBlockBuilder;
-
     int currentScorerPos;
     int pagesEmitted;
 
-    int numCollectedDocs = 0;
-    final int maxCollectedDocs;
-
-    LuceneOperator(IndexReader reader, int shardId, Query query, int maxPageSize, int limit) {
+    LuceneOperator(IndexReader reader, int shardId, Query query, int maxPageSize) {
         this.indexReader = reader;
         this.shardId = shardId;
         this.leaves = reader.leaves().stream().map(PartialLeafReaderContext::new).collect(Collectors.toList());
         this.query = query;
         this.maxPageSize = maxPageSize;
         this.minPageSize = maxPageSize / 2;
-        currentBlockBuilder = IntVector.newVectorBuilder(maxPageSize);
-        maxCollectedDocs = limit;
     }
 
-    LuceneOperator(Weight weight, int shardId, List<PartialLeafReaderContext> leaves, int maxPageSize, int maxCollectedDocs) {
+    LuceneOperator(Weight weight, int shardId, List<PartialLeafReaderContext> leaves, int maxPageSize) {
         this.indexReader = null;
         this.shardId = shardId;
         this.leaves = leaves;
@@ -91,8 +82,6 @@ public abstract class LuceneOperator extends SourceOperator {
         this.weight = weight;
         this.maxPageSize = maxPageSize;
         this.minPageSize = maxPageSize / 2;
-        currentBlockBuilder = IntVector.newVectorBuilder(maxPageSize);
-        this.maxCollectedDocs = maxCollectedDocs;
     }
 
     abstract LuceneOperator docSliceLuceneOperator(List<PartialLeafReaderContext> slice);

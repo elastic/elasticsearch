@@ -321,6 +321,23 @@ public class FlattenedFieldParserTests extends ESTestCase {
         assertEquals(0, fields.size());
     }
 
+    public void testDimensions() throws Exception {
+        String input = "{ \"key1\": \"value1\", \"key2\": \"value2\", \"key3\": \"value3\", \"key4\": \"value4\" }";
+        XContentParser xContentParser = createXContentParser(input);
+        FlattenedFieldParser configuredParser = new FlattenedFieldParser(
+            "field",
+            "field._keyed",
+            new FakeFieldType("field"),
+            Integer.MAX_VALUE,
+            100,
+            null,
+            List.of("key3", "key4")
+        );
+
+        List<IndexableField> fields = configuredParser.parse(xContentParser);
+        assertEquals(8, fields.size());
+    }
+
     public void testNullValues() throws Exception {
         String input = "{ \"key\": null}";
         XContentParser xContentParser = createXContentParser(input);

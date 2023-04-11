@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
@@ -20,6 +21,7 @@ public final class TimeSeriesParams {
 
     public static final String TIME_SERIES_METRIC_PARAM = "time_series_metric";
     public static final String TIME_SERIES_DIMENSION_PARAM = "time_series_dimension";
+    public static final String TIME_SERIES_DIMENSIONS_ARRAY_PARAM = "time_series_dimensions";
 
     private TimeSeriesParams() {}
 
@@ -89,6 +91,10 @@ public final class TimeSeriesParams {
 
     public static FieldMapper.Parameter<Boolean> dimensionParam(Function<FieldMapper, Boolean> initializer) {
         return FieldMapper.Parameter.boolParam(TIME_SERIES_DIMENSION_PARAM, false, initializer, false);
+    }
+
+    public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
+        return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
     }
 
 }

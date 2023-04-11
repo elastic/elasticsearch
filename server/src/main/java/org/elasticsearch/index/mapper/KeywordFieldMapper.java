@@ -779,13 +779,16 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void validateMatchedRoutingPath() {
-            if (false == isDimension) {
+        public void validateMatchedRoutingPath(final String routingPath) {
+            if (false == isDimension && name().equals(routingPath)) {
                 throw new IllegalArgumentException(
-                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    "All fields that match routing_path "
+                        + "must be keywords with [time_series_dimension: true] "
                         + "and without the [script] parameter. ["
                         + name()
-                        + "] was not [time_series_dimension: true]."
+                        + "] was ["
+                        + typeName()
+                        + "]."
                 );
             }
             if (scriptValues != null) {

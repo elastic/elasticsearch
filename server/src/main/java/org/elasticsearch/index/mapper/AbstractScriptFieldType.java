@@ -204,12 +204,13 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public void validateMatchedRoutingPath() {
+    public void validateMatchedRoutingPath(final String routingPath) {
         throw new IllegalArgumentException(
-            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+            "All fields that match routing_path "
+                + "must be keywords with [time_series_dimension: true] "
                 + "and without the [script] parameter. ["
                 + name()
-                + "] was a runtime ["
+                + "] was ["
                 + typeName()
                 + "]."
         );

@@ -105,7 +105,7 @@ public class DocumentMapper {
         List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
         for (String path : routingPaths) {
             for (String match : mappingLookup.getMatchingFieldNames(path)) {
-                mappingLookup.getFieldType(match).validateMatchedRoutingPath();
+                mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
             }
             for (String objectName : mappingLookup.objectMappers().keySet()) {
                 // object type is not allowed in the routing paths

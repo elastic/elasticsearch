@@ -110,7 +110,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         byte[] suffix = new byte[16];
         String id = createId(context.getDynamicMappers().isEmpty(), routingBuilder, tsid, timestamp, suffix);
         /*
-         * Make sure that _id from extracting the tsid matches that _id
+         * Make sure that _id from extracting the tsid matches that _id(
          * from extracting the _source. This should be true for all valid
          * documents with valid mappings. *But* some invalid mappings
          * will not parse the field but be rejected later by the dynamic

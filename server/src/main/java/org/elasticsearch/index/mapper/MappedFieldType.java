@@ -604,9 +604,10 @@ public abstract class MappedFieldType {
     /**
      * Validate that this field can be the target of {@link IndexMetadata#INDEX_ROUTING_PATH}.
      */
-    public void validateMatchedRoutingPath() {
+    public void validateMatchedRoutingPath(String routingPath) {
         throw new IllegalArgumentException(
-            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+            "All fields that match routing_path "
+                + "must be keywords with [time_series_dimension: true] "
                 + "and without the [script] parameter. ["
                 + name()
                 + "] was ["

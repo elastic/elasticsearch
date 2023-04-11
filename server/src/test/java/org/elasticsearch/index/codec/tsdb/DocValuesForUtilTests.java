@@ -39,7 +39,7 @@ public class DocValuesForUtilTests extends LuceneTestCase {
 
         for (int i = 0; i < iterations; ++i) {
             final int bpv = TestUtil.nextInt(random(), 1, 64);
-            bpvs[i] = bpv;
+            bpvs[i] = DocValuesForUtil.roundBits(bpv);
             for (int j = 0; j < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++j) {
                 values[i * ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE + j] = bpv == 64
                     ? random().nextLong()

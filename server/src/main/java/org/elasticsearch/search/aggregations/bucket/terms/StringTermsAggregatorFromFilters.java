@@ -72,6 +72,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             new FilterByFilterAggregator.AdapterBuilder<StringTermsAggregatorFromFilters>(
                 name,
                 false,
+                false,
                 null,
                 context,
                 parent,

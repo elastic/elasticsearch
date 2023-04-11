@@ -10,14 +10,13 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RerouteProcessorFactoryTests extends ESTestCase {
 
@@ -35,12 +34,12 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
 
     public void testInvalidDataset() throws Exception {
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> create("my-service", null));
-        assertThat(e.getMessage(), Matchers.equalTo("[dataset] 'my-service' contains disallowed characters"));
+        assertThat(e.getMessage(), equalTo("[dataset] 'my-service' contains disallowed characters"));
     }
 
     public void testInvalidNamespace() throws Exception {
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> create("generic", "foo:bar"));
-        assertThat(e.getMessage(), Matchers.equalTo("[namespace] 'foo:bar' contains disallowed characters"));
+        assertThat(e.getMessage(), equalTo("[namespace] 'foo:bar' contains disallowed characters"));
     }
 
     public void testDestinationSuccess() throws Exception {
@@ -53,7 +52,7 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
             ElasticsearchParseException.class,
             () -> create(Map.of("destination", "foo", "dataset", "bar"))
         );
-        assertThat(e.getMessage(), Matchers.equalTo("[destination] can only be set if dataset and namespace are not set"));
+        assertThat(e.getMessage(), equalTo("[destination] can only be set if dataset and namespace are not set"));
     }
 
     public void testFieldReference() throws Exception {
@@ -62,10 +61,10 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
 
     public void testInvalidFieldReference() throws Exception {
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> create("{{foo}}-{{bar}}", "foo"));
-        assertThat(e.getMessage(), Matchers.equalTo("[dataset] '{{foo}}-{{bar}}' is not a valid field reference"));
+        assertThat(e.getMessage(), equalTo("[dataset] '{{foo}}-{{bar}}' is not a valid field reference"));
 
         e = expectThrows(ElasticsearchParseException.class, () -> create("{{{{foo}}}}", "foo"));
-        assertThat(e.getMessage(), Matchers.equalTo("[dataset] '{{{{foo}}}}' is not a valid field reference"));
+        assertThat(e.getMessage(), equalTo("[dataset] '{{{{foo}}}}' is not a valid field reference"));
     }
 
     private static RerouteProcessor create(String dataset, String namespace) throws Exception {

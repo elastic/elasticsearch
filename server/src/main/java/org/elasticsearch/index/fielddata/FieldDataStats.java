@@ -178,15 +178,17 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
 
         public void add(GlobalOrdinalsStats other) {
             buildTimeMillis += other.buildTimeMillis;
-            for (var entry : other.fieldGlobalOrdinalsStats.entrySet()) {
-                fieldGlobalOrdinalsStats.merge(
-                    entry.getKey(),
-                    entry.getValue(),
-                    (value1, value2) -> new GlobalOrdinalFieldStats(
-                        value1.totalBuildingTime + value2.totalBuildingTime,
-                        Math.max(value1.valueCount, value2.valueCount)
-                    )
-                );
+            if (other.fieldGlobalOrdinalsStats != null) {
+                for (var entry : other.fieldGlobalOrdinalsStats.entrySet()) {
+                    fieldGlobalOrdinalsStats.merge(
+                        entry.getKey(),
+                        entry.getValue(),
+                        (value1, value2) -> new GlobalOrdinalFieldStats(
+                            value1.totalBuildingTime + value2.totalBuildingTime,
+                            Math.max(value1.valueCount, value2.valueCount)
+                        )
+                    );
+                }
             }
         }
 

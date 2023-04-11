@@ -101,6 +101,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
             new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
+                    // TODO Only fail if were unable to mark the shard as stale?
                     l.onFailure(e);
                 }
 

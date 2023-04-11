@@ -58,9 +58,17 @@ public interface SimplificationErrorCalculator {
             double b = distance(right, middle);
             double c = distance(middle, left);
             // semi-perimeter
-            double s = 0.5 * ( a + b + c);  // Semi-perimeter
-            // Herons formula
-            return Math.sqrt(s * (s - a) * (s - b) * (s - c));
+            double s = 0.5 * (a + b + c);  // Semi-perimeter
+            double da = s - a;
+            double db = s - b;
+            double dc = s - c;
+            if (da >= 0 && db >= 0 && dc >= 0) {
+                // Herons formula
+                return Math.sqrt(s * da * db * dc);
+            } else {
+                // rounding errors can cause flat triangles to have negative values, leading to NaN areas
+                return 0.0;
+            }
         }
 
         private double distance(PointLike a, PointLike b) {

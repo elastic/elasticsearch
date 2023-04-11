@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.logging.LogManager;
@@ -29,7 +30,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
-public class AnalyticsEventEmitter {
+public class AnalyticsEventEmitter extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsEvent.class);
 
@@ -87,5 +88,21 @@ public class AnalyticsEventEmitter {
                 .setSource(event.toXContent(builder, ToXContent.EMPTY_PARAMS))
                 .request();
         }
+    }
+
+    @Override
+    protected void doStart() {
+        // Nothing to do to start the event emitter.
+    }
+
+    @Override
+    protected void doStop() {
+        // Nothing to do to stop the event emitter.
+    }
+
+    @Override
+    protected void doClose() {
+        // Ensure the bulk processor is closed, so pending requests are flushed.
+        bulkProcessor.close();
     }
 }

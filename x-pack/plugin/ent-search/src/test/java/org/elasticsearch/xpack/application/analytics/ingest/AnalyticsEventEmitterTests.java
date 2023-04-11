@@ -35,7 +35,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 public class AnalyticsEventEmitterTests extends ESTestCase {
-
     public void testEmitEvent() throws IOException {
         // Random collection name
         String collectionName = randomIdentifier();
@@ -154,6 +153,24 @@ public class AnalyticsEventEmitterTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("Unable to add the event to the bulk."));
             return true;
         }));
+    }
+
+    public void testEventProcessorIsClosedAutomatically() {
+        // Mocking the client used in the test.
+        Client client = mock(Client.class);
+
+        // Mocking the bulk processor used in the test.
+        BulkProcessorFactory bulkProcessorFactory = mock(BulkProcessorFactory.class);
+        BulkProcessor2 bulkProcessor = mock(BulkProcessor2.class);
+        doReturn(bulkProcessor).when(bulkProcessorFactory).create(client);
+
+        // Instantiating the tested event emitter.
+        AnalyticsEventEmitter eventEmitter = new AnalyticsEventEmitter(client, bulkProcessorFactory, mock(AnalyticsEventFactory.class));
+
+        // Closing the event emitter.
+        eventEmitter.close();
+
+        verify(bulkProcessor).close();
     }
 
     private void innerTestEmitEvent(PostAnalyticsEventAction.Request request, ActionListener<PostAnalyticsEventAction.Response> listener)

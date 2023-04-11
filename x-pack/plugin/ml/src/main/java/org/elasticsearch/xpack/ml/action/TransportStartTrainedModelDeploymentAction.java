@@ -131,7 +131,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ClusterState state,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) throws Exception {
-        logger.trace(() -> "[" + request.getModelId() + "] received deploy request");
+        logger.debug(() -> "[" + request.getDeploymentId() + "] received deploy request for model [" + request.getModelId() + "]");
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
@@ -148,7 +148,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             return;
         }
 
-        if (TrainedModelAssignmentMetadata.fromState(state).modelAssignments().size() >= MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS) {
+        if (TrainedModelAssignmentMetadata.fromState(state).allAssignments().size() >= MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Could not start model deployment because existing deployments reached the limit of [{}]",
@@ -160,15 +160,18 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         }
 
         ActionListener<CreateTrainedModelAssignmentAction.Response> waitForDeploymentToStart = ActionListener.wrap(
-            modelAssignment -> waitForDeploymentState(request.getModelId(), request.getTimeout(), request.getWaitForState(), listener),
+            modelAssignment -> waitForDeploymentState(request.getDeploymentId(), request.getTimeout(), request.getWaitForState(), listener),
             e -> {
-                logger.warn(() -> "[" + request.getModelId() + "] creating new assignment failed", e);
+                logger.warn(
+                    () -> "[" + request.getDeploymentId() + "] creating new assignment for model [" + request.getModelId() + "] failed",
+                    e
+                );
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
                         "Cannot start deployment [{}] because it has already been started",
                         RestStatus.CONFLICT,
                         e,
-                        request.getModelId()
+                        request.getDeploymentId()
                     );
                 }
                 listener.onFailure(e);
@@ -208,6 +211,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 ActionListener.wrap(validate -> getModelBytes(trainedModelConfig, ActionListener.wrap(modelBytes -> {
                     TaskParams taskParams = new TaskParams(
                         trainedModelConfig.getModelId(),
+                        request.getDeploymentId(),
                         modelBytes,
                         request.getNumberOfAllocations(),
                         request.getThreadsPerAllocation(),
@@ -256,23 +260,23 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     }
 
     private void waitForDeploymentState(
-        String modelId,
+        String deploymentId,
         TimeValue timeout,
         AllocationStatus.State state,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
-        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId, state);
+        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(deploymentId, state);
         trainedModelAssignmentService.waitForAssignmentCondition(
-            modelId,
+            deploymentId,
             predicate,
             timeout,
             new TrainedModelAssignmentService.WaitForAssignmentListener() {
                 @Override
                 public void onResponse(TrainedModelAssignment assignment) {
                     if (predicate.exception != null) {
-                        deleteFailedDeployment(modelId, predicate.exception, listener);
+                        deleteFailedDeployment(deploymentId, predicate.exception, listener);
                     } else {
-                        auditor.info(assignment.getModelId(), Messages.INFERENCE_DEPLOYMENT_STARTED);
+                        auditor.info(assignment.getDeploymentId(), Messages.INFERENCE_DEPLOYMENT_STARTED);
                         listener.onResponse(new CreateTrainedModelAssignmentAction.Response(assignment));
                     }
                 }
@@ -286,16 +290,16 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     }
 
     private void deleteFailedDeployment(
-        String modelId,
+        String deploymentId,
         Exception exception,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
-        logger.trace(() -> format("[%s] Deleting failed deployment", modelId), exception);
-        trainedModelAssignmentService.deleteModelAssignment(modelId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
+        logger.trace(() -> format("[%s] Deleting failed deployment", deploymentId), exception);
+        trainedModelAssignmentService.deleteModelAssignment(deploymentId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
             logger.error(
                 () -> format(
                     "[%s] Failed to delete model allocation that had failed with the reason [%s]",
-                    modelId,
+                    deploymentId,
                     exception.getMessage()
                 ),
                 e
@@ -421,21 +425,23 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         private volatile Exception exception;
 
         // for logging
-        private final String modelId;
+        private final String deploymentId;
         private final AllocationStatus.State waitForState;
 
-        DeploymentStartedPredicate(String modelId, AllocationStatus.State waitForState) {
-            this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
+        DeploymentStartedPredicate(String deploymentId, AllocationStatus.State waitForState) {
+            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, "deployment_id");
             this.waitForState = waitForState;
         }
 
         @Override
         public boolean test(ClusterState clusterState) {
-            TrainedModelAssignment trainedModelAssignment = TrainedModelAssignmentMetadata.assignmentForModelId(clusterState, modelId)
-                .orElse(null);
+            TrainedModelAssignment trainedModelAssignment = TrainedModelAssignmentMetadata.assignmentForDeploymentId(
+                clusterState,
+                deploymentId
+            ).orElse(null);
             if (trainedModelAssignment == null) {
                 // Something weird happened, it should NEVER be null...
-                logger.trace(() -> format("[%s] assignment was null while waiting for state [%s]", modelId, waitForState));
+                logger.trace(() -> format("[%s] assignment was null while waiting for state [%s]", deploymentId, waitForState));
                 return true;
             }
 
@@ -478,7 +484,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             logger.trace(
                 () -> format(
                     "[%s] tested with state [%s] and nodes %s still initializing",
-                    modelId,
+                    deploymentId,
                     trainedModelAssignment.getAssignmentState(),
                     nodesStillInitializing
                 )

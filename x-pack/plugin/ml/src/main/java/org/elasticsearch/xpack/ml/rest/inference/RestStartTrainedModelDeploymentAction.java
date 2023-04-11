@@ -54,11 +54,16 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String modelId = restRequest.param(StartTrainedModelDeploymentAction.Request.MODEL_ID.getPreferredName());
+        String deploymentId = restRequest.param(StartTrainedModelDeploymentAction.Request.DEPLOYMENT_ID.getPreferredName(), modelId);
         StartTrainedModelDeploymentAction.Request request;
         if (restRequest.hasContentOrSourceParam()) {
-            request = StartTrainedModelDeploymentAction.Request.parseRequest(modelId, restRequest.contentOrSourceParamParser());
+            request = StartTrainedModelDeploymentAction.Request.parseRequest(
+                modelId,
+                deploymentId,
+                restRequest.contentOrSourceParamParser()
+            );
         } else {
-            request = new StartTrainedModelDeploymentAction.Request(modelId);
+            request = new StartTrainedModelDeploymentAction.Request(modelId, deploymentId);
             if (restRequest.hasParam(TIMEOUT.getPreferredName())) {
                 TimeValue openTimeout = restRequest.paramAsTime(
                     TIMEOUT.getPreferredName(),

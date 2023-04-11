@@ -1,0 +1,23 @@
+[role="xpack"]
+[[data-lifecycle-management]]
+== {dlm-init}: Manage your data lifecycle
+
+experimental::[]
+
+{dlm-cap} ({dlm-init}) enables you to automatically manage data streams
+according to your retention requirements. For example, you could use {dlm-init} to:
+
+* Ensure that data indexed in a data stream will be kept at least for the retention time you defined.
+* Older data will be deleted by {es} any moment later in time considering {es}'s performance.
+
+You can create a data stream via index templates and directly configure your data lifecycle or you
+can do it later on an existing data stream via the <<data-lifecycle-management-api, {dlm-init} APIs>>.
+
+In the following sections, we will go through the following tutorials:
+
+* <<tutorial-manage-new-data-stream>>
+* <<tutorial-manage-existing-data-stream>>
+
+include::tutorial-manage-new-data-stream.asciidoc[]
+
+include::tutorial-manage-existing-data-stream.asciidoc[]

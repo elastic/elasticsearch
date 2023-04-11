@@ -1,0 +1,57 @@
+[role="xpack"]
+[[tutorial-manage-existing-data-stream]]
+=== Tutorial: Update existing data stream
+
+experimental::[]
+
+To update the lifecycle of an existing data stream you do following actions:
+
+. <<set-lifecycle>>
+. <<delete-lifecycle>>
+
+[discrete]
+[[set-lifecycle]]
+==== Set a data stream's lifecycle
+
+To add or to change the retention period of your data stream you can use the <<dlm-put-lifecycle, PUT lifecycle API>>.
+
+* You can set infinite retention period, meaning that your data should never be deleted. For example:
++
+[source,console]
+----
+PUT _data_stream/my-data-stream/_lifecycle
+{
+  "lifecycle": {} <1>
+}
+----
+<1> An empty lifecycle means that your data stream is still be managed and able to support your streaming data but your
+data will never be deleted.
+
+* Or you can set the retention period of your choice. For example:
++
+[source,console]
+----
+PUT _data_stream/my-data-stream/_lifecycle
+{
+  "lifecycle": {
+    "data_retention": "30d" <1>
+  }
+}
+----
+<1> The retention period of this data stream is set to 30 days. This means that {es} is allowed to delete data that is
+older than 30 days at its own discretion.
+
+[discrete]
+[[delete-lifecycle]]
+==== "Unmanage" a data stream
+
+To "unmanage" a data stream meaning that {dlm-init} will stop managing this data stream you can use the
+<<dlm-delete-lifecycle-request,DELETE lifecycle API>>. For example:
+
+[source,console]
+--------------------------------------------------
+DELETE _data_stream/my-data-stream/_lifecycle
+--------------------------------------------------
+
+The above request will remove the `lifecycle` configuration from the data stream rendering the data stream itself and
+all its backing indices not managed by {dlm-init}.

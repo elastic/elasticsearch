@@ -1,7 +1,7 @@
 [[data-lifecycle-management-api]]
-== Data Lifecycle Management APIs
+== {dlm-cap} APIs
 
-You use the following APIs to configure the data lifecycle management for data streams
+You use the following APIs to configure the {dlm} for data streams
 and to retrieve lifecycle information for backing indices.
 
 [discrete]

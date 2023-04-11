@@ -160,6 +160,13 @@ type.
 // end::time-series-metric-null[]
 ====
 
+[[counter-field-limitation]]
+.Counter field limitation
+****
+ Note that counter fields do come with a limitation. Only the following aggregations are supported with counter field:
+ `rate`, `histogram`, `range`, `min`, `max`, `top_metrics` and `variable_width_histogram`.
+****
+
 [discrete]
 [[time-series-mode]]
 === Time series mode

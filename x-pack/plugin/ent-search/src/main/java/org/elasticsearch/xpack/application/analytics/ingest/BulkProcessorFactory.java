@@ -40,7 +40,7 @@ public class BulkProcessorFactory {
         return BulkProcessor2.builder(client::bulk, listener, client.threadPool())
             .setMaxNumberOfRetries(config.maxNumberOfRetries())
             .setBulkActions(config.maxNumberOfEventsPerBulk())
-            .setBulkSize(new ByteSizeValue( -1, ByteSizeUnit.BYTES))
+            .setBulkSize(new ByteSizeValue(-1, ByteSizeUnit.BYTES))
             .setFlushInterval(config.flushDelay())
             .build();
     }

@@ -52,9 +52,11 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.oneOf;
 
 public class SniffConnectionStrategyTests extends ESTestCase {
@@ -737,7 +739,9 @@ public class SniffConnectionStrategyTests extends ESTestCase {
 
                     PlainActionFuture<Void> newConnect = PlainActionFuture.newFuture();
                     strategy.connect(newConnect);
-                    IllegalStateException ise = expectThrows(IllegalStateException.class, newConnect::actionGet);
+                    NoSeedNodeLeftException nsne = expectThrows(NoSeedNodeLeftException.class, newConnect::actionGet);
+                    assertThat(nsne.getSuppressed(), arrayContaining(instanceOf(IllegalStateException.class)));
+                    IllegalStateException ise = (IllegalStateException) nsne.getSuppressed()[0];
                     assertThat(
                         ise.getMessage(),
                         allOf(

@@ -1058,7 +1058,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * A generic interface representing an operation performed on the transaction log.
      * Each is associated with a type.
      */
-    public abstract static class Operation implements Writeable {
+    public abstract static sealed class Operation implements Writeable permits Delete, Index, NoOp {
         public enum Type {
             @Deprecated
             CREATE((byte) 1),
@@ -1130,7 +1130,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         protected abstract void writeBody(StreamOutput out) throws IOException;
     }
 
-    public static class Index extends Operation {
+    public static final class Index extends Operation {
 
         public static final int FORMAT_NO_PARENT = 9; // since 7.0
         public static final int FORMAT_NO_VERSION_TYPE = FORMAT_NO_PARENT + 1;
@@ -1296,7 +1296,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     }
 
-    public static class Delete extends Operation {
+    public static final class Delete extends Operation {
 
         private static final int FORMAT_6_0 = 4; // 6.0 - *
         public static final int FORMAT_NO_PARENT = FORMAT_6_0 + 1; // since 7.0
@@ -1410,7 +1410,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    public static class NoOp extends Operation {
+    public static final class NoOp extends Operation {
         private final String reason;
 
         public String reason() {

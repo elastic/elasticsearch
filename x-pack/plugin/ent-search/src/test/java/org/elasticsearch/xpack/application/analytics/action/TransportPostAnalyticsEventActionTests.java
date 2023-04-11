@@ -13,7 +13,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.application.analytics.AnalyticsEventEmitterService;
+import org.elasticsearch.xpack.application.analytics.AnalyticsEventIngestService;
 
 import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionTestUtils.mockLicenseState;
 import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionTestUtils.verifyExceptionIsThrownOnInvalidLicence;
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.verify;
 public class TransportPostAnalyticsEventActionTests extends ESTestCase {
 
     public void testWithSupportedLicense() {
-        AnalyticsEventEmitterService eventEmitter = mock(AnalyticsEventEmitterService.class);
+        AnalyticsEventIngestService eventEmitter = mock(AnalyticsEventIngestService.class);
 
         TransportPostAnalyticsEventAction transportAction = createTransportAction(mockLicenseState(true), eventEmitter);
         PostAnalyticsEventAction.Request request = mock(PostAnalyticsEventAction.Request.class);
@@ -35,12 +35,12 @@ public class TransportPostAnalyticsEventActionTests extends ESTestCase {
         ActionListener<PostAnalyticsEventAction.Response> listener = mock(ActionListener.class);
 
         transportAction.doExecute(mock(Task.class), request, listener);
-        verify(eventEmitter, times(1)).emitEvent(request, listener);
+        verify(eventEmitter, times(1)).addEvent(request, listener);
         verifyNoExceptionIsThrown(listener);
     }
 
     public void testWithUnsupportedLicense() {
-        AnalyticsEventEmitterService eventEmitter = mock(AnalyticsEventEmitterService.class);
+        AnalyticsEventIngestService eventEmitter = mock(AnalyticsEventIngestService.class);
 
         TransportPostAnalyticsEventAction transportAction = createTransportAction(mockLicenseState(false), eventEmitter);
         PostAnalyticsEventAction.Request request = mock(PostAnalyticsEventAction.Request.class);
@@ -50,13 +50,13 @@ public class TransportPostAnalyticsEventActionTests extends ESTestCase {
 
         transportAction.doExecute(mock(Task.class), request, listener);
 
-        verify(eventEmitter, never()).emitEvent(request, listener);
+        verify(eventEmitter, never()).addEvent(request, listener);
         verifyExceptionIsThrownOnInvalidLicence(listener);
     }
 
     private TransportPostAnalyticsEventAction createTransportAction(
         XPackLicenseState xPackLicenseState,
-        AnalyticsEventEmitterService eventEmitter
+        AnalyticsEventIngestService eventEmitter
     ) {
         return new TransportPostAnalyticsEventAction(
             mock(TransportService.class),

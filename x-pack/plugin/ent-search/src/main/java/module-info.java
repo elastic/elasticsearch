@@ -19,6 +19,7 @@ module org.elasticsearch.application {
     exports org.elasticsearch.xpack.application.analytics.event;
     exports org.elasticsearch.xpack.application.analytics.event.parser.field;
     exports org.elasticsearch.xpack.application.analytics.event.parser.event;
+    exports org.elasticsearch.xpack.application.analytics.ingest;
 
     exports org.elasticsearch.xpack.application.search;
     exports org.elasticsearch.xpack.application.search.action;

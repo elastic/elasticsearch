@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
 import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 
 import java.io.IOException;
@@ -48,6 +49,33 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
         Type eventType();
 
         String eventCollectionName();
+
+        default AnalyticsCollection analyticsCollection() {
+            return new AnalyticsCollection(eventCollectionName());
+        }
+    }
+
+    static class AnalyticsEventContext implements Context {
+        private final AnalyticsEvent event;
+
+        AnalyticsEventContext(AnalyticsEvent event) {
+            this.event = Objects.requireNonNull(event);
+        }
+
+        @Override
+        public long eventTime() {
+            return event.eventTime();
+        }
+
+        @Override
+        public Type eventType() {
+            return event.eventType();
+        }
+
+        @Override
+        public String eventCollectionName() {
+            return event.eventCollectionName();
+        }
     }
 
     /**
@@ -124,6 +152,10 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
 
     public Map<String, Object> payloadAsMap() {
         return XContentHelper.convertToMap(payload(), true, xContentType()).v2();
+    }
+
+    public Context context() {
+        return new AnalyticsEventContext(this);
     }
 
     @Override

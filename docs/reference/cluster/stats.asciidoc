@@ -1514,7 +1514,11 @@ The API returns the following response:
       "fielddata": {
          "memory_size": "0b",
          "memory_size_in_bytes": 0,
-         "evictions": 0
+         "evictions": 0,
+         "global_ordinals": {
+            "build_time" : "0s",
+            "build_time_in_millis" : 0
+         }
       },
       "query_cache": {
          "memory_size": "0b",

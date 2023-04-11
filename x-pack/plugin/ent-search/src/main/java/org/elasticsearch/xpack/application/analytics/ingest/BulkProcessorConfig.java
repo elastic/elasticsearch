@@ -21,18 +21,30 @@ import org.elasticsearch.core.TimeValue;
  *  - max_number_of_retries: the maximum number of retries when bulk execution fails (default: 3)
  */
 public class BulkProcessorConfig {
+    private static final String SETTING_ROOT_PATH = "xpack.applications.behavioral_analytics.ingest.bulk_processor";
 
-    private static String SETTING_ROOT_PATH = "xpack.applications.behavioral_analytics.ingest.bulk_processor";
     public static final Setting<TimeValue> FLUSH_DELAY_SETTING = Setting.timeSetting(
-        Strings.format("%s.%s", SETTING_ROOT_PATH, "flush_delay"),  TimeValue.timeValueSeconds(10), Setting.Property.NodeScope
+        Strings.format("%s.%s", SETTING_ROOT_PATH, "flush_delay"),
+        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueSeconds(60),
+        Setting.Property.NodeScope
     );
 
     public static final Setting<Integer> MAX_NUMBER_OF_EVENTS_PER_BULK_SETTING = Setting.intSetting(
-        Strings.format("%s.%s", SETTING_ROOT_PATH, "max_events_per_bulk"),  1000, 1, 10000, Setting.Property.NodeScope
+        Strings.format("%s.%s", SETTING_ROOT_PATH, "max_events_per_bulk"),
+        1000,
+        1,
+        10000,
+        Setting.Property.NodeScope
     );
 
     public static final Setting<Integer> MAX_NUMBER_OF_RETRIES_SETTING = Setting.intSetting(
-        Strings.format("%s.%s", SETTING_ROOT_PATH, "max_number_of_retries"),  3, 0, 5, Setting.Property.NodeScope
+        Strings.format("%s.%s", SETTING_ROOT_PATH, "max_number_of_retries"),
+        3,
+        0,
+        5,
+        Setting.Property.NodeScope
     );
 
     private final TimeValue flushDelay;

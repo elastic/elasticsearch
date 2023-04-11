@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.application.analytics.action.TransportDeleteAnaly
 import org.elasticsearch.xpack.application.analytics.action.TransportGetAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
+import org.elasticsearch.xpack.application.analytics.ingest.BulkProcessorConfig;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.GetSearchApplicationAction;
@@ -180,5 +182,14 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     @Override
     public String getFeatureDescription() {
         return "Manages configuration for Enterprise Search features";
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(
+            BulkProcessorConfig.MAX_NUMBER_OF_EVENTS_PER_BULK_SETTING,
+            BulkProcessorConfig.FLUSH_DELAY_SETTING,
+            BulkProcessorConfig.MAX_NUMBER_OF_RETRIES_SETTING
+        );
     }
 }

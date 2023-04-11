@@ -451,8 +451,8 @@ been calculated: `min`, `max`, `sum`, and `value_count`.
 // TEST[skip:todo]
 
 You can now re-run the earlier aggregation. Even though the aggregation runs on
-the downsampled index that only contains 288 documents, it returns the same
-results as the earlier aggregation on the original index.
+the downsampled data stream that only contains 288 documents, it returns the
+same results as the earlier aggregation on the original index.
 
 [source,console]
 ----

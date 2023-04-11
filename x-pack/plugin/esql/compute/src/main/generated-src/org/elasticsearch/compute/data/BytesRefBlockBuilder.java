@@ -74,6 +74,12 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
 
     @Override
     public BytesRefBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
+        if (block.areAllValuesNull()) {
+            for (int p = beginInclusive; p < endExclusive; p++) {
+                appendNull();
+            }
+            return this;
+        }
         return copyFrom((BytesRefBlock) block, beginInclusive, endExclusive);
     }
 

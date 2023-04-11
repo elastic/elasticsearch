@@ -68,6 +68,14 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
         assertEvens(randomFilteredBlock());
     }
 
+    public void testSmallAllNull() {
+        assertSmall(Block.constantNullBlock(10));
+    }
+
+    public void testEvensAllNull() {
+        assertEvens(Block.constantNullBlock(10));
+    }
+
     private void assertSmall(Block block) {
         int smallSize = Math.min(block.getPositionCount(), 10);
         Block.Builder builder = elementType.newBlockBuilder(smallSize);

@@ -81,24 +81,27 @@ public interface SimplificationErrorCalculator {
         @Override
         public double calculateError(PointLike left, PointLike middle, PointLike right) {
             // Offset coordinates so left is at the origin
-            double leftX = 0;
-            double leftY = 0;
-            double middleX = middle.getX() - left.getX();
-            double middleY = middle.getY() - left.getY();
             double rightX = right.getX() - left.getX();
             double rightY = right.getY() - left.getY();
-            // Rotate coordinates so that left->right is horizontal
-            double len = Math.sqrt(rightX * rightX + rightY * rightY);
-            double cos = rightX / len;
-            double sin = rightY / len;
-            double middleXrotated = middleX * cos + middleY * sin;
-            double middleYrotated = middleY * cos - middleX * sin;
-            double rightXrotated = rightX * cos + rightY * sin;
-            double rightYrotated = rightY * cos - rightX * sin;
-            assert Math.abs(rightYrotated) < 1e-10;
-            assert Math.abs(rightXrotated - len) < len / 1e10;
-            // Return distance to x-axis TODO: also include back-paths for Frechet distance calculation
-            return Math.abs(middleYrotated);
+            if (Math.abs(rightX) > 1e-10 || Math.abs(rightY) > 1e-10) {
+                // Rotate coordinates so that left->right is horizontal
+                double len = Math.sqrt(rightX * rightX + rightY * rightY);
+                double cos = rightX / len;
+                double sin = rightY / len;
+                double middleX = middle.getX() - left.getX();
+                double middleY = middle.getY() - left.getY();
+                double middleXrotated = middleX * cos + middleY * sin;
+                double middleYrotated = middleY * cos - middleX * sin;
+                double rightXrotated = rightX * cos + rightY * sin;
+                double rightYrotated = rightY * cos - rightX * sin;
+                assert Math.abs(rightYrotated) < 1e-10;
+                assert Math.abs(rightXrotated - len) < len / 1e10;
+                // Return distance to x-axis TODO: also include back-paths for Frechet distance calculation
+                return Math.abs(middleYrotated);
+            } else {
+                // If left and right points are co-located, we assume no consequence to removing the middle point
+                return 0.0;
+            }
         }
     }
 }

@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -64,6 +66,11 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
             // either case we don't want to do anything now
             return currentState;
         }
+    }
+
+    @Override
+    public List<Step.StepKey> getDedupKeys() {
+        return Arrays.asList(currentStepKey, nextStepKey);
     }
 
     @Override

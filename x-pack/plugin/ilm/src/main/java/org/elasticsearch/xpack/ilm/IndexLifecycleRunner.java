@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
@@ -249,6 +250,15 @@ class IndexLifecycleRunner {
                     moveToErrorStep(indexMetadata.getIndex(), policy, currentStep.getKey(), e);
                 }
             }, TimeValue.MAX_VALUE);
+        } else if (currentStep instanceof AsyncActionStep) {
+            if (busyIndices.contains(Tuple.tuple(indexMetadata.getIndex(), currentStep.getKey())) == false) {
+                moveToErrorStep(
+                    indexMetadata.getIndex(),
+                    policy,
+                    currentStep.getKey(),
+                    new IllegalArgumentException("invalid AsyncActionStep")
+                );
+            }
         } else {
             logger.trace("[{}] ignoring non periodic step execution from step transition [{}]", index, currentStep.getKey());
         }
@@ -632,12 +642,18 @@ class IndexLifecycleRunner {
      */
     private void submitUnlessAlreadyQueued(String source, IndexLifecycleClusterStateUpdateTask task) {
         if (executingTasks.add(task)) {
-            final Tuple<Index, StepKey> dedupKey = Tuple.tuple(task.index, task.currentStepKey);
+            final List<StepKey> dedupKeys = task.getDedupKeys();
             // index+step-key combination on a best-effort basis to skip checking for more work for an index on CS application
-            busyIndices.add(dedupKey);
+            for (var key : dedupKeys) {
+                final Tuple<Index, StepKey> dedupKey = Tuple.tuple(task.index, key);
+                busyIndices.add(dedupKey);
+            }
             task.addListener(ActionListener.running(() -> {
                 final boolean removed = executingTasks.remove(task);
-                busyIndices.remove(dedupKey);
+                for (var key : dedupKeys) {
+                    final Tuple<Index, StepKey> dedupKey = Tuple.tuple(task.index, key);
+                    busyIndices.remove(dedupKey);
+                }
                 assert removed : "tried to unregister unknown task [" + task + "]";
             }));
             masterServiceTaskQueue.submitTask(source, task, null);

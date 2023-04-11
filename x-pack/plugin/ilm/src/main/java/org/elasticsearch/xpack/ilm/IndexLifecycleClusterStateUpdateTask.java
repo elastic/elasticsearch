@@ -15,6 +15,9 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * Base class for index lifecycle cluster state update tasks that requires implementing {@code equals} and {@code hashCode} to allow
  * for these tasks to be deduplicated by {@link IndexLifecycleRunner}.
@@ -38,6 +41,10 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
 
     final Step.StepKey getCurrentStepKey() {
         return currentStepKey;
+    }
+
+    public List<Step.StepKey> getDedupKeys() {
+        return Arrays.asList(currentStepKey);
     }
 
     private boolean executed;

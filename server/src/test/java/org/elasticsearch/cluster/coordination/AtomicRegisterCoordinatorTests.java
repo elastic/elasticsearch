@@ -44,51 +44,10 @@ import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clus
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     @Override
-    @AwaitsFix(bugUrl = "ES-5644")
-    public void testExpandsConfigurationWhenGrowingFromThreeToFiveNodesAndShrinksBackToThreeOnFailure() {
-        // Voting configuration test
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5644")
-    public void testDoesNotShrinkConfigurationBelowThreeNodes() {
-        // Voting configuration test
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5644")
-    public void testCanShrinkFromFiveNodesToThree() {
-        // Voting configuration test
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5644")
-    public void testDoesNotShrinkConfigurationBelowFiveNodesIfAutoShrinkDisabled() {
-        // Voting configuration test
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5644")
-    public void testExpandsConfigurationWhenGrowingFromOneNodeToThreeButDoesNotShrink() {
-        // Voting configuration test
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5644")
-    public void testSingleNodeDiscoveryWithoutQuorum() {
-        // Voting configuration test
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5644")
-    public void testReconfiguresToExcludeMasterIneligibleNodesInVotingConfig() {
-        // Configuration test
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5644")
+    @AwaitsFix(bugUrl = "ES-5645")
     public void testUnhealthyNodesGetsRemoved() {
         // This test checks that the voting configuration shrinks after a node is removed from the cluster
+        // TODO: rewrite this test without taking into account the final voting configuration
     }
 
     @Override
@@ -190,30 +149,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testClusterUUIDLogging() {
-        // Stateless masters do not lock in to a cluster UUID in a way that persists across restarts so this test doesn't make sense here
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testCannotSetInitialConfigurationWithoutLocalNode() {
-        // Stateless masters automatically bootstrap themselves so this test doesn't make sense here
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testCannotSetInitialConfigurationWithoutQuorum() {
-        // Stateless masters automatically bootstrap themselves so this test doesn't make sense here
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testSettingInitialConfigurationTriggersElection() {
-        // Stateless masters automatically bootstrap themselves so this test doesn't make sense here
-    }
-
-    @Override
     public void testJoiningNodeReceivesFullState() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             cluster.runRandomly();
@@ -229,10 +164,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             assertEquals(0L, newNodePublishStats.getIncompatibleClusterStateDiffReceivedCount());
         }
     }
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94905")
-    public void testClusterRecoversAfterExceptionDuringSerialization() {}
 
     @Override
     protected CoordinatorStrategy getCoordinatorStrategy() {

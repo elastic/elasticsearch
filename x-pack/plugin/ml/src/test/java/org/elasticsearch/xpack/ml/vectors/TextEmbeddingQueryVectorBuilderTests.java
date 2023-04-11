@@ -37,7 +37,7 @@ public class TextEmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBui
         InferModelAction.Request inferRequest = (InferModelAction.Request) request;
         assertThat(inferRequest.getTextInput(), hasSize(1));
         assertEquals(builder.getModelText(), inferRequest.getTextInput().get(0));
-        assertEquals(builder.getModelId(), inferRequest.getModelId());
+        assertEquals(builder.getModelId(), inferRequest.getId());
     }
 
     public ActionResponse createResponse(float[] array, TextEmbeddingQueryVectorBuilder builder) {

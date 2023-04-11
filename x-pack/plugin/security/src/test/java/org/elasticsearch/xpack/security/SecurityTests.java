@@ -44,6 +44,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
@@ -516,9 +517,11 @@ public class SecurityTests extends ESTestCase {
         Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         licenseState.update(
-            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD),
-            true,
-            null
+            new XPackLicenseStatus(
+                randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD),
+                true,
+                null
+            )
         );
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
@@ -719,16 +722,27 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(service);
         RestRequest request = new FakeRestRequest();
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate(request, ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
-            // On trial license, kerberos is allowed and the WWW-Authenticate response header should reflect that
-            verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "Negotiate", "ApiKey");
-        }));
+        service.authenticate(
+            request.getHttpRequest(),
+            ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
+                // On trial license, kerberos is allowed and the WWW-Authenticate response header should reflect that
+                verifyHasAuthenticationHeaderValue(
+                    e,
+                    "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"",
+                    "Negotiate",
+                    "ApiKey"
+                );
+            })
+        );
         threadContext.stashContext();
-        licenseState.update(randomFrom(License.OperationMode.GOLD, License.OperationMode.BASIC), true, null);
-        service.authenticate(request, ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
-            // On basic or gold license, kerberos is not allowed and the WWW-Authenticate response header should also reflect that
-            verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "ApiKey");
-        }));
+        licenseState.update(new XPackLicenseStatus(randomFrom(License.OperationMode.GOLD, License.OperationMode.BASIC), true, null));
+        service.authenticate(
+            request.getHttpRequest(),
+            ActionListener.wrap(result -> { assertTrue(completed.compareAndSet(false, true)); }, e -> {
+                // On basic or gold license, kerberos is not allowed and the WWW-Authenticate response header should also reflect that
+                verifyHasAuthenticationHeaderValue(e, "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"", "ApiKey");
+            })
+        );
         if (completed.get()) {
             fail("authentication succeeded but it shouldn't");
         }

@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -40,7 +41,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
     private GlobalOrdinalsStats globalOrdinalsStats;
 
     public FieldDataStats() {
-
+        this.globalOrdinalsStats = new GlobalOrdinalsStats(0, new HashMap<>());
     }
 
     public FieldDataStats(StreamInput in) throws IOException {
@@ -53,10 +54,12 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
                 in.readBoolean()
                     ? in.readMap(
                         StreamInput::readString,
-                        in1 -> new GlobalOrdinalsStats.GlobalOrdinalFieldStats(in.readVLong(), in.readVLong())
+                        in1 -> new GlobalOrdinalsStats.GlobalOrdinalFieldStats(in1.readVLong(), in1.readVLong())
                     )
                     : null
             );
+        } else {
+            globalOrdinalsStats = new GlobalOrdinalsStats(0, new HashMap<>());
         }
     }
 
@@ -113,7 +116,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
             out.writeVLong(globalOrdinalsStats.buildTimeMillis);
             if (globalOrdinalsStats.fieldGlobalOrdinalsStats != null) {
                 out.writeBoolean(true);
-                out.writeMapValues(globalOrdinalsStats.fieldGlobalOrdinalsStats, (out1, value) -> {
+                out.writeMap(globalOrdinalsStats.fieldGlobalOrdinalsStats, StreamOutput::writeString, (out1, value) -> {
                     out1.writeVLong(value.totalBuildingTime);
                     out1.writeVLong(value.valueCount);
                 });
@@ -192,6 +195,19 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
             }
         }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            GlobalOrdinalsStats that = (GlobalOrdinalsStats) o;
+            return buildTimeMillis == that.buildTimeMillis && Objects.equals(fieldGlobalOrdinalsStats, that.fieldGlobalOrdinalsStats);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(buildTimeMillis, fieldGlobalOrdinalsStats);
+        }
+
         public static class GlobalOrdinalFieldStats {
 
             long totalBuildingTime;
@@ -200,6 +216,19 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
             public GlobalOrdinalFieldStats(long totalBuildingTime, long valueCount) {
                 this.totalBuildingTime = totalBuildingTime;
                 this.valueCount = valueCount;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                GlobalOrdinalFieldStats that = (GlobalOrdinalFieldStats) o;
+                return totalBuildingTime == that.totalBuildingTime && valueCount == that.valueCount;
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(totalBuildingTime, valueCount);
             }
         }
 

@@ -30,7 +30,7 @@ public class GetProfilingRequestTests extends ESTestCase {
         Integer sampleSize = randomBoolean() ? randomIntBetween(0, Integer.MAX_VALUE) : null;
         QueryBuilder query = randomBoolean() ? new BoolQueryBuilder() : null;
 
-        GetProfilingRequest request = new GetProfilingRequest(sampleSize, query);
+        GetProfilingRequest request = new GetProfilingRequest(sampleSize, query, null);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
             try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {

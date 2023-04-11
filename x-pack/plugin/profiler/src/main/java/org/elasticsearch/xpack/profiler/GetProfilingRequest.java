@@ -36,29 +36,35 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
 public class GetProfilingRequest extends ActionRequest implements IndicesRequest {
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
+    public static final ParseField OFFLOAD = new ParseField("offload");
 
     private QueryBuilder query;
 
     private Integer sampleSize;
 
+    private Boolean offload;
+
     public GetProfilingRequest() {
-        this(null, null);
+        this(null, null, null);
     }
 
-    public GetProfilingRequest(Integer sampleSize, QueryBuilder query) {
+    public GetProfilingRequest(Integer sampleSize, QueryBuilder query, Boolean offload) {
         this.sampleSize = sampleSize;
         this.query = query;
+        this.offload = offload;
     }
 
     public GetProfilingRequest(StreamInput in) throws IOException {
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.sampleSize = in.readOptionalInt();
+        this.offload = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalNamedWriteable(query);
         out.writeOptionalInt(sampleSize);
+        out.writeOptionalBoolean(offload);
     }
 
     public Integer getSampleSize() {
@@ -67,6 +73,11 @@ public class GetProfilingRequest extends ActionRequest implements IndicesRequest
 
     public QueryBuilder getQuery() {
         return query;
+    }
+
+    public boolean isOffload() {
+        // keep default behavior if unspecified
+        return offload != null ? offload : true;
     }
 
     public void parseXContent(XContentParser parser) throws IOException {
@@ -86,6 +97,8 @@ public class GetProfilingRequest extends ActionRequest implements IndicesRequest
             } else if (token.isValue()) {
                 if (SAMPLE_SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.sampleSize = parser.intValue();
+                } else if (OFFLOAD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.offload = parser.booleanValue();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),

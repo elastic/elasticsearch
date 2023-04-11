@@ -68,6 +68,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     private final NodeClient nodeClient;
     private final TransportService transportService;
     private final Executor responseExecutor;
+    private final Executor responseExecutorSame;
     private final int desiredSlices;
     private final int desiredDetailSlices;
     private final boolean realtime;
@@ -84,6 +85,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         this.nodeClient = nodeClient;
         this.transportService = transportService;
         this.responseExecutor = threadPool.executor(ProfilingPlugin.PROFILING_THREAD_POOL_NAME);
+        this.responseExecutorSame = threadPool.executor(ThreadPool.Names.SAME);
         this.desiredSlices = PROFILING_MAX_STACKTRACE_QUERY_SLICES.get(settings);
         this.desiredDetailSlices = PROFILING_MAX_DETAIL_QUERY_SLICES.get(settings);
         this.realtime = PROFILING_QUERY_REALTIME.get(settings);
@@ -118,6 +120,10 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             }));
     }
 
+    private Executor exec(GetProfilingResponseBuilder b) {
+        return b.isOffload() ? responseExecutor : responseExecutorSame;
+    }
+
     private void searchEventGroupByStackTrace(
         Client client,
         GetProfilingRequest request,
@@ -126,6 +132,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     ) {
         long start = System.nanoTime();
         GetProfilingResponseBuilder responseBuilder = new GetProfilingResponseBuilder();
+        responseBuilder.setOffload(request.isOffload());
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setQuery(request.getQuery())
@@ -179,7 +186,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                 .setRealtime(realtime)
                 .addIds("profiling-stacktraces", slice)
                 .execute(
-                    new ThreadedActionListener<>(responseExecutor, ActionListener.wrap(handler::onResponse, submitListener::onFailure))
+                    new ThreadedActionListener<>(exec(responseBuilder), ActionListener.wrap(handler::onResponse, submitListener::onFailure))
                 );
         }
     }
@@ -280,7 +287,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     .setRealtime(realtime)
                     .execute(
                         new ThreadedActionListener<>(
-                            responseExecutor,
+                            exec(responseBuilder),
                             ActionListener.wrap(handler::onStackFramesResponse, submitListener::onFailure)
                         )
                     );
@@ -296,7 +303,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                     .setRealtime(realtime)
                     .execute(
                         new ThreadedActionListener<>(
-                            responseExecutor,
+                            exec(responseBuilder),
                             ActionListener.wrap(handler::onExecutableDetailsResponse, submitListener::onFailure)
                         )
                     );
@@ -415,6 +422,9 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         private Map<String, Integer> stackTraceEvents;
         private Exception error;
 
+        // temporary hack for testing
+        private boolean offload;
+
         public void setStackTraces(Map<String, StackTrace> stackTraces) {
             this.stackTraces = stackTraces;
         }
@@ -433,6 +443,14 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
 
         public void setStackTraceEvents(Map<String, Integer> stackTraceEvents) {
             this.stackTraceEvents = stackTraceEvents;
+        }
+
+        public boolean isOffload() {
+            return offload;
+        }
+
+        public void setOffload(boolean offload) {
+            this.offload = offload;
         }
 
         public Map<String, Integer> getStackTraceEvents() {

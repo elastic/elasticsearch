@@ -18,7 +18,7 @@ public class GetProfilingActionIT extends ProfilingTestCase {
     }
 
     public void testGetProfilingDataUnfiltered() throws Exception {
-        GetProfilingRequest request = new GetProfilingRequest(1, null);
+        GetProfilingRequest request = new GetProfilingRequest(1, null, null);
         GetProfilingResponse response = client().execute(GetProfilingAction.INSTANCE, request).get();
         assertEquals(RestStatus.OK, response.status());
         assertEquals(1, response.getTotalFrames());

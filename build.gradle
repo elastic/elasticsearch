@@ -324,12 +324,17 @@ tasks.named("checkPart1").configure {
   dependsOn gradle.includedBuild('build-tools-internal').task(':check')
   dependsOn ':transportMethodCoverageVerifier'
 }
-tasks.named("checkPart2").configure {
-  dependsOn ':transportMethodCoverageVerifier'
+if(tasks.findByName("checkPart2") != null){
+  tasks.named("checkPart2").configure {
+    dependsOn ':transportMethodCoverageVerifier'
+  }
 }
-tasks.named("checkPart3").configure {
-  dependsOn ':transportMethodCoverageVerifier'
+if(tasks.findByName("checkPart3") != null){
+  tasks.named("checkPart3").configure {
+    dependsOn ':transportMethodCoverageVerifier'
+  }
 }
+
 tasks.named("assemble").configure {
   dependsOn gradle.includedBuild('build-tools').task(':assemble')
 }

@@ -466,7 +466,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             )
         );
 
-        assertSame(clusterState, reroute(allocationService, clusterState));
+        assertSame(clusterState, allocationService.reroute(clusterState, "test", ActionListener.noop()));
     }
 
     private Map<String, Integer> getTargetShardPerNodeCount(IndexRoutingTable indexRoutingTable) {

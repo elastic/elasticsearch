@@ -241,7 +241,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                         return;
                     }
                 }
-                logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed due to non-retryable exception", e);
+                logger.warn(() -> "fetching nodes from external cluster [" + clusterAlias + "] failed", e);
                 listener.onFailure(e);
             };
 

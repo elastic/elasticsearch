@@ -452,7 +452,7 @@ been calculated: `min`, `max`, `sum`, and `value_count`.
 
 You can now re-run the earlier aggregation. Even though the aggregation runs on
 the downsampled data stream that only contains 288 documents, it returns the
-same results as the earlier aggregation on the original index.
+same results as the earlier aggregation on the original data stream.
 
 [source,console]
 ----

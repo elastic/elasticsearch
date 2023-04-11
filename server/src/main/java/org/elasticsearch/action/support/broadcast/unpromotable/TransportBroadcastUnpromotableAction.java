@@ -77,7 +77,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
                         request,
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(
-                            listeners.acquire(ignored -> {}).delegateResponse((l, e) -> failShard(shardRouting, l, e)),
+                            listeners.acquire(ignored -> {}).delegateResponse((l, e) -> failShard(shardRouting, clusterState, l, e)),
                             (in) -> TransportResponse.Empty.INSTANCE,
                             executor
                         )
@@ -88,11 +88,11 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         }
     }
 
-    private void failShard(ShardRouting shardRouting, ActionListener<Object> l, Exception e) {
+    private void failShard(ShardRouting shardRouting, ClusterState clusterState, ActionListener<Object> l, Exception e) {
         shardStateAction.remoteShardFailed(
             shardRouting.shardId(),
             shardRouting.allocationId().getId(),
-            clusterService.state().metadata().index(shardRouting.getIndexName()).primaryTerm(shardRouting.shardId().getId()),
+            clusterState.metadata().index(shardRouting.getIndexName()).primaryTerm(shardRouting.shardId().getId()),
             true,
             "mark unpromotable copy as stale after refresh failure",
             e,

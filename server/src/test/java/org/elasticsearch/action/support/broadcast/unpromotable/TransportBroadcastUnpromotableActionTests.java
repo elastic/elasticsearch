@@ -58,6 +58,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 
 public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
@@ -67,6 +68,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
     private TransportService transportService;
     private CapturingTransport transport;
     private TestTransportBroadcastUnpromotableAction broadcastUnpromotableAction;
+    private ShardStateAction shardStateAction;
 
     @BeforeClass
     public static void beforeClass() {
@@ -90,7 +92,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        var shardStateAction = mock(ShardStateAction.class);
+        shardStateAction = mock(ShardStateAction.class);
         Mockito.doAnswer(invocation -> {
             ActionListener<Void> argument = invocation.getArgument(6);
             argument.onResponse(null);
@@ -313,6 +315,19 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
             ).toString(),
             containsString("discovery node must not be null")
         );
+
+        for (var shardRouting : wrongRoutingTable.unpromotableShards()) {
+            Mockito.verify(shardStateAction)
+                .remoteShardFailed(
+                    eq(shardRouting.shardId()),
+                    eq(shardRouting.allocationId().getId()),
+                    eq(state.metadata().index(index).primaryTerm(shardRouting.shardId().getId())),
+                    eq(true),
+                    eq("mark unpromotable copy as stale after refresh failure"),
+                    any(Exception.class),
+                    any()
+                );
+        }
     }
 
     public void testNullIndexShardRoutingTable() throws Exception {

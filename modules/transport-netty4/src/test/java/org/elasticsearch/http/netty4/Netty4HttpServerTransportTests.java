@@ -178,7 +178,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(new Netty4HttpHeaderValidator(Netty4HttpHeaderValidatorInboundHandler.NOOP_VALIDATOR), null)
+                randomFrom(new HttpHeaderValidator(Netty4HttpHeaderValidator.NOOP_VALIDATOR), null)
             )
         ) {
             transport.start();
@@ -230,7 +230,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(new Netty4HttpHeaderValidator(Netty4HttpHeaderValidatorInboundHandler.NOOP_VALIDATOR), null)
+                randomFrom(new HttpHeaderValidator(Netty4HttpHeaderValidator.NOOP_VALIDATOR), null)
             )
         ) {
             transport.start();
@@ -251,7 +251,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     Tracer.NOOP,
                     TLSConfig.noTLS(),
                     null,
-                    randomFrom(new Netty4HttpHeaderValidator(Netty4HttpHeaderValidatorInboundHandler.NOOP_VALIDATOR), null)
+                    randomFrom(new HttpHeaderValidator(Netty4HttpHeaderValidator.NOOP_VALIDATOR), null)
                 )
             ) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
@@ -306,7 +306,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(new Netty4HttpHeaderValidator(Netty4HttpHeaderValidatorInboundHandler.NOOP_VALIDATOR), null)
+                randomFrom(new HttpHeaderValidator(Netty4HttpHeaderValidator.NOOP_VALIDATOR), null)
             )
         ) {
             transport.start();
@@ -377,7 +377,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(new Netty4HttpHeaderValidator(Netty4HttpHeaderValidatorInboundHandler.NOOP_VALIDATOR), null)
+                randomFrom(new HttpHeaderValidator(Netty4HttpHeaderValidator.NOOP_VALIDATOR), null)
             ) {
                 @Override
                 public ChannelHandler configureServerChannelHandler() {
@@ -386,7 +386,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         handlingSettings,
                         TLSConfig.noTLS(),
                         null,
-                        randomFrom(new Netty4HttpHeaderValidator(Netty4HttpHeaderValidatorInboundHandler.NOOP_VALIDATOR), null)
+                        randomFrom(new HttpHeaderValidator(Netty4HttpHeaderValidator.NOOP_VALIDATOR), null)
                     ) {
                         @Override
                         protected void initChannel(Channel ch) throws Exception {
@@ -483,7 +483,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(new Netty4HttpHeaderValidator(Netty4HttpHeaderValidatorInboundHandler.NOOP_VALIDATOR), null)
+                randomFrom(new HttpHeaderValidator(Netty4HttpHeaderValidator.NOOP_VALIDATOR), null)
             )
         ) {
             transport.start();
@@ -556,7 +556,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(new Netty4HttpHeaderValidator(Netty4HttpHeaderValidatorInboundHandler.NOOP_VALIDATOR), null)
+                randomFrom(new HttpHeaderValidator(Netty4HttpHeaderValidator.NOOP_VALIDATOR), null)
             )
         ) {
             transport.start();
@@ -622,7 +622,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(new Netty4HttpHeaderValidator(Netty4HttpHeaderValidatorInboundHandler.NOOP_VALIDATOR), null)
+                randomFrom(new HttpHeaderValidator(Netty4HttpHeaderValidator.NOOP_VALIDATOR), null)
             )
         ) {
             transport.start();

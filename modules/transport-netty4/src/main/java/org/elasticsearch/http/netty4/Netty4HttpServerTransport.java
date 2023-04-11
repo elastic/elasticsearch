@@ -144,7 +144,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final RecvByteBufAllocator recvByteBufAllocator;
     private final TLSConfig tlsConfig;
     private final AcceptChannelHandler.AcceptPredicate acceptChannelPredicate;
-    private final Netty4HttpHeaderValidator headerValidator;
+    private final HttpHeaderValidator headerValidator;
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
@@ -163,7 +163,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         Tracer tracer,
         TLSConfig tlsConfig,
         @Nullable AcceptChannelHandler.AcceptPredicate acceptChannelPredicate,
-        @Nullable Netty4HttpHeaderValidator headerValidator
+        @Nullable HttpHeaderValidator headerValidator
     ) {
         super(
             settings,
@@ -338,14 +338,14 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final HttpHandlingSettings handlingSettings;
         private final TLSConfig tlsConfig;
         private final BiPredicate<String, InetSocketAddress> acceptChannelPredicate;
-        private final Netty4HttpHeaderValidator headerValidator;
+        private final HttpHeaderValidator headerValidator;
 
         protected HttpChannelHandler(
             final Netty4HttpServerTransport transport,
             final HttpHandlingSettings handlingSettings,
             final TLSConfig tlsConfig,
             @Nullable final BiPredicate<String, InetSocketAddress> acceptChannelPredicate,
-            @Nullable final Netty4HttpHeaderValidator headerValidator
+            @Nullable final HttpHeaderValidator headerValidator
         ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;

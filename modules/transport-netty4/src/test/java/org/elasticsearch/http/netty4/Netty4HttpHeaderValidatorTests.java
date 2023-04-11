@@ -29,21 +29,21 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidatorInboundHandler.State.DROPPING_DATA_UNTIL_NEXT_REQUEST;
-import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidatorInboundHandler.State.FORWARDING_DATA_UNTIL_NEXT_REQUEST;
-import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidatorInboundHandler.State.QUEUEING_DATA;
-import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidatorInboundHandler.State.WAITING_TO_START;
+import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.DROPPING_DATA_UNTIL_NEXT_REQUEST;
+import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.FORWARDING_DATA_UNTIL_NEXT_REQUEST;
+import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.QUEUEING_DATA;
+import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.WAITING_TO_START;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
+public class Netty4HttpHeaderValidatorTests extends ESTestCase {
 
     private final AtomicReference<Object> header = new AtomicReference<>();
     private final AtomicReference<ActionListener<Void>> listener = new AtomicReference<>();
     private EmbeddedChannel channel;
-    private Netty4HttpHeaderValidatorInboundHandler netty4HttpHeaderValidatorInboundHandler;
+    private Netty4HttpHeaderValidator netty4HttpHeaderValidator;
 
     @Override
     public void setUp() throws Exception {
@@ -59,13 +59,13 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
             header.set(httpRequest);
             listener.set(validationCompleteListener);
         };
-        netty4HttpHeaderValidatorInboundHandler = new Netty4HttpHeaderValidatorInboundHandler(validator);
-        channel.pipeline().addLast(netty4HttpHeaderValidatorInboundHandler);
+        netty4HttpHeaderValidator = new Netty4HttpHeaderValidator(validator);
+        channel.pipeline().addLast(netty4HttpHeaderValidator);
     }
 
     public void testValidationPausesAndResumesData() {
         assertTrue(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
 
         final DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
         DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4));
@@ -82,7 +82,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         channel.runPendingTasks();
 
         assertTrue(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(FORWARDING_DATA_UNTIL_NEXT_REQUEST));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(FORWARDING_DATA_UNTIL_NEXT_REQUEST));
         assertThat(channel.readInbound(), sameInstance(request));
         assertThat(channel.readInbound(), sameInstance(content));
         assertThat(channel.readInbound(), nullValue());
@@ -92,19 +92,19 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         DefaultLastHttpContent lastContent = new DefaultLastHttpContent(Unpooled.buffer(4));
         channel.writeInbound(lastContent);
         assertTrue(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
         assertThat(channel.readInbound(), sameInstance(lastContent));
         assertThat(lastContent.refCnt(), equalTo(1));
 
         // channel is again paused while validating next request
         channel.writeInbound(request);
         assertFalse(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(QUEUEING_DATA));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(QUEUEING_DATA));
     }
 
     public void testContentForwardedAfterValidation() {
         assertTrue(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
 
         final DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
         channel.writeInbound(request);
@@ -126,7 +126,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
 
         // resumed channel after successful validation forwards data
         assertTrue(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(FORWARDING_DATA_UNTIL_NEXT_REQUEST));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(FORWARDING_DATA_UNTIL_NEXT_REQUEST));
         // write more content to the channel after validation passed
         DefaultHttpContent content2 = new DefaultHttpContent(Unpooled.buffer(4));
         channel.writeInbound(content2);
@@ -156,20 +156,20 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         channel.writeInbound(lastContent);
 
         assertTrue(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
         assertThat(channel.readInbound(), sameInstance(lastContent));
         assertThat(lastContent.refCnt(), equalTo(1));
 
         if (randomBoolean()) {
             channel.writeInbound(request);
             assertFalse(channel.config().isAutoRead());
-            assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(QUEUEING_DATA));
+            assertThat(netty4HttpHeaderValidator.getState(), equalTo(QUEUEING_DATA));
         }
     }
 
     public void testContentDroppedAfterValidationFailure() {
         assertTrue(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
 
         final DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
         channel.writeInbound(request);
@@ -191,7 +191,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
 
         // resumed channel after failed validation drops data
         assertTrue(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(DROPPING_DATA_UNTIL_NEXT_REQUEST));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(DROPPING_DATA_UNTIL_NEXT_REQUEST));
         // write more content to the channel after validation passed
         DefaultHttpContent content2 = new DefaultHttpContent(Unpooled.buffer(4));
         channel.writeInbound(content2);
@@ -223,14 +223,14 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         channel.writeInbound(lastContent);
 
         assertTrue(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
         assertThat(channel.readInbound(), nullValue()); // lastContent
         assertThat(lastContent.refCnt(), equalTo(0));
 
         if (randomBoolean()) {
             channel.writeInbound(new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri"));
             assertFalse(channel.config().isAutoRead());
-            assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(QUEUEING_DATA));
+            assertThat(netty4HttpHeaderValidator.getState(), equalTo(QUEUEING_DATA));
         }
     }
 
@@ -241,7 +241,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
             new ElasticsearchSecurityException("Failure")
         )) {
             assertTrue(channel.config().isAutoRead());
-            assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+            assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
 
             final DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
             final DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4));
@@ -261,7 +261,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
             assertTrue(failed.decoderResult().isFailure());
             Exception cause = (Exception) failed.decoderResult().cause();
             assertThat(cause, equalTo(exception));
-            assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(DROPPING_DATA_UNTIL_NEXT_REQUEST));
+            assertThat(netty4HttpHeaderValidator.getState(), equalTo(DROPPING_DATA_UNTIL_NEXT_REQUEST));
 
             assertThat(channel.readInbound(), nullValue());
             assertThat(content.refCnt(), equalTo(0));
@@ -269,7 +269,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
             DefaultLastHttpContent lastContent = new DefaultLastHttpContent(Unpooled.buffer(4));
             channel.writeInbound(lastContent);
             assertTrue(channel.config().isAutoRead());
-            assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+            assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
             assertThat(channel.readInbound(), nullValue());
             assertThat(lastContent.refCnt(), equalTo(0));
 
@@ -279,7 +279,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
 
     public void testValidationHandlesMultipleQueuedUpMessages() {
         assertTrue(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
 
         final DefaultHttpRequest request1 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
         DefaultHttpContent content1 = new DefaultHttpContent(Unpooled.buffer(4));
@@ -297,7 +297,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         assertThat(header.get(), sameInstance(request1));
         assertThat(channel.readInbound(), nullValue());
         assertFalse(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(QUEUEING_DATA));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(QUEUEING_DATA));
 
         listener.get().onResponse(null);
         channel.runPendingTasks();
@@ -310,7 +310,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         assertThat(header.get(), sameInstance(request2));
 
         assertFalse(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(QUEUEING_DATA));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(QUEUEING_DATA));
         assertThat(channel.readInbound(), nullValue());
 
         listener.get().onResponse(null);
@@ -322,13 +322,13 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         assertThat(lastContent2.refCnt(), equalTo(1));
 
         assertTrue(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
         assertThat(channel.readInbound(), nullValue());
     }
 
     public void testValidationFailureRecoversForEnqueued() {
         assertTrue(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
 
         // write 2 requests before validation for the first one fails
         final DefaultHttpRequest request1 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
@@ -352,7 +352,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         assertThat(header.get(), sameInstance(request1));
         assertThat(channel.readInbound(), nullValue());
         assertFalse(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(QUEUEING_DATA));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(QUEUEING_DATA));
         assertThat(content1.refCnt(), equalTo(2));
         assertThat(lastContent1.refCnt(), equalTo(2));
         assertThat(content2.refCnt(), equalTo(2));
@@ -378,7 +378,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         // channel pauses for the validation of the 2nd request
         assertThat(header.get(), sameInstance(request2));
         assertFalse(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(QUEUEING_DATA));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(QUEUEING_DATA));
         assertThat(channel.readInbound(), nullValue());
 
         // validation for the 2nd request SUCCEEDS
@@ -391,7 +391,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         assertThat(content2.refCnt(), equalTo(1));
 
         if (finishSecondRequest == false) {
-            assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(FORWARDING_DATA_UNTIL_NEXT_REQUEST));
+            assertThat(netty4HttpHeaderValidator.getState(), equalTo(FORWARDING_DATA_UNTIL_NEXT_REQUEST));
             assertTrue(channel.config().isAutoRead());
             assertThat(channel.readInbound(), nullValue());
             // while in forwarding state the request can continue
@@ -406,13 +406,13 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
 
         assertThat(channel.readInbound(), sameInstance(lastContent2));
         assertThat(lastContent2.refCnt(), equalTo(1));
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
         assertTrue(channel.config().isAutoRead());
     }
 
     public void testValidationFailureRecoversForInbound() {
         assertTrue(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
 
         // write a single request, but don't finish it yet, for which the validation fails
         final DefaultHttpRequest request1 = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
@@ -424,7 +424,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         assertThat(header.get(), sameInstance(request1));
         assertThat(channel.readInbound(), nullValue());
         assertFalse(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(QUEUEING_DATA));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(QUEUEING_DATA));
         assertThat(content1.refCnt(), equalTo(2));
 
         // validation for the 1st request FAILS
@@ -440,7 +440,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         assertThat(cause, equalTo(exception));
         assertThat(content1.refCnt(), equalTo(0)); // content is dropped
         assertThat(channel.readInbound(), nullValue());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(DROPPING_DATA_UNTIL_NEXT_REQUEST));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(DROPPING_DATA_UNTIL_NEXT_REQUEST));
 
         if (randomBoolean()) {
             channel.writeInbound(new DefaultHttpContent(Unpooled.buffer(4)));
@@ -466,7 +466,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         // channel pauses for the validation of the 2nd request
         assertThat(header.get(), sameInstance(request2));
         assertFalse(channel.config().isAutoRead());
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(QUEUEING_DATA));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(QUEUEING_DATA));
         assertThat(channel.readInbound(), nullValue());
 
         // validation for the 2nd request SUCCEEDS
@@ -479,7 +479,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         assertThat(content2.refCnt(), equalTo(1));
 
         if (finishSecondRequest == false) {
-            assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(FORWARDING_DATA_UNTIL_NEXT_REQUEST));
+            assertThat(netty4HttpHeaderValidator.getState(), equalTo(FORWARDING_DATA_UNTIL_NEXT_REQUEST));
             assertTrue(channel.config().isAutoRead());
             assertThat(channel.readInbound(), nullValue());
             // while in forwarding state the request can continue
@@ -494,7 +494,7 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
 
         assertThat(channel.readInbound(), sameInstance(lastContent2));
         assertThat(lastContent2.refCnt(), equalTo(1));
-        assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
         assertTrue(channel.config().isAutoRead());
     }
 
@@ -522,10 +522,10 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         channel.runPendingTasks();
         if (followupRequest) {
             assertFalse(channel.config().isAutoRead());
-            assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(QUEUEING_DATA));
+            assertThat(netty4HttpHeaderValidator.getState(), equalTo(QUEUEING_DATA));
         } else {
             assertTrue(channel.config().isAutoRead());
-            assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+            assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
         }
         assertThat(channel.readInbound(), sameInstance(request));
         for (int i = 0; i < messageLength; ++i) {
@@ -565,10 +565,10 @@ public class Netty4HttpHeaderValidatorInboundHandlerTests extends ESTestCase {
         channel.runPendingTasks();
         if (followupRequest) {
             assertFalse(channel.config().isAutoRead());
-            assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(QUEUEING_DATA));
+            assertThat(netty4HttpHeaderValidator.getState(), equalTo(QUEUEING_DATA));
         } else {
             assertTrue(channel.config().isAutoRead());
-            assertThat(netty4HttpHeaderValidatorInboundHandler.getState(), equalTo(WAITING_TO_START));
+            assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
         }
         assertThat(channel.readInbound(), sameInstance(request));
         assertThat(request.headers().get(HttpHeaderNames.CONNECTION), nullValue());

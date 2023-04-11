@@ -52,8 +52,8 @@ import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.netty4.HttpHeaderValidator;
 import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
-import org.elasticsearch.http.netty4.Netty4HttpHeaderValidatorInboundHandler;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -1653,7 +1653,7 @@ public class Security extends Plugin
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
-                new Netty4HttpHeaderValidator(Netty4HttpHeaderValidatorInboundHandler.NOOP_VALIDATOR)
+                new HttpHeaderValidator(Netty4HttpHeaderValidator.NOOP_VALIDATOR)
             ) {
                 @Override
                 protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {

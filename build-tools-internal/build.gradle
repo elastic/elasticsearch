@@ -187,10 +187,6 @@ gradlePlugin {
       id = 'elasticsearch.internal-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
     }
-//    transport_coverage {
-//      id = 'elasticsearch.transport-coverage'
-//      implementationClass = 'org.elasticsearch.gradle.internal.coverage.TransportClassesCoveragePlugin'
-//    }
     transport_coverage {
       id = 'elasticsearch.transport-coverage'
       implementationClass = 'org.elasticsearch.gradle.internal.coverage.TransportClassesCoveragePlugin'

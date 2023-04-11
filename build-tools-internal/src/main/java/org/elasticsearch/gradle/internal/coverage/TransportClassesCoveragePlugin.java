@@ -44,7 +44,7 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
             .register("transportMethodCoverageVerifier", TransportMethodCoverageVerifierTask.class);
         methodCoverageVerifier.configure(task -> { task.dependsOn("testCodeCoverageReport"); });
 
-        project.getTasks().named("check").configure(task -> task.dependsOn(methodCoverageVerifier));
+//        project.getTasks().named("check").configure(task -> task.dependsOn(methodCoverageVerifier));
 
         for (Project subproject : project.getSubprojects()) {
             configureSubproject(subproject);

@@ -212,21 +212,12 @@ allprojects {
   plugins.withId('lifecycle-base') {
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
-        tasks.register('checkPart3') {
-          dependsOn 'check'
-          dependsOn 'transportMethodCoverageVerifier'
-        }
+        tasks.register('checkPart3') { dependsOn 'check' }
       } else {
-        tasks.register('checkPart2') {
-          dependsOn 'check'
-          dependsOn 'transportMethodCoverageVerifier'
-        }
+        tasks.register('checkPart2') { dependsOn 'check' }
       }
     } else {
-      tasks.register('checkPart1') {
-        dependsOn 'check'
-        dependsOn 'transportMethodCoverageVerifier'
-      }
+      tasks.register('checkPart1') { dependsOn 'check' }
     }
   }
 

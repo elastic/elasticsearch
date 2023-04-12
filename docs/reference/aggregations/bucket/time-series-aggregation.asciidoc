@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-time-series-aggregation]]
 === Time Series Aggregation
+
+preview::[]
+
 ++++
 <titleabbrev>Time Series</titleabbrev>
 ++++

@@ -47,24 +47,25 @@ public class BulkProcessorFactoryTests extends ESTestCase {
         ThreadPool.terminate(testThreadPool, 30, TimeUnit.SECONDS);
     }
 
-    public void testFlushDelay() throws InterruptedException {
+    public void testFlushDelay() throws Exception {
         BulkProcessorConfig config = mock(BulkProcessorConfig.class);
         doReturn(TimeValue.timeValueSeconds(1)).when(config).flushDelay();
+        doReturn(10).when(config).maxNumberOfEventsPerBulk();
 
         Client client = mock(Client.class);
+
         doReturn(testThreadPool).when(client).threadPool();
         BulkProcessor2 bulkProcessor = new BulkProcessorFactory(config).create(client);
-
         IndexRequest indexRequest = mock(IndexRequest.class);
         bulkProcessor.add(indexRequest);
 
-        Thread.sleep(1000);
-
-        verify(client).bulk(argThat((BulkRequest bulkRequest) -> {
-            assertThat(bulkRequest.numberOfActions(), equalTo(1));
-            assertThat(bulkRequest.requests().stream().findFirst().get(), equalTo(indexRequest));
-            return true;
-        }), any());
+        assertBusy(() ->
+            verify(client).bulk(argThat((BulkRequest bulkRequest) -> {
+                assertThat(bulkRequest.numberOfActions(), equalTo(1));
+                assertThat(bulkRequest.requests().stream().findFirst().get(), equalTo(indexRequest));
+                return true;
+            }), any())
+        ,1, TimeUnit.SECONDS);
     }
 
     public void testMaxBulkActions() throws InterruptedException {
@@ -91,6 +92,7 @@ public class BulkProcessorFactoryTests extends ESTestCase {
         }), any());
 
         bulkProcessor.awaitClose(1, TimeUnit.SECONDS);
+
         if (totalEvents % maxBulkActions > 0) {
             inOrder.verify(client).bulk(argThat((BulkRequest bulkRequest) -> {
                 // Verify another bulk with only 1 event (the remaining) is executed when closing the processor.

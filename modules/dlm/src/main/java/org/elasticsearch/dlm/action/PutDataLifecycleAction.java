@@ -40,6 +40,14 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
 
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, ToXContentObject {
 
+        public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
+            "put_data_stream_lifecycle_request",
+            args -> new Request(null, ((DataLifecycle) args[0]))
+        );
+        static {
+            PARSER.declareObject(ConstructingObjectParser.constructorArg(), DataLifecycle.PARSER, new ParseField("lifecycle"));
+        }
+
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
         private final DataLifecycle lifecycle;
@@ -83,14 +91,6 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
-            "data_stream_actions",
-            args -> new Request(null, ((DataLifecycle) args[0]))
-        );
-        static {
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), DataLifecycle.PARSER, new ParseField("lifecycle"));
         }
 
         @Override

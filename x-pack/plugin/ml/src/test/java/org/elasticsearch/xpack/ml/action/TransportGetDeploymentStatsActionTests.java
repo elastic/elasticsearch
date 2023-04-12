@@ -64,7 +64,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
         var modified = TransportGetDeploymentStatsAction.addFailedRoutes(emptyResponse, badRoutes, nodes);
         List<AssignmentStats> results = modified.getStats().results();
         assertThat(results, hasSize(2));
-        assertEquals("model1", results.get(0).getModelId());
+        assertEquals("model1", results.get(0).getDeploymentId());
         assertThat(results.get(0).getNodeStats(), hasSize(2));
         assertEquals("nodeA", results.get(0).getNodeStats().get(0).getNode().getId());
         assertEquals("nodeB", results.get(0).getNodeStats().get(1).getNode().getId());
@@ -81,6 +81,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
 
         var model1 = new AssignmentStats(
             "model1",
+            "deployment1",
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
@@ -118,6 +119,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
 
         var model1 = new AssignmentStats(
             "model1",
+            "deployment1",
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
@@ -157,7 +159,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
 
     private static TrainedModelAssignment createAssignment(String modelId) {
         return TrainedModelAssignment.Builder.empty(
-            new StartTrainedModelDeploymentAction.TaskParams(modelId, 1024, 1, 1, 1, ByteSizeValue.ofBytes(1024), Priority.NORMAL)
+            new StartTrainedModelDeploymentAction.TaskParams(modelId, modelId, 1024, 1, 1, 1, ByteSizeValue.ofBytes(1024), Priority.NORMAL)
         ).build();
     }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
@@ -95,10 +94,8 @@ public class RemoteClusterSecurityWithDlsAndFlsRestIT extends AbstractRemoteClus
 
         // Running a CCS request with a user without DLS/FLS should be restricted by cross cluster access API key.
         {
-            final Response searchResponse = performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_NO_DLS_FLS);
-            assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
-                searchResponse,
+                performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_NO_DLS_FLS),
                 new String[] { "remote_index1", "remote_index3", "remote_index4" },
                 new String[] { "field1", "field2" }
             );
@@ -106,10 +103,8 @@ public class RemoteClusterSecurityWithDlsAndFlsRestIT extends AbstractRemoteClus
 
         // Running a CCS request with a user with DLS and FLS should be intersected with cross cluster API key's DLS and FLS permissions.
         {
-            final Response searchResponse = performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_DLS_FLS);
-            assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
-                searchResponse,
+                performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_DLS_FLS),
                 new String[] { "remote_index1" },
                 new String[] { "field1", "field2" }
             );
@@ -117,10 +112,8 @@ public class RemoteClusterSecurityWithDlsAndFlsRestIT extends AbstractRemoteClus
 
         // Running a CCS request with a user with DLS only.
         {
-            final Response searchResponse = performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_DLS);
-            assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
-                searchResponse,
+                performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_DLS),
                 new String[] { "remote_index3", "remote_index4" },
                 new String[] { "field1", "field2" }
             );
@@ -128,10 +121,8 @@ public class RemoteClusterSecurityWithDlsAndFlsRestIT extends AbstractRemoteClus
 
         // Running a CCS request with a user with FLS only.
         {
-            final Response searchResponse = performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_FLS);
-            assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
-                searchResponse,
+                performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_FLS),
                 new String[] { "remote_index1", "remote_index3", "remote_index4" },
                 new String[] { "field1" }
             );

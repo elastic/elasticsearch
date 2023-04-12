@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
@@ -17,9 +15,8 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterSecurityWithDlsRestIT extends AbstractRemoteClusterSecurityWithDlsAndFlsRestIT {
 
@@ -93,42 +90,55 @@ public class RemoteClusterSecurityWithDlsRestIT extends AbstractRemoteClusterSec
 
         // Running a CCS request with a user without DLS/FLS should be restricted by cross cluster access API key.
         {
-            final Response searchResponse = performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_NO_DLS_FLS);
-            assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
-                searchResponse,
-                new String[] { "remote_index1" },
-                new String[] { "field1", "field2", "field3" }
+                performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_NO_DLS_FLS),
+                Map.ofEntries(Map.entry("remote_index1", Set.of("field1", "field2", "field3")))
+            );
+
+            // API key with owner's permissions should return the same result.
+            final String apiKeyNoDlsFls = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_NO_DLS_FLS, "{}").v2();
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                performRequestWithApiKey(searchRequest, apiKeyNoDlsFls),
+                Map.ofEntries(Map.entry("remote_index1", Set.of("field1", "field2", "field3")))
             );
         }
 
         // Running a CCS request with a user with DLS and FLS should be intersected with cross cluster API key's DLS and FLS permissions.
         {
-            final Response searchResponse = performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_DLS_FLS);
-            assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
-                searchResponse,
-                new String[] { "remote_index1" },
-                new String[] { "field1", "field2" }
+                performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_DLS_FLS),
+                Map.ofEntries(Map.entry("remote_index1", Set.of("field1", "field2")))
+            );
+
+            // API key with owner's permissions should return the same result.
+            final String apiKeyDlsFls = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_DLS_FLS, "{}").v2();
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                performRequestWithApiKey(searchRequest, apiKeyDlsFls),
+                Map.ofEntries(Map.entry("remote_index1", Set.of("field1", "field2")))
             );
         }
 
         // Running a CCS request with a user with DLS only.
         {
-            final Response response = performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_DLS);
-            assertOK(response);
-            SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+            assertSearchResponseContainsEmptyResult(performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_DLS));
+
+            // API key with owner's permissions should return the same empty search result.
+            final String apiKeyDls = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_DLS, "{}").v2();
+            assertSearchResponseContainsEmptyResult(performRequestWithApiKey(searchRequest, apiKeyDls));
         }
 
         // Running a CCS request with a user with FLS only.
         {
-            final Response searchResponse = performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_FLS);
-            assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
-                searchResponse,
-                new String[] { "remote_index1" },
-                new String[] { "field1", "field3" }
+                performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_FLS),
+                Map.ofEntries(Map.entry("remote_index1", Set.of("field1", "field3")))
+            );
+
+            // API key with owner's permissions should return the same result.
+            final String apiKeyFls = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_FLS, "{}").v2();
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                performRequestWithApiKey(searchRequest, apiKeyFls),
+                Map.ofEntries(Map.entry("remote_index1", Set.of("field1", "field3")))
             );
         }
     }

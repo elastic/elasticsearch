@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
@@ -16,8 +15,8 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteClusterSecurityWithDlsAndFlsRestIT {
 
@@ -84,83 +83,196 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
 
         // Running a CCS request with a user without DLS/FLS should return all remote indices and their fields.
         {
-            Response searchResponse = performRequestWithUserOrApiKey(searchRequest, REMOTE_SEARCH_USER_NO_DLS_FLS);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_NO_DLS_FLS),
+                new String[] { "remote_index1", "remote_index2", "remote_index3", "remote_index4" },
+                new String[] { "field1", "field2", "field3" }
+            );
 
-            Consumer<Response> searchResponseAssertion = response -> {
-                assertOK(response);
-                assertSearchResponseContainsExpectedIndicesAndFields(
-                    response,
-                    new String[] { "remote_index1", "remote_index2", "remote_index3", "remote_index4" },
-                    new String[] { "field1", "field2", "field3" }
-                );
-            };
-            searchResponseAssertion.accept(searchResponse);
-
+            // API key with owner's permissions should return the same result.
             final String apiKeyNoDlsFls = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_NO_DLS_FLS, "{}").v2();
-            searchResponse = performRequestWithApiKey(searchRequest, apiKeyNoDlsFls);
-            searchResponseAssertion.accept(searchResponse);
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                performRequestWithApiKey(searchRequest, apiKeyNoDlsFls),
+                new String[] { "remote_index1", "remote_index2", "remote_index3", "remote_index4" },
+                new String[] { "field1", "field2", "field3" }
+            );
 
+            // API key's role restrictions should be respected.
             String apiKeyNoDlsFlsRestricted = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_NO_DLS_FLS, """
                 {
                     "role1": {
                       "remote_indices": [
                         {
-                          "names": ["remote_index1"],
+                          "names": ["remote_index1", "remote_index4"],
                           "privileges": ["read", "read_cross_cluster"],
-                          "clusters": ["*"]
+                          "clusters": ["*"],
+                          "query": {"bool": { "must_not": { "term" : {"field1" : "value4"}}}},
+                          "field_security": {"grant": [ "field1" ]}
                         }
                       ]
                     },
                     "role2": {
                       "remote_indices": [
                         {
-                          "names": ["remote_index2"],
+                          "names": ["remote_index2", "remote_index3"],
                           "privileges": ["read", "read_cross_cluster"],
-                          "clusters": ["*"]
+                          "clusters": ["*"],
+                          "query": {"bool": { "must_not": { "term" : {"field1" : "value3"}}}},
+                          "field_security": {"grant": [ "field2" ]}
                         }
                       ]
                     }
                 }
                 """).v2();
-            searchResponse = performRequestWithApiKey(searchRequest, apiKeyNoDlsFlsRestricted);
-            assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
-                searchResponse,
-                new String[] { "remote_index1", "remote_index2" },
-                new String[] { "field1", "field2", "field3" }
+                performRequestWithApiKey(searchRequest, apiKeyNoDlsFlsRestricted),
+                Map.ofEntries(Map.entry("remote_index1", Set.of("field1")), Map.entry("remote_index2", Set.of("field2")))
             );
         }
 
         // Running a CCS request with a user with DLS and FLS.
         {
-            final Response searchResponse = performRequestWithUserOrApiKey(searchRequest, REMOTE_SEARCH_USER_DLS_FLS);
-            assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
-                searchResponse,
+                performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_DLS_FLS),
                 new String[] { "remote_index1", "remote_index2" },
                 new String[] { "field1", "field2" }
             );
+
+            // API key with owner's permissions should return the same result.
+            final String apiKeyDlsFls = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_DLS_FLS, "{}").v2();
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                performRequestWithApiKey(searchRequest, apiKeyDlsFls),
+                new String[] { "remote_index1", "remote_index2" },
+                new String[] { "field1", "field2" }
+            );
+
+            // API key's role restrictions should be respected.
+            // In this case, the role intersection does not have any common permissions hence the search should return an empty result.
+            String apiKeyDlsFlsRestricted = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_DLS_FLS, """
+                {
+                    "role1": {
+                      "remote_indices": [
+                        {
+                          "names": ["remote_index1", "remote_index4"],
+                          "privileges": ["read", "read_cross_cluster"],
+                          "clusters": ["*"],
+                          "query": {"bool": { "must": { "term" : {"field1" : "value4"}}}},
+                          "field_security": {"grant": [ "field1" ]}
+                        }
+                      ]
+                    },
+                    "role2": {
+                      "remote_indices": [
+                        {
+                          "names": ["remote_index2", "remote_index3"],
+                          "privileges": ["read", "read_cross_cluster"],
+                          "clusters": ["*"],
+                          "query": {"bool": { "must": { "term" : {"field1" : "value3"}}}},
+                          "field_security": {"grant": [ "field2" ]}
+                        }
+                      ]
+                    }
+                }
+                """).v2();
+            assertSearchResponseContainsEmptyResult(performRequestWithApiKey(searchRequest, apiKeyDlsFlsRestricted));
         }
 
         // Running a CCS request with a user with DLS only.
         {
-            final Response searchResponse = performRequestWithUserOrApiKey(searchRequest, REMOTE_SEARCH_USER_DLS);
-            assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
-                searchResponse,
+                performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_DLS),
                 new String[] { "remote_index2", "remote_index3", "remote_index4" },
                 new String[] { "field1", "field2", "field3" }
+            );
+
+            // API key with owner's permissions should return the same search result.
+            final String apiKeyDls = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_DLS, "{}").v2();
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                performRequestWithApiKey(searchRequest, apiKeyDls),
+                new String[] { "remote_index2", "remote_index3", "remote_index4" },
+                new String[] { "field1", "field2", "field3" }
+            );
+
+            // API key's role restrictions should be respected.
+            String apiKeyDlsRestricted = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_DLS, """
+                {
+                    "role1": {
+                      "remote_indices": [
+                        {
+                          "names": ["remote_index*"],
+                          "privileges": ["read", "read_cross_cluster"],
+                          "clusters": ["*"],
+                          "query": {"bool": { "must": { "term" : {"field1" : "value4"}}}},
+                          "field_security": {"grant": [ "field1" ]}
+                        }
+                      ]
+                    },
+                    "role2": {
+                      "remote_indices": [
+                        {
+                          "names": ["remote_index2", "remote_index3"],
+                          "privileges": ["read", "read_cross_cluster"],
+                          "clusters": ["*"],
+                          "query": {"bool": { "must_not": { "term" : {"field1" : "value3"}}}},
+                          "field_security": {"grant": [ "field2" ]}
+                        }
+                      ]
+                    }
+                }
+                """).v2();
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                performRequestWithApiKey(searchRequest, apiKeyDlsRestricted),
+                Map.ofEntries(Map.entry("remote_index2", Set.of("field1", "field2")), Map.entry("remote_index4", Set.of("field1")))
             );
         }
 
         // Running a CCS request with a user with FLS only.
         {
-            final Response searchResponse = performRequestWithUserOrApiKey(searchRequest, REMOTE_SEARCH_USER_FLS);
-            assertOK(searchResponse);
             assertSearchResponseContainsExpectedIndicesAndFields(
-                searchResponse,
+                performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_FLS),
                 new String[] { "remote_index1", "remote_index2", "remote_index3", "remote_index4" },
                 new String[] { "field1", "field3" }
+            );
+
+            // API key with owner's permissions should return the same result.
+            final String apiKeyFls = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_FLS, "{}").v2();
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                performRequestWithApiKey(searchRequest, apiKeyFls),
+                new String[] { "remote_index1", "remote_index2", "remote_index3", "remote_index4" },
+                new String[] { "field1", "field3" }
+            );
+
+            // API key's role restrictions should be respected.
+            String apiKeyFlsRestricted = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_FLS, """
+                {
+                    "role1": {
+                      "remote_indices": [
+                        {
+                          "names": ["*"],
+                          "privileges": ["read", "read_cross_cluster"],
+                          "clusters": ["*"],
+                          "query": {"bool": { "must_not": { "term" : {"field1" : "value4"}}}},
+                          "field_security": {"grant": [ "field1" ]}
+                        }
+                      ]
+                    },
+                    "role2": {
+                      "remote_indices": [
+                        {
+                          "names": ["*2", "*3"],
+                          "privileges": ["read", "read_cross_cluster"],
+                          "clusters": ["*"],
+                          "query": {"bool": { "should": [{ "term" : {"field1" : "value3"}}]}},
+                          "field_security": {"grant": [ "field2" ]}
+                        }
+                      ]
+                    }
+                }
+                """).v2();
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                performRequestWithApiKey(searchRequest, apiKeyFlsRestricted),
+                new String[] { "remote_index1", "remote_index2", "remote_index3" },
+                new String[] { "field1" }
             );
         }
     }

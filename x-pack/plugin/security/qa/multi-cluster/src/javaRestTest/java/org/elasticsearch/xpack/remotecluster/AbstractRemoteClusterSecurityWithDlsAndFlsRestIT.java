@@ -20,10 +20,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends AbstractRemoteClusterSecurityTestCase {
@@ -160,12 +162,16 @@ public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends A
         createRemoteSearchUsers();
     }
 
+    /**
+     * Asserts that a search result contains expected indices and that for every index we get the same expected fields.
+     */
     protected void assertSearchResponseContainsExpectedIndicesAndFields(
         Response searchResponse,
         String[] expectedRemoteIndices,
         String[] expectedFields
     ) {
         try {
+            assertOK(searchResponse);
             final var searchResult = Arrays.stream(SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits().getHits())
                 .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
 
@@ -173,6 +179,40 @@ public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends A
             for (String remoteIndex : expectedRemoteIndices) {
                 assertThat(searchResult.get(remoteIndex).keySet(), containsInAnyOrder(expectedFields));
             }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Asserts that a search result contains expected indices and expected fields per index.
+     * @param searchResponse to check
+     * @param expectedRemoteIndicesAndFields map of expected indices and expected fields per single index
+     */
+    protected void assertSearchResponseContainsExpectedIndicesAndFields(
+        Response searchResponse,
+        Map<String, Set<String>> expectedRemoteIndicesAndFields
+    ) {
+        try {
+            assertOK(searchResponse);
+            final var searchResult = Arrays.stream(SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits().getHits())
+                .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
+
+            assertThat(searchResult.keySet(), equalTo(expectedRemoteIndicesAndFields.keySet()));
+            for (String remoteIndex : expectedRemoteIndicesAndFields.keySet()) {
+                Set<String> expectedFields = expectedRemoteIndicesAndFields.get(remoteIndex);
+                assertThat(searchResult.get(remoteIndex).keySet(), equalTo(expectedFields));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    protected void assertSearchResponseContainsEmptyResult(Response response) {
+        try {
+            assertOK(response);
+            SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -226,18 +266,6 @@ public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends A
     protected Response performRequestWithApiKey(final Request request, final String encoded) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + encoded));
         return client().performRequest(request);
-    }
-
-    protected Response performRequestWithUserOrApiKey(final Request request, final String username) throws IOException {
-        final boolean performWithUser = randomBoolean();
-        if (performWithUser) {
-            return performRequestWithUser(request, username);
-        } else {
-            // Not providing role descriptors, means that API key will have the same permissions as the owner user.
-            // Hence, we can expect to get the same results.
-            final String apiKeyEncoded = createRemoteSearchApiKeyWithUser(username, "{}").v2();
-            return performRequestWithApiKey(request, apiKeyEncoded);
-        }
     }
 
 }

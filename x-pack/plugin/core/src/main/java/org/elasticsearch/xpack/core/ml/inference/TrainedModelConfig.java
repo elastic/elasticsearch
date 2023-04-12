@@ -899,7 +899,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         /**
-         * Validate that fields defined by the packaged aren't defined in the request.
+         * Validate that fields defined by the package aren't defined in the request.
          *
          * To be called by the transport after checking that the package exists.
          */

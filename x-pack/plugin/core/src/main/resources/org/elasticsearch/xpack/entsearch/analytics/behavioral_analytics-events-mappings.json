@@ -25,95 +25,135 @@
               "ignore_above": 1024,
               "type": "keyword"
             },
-            "dataset": {
+            "source": {
               "ignore_above": 1024,
               "type": "keyword"
             }
           }
         },
-        "http": {
+        "document": {
           "properties": {
-            "request": {
-              "properties": {
-                "referrer": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                }
-              }
+            "index": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "id": {
+              "ignore_above": 1024,
+              "type": "keyword"
             }
           }
         },
-        "labels": {
-          "type": "object"
-        },
-        "url": {
+        "session": {
           "properties": {
-            "domain": {
+            "id": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "user": {
+          "properties": {
+            "id": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "page": {
+          "properties": {
+            "url": {
               "ignore_above": 1024,
               "type": "keyword"
             },
-            "extension": {
+            "title": {
               "ignore_above": 1024,
               "type": "keyword"
             },
-            "fragment": {
+            "referrer": {
               "ignore_above": 1024,
               "type": "keyword"
-            },
-            "full": {
-              "fields": {
-                "text": {
-                  "norms": false,
-                  "type": "text"
-                }
-              },
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "original": {
-              "fields": {
-                "text": {
-                  "norms": false,
-                  "type": "text"
-                }
-              },
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "password": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "path": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "port": {
-              "type": "long"
-            },
+            }
+          }
+        },
+        "search": {
+          "properties": {
             "query": {
               "ignore_above": 1024,
               "type": "keyword"
             },
-            "registered_domain": {
-              "ignore_above": 1024,
-              "type": "keyword"
+            "search_application": {
+                "type": "keyword",
+                "ignore_above": 1024
             },
-            "scheme": {
-              "ignore_above": 1024,
-              "type": "keyword"
+            "filters": {
+              "properties": {
+                "field": {
+                    "type": "keyword",
+                    "ignore_above": 1024
+                },
+                "value": {
+                    "type": "keyword",
+                    "ignore_above": 1024
+                }
+              }
             },
-            "subdomain": {
-              "ignore_above": 1024,
-              "type": "keyword"
+            "page": {
+              "properties": {
+                "current": {
+                  "type": "integer"
+                },
+                "size": {
+                  "type": "integer"
+                }
+              }
             },
-            "top_level_domain": {
-              "ignore_above": 1024,
-              "type": "keyword"
+            "sort": {
+              "properties": {
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "direction": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
             },
-            "username": {
-              "ignore_above": 1024,
-              "type": "keyword"
+            "results": {
+              "properties": {
+                "total_results": {
+                  "type": "integer"
+                },
+                "items": {
+                  "properties": {
+                    "document": {
+                      "properties": {
+
+                      "index": {
+                        "type": "keyword",
+                        "ignore_above": 1024
+                      },
+                      "id": {
+                        "type": "keyword",
+                        "ignore_above": 1024
+                      }
+                    }
+                    },
+                    "page": {
+                      "properties": {
+                        "url": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "title": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }

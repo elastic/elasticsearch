@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -34,7 +35,10 @@ public class AnalyticsCollectionResolverTests extends ESTestCase {
         String dataStreamName = AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX + collectionName;
 
         ClusterState state = createClusterState(dataStreamName);
-        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(mock(IndexNameExpressionResolver.class));
+        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(
+            mock(IndexNameExpressionResolver.class),
+            mock(ClusterService.class)
+        );
 
         AnalyticsCollection collection = resolver.collection(state, collectionName);
 
@@ -46,7 +50,10 @@ public class AnalyticsCollectionResolverTests extends ESTestCase {
         String collectionName = randomIdentifier();
 
         ClusterState state = createClusterState();
-        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(mock(IndexNameExpressionResolver.class));
+        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(
+            mock(IndexNameExpressionResolver.class),
+            mock(ClusterService.class)
+        );
 
         expectThrows(
             ResourceNotFoundException.class,
@@ -68,7 +75,7 @@ public class AnalyticsCollectionResolverTests extends ESTestCase {
             )
         );
 
-        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(indexNameExpressionResolver);
+        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(indexNameExpressionResolver, mock(ClusterService.class));
         List<AnalyticsCollection> collections = resolver.collections(state, "*");
 
         assertThat(collections, hasSize(2));
@@ -83,7 +90,7 @@ public class AnalyticsCollectionResolverTests extends ESTestCase {
         IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(indexNameExpressionResolver.dataStreamNames(eq(state), any(), any())).thenReturn(Collections.singletonList(dataStreamName));
 
-        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(indexNameExpressionResolver);
+        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(indexNameExpressionResolver, mock(ClusterService.class));
         List<AnalyticsCollection> collections = resolver.collections(state);
 
         assertThat(collections, hasSize(1));
@@ -102,7 +109,7 @@ public class AnalyticsCollectionResolverTests extends ESTestCase {
             )
         );
 
-        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(indexNameExpressionResolver);
+        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(indexNameExpressionResolver, mock(ClusterService.class));
         List<AnalyticsCollection> collections = resolver.collections(state, "ba*");
         assertThat(collections, hasSize(2));
         assertTrue(collections.stream().anyMatch(collection -> collection.getName().equals("bar")));
@@ -121,7 +128,7 @@ public class AnalyticsCollectionResolverTests extends ESTestCase {
             )
         );
 
-        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(indexNameExpressionResolver);
+        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(indexNameExpressionResolver, mock(ClusterService.class));
         List<AnalyticsCollection> collections = resolver.collections(state, "foo", "ba*");
         assertThat(collections, hasSize(3));
         assertTrue(collections.stream().anyMatch(collection -> collection.getName().equals("foo")));
@@ -136,7 +143,7 @@ public class AnalyticsCollectionResolverTests extends ESTestCase {
             Collections.singletonList(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX + "foo")
         );
 
-        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(indexNameExpressionResolver);
+        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(indexNameExpressionResolver, mock(ClusterService.class));
         expectThrows(
             ResourceNotFoundException.class,
             "no such analytics collection [bar]",
@@ -150,7 +157,7 @@ public class AnalyticsCollectionResolverTests extends ESTestCase {
         when(indexNameExpressionResolver.dataStreamNames(eq(state), any(), any())).thenReturn(
             Collections.singletonList(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX + "foo")
         );
-        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(indexNameExpressionResolver);
+        AnalyticsCollectionResolver resolver = new AnalyticsCollectionResolver(indexNameExpressionResolver, mock(ClusterService.class));
         assertTrue(resolver.collections(state, "ba*").isEmpty());
     }
 

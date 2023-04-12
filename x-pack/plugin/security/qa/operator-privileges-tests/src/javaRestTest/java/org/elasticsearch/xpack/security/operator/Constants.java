@@ -97,6 +97,7 @@ public class Constants {
         "cluster:admin/xpack/application/analytics/delete",
         "cluster:admin/xpack/application/analytics/get",
         "cluster:admin/xpack/application/analytics/put",
+        "cluster:admin/xpack/application/analytics/post_event",
         "cluster:admin/xpack/application/search_application/delete",
         "cluster:admin/xpack/application/search_application/get",
         "cluster:admin/xpack/application/search_application/list",

@@ -82,6 +82,9 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
         Map<String, Object> model = Variables.createCtxParamsMap(context, payload);
         HttpRequest httpRequest = attachment.getRequestTemplate().render(templateEngine, model);
 
+        // TODO: it would be possible to make this go through WebhookService the
+        // way that ReportingAttachmentParser does, but this work has not yet
+        // been done.
         HttpResponse response = httpClient.execute(httpRequest);
         // check for status 200, only then append attachment
         if (response.status() >= 200 && response.status() < 300) {

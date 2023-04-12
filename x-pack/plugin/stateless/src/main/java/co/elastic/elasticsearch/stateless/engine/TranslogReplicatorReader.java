@@ -22,121 +22,145 @@ import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
+import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 
 /**
- * An iterator that can read the translogs from the object store's compound translog files (as stored by {@link TranslogReplicator}),
- * which are related to a given shard id and contain operations with at least a given seq no.
- *
- * For each returned translog, a corresponding {@link TranslogReplicatorReader.Entry} is returned, which contains the data (seq nos) and the
- * metadata with the size, min and max seq no of the translog, and the offset where it was found in the original compound translog file.
- *
- * Note that returned translogs may contain mixed seq no operations. Thus a translog may contain operations with a lower seq no than
- * the given starting seq no, but will contain at least one seq no that is equal or larger than the starting seq no.
+ * A {@link Translog.Snapshot} implementation that can read the translog operations from the object store's compound translog files (as
+ * stored by {@link TranslogReplicator}), which are related to a given shard id and fall within a given inclusive range of seq nos.
  */
-public class TranslogReplicatorReader implements Iterator<TranslogReplicatorReader.Entry> {
-
-    public record Entry(TranslogMetadata metadata, BytesReference data) {}
+public class TranslogReplicatorReader implements Translog.Snapshot {
 
     private final ShardId shardId;
-    private final long startingSeqNo;
+    private final long fromSeqNo;
+    private final long toSeqNo;
 
     private final BlobContainer translogBlobContainer;
-    private final Map<String, BlobMetadata> blobs;
-    private final Iterator<String> compoundFiles;
-    private Entry next = null;
+    private final Iterator<? extends Translog.Operation> operations;
 
     /**
-     * Creates the iterator and captures the compound translog files from the object store that will be read when iterating.
+     * Creates the reader and captures the compound translog files from the object store that will be read when iterating.
      *
      * @param objectStoreService the object store service to use
-     * @param shardId            the shard id whose translogs to return
-     * @param startingSeqNo      each returned translog will contain at least one operation whose seq no is equal or larger than this seq no
-     * @throws IOException related to reading from the object store
+     * @param shardId            the shard id whose translog operations to return
+     * @param fromSeqNo          each returned operation is equal or larger than this seq no
+     * @param toSeqNo            each returned operation is equal or smaller than this seq no
+     * @throws IOException       related to listing blobs from the object store
+     * @throws TranslogCorruptedException in case the checksum of the checkpoints of a compound translog file is incorrect, or an inner
+     *                                    {@link IOException} occurred while reading from the translog file and/or the object store
      */
-    public TranslogReplicatorReader(final ObjectStoreService objectStoreService, final ShardId shardId, final long startingSeqNo)
-        throws IOException {
+    public TranslogReplicatorReader(
+        final ObjectStoreService objectStoreService,
+        final ShardId shardId,
+        final long fromSeqNo,
+        final long toSeqNo
+    ) throws IOException {
+        assert fromSeqNo <= toSeqNo : fromSeqNo + " > " + toSeqNo;
+        assert fromSeqNo >= 0 : "fromSeqNo must be non-negative " + fromSeqNo;
         this.shardId = shardId;
-        this.startingSeqNo = startingSeqNo;
+        this.fromSeqNo = fromSeqNo;
+        this.toSeqNo = toSeqNo;
         this.translogBlobContainer = objectStoreService.getLocalTranslogBlobContainer();
-        this.blobs = this.translogBlobContainer.listBlobs();
-        this.compoundFiles = blobs.keySet().stream().sorted().iterator();
+        Iterator<BlobMetadata> blobs = translogBlobContainer.listBlobs()
+            .entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(Map.Entry::getValue)
+            .iterator();
+        operations = Iterators.flatMap(blobs, this::readBlobTranslogOperations);
     }
 
     /**
-     * Creates the iterator and captures the compound translog files from the object store that will be read when iterating.
+     * Creates the reader and captures the compound translog files from the object store that will be read when iterating.
      *
      * @param objectStoreService the object store service to use
-     * @param shardId            the shard id whose translogs to return
-     * @throws IOException related to reading from the object store
+     * @param shardId            the shard id whose translog operations to return
+     * @throws IOException       related to reading from the object store
      */
     public TranslogReplicatorReader(final ObjectStoreService objectStoreService, final ShardId shardId) throws IOException {
-        this(objectStoreService, shardId, 0);
+        this(objectStoreService, shardId, 0, Long.MAX_VALUE);
     }
 
-    /**
-     * Returns whether there is a next translog entry.
-     *
-     * @throws TranslogCorruptedException in case the checksum of the checkpoints of a compound translog file is incorrect
-     */
     @Override
-    public boolean hasNext() {
-        while (next == null && compoundFiles.hasNext()) {
-            String compoundFile = compoundFiles.next();
-            BlobMetadata metadata = blobs.get(compoundFile);
-            try (StreamInput streamInput = new InputStreamStreamInput(translogBlobContainer.readBlob(metadata.name()))) {
-                BufferedChecksumStreamInput bufferedChecksumStreamInput = new BufferedChecksumStreamInput(streamInput, metadata.name());
-                Map<ShardId, TranslogMetadata> checkpoints = bufferedChecksumStreamInput.readMap(ShardId::new, TranslogMetadata::new);
-                long expectedChecksum = bufferedChecksumStreamInput.getChecksum();
-                long readChecksum = streamInput.readLong();
-                if (readChecksum != expectedChecksum) {
-                    throw new TranslogCorruptedException(
-                        metadata.name(),
-                        "checksum verification failed - expected: 0x"
-                            + Long.toHexString(expectedChecksum)
-                            + ", got: 0x"
-                            + Long.toHexString(readChecksum)
-                    );
-                }
+    public int totalOperations() {
+        return RecoveryState.Translog.UNKNOWN;
+    }
 
-                if (checkpoints.containsKey(shardId)) {
-                    TranslogMetadata translogMetadata = checkpoints.get(shardId);
-                    if (startingSeqNo <= translogMetadata.maxSeqNo()) {
-                        streamInput.skipNBytes(translogMetadata.offset());
-                        BytesReference shardTranslog = streamInput.readBytesReference((int) translogMetadata.size());
-                        next = new Entry(translogMetadata, shardTranslog);
-                    }
-                }
-            } catch (IOException e) {
-                throw new TranslogCorruptedException(metadata.name(), "error while reading translog file from object store", e);
+    private Iterator<Translog.Operation> readBlobTranslogOperations(BlobMetadata metadata) {
+        try (StreamInput streamInput = new InputStreamStreamInput(translogBlobContainer.readBlob(metadata.name()))) {
+            BufferedChecksumStreamInput bufferedChecksumStreamInput = new BufferedChecksumStreamInput(streamInput, metadata.name());
+            Map<ShardId, TranslogMetadata> checkpoints = bufferedChecksumStreamInput.readMap(ShardId::new, TranslogMetadata::new);
+
+            // Verify checksum of compound file
+            long expectedChecksum = bufferedChecksumStreamInput.getChecksum();
+            long readChecksum = streamInput.readLong();
+            if (readChecksum != expectedChecksum) {
+                throw new TranslogCorruptedException(
+                    metadata.name(),
+                    "checksum verification failed - expected: 0x"
+                        + Long.toHexString(expectedChecksum)
+                        + ", got: 0x"
+                        + Long.toHexString(readChecksum)
+                );
             }
+
+            // Check if the compound translog file contains eligible operations for this shard
+            if (checkpoints.containsKey(shardId)) {
+                TranslogMetadata translogMetadata = checkpoints.get(shardId);
+                // Check if at least one of the operations fall within the eligible range
+                if (toSeqNo >= translogMetadata.minSeqNo() && fromSeqNo <= translogMetadata.maxSeqNo()) {
+                    // Go to the translog file to read it
+                    streamInput.skipNBytes(translogMetadata.offset());
+                    BytesReference translogBytes = streamInput.readBytesReference((int) translogMetadata.size());
+
+                    // Read operations from the translog file
+                    int numOps = (int) translogMetadata.totalOps();
+                    List<Translog.Operation> eligibleOperations = new ArrayList<>(numOps);
+
+                    final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(
+                        translogBytes.streamInput(),
+                        "translog replicator"
+                    );
+                    for (int i = 0; i < numOps; i++) {
+                        Translog.Operation operation = Translog.readOperation(checksumStreamInput);
+                        // Add only eligible operations
+                        if (toSeqNo >= operation.seqNo() && fromSeqNo <= operation.seqNo()) {
+                            eligibleOperations.add(operation);
+                        }
+                    }
+                    return eligibleOperations.iterator();
+                }
+            }
+        } catch (IOException e) {
+            throw new TranslogCorruptedException(metadata.name(), "error while reading translog file from object store", e);
         }
-        return next != null;
+        return Collections.emptyIterator();
     }
 
     /**
-     * Returns the next translog entry.
+     * Returns the next translog operation. Returns null if finished.
      *
-     * @throws NoSuchElementException if no such entry exists
-     * @throws TranslogCorruptedException in case the checksum of the checkpoints of a compound translog file is incorrect
+     * @throws TranslogCorruptedException in case the checksum of the checkpoints of a compound translog file is incorrect, or an inner
+     *                                    {@link IOException} occurred while reading from the translog file and/or the object store
      */
     @Override
-    public Entry next() {
-        if (hasNext()) {
-            Entry toReturn = next;
-            next = null;
-            return toReturn;
-        } else {
-            throw new NoSuchElementException();
-        }
+    public Translog.Operation next() throws IOException {
+        return operations.hasNext() ? operations.next() : null;
     }
+
+    @Override
+    public void close() throws IOException {}
 }

@@ -42,7 +42,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
@@ -53,8 +52,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.indices.recovery.RecoverySourceHandlerTests.generateOperation;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -88,12 +89,17 @@ public class TranslogReplicatorTests extends ESTestCase {
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
 
-        BytesArray bytesArray = new BytesArray(new byte[16]);
-        translogReplicator.add(shardId, bytesArray, 0, new Translog.Location(0, 0, bytesArray.length()));
-        translogReplicator.add(shardId, bytesArray, 1, new Translog.Location(0, bytesArray.length(), bytesArray.length()));
-        translogReplicator.add(shardId, bytesArray, 3, new Translog.Location(0, bytesArray.length() * 2L, bytesArray.length()));
-        Translog.Location finalLocation = new Translog.Location(0, bytesArray.length() * 3L, bytesArray.length());
-        translogReplicator.add(shardId, bytesArray, 2, finalLocation);
+        Translog.Operation[] operations = generateRandomOperations(4);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        long currentLocation = 0;
+        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        currentLocation += operationsBytes[0].length();
+        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
+        currentLocation += operationsBytes[1].length();
+        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
+        currentLocation += operationsBytes[3].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
+        translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
 
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         translogReplicator.sync(shardId, finalLocation, future);
@@ -102,9 +108,62 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(compoundFiles.size(), equalTo(1));
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId, 0),
-            new TranslogEntry(new TranslogMetadata(0, 64, 0, 3, 4), repeatBytes(bytesArray.array(), 4))
+            new TranslogReplicatorReader(objectStoreService, shardId),
+            new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
         );
+    }
+
+    public void testTranslogReplicatorReaderMinMaxSeqNo() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        translogReplicator.doStart();
+
+        Translog.Operation[] operations = generateRandomOperations(6);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        long currentLocation = 0;
+        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        currentLocation += operationsBytes[0].length();
+        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
+        currentLocation += operationsBytes[1].length();
+        Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, operationsBytes[3].length());
+        translogReplicator.add(shardId, operationsBytes[3], 3, intermediateLocation);
+        currentLocation += operationsBytes[3].length();
+
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        translogReplicator.sync(shardId, intermediateLocation, future);
+        future.actionGet();
+
+        translogReplicator.add(shardId, operationsBytes[5], 5, new Translog.Location(0, currentLocation, operationsBytes[5].length()));
+        currentLocation += operationsBytes[5].length();
+        translogReplicator.add(shardId, operationsBytes[2], 2, new Translog.Location(0, currentLocation, operationsBytes[2].length()));
+        currentLocation += operationsBytes[2].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[4].length());
+        translogReplicator.add(shardId, operationsBytes[4], 4, finalLocation);
+
+        future = PlainActionFuture.newFuture();
+        translogReplicator.sync(shardId, finalLocation, future);
+        future.actionGet();
+
+        assertThat(compoundFiles.size(), equalTo(2));
+
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService, shardId, 0, 5),
+            new Translog.Operation[] { operations[0], operations[1], operations[3], operations[5], operations[2], operations[4] }
+        );
+        assertTranslogContains(new TranslogReplicatorReader(objectStoreService, shardId, 1, 1), new Translog.Operation[] { operations[1] });
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService, shardId, 1, 3),
+            new Translog.Operation[] { operations[1], operations[3], operations[2] }
+        );
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService, shardId, 4, 5),
+            new Translog.Operation[] { operations[5], operations[4] }
+        );
+        assertTranslogContains(new TranslogReplicatorReader(objectStoreService, shardId, 8, 10), new Translog.Operation[] {});
     }
 
     public void testListenerThreadContextPreserved() throws IOException {
@@ -167,20 +226,26 @@ public class TranslogReplicatorTests extends ESTestCase {
         );
         translogReplicator.doStart();
 
-        BytesArray bytesArray = new BytesArray(new byte[16]);
-        translogReplicator.add(shardId, bytesArray, 0, new Translog.Location(0, 0, bytesArray.length()));
-        translogReplicator.add(shardId, bytesArray, 1, new Translog.Location(0, bytesArray.length(), bytesArray.length()));
-        translogReplicator.add(shardId, bytesArray, 3, new Translog.Location(0, bytesArray.length() * 2L, bytesArray.length()));
-        Translog.Location finalLocation = new Translog.Location(0, bytesArray.length() * 3L, bytesArray.length());
-        translogReplicator.add(shardId, bytesArray, 2, finalLocation);
+        Translog.Operation[] operations = generateRandomOperations(4);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        long currentLocation = 0;
+        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        currentLocation += operationsBytes[0].length();
+        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
+        currentLocation += operationsBytes[1].length();
+        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
+        currentLocation += operationsBytes[3].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
+        translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
 
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         translogReplicator.sync(shardId, finalLocation, future);
         future.actionGet();
 
+        assertThat(compoundFiles.size(), equalTo(1));
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId, 0),
-            new TranslogEntry(new TranslogMetadata(0, 64, 0, 3, 4), repeatBytes(bytesArray.array(), 4))
+            new TranslogReplicatorReader(objectStoreService, shardId),
+            new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
         );
     }
 
@@ -219,12 +284,17 @@ public class TranslogReplicatorTests extends ESTestCase {
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
 
-        BytesArray bytesArray = new BytesArray(new byte[16]);
-        translogReplicator.add(shardId, bytesArray, 0, new Translog.Location(0, 0, bytesArray.length()));
-        translogReplicator.add(shardId, bytesArray, 1, new Translog.Location(0, bytesArray.length(), bytesArray.length()));
-        translogReplicator.add(shardId, bytesArray, 3, new Translog.Location(0, bytesArray.length() * 2L, bytesArray.length()));
-        Translog.Location finalLocation = new Translog.Location(0, bytesArray.length() * 3L, bytesArray.length());
-        translogReplicator.add(shardId, bytesArray, 2, finalLocation);
+        Translog.Operation[] operations = generateRandomOperations(4);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        long currentLocation = 0;
+        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        currentLocation += operationsBytes[0].length();
+        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
+        currentLocation += operationsBytes[1].length();
+        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
+        currentLocation += operationsBytes[3].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
+        translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
 
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         translogReplicator.sync(shardId, finalLocation, future);
@@ -232,8 +302,8 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(compoundFiles.size(), equalTo(1));
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId, 0),
-            new TranslogEntry(new TranslogMetadata(0, 64, 0, 3, 4), repeatBytes(bytesArray.array(), 4))
+            new TranslogReplicatorReader(objectStoreService, shardId),
+            new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
         );
     }
 
@@ -300,12 +370,14 @@ public class TranslogReplicatorTests extends ESTestCase {
             }
         }
 
-        var reader = new TranslogReplicatorReader(objectStoreService, shardId, 0);
-        var exception = expectThrows(TranslogCorruptedException.class, reader::next);
+        var exception = expectThrows(TranslogCorruptedException.class, () -> {
+            var reader = new TranslogReplicatorReader(objectStoreService, shardId);
+            reader.next();
+        });
         assertThat(exception.getMessage(), containsString("checksum verification failed"));
     }
 
-    public void testTranslogSyncOnlyCompletedOnceAllPriorFilesSynced() throws InterruptedException {
+    public void testTranslogSyncOnlyCompletedOnceAllPriorFilesSynced() throws Exception {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
 
         CountDownLatch intermediateStartedLatch = new CountDownLatch(1);
@@ -330,19 +402,24 @@ public class TranslogReplicatorTests extends ESTestCase {
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
 
-        BytesArray bytesArray = new BytesArray(new byte[16]);
-        translogReplicator.add(shardId, bytesArray, 0, new Translog.Location(0, 0, bytesArray.length()));
-        Translog.Location intermediateLocation = new Translog.Location(0, bytesArray.length(), bytesArray.length());
-        translogReplicator.add(shardId, bytesArray, 1, intermediateLocation);
+        Translog.Operation[] operations = generateRandomOperations(4);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        long currentLocation = 0;
+        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        currentLocation += operationsBytes[0].length();
+        Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, operationsBytes[1].length());
+        translogReplicator.add(shardId, operationsBytes[1], 1, intermediateLocation);
+        currentLocation += operationsBytes[1].length();
         intermediateStartedLatch.await();
 
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         translogReplicator.sync(shardId, intermediateLocation, future);
         expectThrows(ElasticsearchTimeoutException.class, () -> future.actionGet(300));
 
-        translogReplicator.add(shardId, bytesArray, 2, new Translog.Location(0, bytesArray.length() * 2L, bytesArray.length()));
-        Translog.Location finalLocation = new Translog.Location(0, bytesArray.length() * 3L, bytesArray.length());
-        translogReplicator.add(shardId, bytesArray, 3, finalLocation);
+        translogReplicator.add(shardId, operationsBytes[2], 2, new Translog.Location(0, currentLocation, operationsBytes[2].length()));
+        currentLocation += operationsBytes[2].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[3].length());
+        translogReplicator.add(shardId, operationsBytes[3], 3, finalLocation);
         finalSyncStartedLatch.await();
 
         PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
@@ -355,7 +432,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         future2.actionGet();
     }
 
-    public void testCompoundTranslogFile() throws IOException {
+    public void testCompoundTranslogFile() throws Exception {
         ShardId shardId1 = new ShardId(new Index("name1", "uuid"), 0);
         ShardId shardId2 = new ShardId(new Index("name2", "uuid"), 0);
 
@@ -365,14 +442,19 @@ public class TranslogReplicatorTests extends ESTestCase {
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
 
-        BytesArray bytesArray = new BytesArray(new byte[16]);
-        translogReplicator.add(shardId2, bytesArray, 0, new Translog.Location(0, 0, bytesArray.length()));
-        translogReplicator.add(shardId1, bytesArray, 0, new Translog.Location(0, 0, bytesArray.length()));
-        Translog.Location finalLocationShard1 = new Translog.Location(0, bytesArray.length(), bytesArray.length());
-        translogReplicator.add(shardId1, bytesArray, 1, finalLocationShard1);
-        translogReplicator.add(shardId2, bytesArray, 1, finalLocationShard1);
-        Translog.Location intermediateLocationShard2 = new Translog.Location(0, bytesArray.length() * 2L, bytesArray.length());
-        translogReplicator.add(shardId2, bytesArray, 3, intermediateLocationShard2);
+        Translog.Operation[] operations = generateRandomOperations(4);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        long currentLocation = 0;
+        translogReplicator.add(shardId2, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        translogReplicator.add(shardId1, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        currentLocation += operationsBytes[0].length();
+        Translog.Location finalLocationShard1 = new Translog.Location(0, currentLocation, operationsBytes[1].length());
+        translogReplicator.add(shardId1, operationsBytes[1], 1, finalLocationShard1);
+        translogReplicator.add(shardId2, operationsBytes[1], 1, finalLocationShard1);
+        currentLocation += operationsBytes[1].length();
+        Translog.Location intermediateLocationShard2 = new Translog.Location(0, currentLocation, operationsBytes[3].length());
+        translogReplicator.add(shardId2, operationsBytes[3], 3, intermediateLocationShard2);
+        currentLocation += operationsBytes[3].length();
 
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         translogReplicator.sync(shardId1, finalLocationShard1, future);
@@ -381,37 +463,36 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(compoundFiles.size(), equalTo(1));
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId1, 0),
-            new TranslogEntry(new TranslogMetadata(0, 32, 0, 1, 2), repeatBytes(bytesArray.array(), 2))
+            new TranslogReplicatorReader(objectStoreService, shardId1),
+            new Translog.Operation[] { operations[0], operations[1] }
         );
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId2, 0),
-            new TranslogEntry(new TranslogMetadata(32, 48, 0, 3, 3), repeatBytes(bytesArray.array(), 3))
+            new TranslogReplicatorReader(objectStoreService, shardId2),
+            new Translog.Operation[] { operations[0], operations[1], operations[3] }
         );
 
         PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
         translogReplicator.sync(shardId2, intermediateLocationShard2, future2);
         assertTrue(future2.isDone());
 
-        Translog.Location finalLocationShard2 = new Translog.Location(0, bytesArray.length() * 3L, bytesArray.length());
+        Translog.Location finalLocationShard2 = new Translog.Location(0, currentLocation, operationsBytes[2].length());
 
         PlainActionFuture<Void> future3 = PlainActionFuture.newFuture();
         translogReplicator.sync(shardId2, finalLocationShard2, future3);
         assertFalse(future3.isDone());
 
-        translogReplicator.add(shardId2, bytesArray, 2, finalLocationShard2);
+        translogReplicator.add(shardId2, operationsBytes[2], 2, finalLocationShard2);
         future3.actionGet();
 
         assertThat(compoundFiles.size(), equalTo(2));
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId1, 0),
-            new TranslogEntry(new TranslogMetadata(0, 32, 0, 1, 2), repeatBytes(bytesArray.array(), 2))
+            new TranslogReplicatorReader(objectStoreService, shardId1),
+            new Translog.Operation[] { operations[0], operations[1] }
         );
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId2, 0),
-            new TranslogEntry(new TranslogMetadata(32, 48, 0, 3, 3), repeatBytes(bytesArray.array(), 3)),
-            new TranslogEntry(new TranslogMetadata(0, 16, 2, 2, 1), bytesArray.array())
+            new TranslogReplicatorReader(objectStoreService, shardId2),
+            new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
         );
     }
 
@@ -424,12 +505,17 @@ public class TranslogReplicatorTests extends ESTestCase {
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
 
-        BytesArray bytesArray = new BytesArray(new byte[16]);
-        translogReplicator.add(shardId, bytesArray, 0, new Translog.Location(0, 0, bytesArray.length()));
-        translogReplicator.add(shardId, bytesArray, 1, new Translog.Location(0, bytesArray.length(), bytesArray.length()));
-        translogReplicator.add(shardId, bytesArray, 3, new Translog.Location(0, bytesArray.length() * 2L, bytesArray.length()));
-        Translog.Location finalLocation = new Translog.Location(0, bytesArray.length() * 3L, bytesArray.length());
-        translogReplicator.add(shardId, bytesArray, 2, finalLocation);
+        Translog.Operation[] operations = generateRandomOperations(4);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        long currentLocation = 0;
+        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        currentLocation += operationsBytes[0].length();
+        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
+        currentLocation += operationsBytes[1].length();
+        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
+        currentLocation += operationsBytes[3].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
+        translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
 
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         translogReplicator.syncAll(shardId, future);
@@ -438,8 +524,8 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(compoundFiles.size(), equalTo(1));
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId, 0),
-            new TranslogEntry(new TranslogMetadata(0, 64, 0, 3, 4), repeatBytes(bytesArray.array(), 4))
+            new TranslogReplicatorReader(objectStoreService, shardId),
+            new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
         );
     }
 
@@ -450,6 +536,26 @@ public class TranslogReplicatorTests extends ESTestCase {
             translogReplicator.doStart();
             verify(threadPool).scheduleWithFixedDelay(any(Runnable.class), eq(TimeValue.timeValueMillis(50)), eq(ThreadPool.Names.GENERIC));
         }
+    }
+
+    private static Translog.Operation[] generateRandomOperations(int numOps) {
+        final Translog.Operation[] operations = new Translog.Operation[numOps];
+        for (int i = 0; i < numOps; i++) {
+            operations[i] = generateOperation(i);
+        }
+        return operations;
+    }
+
+    private static BytesReference[] convertOperationsToBytes(Translog.Operation[] operations) throws IOException {
+        BytesReference[] bytesReferences = new BytesReference[operations.length];
+        for (int i = 0; i < bytesReferences.length; i++) {
+            Translog.Operation operation = operations[i];
+            try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
+                Translog.writeOperationWithSize(bytesStreamOutput, operation);
+                bytesReferences[i] = bytesStreamOutput.bytes();
+            }
+        }
+        return bytesReferences;
     }
 
     private static BytesReference getBytes(BytesReference reference) throws IOException {
@@ -486,23 +592,12 @@ public class TranslogReplicatorTests extends ESTestCase {
         return objectStoreService;
     }
 
-    private byte[] repeatBytes(byte[] array, int times) throws IOException {
-        ByteArrayOutputStream expectedBytesStream = new ByteArrayOutputStream();
-        for (int i = 0; i < times; i++) {
-            expectedBytesStream.write(array);
+    private static void assertTranslogContains(TranslogReplicatorReader reader, Translog.Operation... operations) throws IOException {
+        for (int i = 0; i < operations.length; i++) {
+            Translog.Operation operation = reader.next();
+            assertThat("Reader does not have a next operation", operation, notNullValue());
+            assertThat("Next operation is not equal to expected operation", operation, equalTo(operations[i]));
         }
-        return expectedBytesStream.toByteArray();
+        assertThat("Reader has unexpected extra entries", reader.next(), equalTo(null));
     }
-
-    private static void assertTranslogContains(TranslogReplicatorReader reader, TranslogEntry... entries) {
-        for (int i = 0; i < entries.length; i++) {
-            assertThat("Reader does not have expected entry", reader.hasNext(), equalTo(true));
-            var entry = reader.next();
-            assertThat(entry.metadata(), equalTo(entries[i].metadata()));
-            assertArrayEquals("unexpected byte contents", entries[i].data(), BytesReference.toBytes(entry.data()));
-        }
-        assertThat("Reader has unexpected extra entries", reader.hasNext(), equalTo(false));
-    }
-
-    private record TranslogEntry(TranslogMetadata metadata, byte[] data) {}
 }

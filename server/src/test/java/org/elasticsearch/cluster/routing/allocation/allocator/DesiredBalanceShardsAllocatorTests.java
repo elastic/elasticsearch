@@ -413,7 +413,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, delegateAllocator) {
 
-            final AtomicReference<DesiredBalance> previousDesiredBalanceRef = new AtomicReference<>();
+            final AtomicReference<DesiredBalance> lastComputationInput = new AtomicReference<>();
 
             @Override
             public DesiredBalance compute(
@@ -422,7 +422,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
                 Predicate<DesiredBalanceInput> isFresh
             ) {
-                previousDesiredBalanceRef.set(previousDesiredBalance);
+                lastComputationInput.set(previousDesiredBalance);
                 return super.compute(previousDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, isFresh);
             }
         };
@@ -440,19 +440,19 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         try {
             // initial computation is based on DesiredBalance.INITIAL
             rerouteAndWait(service, clusterState, "initial-allocation");
-            assertThat(desiredBalanceComputer.previousDesiredBalanceRef.get(), equalTo(DesiredBalance.INITIAL));
+            assertThat(desiredBalanceComputer.lastComputationInput.get(), equalTo(DesiredBalance.INITIAL));
 
             // any next computation is based on current desired balance
             var current = desiredBalanceShardsAllocator.getDesiredBalance();
             rerouteAndWait(service, clusterState, "next-allocation");
-            assertThat(desiredBalanceComputer.previousDesiredBalanceRef.get(), equalTo(current));
+            assertThat(desiredBalanceComputer.lastComputationInput.get(), equalTo(current));
 
             // when desired balance is resetted then computation is based on balance with no previous assignments
             desiredBalanceShardsAllocator.resetDesiredBalance();
             current = desiredBalanceShardsAllocator.getDesiredBalance();
             rerouteAndWait(service, clusterState, "reset-desired-balance");
             assertThat(
-                desiredBalanceComputer.previousDesiredBalanceRef.get(),
+                desiredBalanceComputer.lastComputationInput.get(),
                 equalTo(new DesiredBalance(current.lastConvergedIndex(), Map.of()))
             );
         } finally {

@@ -77,12 +77,12 @@ public class TransportDeleteDesiredBalanceAction extends TransportMasterNodeActi
         }
     }
 
-    public static final class ResetDesiredBalanceClusterExecutor implements ClusterStateTaskExecutor<ResetDesiredBalanceTask> {
+    private static final class ResetDesiredBalanceClusterExecutor implements ClusterStateTaskExecutor<ResetDesiredBalanceTask> {
 
         private final AllocationService allocationService;
         private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator;
 
-        public ResetDesiredBalanceClusterExecutor(
+        ResetDesiredBalanceClusterExecutor(
             AllocationService allocationService,
             DesiredBalanceShardsAllocator desiredBalanceShardsAllocator
         ) {

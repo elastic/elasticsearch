@@ -9,41 +9,62 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceInput;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.mockito.ArgumentCaptor;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 
 public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCase {
 
     public void testReturnsErrorIfAllocatorIsNotDesiredBalanced() throws Exception {
 
-        var listener = spy(ActionListener.<ActionResponse.Empty>noop());
+        var listener = new PlainActionFuture<ActionResponse.Empty>();
 
         new TransportDeleteDesiredBalanceAction(
             mock(TransportService.class),
@@ -53,31 +74,65 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             mock(IndexNameExpressionResolver.class),
             mock(AllocationService.class),
             mock(ShardsAllocator.class)
-        ).masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), ClusterState.EMPTY_STATE, listener);
+        ).masterOperation(mock(Task.class), new DesiredBalanceRequest(), ClusterState.EMPTY_STATE, listener);
 
-        ArgumentCaptor<ResourceNotFoundException> exceptionArgumentCaptor = ArgumentCaptor.forClass(ResourceNotFoundException.class);
-        verify(listener).onFailure(exceptionArgumentCaptor.capture());
-
-        final var exception = exceptionArgumentCaptor.getValue();
-        assertEquals("Desired balance allocator is not in use, no desired balance found", exception.getMessage());
-        assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
+        var exception = expectThrows(ResourceNotFoundException.class, listener::actionGet);
+        assertThat(exception.getMessage(), equalTo("Desired balance allocator is not in use, no desired balance found"));
     }
 
     public void testDeleteDesiredBalance() throws Exception {
 
         var threadPool = new TestThreadPool(getTestName());
 
+        var shardId = new ShardId("test-index", UUIDs.randomBase64UUID(), 0);
+        var index = createIndex(shardId.getIndexName());
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(newNode("master")).localNodeId("master").masterNodeId("master").build())
+            .metadata(Metadata.builder().put(index, false).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(index).build())
             .build();
 
         var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
 
+        var settings = Settings.EMPTY;
+        var clusterSettings = ClusterSettings.createBuiltInClusterSettings(settings);
+
+        var delegate = new BalancedShardsAllocator();
+        var computer = new DesiredBalanceComputer(clusterSettings, threadPool, delegate) {
+
+            final AtomicReference<DesiredBalance> lastComputationInput = new AtomicReference<>();
+
+            @Override
+            public DesiredBalance compute(
+                DesiredBalance previousDesiredBalance,
+                DesiredBalanceInput desiredBalanceInput,
+                Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
+                Predicate<DesiredBalanceInput> isFresh
+            ) {
+                lastComputationInput.set(previousDesiredBalance);
+                return super.compute(previousDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, isFresh);
+            }
+        };
+        var allocator = new DesiredBalanceShardsAllocator(delegate, threadPool, clusterService, computer, (state, action) -> state);
+        var allocationService = new MockAllocationService(
+            randomAllocationDeciders(settings, clusterSettings),
+            new TestGatewayAllocator(),
+            allocator,
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+        );
+
+        PlainActionFuture.<Void, RuntimeException>get(
+            f -> allocationService.reroute(clusterState, "inital-allocate", f),
+            10,
+            TimeUnit.SECONDS
+        );
+
+        var balanceBeforeReset = allocator.getDesiredBalance();
+        assertThat(balanceBeforeReset.lastConvergedIndex(), greaterThan(DesiredBalance.INITIAL.lastConvergedIndex()));
+        assertThat(balanceBeforeReset.assignments(), not(anEmptyMap()));
+
         var listener = new PlainActionFuture<ActionResponse.Empty>();
-        var allocator = mock(DesiredBalanceShardsAllocator.class);
-        var allocationService = mock(AllocationService.class);
-        doAnswer(invocation -> invocation.getArgument(0, ClusterState.class)).when(allocationService)
-            .reroute(any(), eq("reset-desired-balance"), any());
 
         var action = new TransportDeleteDesiredBalanceAction(
             mock(TransportService.class),
@@ -89,16 +144,27 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             allocator
         );
 
-        action.masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
+        action.masterOperation(mock(Task.class), new DesiredBalanceRequest(), clusterState, listener);
         ClusterServiceUtils.awaitNoPendingTasks(clusterService);
 
         try {
             assertThat(listener.get(), notNullValue());
-            verify(allocator).resetDesiredBalance();
-            verify(allocationService).reroute(any(), eq("reset-desired-balance"), any());
+            // resetting desired balance should trigger new computation with empty assignments
+            assertThat(computer.lastComputationInput.get(), equalTo(new DesiredBalance(balanceBeforeReset.lastConvergedIndex(), Map.of())));
         } finally {
             clusterService.close();
             terminate(threadPool);
         }
+    }
+
+    private static IndexMetadata createIndex(String name) {
+        return IndexMetadata.builder(name)
+            .settings(
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            )
+            .build();
     }
 }

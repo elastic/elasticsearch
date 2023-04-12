@@ -89,37 +89,46 @@ public class SourceProviderTests extends ESTestCase {
         executorService.shutdown();
     }
 
-    private static CollectorManager<?, ?> assertingCollectorManager() {
+    private static class SourceAssertingCollector implements Collector {
+
+        final SourceProvider sourceProvider;
+
+        private SourceAssertingCollector(SourceProvider sourceProvider) {
+            this.sourceProvider = sourceProvider;
+        }
+
+        @Override
+        public LeafCollector getLeafCollector(LeafReaderContext context) {
+            return new LeafCollector() {
+                @Override
+                public void setScorer(Scorable scorer) {
+
+                }
+
+                @Override
+                public void collect(int doc) throws IOException {
+                    Source source = sourceProvider.getSource(context, doc);
+                    assertEquals(doc + context.docBase, source.source().get("id"));
+                }
+            };
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE;
+        }
+    }
+
+    private static CollectorManager<SourceAssertingCollector, ?> assertingCollectorManager() {
         SourceProvider sourceProvider = SourceProvider.fromStoredFields();
         return new CollectorManager<>() {
             @Override
-            public Collector newCollector() {
-                return new Collector() {
-                    @Override
-                    public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        return new LeafCollector() {
-                            @Override
-                            public void setScorer(Scorable scorer) {
-
-                            }
-
-                            @Override
-                            public void collect(int doc) throws IOException {
-                                Source source = sourceProvider.getSource(context, doc);
-                                assertEquals(doc + context.docBase, source.source().get("id"));
-                            }
-                        };
-                    }
-
-                    @Override
-                    public ScoreMode scoreMode() {
-                        return ScoreMode.COMPLETE;
-                    }
-                };
+            public SourceAssertingCollector newCollector() {
+                return new SourceAssertingCollector(sourceProvider);
             }
 
             @Override
-            public Object reduce(Collection collectors) {
+            public Object reduce(Collection<SourceAssertingCollector> collectors) {
                 return 0;
             }
         };

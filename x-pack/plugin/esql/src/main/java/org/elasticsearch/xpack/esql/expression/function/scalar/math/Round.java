@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -62,19 +64,39 @@ public class Round extends ScalarFunction implements OptionalArgument, Mappable 
     @Override
     public Object fold() {
         if (decimals == null) {
-            return RoundNoDecimalsEvaluator.fold(field);
+            return Maths.round((Number) field.fold(), 0L);
         }
-        return RoundEvaluator.fold(field, decimals);
+        return Maths.round((Number) field.fold(), (Number) decimals.fold());
     }
 
-    @Evaluator(extraName = "NoDecimals")
-    static Number processNoDecimals(Number val) {
-        return Maths.round(val, 0);
+    @Evaluator(extraName = "IntNoDecimals")
+    static int process(int val) {
+        return Maths.round((long) val, 0L).intValue();
     }
 
-    @Evaluator
-    static Number process(Number val, Number decimals) {
-        return Maths.round(val, decimals);
+    @Evaluator(extraName = "LongNoDecimals")
+    static long process(long val) {
+        return Maths.round(val, 0L).longValue();
+    }
+
+    @Evaluator(extraName = "DoubleNoDecimals")
+    static double process(double val) {
+        return Maths.round(val, 0).doubleValue();
+    }
+
+    @Evaluator(extraName = "Int")
+    static int process(int val, long decimals) {
+        return Maths.round((long) val, decimals).intValue();
+    }
+
+    @Evaluator(extraName = "Long")
+    static long process(long val, long decimals) {
+        return Maths.round(val, decimals).longValue();
+    }
+
+    @Evaluator(extraName = "Double")
+    static double process(double val, long decimals) {
+        return Maths.round(val, decimals).doubleValue();
     }
 
     @Override
@@ -109,12 +131,33 @@ public class Round extends ScalarFunction implements OptionalArgument, Mappable 
     public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
+        if (field.dataType() == DataTypes.DOUBLE) {
+            return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator::new, RoundDoubleEvaluator::new);
+        }
+        if (field.dataType() == DataTypes.INTEGER) {
+            return toEvaluator(toEvaluator, RoundIntNoDecimalsEvaluator::new, RoundIntEvaluator::new);
+        }
+        if (field.dataType() == DataTypes.LONG) {
+            return toEvaluator(toEvaluator, RoundLongNoDecimalsEvaluator::new, RoundLongEvaluator::new);
+        }
+        throw new UnsupportedOperationException();
+    }
+
+    private Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
+        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator,
+        Function<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> noDecimals,
+        BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> withDecimals
+    ) {
         Supplier<EvalOperator.ExpressionEvaluator> fieldEvaluator = toEvaluator.apply(field());
         if (decimals == null) {
-            return () -> new RoundNoDecimalsEvaluator(fieldEvaluator.get());
+            return () -> noDecimals.apply(fieldEvaluator.get());
         }
-        Supplier<EvalOperator.ExpressionEvaluator> decimalsEvaluator = toEvaluator.apply(decimals);
-        return () -> new RoundEvaluator(fieldEvaluator.get(), decimalsEvaluator.get());
+        Supplier<EvalOperator.ExpressionEvaluator> decimalsEvaluator = Cast.cast(
+            decimals().dataType(),
+            DataTypes.LONG,
+            toEvaluator.apply(decimals())
+        );
+        return () -> withDecimals.apply(fieldEvaluator.get(), decimalsEvaluator.get());
     }
 
     @Override

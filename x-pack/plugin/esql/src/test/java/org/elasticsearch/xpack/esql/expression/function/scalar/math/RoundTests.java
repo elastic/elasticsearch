@@ -103,13 +103,13 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "RoundEvaluator[val=Doubles[channel=0], decimals=Ints[channel=1]]";
+        return "RoundDoubleEvaluator[val=Doubles[channel=0], decimals=CastIntToLongEvaluator[v=Ints[channel=1]]]";
     }
 
     public void testNoDecimalsToString() {
         assertThat(
             evaluator(new Round(Source.EMPTY, field("val", DataTypes.DOUBLE), null)).get().toString(),
-            equalTo("RoundNoDecimalsEvaluator[val=Doubles[channel=0]]")
+            equalTo("RoundDoubleNoDecimalsEvaluator[val=Doubles[channel=0]]")
         );
     }
 

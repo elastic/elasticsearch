@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
@@ -41,81 +43,88 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
 public class EvalMapperTests extends ESTestCase {
+    private static final FieldAttribute DOUBLE1 = field("foo", DataTypes.DOUBLE);
+    private static final FieldAttribute DOUBLE2 = field("bar", DataTypes.DOUBLE);
+    private static final FieldAttribute LONG = field("long", DataTypes.LONG);
+    private static final FieldAttribute DATE = field("date", DataTypes.DATETIME);
 
-    FieldAttribute double1 = field("foo", DataTypes.DOUBLE);
-    FieldAttribute double2 = field("bar", DataTypes.DOUBLE);
-    FieldAttribute longField = field("long", DataTypes.LONG);
-    FieldAttribute date = field("date", DataTypes.DATETIME);
-
-    Expression[] expressions() {
+    @ParametersFactory(argumentFormatting = "%1$s")
+    public static List<Object[]> params() {
         Literal literal = new Literal(Source.EMPTY, new BytesRef("something"), DataTypes.KEYWORD);
         Literal datePattern = new Literal(Source.EMPTY, new BytesRef("yyyy"), DataTypes.KEYWORD);
         Literal dateInterval = new Literal(Source.EMPTY, Duration.ofHours(1), EsqlDataTypes.TIME_DURATION);
 
-        Expression[] expressions = {
-            new Add(Source.EMPTY, double1, double2),
-            new Sub(Source.EMPTY, double1, double2),
-            new Mul(Source.EMPTY, double1, double2),
-            new Div(Source.EMPTY, double1, double2),
-            new Abs(Source.EMPTY, double1),
-            new Equals(Source.EMPTY, double1, double2),
-            new GreaterThan(Source.EMPTY, double1, double2, null),
-            new GreaterThanOrEqual(Source.EMPTY, double1, double2, null),
-            new LessThan(Source.EMPTY, double1, double2, null),
-            new LessThanOrEqual(Source.EMPTY, double1, double2, null),
+        List<Object[]> params = new ArrayList<>();
+        for (Expression e : new Expression[] {
+            new Add(Source.EMPTY, DOUBLE1, DOUBLE2),
+            new Sub(Source.EMPTY, DOUBLE1, DOUBLE2),
+            new Mul(Source.EMPTY, DOUBLE1, DOUBLE2),
+            new Div(Source.EMPTY, DOUBLE1, DOUBLE2),
+            new Abs(Source.EMPTY, DOUBLE1),
+            new Equals(Source.EMPTY, DOUBLE1, DOUBLE2),
+            new GreaterThan(Source.EMPTY, DOUBLE1, DOUBLE2, null),
+            new GreaterThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2, null),
+            new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2, null),
+            new LessThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2, null),
             new And(
                 Source.EMPTY,
-                new LessThan(Source.EMPTY, double1, double2, null),
-                new LessThanOrEqual(Source.EMPTY, double1, double2, null)
+                new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2, null),
+                new LessThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2, null)
             ),
             new Or(
                 Source.EMPTY,
-                new LessThan(Source.EMPTY, double1, double2, null),
-                new LessThanOrEqual(Source.EMPTY, double1, double2, null)
+                new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2, null),
+                new LessThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2, null)
             ),
-            new Not(Source.EMPTY, new LessThan(Source.EMPTY, double1, double2, null)),
+            new Not(Source.EMPTY, new LessThan(Source.EMPTY, DOUBLE1, DOUBLE2, null)),
             new Concat(Source.EMPTY, literal, Collections.emptyList()),
-            new Round(Source.EMPTY, double1, double2),
-            double1,
+            new Round(Source.EMPTY, DOUBLE1, LONG),
+            DOUBLE1,
             literal,
             new Length(Source.EMPTY, literal),
-            new DateFormat(Source.EMPTY, date, datePattern),
+            new DateFormat(Source.EMPTY, DATE, datePattern),
             new StartsWith(Source.EMPTY, literal, literal),
-            new Substring(Source.EMPTY, literal, longField, longField),
-            new DateTrunc(Source.EMPTY, date, dateInterval) };
+            new Substring(Source.EMPTY, literal, LONG, LONG),
+            new DateTrunc(Source.EMPTY, DATE, dateInterval) }) {
+            params.add(new Object[] { e.nodeString(), e });
+        }
 
-        return expressions;
+        return params;
+    }
+
+    private final String nodeString;
+    private final Expression expression;
+
+    public EvalMapperTests(String nodeString, Expression expression) {
+        this.nodeString = nodeString;
+        this.expression = expression;
     }
 
     public void testEvaluatorSuppliers() {
         Layout.Builder lb = new Layout.Builder();
-        lb.appendChannel(double1.id());
-        lb.appendChannel(double2.id());
-        lb.appendChannel(date.id());
-        lb.appendChannel(longField.id());
+        lb.appendChannel(DOUBLE1.id());
+        lb.appendChannel(DOUBLE2.id());
+        lb.appendChannel(DATE.id());
+        lb.appendChannel(LONG.id());
         Layout layout = lb.build();
 
-        for (Expression expression : expressions()) {
-            logger.info("checking {}", expression.getClass());
-            Supplier<EvalOperator.ExpressionEvaluator> supplier = EvalMapper.toEvaluator(expression, layout);
-            EvalOperator.ExpressionEvaluator evaluator1 = supplier.get();
-            EvalOperator.ExpressionEvaluator evaluator2 = supplier.get();
-            assertNotNull(evaluator1);
-            assertNotNull(evaluator2);
-            assertTrue(evaluator1 != evaluator2);
-        }
+        Supplier<EvalOperator.ExpressionEvaluator> supplier = EvalMapper.toEvaluator(expression, layout);
+        EvalOperator.ExpressionEvaluator evaluator1 = supplier.get();
+        EvalOperator.ExpressionEvaluator evaluator2 = supplier.get();
+        assertNotNull(evaluator1);
+        assertNotNull(evaluator2);
+        assertTrue(evaluator1 != evaluator2);
     }
 
     // Test serialization of expressions, since we have convenient access to some expressions.
     public void testExpressionSerialization() {
-        for (Expression expression : expressions()) {
-            logger.info("checking {}", expression.getClass());
-            SerializationTestUtils.assertSerialization(expression);
-        }
+        SerializationTestUtils.assertSerialization(expression);
     }
 
     private static FieldAttribute field(String name, DataType type) {

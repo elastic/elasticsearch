@@ -4,7 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import java.lang.Number;
+import java.lang.Double;
 import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
@@ -16,18 +16,18 @@ import org.elasticsearch.xpack.ql.expression.Expression;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Round}.
  * This class is generated. Do not edit it.
  */
-public final class RoundEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator val;
 
   private final EvalOperator.ExpressionEvaluator decimals;
 
-  public RoundEvaluator(EvalOperator.ExpressionEvaluator val,
+  public RoundDoubleEvaluator(EvalOperator.ExpressionEvaluator val,
       EvalOperator.ExpressionEvaluator decimals) {
     this.val = val;
     this.decimals = decimals;
   }
 
-  static Number fold(Expression val, Expression decimals) {
+  static Double fold(Expression val, Expression decimals) {
     Object valVal = val.fold();
     if (valVal == null) {
       return null;
@@ -36,7 +36,7 @@ public final class RoundEvaluator implements EvalOperator.ExpressionEvaluator {
     if (decimalsVal == null) {
       return null;
     }
-    return Round.process((Number) valVal, (Number) decimalsVal);
+    return Round.process((double) valVal, (long) decimalsVal);
   }
 
   @Override
@@ -49,11 +49,11 @@ public final class RoundEvaluator implements EvalOperator.ExpressionEvaluator {
     if (decimalsVal == null) {
       return null;
     }
-    return Round.process((Number) valVal, (Number) decimalsVal);
+    return Round.process((double) valVal, (long) decimalsVal);
   }
 
   @Override
   public String toString() {
-    return "RoundEvaluator[" + "val=" + val + ", decimals=" + decimals + "]";
+    return "RoundDoubleEvaluator[" + "val=" + val + ", decimals=" + decimals + "]";
   }
 }

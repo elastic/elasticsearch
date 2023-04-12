@@ -4,7 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import java.lang.Number;
+import java.lang.Double;
 import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
@@ -16,19 +16,19 @@ import org.elasticsearch.xpack.ql.expression.Expression;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Round}.
  * This class is generated. Do not edit it.
  */
-public final class RoundNoDecimalsEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator val;
 
-  public RoundNoDecimalsEvaluator(EvalOperator.ExpressionEvaluator val) {
+  public RoundDoubleNoDecimalsEvaluator(EvalOperator.ExpressionEvaluator val) {
     this.val = val;
   }
 
-  static Number fold(Expression val) {
+  static Double fold(Expression val) {
     Object valVal = val.fold();
     if (valVal == null) {
       return null;
     }
-    return Round.processNoDecimals((Number) valVal);
+    return Round.process((double) valVal);
   }
 
   @Override
@@ -37,11 +37,11 @@ public final class RoundNoDecimalsEvaluator implements EvalOperator.ExpressionEv
     if (valVal == null) {
       return null;
     }
-    return Round.processNoDecimals((Number) valVal);
+    return Round.process((double) valVal);
   }
 
   @Override
   public String toString() {
-    return "RoundNoDecimalsEvaluator[" + "val=" + val + "]";
+    return "RoundDoubleNoDecimalsEvaluator[" + "val=" + val + "]";
   }
 }

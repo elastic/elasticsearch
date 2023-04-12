@@ -157,6 +157,7 @@ public class MlMemoryIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private void deployTrainedModel() {
         String modelId = "pytorch";
+        String deploymentId = "deployment-foo";
         client().execute(
             PutTrainedModelAction.INSTANCE,
             new PutTrainedModelAction.Request(
@@ -190,7 +191,7 @@ public class MlMemoryIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         ).actionGet();
         client().execute(
             StartTrainedModelDeploymentAction.INSTANCE,
-            new StartTrainedModelDeploymentAction.Request(modelId).setWaitForState(AllocationStatus.State.STARTED)
+            new StartTrainedModelDeploymentAction.Request(modelId, deploymentId).setWaitForState(AllocationStatus.State.STARTED)
         ).actionGet();
     }
 

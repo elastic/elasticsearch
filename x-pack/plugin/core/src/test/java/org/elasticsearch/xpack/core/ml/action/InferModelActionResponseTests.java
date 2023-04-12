@@ -66,7 +66,7 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
 
     @Override
     protected Response mutateInstance(Response instance) {
-        var modelId = instance.getModelId();
+        var modelId = instance.getId();
         var isLicensed = instance.isLicensed();
         if (randomBoolean()) {
             modelId = modelId + "foo";

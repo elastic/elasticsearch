@@ -16,29 +16,32 @@ import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 import java.io.IOException;
 import java.util.Map;
 
-public class AnalyticsEventPageField {
-    public static ParseField PAGE_FIELD = new ParseField("page");
+import static org.elasticsearch.common.Strings.requireNonBlank;
 
-    public static ParseField PAGE_URL_FIELD = new ParseField("url");
+public class SortOrderAnalyticsEventField {
 
-    public static ParseField PAGE_TITLE_FIELD = new ParseField("title");
+    public static ParseField SORT_FIELD = new ParseField("sort");
 
-    public static ParseField PAGE_REFERRER_FIELD = new ParseField("referrer");
+    public static ParseField SORT_ORDER_NAME_FIELD = new ParseField("name");
+
+    public static ParseField SORT_ORDER_DIRECTION_FIELD = new ParseField("direction");
 
     private static final ObjectParser<MapBuilder<String, String>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
-        PAGE_FIELD.getPreferredName(),
+        SORT_FIELD.getPreferredName(),
         MapBuilder::newMapBuilder
     );
 
     static {
-        PARSER.declareString((b, v) -> b.put(PAGE_URL_FIELD.getPreferredName(), v), PAGE_URL_FIELD);
-        PARSER.declareString((b, v) -> b.put(PAGE_TITLE_FIELD.getPreferredName(), v), PAGE_TITLE_FIELD);
-        PARSER.declareString((b, v) -> b.put(PAGE_REFERRER_FIELD.getPreferredName(), v), PAGE_REFERRER_FIELD);
+        PARSER.declareString(
+            (b, v) -> b.put(SORT_ORDER_NAME_FIELD.getPreferredName(), requireNonBlank(v, "field [name] can't be blank")),
+            SORT_ORDER_NAME_FIELD
+        );
+        PARSER.declareString((b, v) -> b.put(SORT_ORDER_DIRECTION_FIELD.getPreferredName(), v), SORT_ORDER_DIRECTION_FIELD);
 
-        PARSER.declareRequiredFieldSet(PAGE_URL_FIELD.getPreferredName());
+        PARSER.declareRequiredFieldSet(SORT_ORDER_NAME_FIELD.getPreferredName());
     }
 
-    private AnalyticsEventPageField() {}
+    private SortOrderAnalyticsEventField() {}
 
     public static Map<String, String> fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
         return PARSER.parse(parser, context).immutableMap();

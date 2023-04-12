@@ -59,7 +59,7 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
         private final AnalyticsEvent event;
 
         AnalyticsEventContext(AnalyticsEvent event) {
-            this.event = Objects.requireNonNull(event);
+            this.event = Objects.requireNonNull(event, "event cannot be null");
         }
 
         @Override
@@ -115,11 +115,11 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
         XContentType xContentType,
         BytesReference payload
     ) {
-        this.eventCollectionName = Strings.requireNonBlank(eventCollectionName, "eventCollectionName can't be null");
+        this.eventCollectionName = Strings.requireNonBlank(eventCollectionName, "eventCollectionName cannot be null");
         this.eventTime = eventTime;
         this.eventType = eventType;
-        this.xContentType = Objects.requireNonNull(xContentType, "xContentType can't be null");
-        this.payload = Objects.requireNonNull(payload, "payload can't be null");
+        this.xContentType = Objects.requireNonNull(xContentType, "xContentType cannot be null");
+        this.payload = Objects.requireNonNull(payload, "payload cannot be null");
     }
 
     public AnalyticsEvent(StreamInput in) throws IOException {

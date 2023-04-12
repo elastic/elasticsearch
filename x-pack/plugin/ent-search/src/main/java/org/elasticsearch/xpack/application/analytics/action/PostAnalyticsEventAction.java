@@ -15,9 +15,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
@@ -119,7 +120,9 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             }
 
             try {
-                if (eventType.toLowerCase(Locale.ROOT).equals(eventType) == false) throw new IllegalArgumentException();
+                if (eventType.toLowerCase(Locale.ROOT).equals(eventType) == false) {
+                    throw new IllegalArgumentException("event type must be lowercase");
+                }
 
                 AnalyticsEvent.Type.valueOf(eventType.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
@@ -159,7 +162,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements StatusToXContentObject {
         public static Response ACCEPTED = new Response(true);
 
         public static Response readFromStreamInput(StreamInput in) throws IOException {
@@ -222,6 +225,11 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         protected void addFieldsToXContent(XContentBuilder builder, Params params) throws IOException {
 
         }
+
+        @Override
+        public RestStatus status() {
+            return RestStatus.ACCEPTED;
+        }
     }
 
     public static class DebugResponse extends Response {
@@ -231,7 +239,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         public DebugResponse(boolean accepted, AnalyticsEvent analyticsEvent) {
             super(accepted);
-            this.analyticsEvent = Objects.requireNonNull(analyticsEvent);
+            this.analyticsEvent = Objects.requireNonNull(analyticsEvent, "analyticsEvent cannot be null");
         }
 
         @Override
@@ -244,7 +252,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         }
 
         protected void addFieldsToXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(EVENT_FIELD.getPreferredName(), analyticsEvent);
+            builder.field(EVENT_FIELD.getPreferredName(), analyticsEvent());
         }
 
         @Override

@@ -17,17 +17,17 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSearchField.SEARCH_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSearchFieldTests.randomEventSearchField;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSessionField.SESSION_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSessionFieldTests.randomEventSessionField;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventUserField.USER_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventUserFieldTests.randomEventUserField;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchAnalyticsEventField.SEARCH_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchAnalyticsEventFieldTests.randomEventSearchField;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SessionAnalyticsEventField.SESSION_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SessionAnalyticsEventFieldTests.randomEventSessionField;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.UserAnalyticsEventField.USER_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.UserAnalyticsEventFieldTests.randomEventUserField;
 
-public class AnalyticsEventSearchTests extends AnalyticsEventParserTestCase {
+public class SearchAnalyticsEventTests extends AnalyticsEventParserTestCase {
     @Override
     protected ContextParser<AnalyticsEvent.Context, AnalyticsEvent> parser() {
-        return AnalyticsEventSearch::fromXContent;
+        return SearchAnalyticsEvent::fromXContent;
     }
 
     @Override

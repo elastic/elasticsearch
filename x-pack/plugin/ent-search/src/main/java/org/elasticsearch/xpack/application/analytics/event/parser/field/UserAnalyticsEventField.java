@@ -1,3 +1,4 @@
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -18,30 +19,26 @@ import java.util.Map;
 
 import static org.elasticsearch.common.Strings.requireNonBlank;
 
-public class AnalyticsEventSortOrderField {
+public class UserAnalyticsEventField {
+    public static ParseField USER_FIELD = new ParseField("user");
 
-    public static ParseField SORT_FIELD = new ParseField("sort");
-
-    public static ParseField SORT_ORDER_NAME_FIELD = new ParseField("name");
-
-    public static ParseField SORT_ORDER_DIRECTION_FIELD = new ParseField("direction");
+    public static ParseField USER_ID_FIELD = new ParseField("id");
 
     private static final ObjectParser<MapBuilder<String, String>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
-        SORT_FIELD.getPreferredName(),
+        USER_FIELD.getPreferredName(),
         MapBuilder::newMapBuilder
     );
 
     static {
         PARSER.declareString(
-            (b, v) -> b.put(SORT_ORDER_NAME_FIELD.getPreferredName(), requireNonBlank(v, "field [name] can't be blank")),
-            SORT_ORDER_NAME_FIELD
+            (b, s) -> b.put(USER_ID_FIELD.getPreferredName(), requireNonBlank(s, "field [id] can't be blank")),
+            USER_ID_FIELD
         );
-        PARSER.declareString((b, v) -> b.put(SORT_ORDER_DIRECTION_FIELD.getPreferredName(), v), SORT_ORDER_DIRECTION_FIELD);
 
-        PARSER.declareRequiredFieldSet(SORT_ORDER_NAME_FIELD.getPreferredName());
+        PARSER.declareRequiredFieldSet(USER_ID_FIELD.getPreferredName());
     }
 
-    private AnalyticsEventSortOrderField() {}
+    private UserAnalyticsEventField() {}
 
     public static Map<String, String> fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
         return PARSER.parse(parser, context).immutableMap();

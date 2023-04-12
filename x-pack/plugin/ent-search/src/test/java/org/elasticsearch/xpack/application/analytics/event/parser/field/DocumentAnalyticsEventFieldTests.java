@@ -19,11 +19,11 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.convertMapToJson;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventDocumentField.DOCUMENT_ID_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventDocumentField.DOCUMENT_INDEX_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.DocumentAnalyticsEventField.DOCUMENT_ID_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.DocumentAnalyticsEventField.DOCUMENT_INDEX_FIELD;
 import static org.mockito.Mockito.mock;
 
-public class AnalyticsEventDocumentFieldTests extends AnalyticsEventFieldParserTestCase<String> {
+public class DocumentAnalyticsEventFieldTests extends AnalyticsEventFieldParserTestCase<String> {
     public void testParsingWhenDocumentIdIsBlank() throws IOException {
         Map<String, String> jsonMap = createTestInstance();
         jsonMap.put(DOCUMENT_ID_FIELD.getPreferredName(), " ");
@@ -54,7 +54,7 @@ public class AnalyticsEventDocumentFieldTests extends AnalyticsEventFieldParserT
 
     @Override
     protected ContextParser<AnalyticsEvent.Context, Map<String, String>> parser() {
-        return AnalyticsEventDocumentField::fromXContent;
+        return DocumentAnalyticsEventField::fromXContent;
     }
 
     public static Map<String, String> randomEventDocumentField() {

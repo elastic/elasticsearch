@@ -14,9 +14,9 @@ import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAc
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.createAnalyticsContextMockFromEvent;
-import static org.elasticsearch.xpack.application.analytics.event.parser.event.AnalyticsEventPageViewTests.randomPageViewEvent;
-import static org.elasticsearch.xpack.application.analytics.event.parser.event.AnalyticsEventSearchClickTests.randomSearchClickEvent;
-import static org.elasticsearch.xpack.application.analytics.event.parser.event.AnalyticsEventSearchTests.randomSearchEvent;
+import static org.elasticsearch.xpack.application.analytics.event.parser.event.PageViewAnalyticsEventTests.randomPageViewEvent;
+import static org.elasticsearch.xpack.application.analytics.event.parser.event.SearchAnalyticsEventTests.randomSearchEvent;
+import static org.elasticsearch.xpack.application.analytics.event.parser.event.SearchClickAnalyticsEventTests.randomSearchClickEvent;
 
 public class AnalyticsEventFactoryTests extends ESTestCase {
 

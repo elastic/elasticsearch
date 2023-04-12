@@ -17,19 +17,19 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventDocumentField.DOCUMENT_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventDocumentFieldTests.randomEventDocumentField;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventPageField.PAGE_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventPageFieldTests.randomEventPageField;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSessionField.SESSION_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSessionFieldTests.randomEventSessionField;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventUserField.USER_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventUserFieldTests.randomEventUserField;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.DocumentAnalyticsEventField.DOCUMENT_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.DocumentAnalyticsEventFieldTests.randomEventDocumentField;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.PageAnalyticsEventField.PAGE_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.PageAnalyticsEventFieldTests.randomEventPageField;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SessionAnalyticsEventField.SESSION_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SessionAnalyticsEventFieldTests.randomEventSessionField;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.UserAnalyticsEventField.USER_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.UserAnalyticsEventFieldTests.randomEventUserField;
 
-public class AnalyticsEventPageViewTests extends AnalyticsEventParserTestCase {
+public class PageViewAnalyticsEventTests extends AnalyticsEventParserTestCase {
     @Override
     protected ContextParser<AnalyticsEvent.Context, AnalyticsEvent> parser() {
-        return AnalyticsEventPageView::fromXContent;
+        return PageViewAnalyticsEvent::fromXContent;
     }
 
     @Override

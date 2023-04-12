@@ -1,4 +1,3 @@
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -17,28 +16,29 @@ import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.Strings.requireNonBlank;
+public class PageAnalyticsEventField {
+    public static ParseField PAGE_FIELD = new ParseField("page");
 
-public class AnalyticsEventSessionField {
-    public static ParseField SESSION_FIELD = new ParseField("session");
+    public static ParseField PAGE_URL_FIELD = new ParseField("url");
 
-    public static ParseField SESSION_ID_FIELD = new ParseField("id");
+    public static ParseField PAGE_TITLE_FIELD = new ParseField("title");
+
+    public static ParseField PAGE_REFERRER_FIELD = new ParseField("referrer");
 
     private static final ObjectParser<MapBuilder<String, String>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
-        SESSION_FIELD.getPreferredName(),
+        PAGE_FIELD.getPreferredName(),
         MapBuilder::newMapBuilder
     );
 
     static {
-        PARSER.declareString(
-            (b, s) -> b.put(SESSION_ID_FIELD.getPreferredName(), requireNonBlank(s, "field [id] can't be blank")),
-            SESSION_ID_FIELD
-        );
+        PARSER.declareString((b, v) -> b.put(PAGE_URL_FIELD.getPreferredName(), v), PAGE_URL_FIELD);
+        PARSER.declareString((b, v) -> b.put(PAGE_TITLE_FIELD.getPreferredName(), v), PAGE_TITLE_FIELD);
+        PARSER.declareString((b, v) -> b.put(PAGE_REFERRER_FIELD.getPreferredName(), v), PAGE_REFERRER_FIELD);
 
-        PARSER.declareRequiredFieldSet(SESSION_ID_FIELD.getPreferredName());
+        PARSER.declareRequiredFieldSet(PAGE_URL_FIELD.getPreferredName());
     }
 
-    private AnalyticsEventSessionField() {}
+    private PageAnalyticsEventField() {}
 
     public static Map<String, String> fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
         return PARSER.parse(parser, context).immutableMap();

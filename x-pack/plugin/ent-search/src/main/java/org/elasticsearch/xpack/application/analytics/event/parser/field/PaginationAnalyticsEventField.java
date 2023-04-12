@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 import java.io.IOException;
 import java.util.Map;
 
-public class AnalyticsEventPaginationField {
+public class PaginationAnalyticsEventField {
 
     public static ParseField PAGINATION_FIELD = new ParseField("page");
 
@@ -49,7 +49,7 @@ public class AnalyticsEventPaginationField {
         PARSER.declareRequiredFieldSet(PAGE_SIZE_FIELD.getPreferredName());
     }
 
-    private AnalyticsEventPaginationField() {}
+    private PaginationAnalyticsEventField() {}
 
     public static Map<String, Integer> fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
         return PARSER.parse(parser, context).immutableMap();

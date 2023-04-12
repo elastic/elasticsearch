@@ -16,10 +16,10 @@ import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventPaginationField.PAGINATION_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSortOrderField.SORT_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.PaginationAnalyticsEventField.PAGINATION_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SortOrderAnalyticsEventField.SORT_FIELD;
 
-public class AnalyticsEventSearchField {
+public class SearchAnalyticsEventField {
     public static ParseField SEARCH_FIELD = new ParseField("search");
 
     public static ParseField SEARCH_QUERY_FIELD = new ParseField("query");
@@ -36,10 +36,10 @@ public class AnalyticsEventSearchField {
     static {
         PARSER.declareString((b, v) -> b.put(SEARCH_QUERY_FIELD.getPreferredName(), v), SEARCH_QUERY_FIELD);
         PARSER.declareString((b, v) -> b.put(SEARCH_APPLICATION_FIELD.getPreferredName(), v), SEARCH_APPLICATION_FIELD);
-        PARSER.declareObject((b, v) -> b.put(SORT_FIELD.getPreferredName(), v), AnalyticsEventSortOrderField::fromXContent, SORT_FIELD);
+        PARSER.declareObject((b, v) -> b.put(SORT_FIELD.getPreferredName(), v), SortOrderAnalyticsEventField::fromXContent, SORT_FIELD);
         PARSER.declareObject(
             (b, v) -> b.put(PAGINATION_FIELD.getPreferredName(), v),
-            AnalyticsEventPaginationField::fromXContent,
+            PaginationAnalyticsEventField::fromXContent,
             PAGINATION_FIELD
         );
         PARSER.declareObject(
@@ -51,7 +51,7 @@ public class AnalyticsEventSearchField {
         PARSER.declareRequiredFieldSet(SEARCH_QUERY_FIELD.getPreferredName());
     }
 
-    private AnalyticsEventSearchField() {}
+    private SearchAnalyticsEventField() {}
 
     public static Map<String, Object> fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
         return PARSER.parse(parser, context).immutableMap();

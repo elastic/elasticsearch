@@ -15,9 +15,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventUserField.USER_ID_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.UserAnalyticsEventField.USER_ID_FIELD;
 
-public class AnalyticsEventUserFieldTests extends AnalyticsEventFieldParserTestCase<String> {
+public class UserAnalyticsEventFieldTests extends AnalyticsEventFieldParserTestCase<String> {
     @Override
     public List<String> requiredFields() {
         return Collections.singletonList(USER_ID_FIELD.getPreferredName());
@@ -30,7 +30,7 @@ public class AnalyticsEventUserFieldTests extends AnalyticsEventFieldParserTestC
 
     @Override
     protected ContextParser<AnalyticsEvent.Context, Map<String, String>> parser() {
-        return AnalyticsEventUserField::fromXContent;
+        return UserAnalyticsEventField::fromXContent;
     }
 
     public static Map<String, String> randomEventUserField() {

@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventDocumentField.DOCUMENT_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventPageField.PAGE_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.DocumentAnalyticsEventField.DOCUMENT_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.PageAnalyticsEventField.PAGE_FIELD;
 
 public class AnalyticsEventSearchResultField {
     public static ParseField SEARCH_RESULTS_TOTAL_FIELD = new ParseField("total_results");
@@ -44,10 +44,10 @@ public class AnalyticsEventSearchResultField {
 
         ITEM_PARSER.declareObject(
             (b, v) -> b.put(DOCUMENT_FIELD.getPreferredName(), v),
-            AnalyticsEventDocumentField::fromXContent,
+            DocumentAnalyticsEventField::fromXContent,
             DOCUMENT_FIELD
         );
-        ITEM_PARSER.declareObject((b, v) -> b.put(PAGE_FIELD.getPreferredName(), v), AnalyticsEventPageField::fromXContent, PAGE_FIELD);
+        ITEM_PARSER.declareObject((b, v) -> b.put(PAGE_FIELD.getPreferredName(), v), PageAnalyticsEventField::fromXContent, PAGE_FIELD);
     }
 
     private AnalyticsEventSearchResultField() {}

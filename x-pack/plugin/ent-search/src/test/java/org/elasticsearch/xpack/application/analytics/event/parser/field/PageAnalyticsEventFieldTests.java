@@ -15,29 +15,31 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSortOrderField.SORT_ORDER_DIRECTION_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSortOrderField.SORT_ORDER_NAME_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.PageAnalyticsEventField.PAGE_REFERRER_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.PageAnalyticsEventField.PAGE_TITLE_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.PageAnalyticsEventField.PAGE_URL_FIELD;
 
-public class AnalyticsEventSortOrderFieldTests extends AnalyticsEventFieldParserTestCase<String> {
+public class PageAnalyticsEventFieldTests extends AnalyticsEventFieldParserTestCase<String> {
     @Override
     public List<String> requiredFields() {
-        return Collections.singletonList(SORT_ORDER_NAME_FIELD.getPreferredName());
+        return Collections.singletonList(PAGE_URL_FIELD.getPreferredName());
     }
 
     @Override
     protected Map<String, String> createTestInstance() {
-        return randomEventSearchSortOrderField();
+        return randomEventPageField();
     }
 
     @Override
     protected ContextParser<AnalyticsEvent.Context, Map<String, String>> parser() {
-        return AnalyticsEventSortOrderField::fromXContent;
+        return PageAnalyticsEventField::fromXContent;
     }
 
-    public static Map<String, String> randomEventSearchSortOrderField() {
+    public static Map<String, String> randomEventPageField() {
         return MapBuilder.<String, String>newMapBuilder()
-            .put(SORT_ORDER_NAME_FIELD.getPreferredName(), randomIdentifier())
-            .put(SORT_ORDER_DIRECTION_FIELD.getPreferredName(), randomIdentifier())
+            .put(PAGE_URL_FIELD.getPreferredName(), randomIdentifier())
+            .put(PAGE_TITLE_FIELD.getPreferredName(), randomIdentifier())
+            .put(PAGE_REFERRER_FIELD.getPreferredName(), randomIdentifier())
             .map();
     }
 }

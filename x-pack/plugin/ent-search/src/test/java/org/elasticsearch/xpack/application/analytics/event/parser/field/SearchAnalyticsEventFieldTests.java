@@ -15,16 +15,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventPaginationField.PAGINATION_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventPaginationFieldTests.randomEventSearchPaginationField;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSearchField.SEARCH_APPLICATION_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSearchField.SEARCH_QUERY_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSearchField.SEARCH_RESULTS_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSearchResultFieldTests.randomEventSearchResultField;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSortOrderField.SORT_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSortOrderFieldTests.randomEventSearchSortOrderField;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.PaginationAnalyticsEventField.PAGINATION_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.PaginationAnalyticsEventFieldTests.randomEventSearchPaginationField;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchAnalyticsEventField.SEARCH_APPLICATION_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchAnalyticsEventField.SEARCH_QUERY_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchAnalyticsEventField.SEARCH_RESULTS_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SortOrderAnalyticsEventField.SORT_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SortOrderAnalyticsEventFieldTests.randomEventSearchSortOrderField;
 
-public class AnalyticsEventSearchFieldTests extends AnalyticsEventFieldParserTestCase<Object> {
+public class SearchAnalyticsEventFieldTests extends AnalyticsEventFieldParserTestCase<Object> {
     @Override
     public List<String> requiredFields() {
         return Collections.singletonList(SEARCH_QUERY_FIELD.getPreferredName());
@@ -37,7 +37,7 @@ public class AnalyticsEventSearchFieldTests extends AnalyticsEventFieldParserTes
 
     @Override
     protected ContextParser<AnalyticsEvent.Context, Map<String, Object>> parser() {
-        return AnalyticsEventSearchField::fromXContent;
+        return SearchAnalyticsEventField::fromXContent;
     }
 
     public static Map<String, Object> randomEventSearchField() {

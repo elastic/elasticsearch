@@ -19,11 +19,11 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.convertMapToJson;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventPaginationField.CURRENT_PAGE_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventPaginationField.PAGE_SIZE_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.PaginationAnalyticsEventField.CURRENT_PAGE_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.PaginationAnalyticsEventField.PAGE_SIZE_FIELD;
 import static org.mockito.Mockito.mock;
 
-public class AnalyticsEventPaginationFieldTests extends AnalyticsEventFieldParserTestCase<Integer> {
+public class PaginationAnalyticsEventFieldTests extends AnalyticsEventFieldParserTestCase<Integer> {
     public void testParsingWhenCurrentPageIsNegative() throws IOException {
         innerTestParsingNegativeField(CURRENT_PAGE_FIELD.getPreferredName());
     }
@@ -62,7 +62,7 @@ public class AnalyticsEventPaginationFieldTests extends AnalyticsEventFieldParse
 
     @Override
     protected ContextParser<AnalyticsEvent.Context, Map<String, Integer>> parser() {
-        return AnalyticsEventPaginationField::fromXContent;
+        return PaginationAnalyticsEventField::fromXContent;
     }
 
     public static Map<String, Integer> randomEventSearchPaginationField() {

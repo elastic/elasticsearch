@@ -25,8 +25,8 @@ public class AnalyticsEventIngestService {
 
     @Inject
     public AnalyticsEventIngestService(AnalyticsEventEmitter eventEmitter, AnalyticsCollectionResolver collectionResolver) {
-        this.eventEmitter = Objects.requireNonNull(eventEmitter, "eventEmitter");
-        this.collectionResolver = Objects.requireNonNull(collectionResolver, "collectionResolver");
+        this.eventEmitter = Objects.requireNonNull(eventEmitter, "eventEmitter cannot be null");
+        this.collectionResolver = Objects.requireNonNull(collectionResolver, "collectionResolver cannot be null");
     }
 
     /**

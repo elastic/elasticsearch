@@ -30,7 +30,7 @@ Requires the `post_behavioral_analytics_event` cluster privilege.
 [[post-analytics-collection-event-response-codes]]
 ==== {api-response-codes-title}
 
-`200`::
+`202`::
 Event has been accepted and will be ingested.
 
 `404`::

@@ -10,33 +10,33 @@ package org.elasticsearch.xpack.application.analytics.event.parser.event;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
-import org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSearchField;
-import org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSessionField;
-import org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventUserField;
+import org.elasticsearch.xpack.application.analytics.event.parser.field.SearchAnalyticsEventField;
+import org.elasticsearch.xpack.application.analytics.event.parser.field.SessionAnalyticsEventField;
+import org.elasticsearch.xpack.application.analytics.event.parser.field.UserAnalyticsEventField;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSearchField.SEARCH_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSessionField.SESSION_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventUserField.USER_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchAnalyticsEventField.SEARCH_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SessionAnalyticsEventField.SESSION_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.UserAnalyticsEventField.USER_FIELD;
 
-public class AnalyticsEventSearch {
+public class SearchAnalyticsEvent {
     private static final ObjectParser<AnalyticsEvent.Builder, AnalyticsEvent.Context> PARSER = ObjectParser.fromBuilder(
         "search_event",
         AnalyticsEvent::builder
     );
 
     static {
-        PARSER.declareObject((b, v) -> b.withField(SESSION_FIELD, v), AnalyticsEventSessionField::fromXContent, SESSION_FIELD);
-        PARSER.declareObject((b, v) -> b.withField(USER_FIELD, v), AnalyticsEventUserField::fromXContent, USER_FIELD);
-        PARSER.declareObject((b, v) -> b.withField(SEARCH_FIELD, v), AnalyticsEventSearchField::fromXContent, SEARCH_FIELD);
+        PARSER.declareObject((b, v) -> b.withField(SESSION_FIELD, v), SessionAnalyticsEventField::fromXContent, SESSION_FIELD);
+        PARSER.declareObject((b, v) -> b.withField(USER_FIELD, v), UserAnalyticsEventField::fromXContent, USER_FIELD);
+        PARSER.declareObject((b, v) -> b.withField(SEARCH_FIELD, v), SearchAnalyticsEventField::fromXContent, SEARCH_FIELD);
 
         PARSER.declareRequiredFieldSet(SESSION_FIELD.getPreferredName());
         PARSER.declareRequiredFieldSet(USER_FIELD.getPreferredName());
         PARSER.declareRequiredFieldSet(SEARCH_FIELD.getPreferredName());
     }
 
-    private AnalyticsEventSearch() {}
+    private SearchAnalyticsEvent() {}
 
     public static AnalyticsEvent fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
         return PARSER.parse(parser, context).build();

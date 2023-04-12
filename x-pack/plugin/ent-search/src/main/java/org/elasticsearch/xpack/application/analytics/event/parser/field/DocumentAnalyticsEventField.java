@@ -1,4 +1,3 @@
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -19,26 +18,30 @@ import java.util.Map;
 
 import static org.elasticsearch.common.Strings.requireNonBlank;
 
-public class AnalyticsEventUserField {
-    public static ParseField USER_FIELD = new ParseField("user");
+public class DocumentAnalyticsEventField {
 
-    public static ParseField USER_ID_FIELD = new ParseField("id");
+    public static ParseField DOCUMENT_FIELD = new ParseField("document");
+
+    public static ParseField DOCUMENT_ID_FIELD = new ParseField("id");
+
+    public static ParseField DOCUMENT_INDEX_FIELD = new ParseField("index");
 
     private static final ObjectParser<MapBuilder<String, String>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
-        USER_FIELD.getPreferredName(),
+        DOCUMENT_FIELD.getPreferredName(),
         MapBuilder::newMapBuilder
     );
 
     static {
         PARSER.declareString(
-            (b, s) -> b.put(USER_ID_FIELD.getPreferredName(), requireNonBlank(s, "field [id] can't be blank")),
-            USER_ID_FIELD
+            (b, v) -> b.put(DOCUMENT_ID_FIELD.getPreferredName(), requireNonBlank(v, "field [id] can't be blank")),
+            DOCUMENT_ID_FIELD
         );
+        PARSER.declareString((b, v) -> b.put(DOCUMENT_INDEX_FIELD.getPreferredName(), v), DOCUMENT_INDEX_FIELD);
 
-        PARSER.declareRequiredFieldSet(USER_ID_FIELD.getPreferredName());
+        PARSER.declareRequiredFieldSet(DOCUMENT_ID_FIELD.getPreferredName());
     }
 
-    private AnalyticsEventUserField() {}
+    private DocumentAnalyticsEventField() {}
 
     public static Map<String, String> fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
         return PARSER.parse(parser, context).immutableMap();

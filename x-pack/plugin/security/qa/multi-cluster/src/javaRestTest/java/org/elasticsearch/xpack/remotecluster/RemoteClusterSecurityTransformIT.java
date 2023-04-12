@@ -78,7 +78,6 @@ public class RemoteClusterSecurityTransformIT extends AbstractRemoteClusterSecur
 
         // Fulfilling cluster
         {
-            // Spread the shards to all nodes
             final Request createIndexRequest = new Request("PUT", "shared-transform-index");
             createIndexRequest.setJsonEntity("""
                 {

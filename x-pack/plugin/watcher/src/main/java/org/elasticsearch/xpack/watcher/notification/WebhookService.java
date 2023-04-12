@@ -126,15 +126,29 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
         // If applicable, add the extra token to the headers
         boolean tokenAdded = false;
         WebhookAccount account = getAccount(NAME);
+        logger.info(
+            "--> executing webhook request: {} — hostTokenMap: {} — addl token? {}",
+            request,
+            account.hostTokenMap,
+            this.additionalTokenEnabled
+        );
         if (this.additionalTokenEnabled && account.hostTokenMap.size() > 0) {
             // Generate a string like example.com:9200 to match against the list of hosts where the
             // additional token should be provided. The token will only be added to the headers if
             // the request matches the list.
             String reqHostAndPort = request.host() + ":" + request.port();
+            logger.info("--> reqHostAndPort: {}", reqHostAndPort);
             if (Strings.hasText(account.hostTokenMap.get(reqHostAndPort))) {
                 // Add the additional token
                 tokenAdded = true;
                 request = request.copy().setHeader(TOKEN_HEADER_NAME, account.hostTokenMap.get(reqHostAndPort)).build();
+                logger.info(
+                    "--> token added to request for {}://{}:{}/{}",
+                    request.scheme(),
+                    request.host(),
+                    request.port(),
+                    request.path()
+                );
             }
         }
 
@@ -147,7 +161,9 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
             return new WebhookAction.Result.Simulated(redactToken.apply(request));
         }
 
+        logger.info("--> executing request: {}", request);
         HttpResponse response = httpClient.execute(request);
+        logger.info("--> webhook response status: {} — {}", response.status(), response);
 
         if (response.status() >= 400) {
             return new WebhookAction.Result.Failure(redactToken.apply(request), response);

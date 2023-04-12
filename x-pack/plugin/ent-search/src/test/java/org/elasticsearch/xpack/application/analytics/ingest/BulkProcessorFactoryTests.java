@@ -59,13 +59,11 @@ public class BulkProcessorFactoryTests extends ESTestCase {
         IndexRequest indexRequest = mock(IndexRequest.class);
         bulkProcessor.add(indexRequest);
 
-        assertBusy(() ->
-            verify(client).bulk(argThat((BulkRequest bulkRequest) -> {
-                assertThat(bulkRequest.numberOfActions(), equalTo(1));
-                assertThat(bulkRequest.requests().stream().findFirst().get(), equalTo(indexRequest));
-                return true;
-            }), any())
-        ,1, TimeUnit.SECONDS);
+        assertBusy(() -> verify(client).bulk(argThat((BulkRequest bulkRequest) -> {
+            assertThat(bulkRequest.numberOfActions(), equalTo(1));
+            assertThat(bulkRequest.requests().stream().findFirst().get(), equalTo(indexRequest));
+            return true;
+        }), any()), 1, TimeUnit.SECONDS);
     }
 
     public void testMaxBulkActions() throws InterruptedException {

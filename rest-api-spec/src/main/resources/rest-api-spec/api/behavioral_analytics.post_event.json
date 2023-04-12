@@ -29,7 +29,7 @@
             },
             "eventType": {
               "type": "string",
-              "description": "Behavioral analytics event type. Available: pageview, search, search_click"
+              "description": "Behavioral analytics event type. Available: page_view, search, search_click"
             }
           }
         }

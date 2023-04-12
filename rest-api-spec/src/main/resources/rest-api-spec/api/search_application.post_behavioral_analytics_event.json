@@ -1,5 +1,5 @@
 {
-  "behavioral_analytics.post_event": {
+  "search_application.post_behavioral_analytics_event": {
     "documentation": {
       "url": "http://todo.com/tbd",
       "description": "Creates a behavioral analytics event for existing collection."

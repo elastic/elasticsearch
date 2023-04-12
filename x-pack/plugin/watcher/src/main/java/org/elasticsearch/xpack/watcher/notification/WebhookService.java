@@ -173,7 +173,7 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
             if (Strings.hasText(account.hostTokenMap.get(reqHostAndPort))) {
                 // Add the additional token
                 logger.info(
-                    "--> token added to request for {}://{}:{}/{}",
+                    "--> token added to request for {}://{}:{}{}",
                     request.scheme(),
                     request.host(),
                     request.port(),
@@ -191,9 +191,9 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
      * {@link HttpResponse} is returned.
      */
     public Tuple<HttpRequest, HttpResponse> modifyAndExecuteHttpRequest(HttpRequest request) throws IOException {
-        HttpRequest modifiedRequest = maybeModifyHttpResponse(request);
+        final HttpRequest modifiedRequest = maybeModifyHttpResponse(request);
         logger.info("--> executing request: {}", request);
-        HttpResponse response = httpClient.execute(request);
+        final HttpResponse response = httpClient.execute(modifiedRequest);
         logger.info("--> webhook response status: {} — {}", response.status(), response);
         return Tuple.tuple(modifiedRequest, response);
     }

@@ -129,7 +129,15 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected IndexEngine newIndexEngine(final EngineConfig indexConfig, final TranslogReplicator translogReplicator) {
-        var indexEngine = new IndexEngine(indexConfig, translogReplicator) {
+        return newIndexEngine(indexConfig, translogReplicator, "mocknodeid");
+    }
+
+    protected IndexEngine newIndexEngine(
+        final EngineConfig indexConfig,
+        final TranslogReplicator translogReplicator,
+        final String localNodeEphemeralId
+    ) {
+        var indexEngine = new IndexEngine(indexConfig, translogReplicator, localNodeEphemeralId) {
             @Override
             public void close() throws IOException {
                 try {

@@ -1,0 +1,6 @@
+pr: 94943
+summary: Allow specifying destination index intended aliases in the Transform's dest
+  config
+area: Transform
+type: enhancement
+issues: []

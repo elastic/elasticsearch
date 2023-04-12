@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.TcpTransport;
@@ -16,7 +17,10 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -119,6 +123,38 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                 )
             )
         );
+    }
+
+    public void testCrossClusterAccessWithInvalidRoleDescriptors() {
+        final String nodeName = internalCluster().getRandomNodeName();
+        final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
+        final AuthorizationService authzService = internalCluster().getInstance(AuthorizationService.class, nodeName);
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
+            new RoleDescriptorsIntersection(
+                randomValueOtherThanMany(rd -> false == rd.hasPrivilegesOtherThanIndex(), () -> RoleDescriptorTests.randomRoleDescriptor())
+            )
+        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .crossClusterAccess(randomAlphaOfLength(42), crossClusterAccessSubjectInfo)
+            .build();
+        try (var ignored = threadContext.stashContext()) {
+            // A request ID is set during authentication and is required for authorization; since we are not authenticating, set it
+            // explicitly
+            AuditUtil.generateRequestId(threadContext);
+            final var future = new PlainActionFuture<Void>();
+            // Authorize to trigger role resolution and (failed) validation
+            authzService.authorize(authentication, AuthenticateAction.INSTANCE.name(), AuthenticateRequest.INSTANCE, future);
+            final IllegalArgumentException actual = expectThrows(IllegalArgumentException.class, future::actionGet);
+            final String expectedPrincipal = crossClusterAccessSubjectInfo.getAuthentication().getEffectiveSubject().getUser().principal();
+            assertThat(
+                actual.getMessage(),
+                equalTo(
+                    "Role descriptor for cross cluster access can only contain index privileges but other privileges found for subject ["
+                        + expectedPrincipal
+                        + "]"
+                )
+            );
+        }
     }
 
     private RoleDescriptorsIntersection authorizeThenGetRoleDescriptorsIntersectionForRemoteCluster(

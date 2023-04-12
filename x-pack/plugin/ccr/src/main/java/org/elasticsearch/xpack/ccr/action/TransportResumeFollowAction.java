@@ -476,6 +476,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
         IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
         IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
+        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING,
         IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
         IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
         IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING,
@@ -512,7 +513,9 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
         DataTier.TIER_PREFERENCE_SETTING,
-        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING
+        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
+        IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
+        IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING
     );
 
     public static Settings filter(Settings originalSettings) {

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
@@ -67,8 +68,9 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
     public void testIsNoop() {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             TransformConfig config = randomTransformConfig();
-            TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
-            assertTrue("null update is not noop", update.isNoop(config));
+            TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+            assertTrue("null update should be no-op", update.isNoop(config));
+
             update = new TransformConfigUpdate(
                 config.getSource(),
                 config.getDestination(),
@@ -79,7 +81,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
                 config.getMetadata(),
                 config.getRetentionPolicyConfig()
             );
-            assertTrue("equal update is not noop", update.isNoop(config));
+            assertTrue("equal update should be no-op", update.isNoop(config));
 
             update = new TransformConfigUpdate(
                 config.getSource(),
@@ -91,8 +93,36 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
                 config.getMetadata(),
                 config.getRetentionPolicyConfig()
             );
-            assertFalse("true update is noop", update.isNoop(config));
+            assertFalse("true update should not be no-op", update.isNoop(config));
         }
+    }
+
+    public void testChangesSettings() {
+        TransformConfig config = randomTransformConfig();
+        TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+        assertFalse("null update does not change settings", update.changesSettings(config));
+
+        update = new TransformConfigUpdate(null, null, null, null, null, config.getSettings(), null, null);
+        assertFalse("equal update does not change settings", update.changesSettings(config));
+
+        SettingsConfig newSettings = new SettingsConfig.Builder(config.getSettings()).setMaxPageSearchSize(
+            Optional.ofNullable(config.getSettings().getMaxPageSearchSize()).orElse(0) + 1
+        ).build();
+        update = new TransformConfigUpdate(null, null, null, null, null, newSettings, null, null);
+        assertTrue("true update changes settings", update.changesSettings(config));
+    }
+
+    public void testChangesHeaders() {
+        TransformConfig config = randomTransformConfig();
+        TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+        assertFalse("null update does not change headers", update.changesHeaders(config));
+
+        update.setHeaders(config.getHeaders());
+        assertFalse("equal update does not change headers", update.changesHeaders(config));
+
+        Map<String, String> newHeaders = Map.of("new-key", "new-value");
+        update.setHeaders(newHeaders);
+        assertTrue("true update changes headers", update.changesHeaders(config));
     }
 
     public void testApply() {

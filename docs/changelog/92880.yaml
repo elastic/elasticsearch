@@ -1,5 +1,0 @@
-pr: 92880
-summary: Cache the creation of parsers within DateProcessor
-area: Ingest Node
-type: enhancement
-issues: []

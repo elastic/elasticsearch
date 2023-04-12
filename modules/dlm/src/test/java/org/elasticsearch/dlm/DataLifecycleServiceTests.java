@@ -14,10 +14,9 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
-import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
@@ -33,10 +32,9 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -49,7 +47,6 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -57,7 +54,10 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
+import static org.elasticsearch.dlm.DLMFixtures.createDataStream;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -70,6 +70,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
     private DataLifecycleService dataLifecycleService;
     private List<TransportRequest> clientSeenRequests;
     private NoOpClient client;
+    private ClusterService clusterService;
 
     @Before
     public void setupServices() {
@@ -77,7 +78,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         Set<Setting<?>> builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         builtInClusterSettings.add(DataLifecycleService.DLM_POLL_INTERVAL_SETTING);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, builtInClusterSettings);
-        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
+        clusterService = createClusterService(threadPool, clusterSettings);
 
         now = System.currentTimeMillis();
         Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
@@ -100,6 +101,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
     public void cleanup() {
         clientSeenRequests.clear();
         dataLifecycleService.close();
+        clusterService.close();
         threadPool.shutdownNow();
         client.close();
     }
@@ -113,7 +115,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle(TimeValue.timeValueMillis(0))
+            new DataLifecycle(TimeValue.timeValueMillis(0)),
+            now
         );
         builder.put(dataStream);
 
@@ -145,7 +148,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle((TimeValue) null)
+            new DataLifecycle((TimeValue) null),
+            now
         );
         builder.put(dataStream);
 
@@ -164,7 +168,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle(TimeValue.timeValueDays(700))
+            new DataLifecycle(TimeValue.timeValueDays(700)),
+            now
         );
         builder.put(dataStream);
 
@@ -183,7 +188,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy").put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
-            new DataLifecycle(TimeValue.timeValueMillis(0))
+            new DataLifecycle(TimeValue.timeValueMillis(0)),
+            now
         );
         builder.put(dataStream);
 
@@ -201,7 +207,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy").put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
-            null
+            null,
+            now
         );
         builder.put(dataStream);
 
@@ -218,8 +225,9 @@ public class DataLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
-            Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy").put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
-            null
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
+            new DataLifecycle(),
+            now
         );
         builder.put(dataStream);
         String nodeId = "localNode";
@@ -247,63 +255,15 @@ public class DataLifecycleServiceTests extends ESTestCase {
         }
         newStateBuilder.metadata(metaBuilder);
         ClusterState stateWithDeletedIndices = newStateBuilder.nodes(buildNodes(nodeId).masterNodeId(nodeId)).build();
-        ClusterChangedEvent event = new ClusterChangedEvent("_na_", stateWithDeletedIndices, previousState);
+        setState(clusterService, stateWithDeletedIndices);
 
-        dataLifecycleService.clusterChanged(event);
+        dataLifecycleService.run(stateWithDeletedIndices);
 
         for (Index deletedIndex : deletedIndices) {
             assertThat(dataLifecycleService.getErrorStore().getError(deletedIndex.getName()), nullValue());
         }
         // the value for the write index should still be in the error store
         assertThat(dataLifecycleService.getErrorStore().getError(dataStream.getWriteIndex().getName()), notNullValue());
-    }
-
-    public void testErrorStoreIsNotUpdatedIfWeAreNotMaster() {
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        int numBackingIndices = 3;
-        Metadata.Builder builder = Metadata.builder();
-        DataStream dataStream = createDataStream(
-            builder,
-            dataStreamName,
-            numBackingIndices,
-            Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy").put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT),
-            null
-        );
-        builder.put(dataStream);
-        String localNode = "localNode";
-        String masterNodeId = "some_other_node";
-        DiscoveryNodes.Builder nodesBuilder = buildNodes(localNode).add(getNode(masterNodeId)).masterNodeId(masterNodeId);
-        ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).nodes(nodesBuilder).build();
-
-        // all backing indices are in the error store
-        for (Index index : dataStream.getIndices()) {
-            dataLifecycleService.getErrorStore().recordError(index.getName(), new NullPointerException("bad"));
-        }
-        Index writeIndex = dataStream.getWriteIndex();
-        // all indices but the write index are deleted
-        List<Index> deletedIndices = dataStream.getIndices().stream().filter(index -> index.equals(writeIndex) == false).toList();
-
-        ClusterState.Builder newStateBuilder = ClusterState.builder(previousState);
-        newStateBuilder.stateUUID(UUIDs.randomBase64UUID());
-        Metadata.Builder metaBuilder = Metadata.builder(previousState.metadata());
-        for (Index index : deletedIndices) {
-            metaBuilder.remove(index.getName());
-            IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaBuilder.indexGraveyard());
-            graveyardBuilder.addTombstone(index);
-            metaBuilder.indexGraveyard(graveyardBuilder.build());
-        }
-        newStateBuilder.metadata(metaBuilder);
-        ClusterState stateWithDeletedIndices = newStateBuilder.nodes(
-            buildNodes(localNode).add(getNode(masterNodeId)).masterNodeId(masterNodeId)
-        ).build();
-        ClusterChangedEvent event = new ClusterChangedEvent("_na_", stateWithDeletedIndices, previousState);
-
-        dataLifecycleService.clusterChanged(event);
-
-        for (Index index : dataStream.getIndices()) {
-            // all the errors shoudl still be in the error store as the node where DLM runs is not the master node
-            assertThat(dataLifecycleService.getErrorStore().getError(index.getName()), notNullValue());
-        }
     }
 
     public void testErrorStoreIsClearedOnBackingIndexBecomingUnmanaged() {
@@ -315,7 +275,8 @@ public class DataLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             numBackingIndices,
             settings(Version.CURRENT),
-            new DataLifecycle(TimeValue.timeValueDays(700))
+            new DataLifecycle(TimeValue.timeValueDays(700)),
+            now
         );
         // all backing indices are in the error store
         for (Index index : dataStream.getIndices()) {
@@ -343,6 +304,83 @@ public class DataLifecycleServiceTests extends ESTestCase {
         }
     }
 
+    public void testDefaultRolloverRequest() {
+        // test auto max_age and another concrete condition
+        {
+            RolloverConditions randomConcreteRolloverConditions = randomRolloverConditions(false);
+            RolloverRequest rolloverRequest = DataLifecycleService.getDefaultRolloverRequest(
+                new RolloverConfiguration(randomConcreteRolloverConditions, Set.of("max_age")),
+                "my-data-stream",
+                null
+            );
+            assertThat(rolloverRequest.getRolloverTarget(), equalTo("my-data-stream"));
+            assertThat(
+                rolloverRequest.getConditions(),
+                equalTo(
+                    RolloverConditions.newBuilder(randomConcreteRolloverConditions)
+                        .addMaxIndexAgeCondition(TimeValue.timeValueDays(30))
+                        .build()
+                )
+            );
+            RolloverRequest rolloverRequestWithRetention = DataLifecycleService.getDefaultRolloverRequest(
+                new RolloverConfiguration(randomConcreteRolloverConditions, Set.of("max_age")),
+                "my-data-stream",
+                TimeValue.timeValueDays(3)
+            );
+            assertThat(
+                rolloverRequestWithRetention.getConditions(),
+                equalTo(
+                    RolloverConditions.newBuilder(randomConcreteRolloverConditions)
+                        .addMaxIndexAgeCondition(TimeValue.timeValueDays(1))
+                        .build()
+                )
+            );
+        }
+        // test without any automatic conditions
+        {
+            RolloverConditions randomConcreteRolloverConditions = randomRolloverConditions(true);
+            RolloverRequest rolloverRequest = DataLifecycleService.getDefaultRolloverRequest(
+                new RolloverConfiguration(randomConcreteRolloverConditions),
+                "my-data-stream",
+                null
+            );
+            assertThat(rolloverRequest.getRolloverTarget(), equalTo("my-data-stream"));
+            assertThat(rolloverRequest.getConditions(), equalTo(randomConcreteRolloverConditions));
+            RolloverRequest rolloverRequestWithRetention = DataLifecycleService.getDefaultRolloverRequest(
+                new RolloverConfiguration(randomConcreteRolloverConditions),
+                "my-data-stream",
+                TimeValue.timeValueDays(1)
+            );
+            assertThat(rolloverRequestWithRetention.getConditions(), equalTo(randomConcreteRolloverConditions));
+        }
+    }
+
+    private static RolloverConditions randomRolloverConditions(boolean includeMaxAge) {
+        ByteSizeValue maxSize = randomBoolean() ? randomByteSizeValue() : null;
+        ByteSizeValue maxPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
+        Long maxDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        TimeValue maxAge = includeMaxAge && randomBoolean() ? TimeValue.timeValueMillis(randomMillisUpToYear9999()) : null;
+        Long maxPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
+        ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
+        Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        TimeValue minAge = randomBoolean() ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test") : null;
+        Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
+
+        return RolloverConditions.newBuilder()
+            .addMaxIndexSizeCondition(maxSize)
+            .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
+            .addMaxIndexAgeCondition(maxAge)
+            .addMaxIndexDocsCondition(maxDocs)
+            .addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs)
+            .addMinIndexSizeCondition(minSize)
+            .addMinPrimaryShardSizeCondition(minPrimaryShardSize)
+            .addMinIndexAgeCondition(minAge)
+            .addMinIndexDocsCondition(minDocs)
+            .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
+            .build();
+    }
+
     private static DiscoveryNodes.Builder buildNodes(String nodeId) {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         nodesBuilder.localNodeId(nodeId);
@@ -362,32 +400,6 @@ public class DataLifecycleServiceTests extends ESTestCase {
             Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE),
             Version.CURRENT
         );
-    }
-
-    private DataStream createDataStream(
-        Metadata.Builder builder,
-        String dataStreamName,
-        int backingIndicesCount,
-        Settings.Builder backingIndicesSettings,
-        @Nullable DataLifecycle lifecycle
-    ) {
-        final List<Index> backingIndices = new ArrayList<>();
-        for (int k = 1; k <= backingIndicesCount; k++) {
-            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k))
-                .settings(backingIndicesSettings)
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .creationDate(now - 3000L);
-            if (k < backingIndicesCount) {
-                // add rollover info only for non-write indices
-                MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(now - 2000L));
-                indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
-            }
-            IndexMetadata indexMetadata = indexMetaBuilder.build();
-            builder.put(indexMetadata, false);
-            backingIndices.add(indexMetadata.getIndex());
-        }
-        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle);
     }
 
     private NoOpClient getTransportRequestsRecordingClient() {

@@ -48,13 +48,13 @@ public abstract class IgnoreMalformedStoredValues {
         return switch (parser.currentToken()) {
             case VALUE_STRING -> new StoredField(name, parser.text());
             case VALUE_NUMBER -> switch (parser.numberType()) {
-                    case INT -> new StoredField(name, parser.intValue());
-                    case LONG -> new StoredField(name, parser.longValue());
-                    case DOUBLE -> new StoredField(name, parser.doubleValue());
-                    case FLOAT -> new StoredField(name, parser.floatValue());
-                    case BIG_INTEGER -> new StoredField(name, encode((BigInteger) parser.numberValue()));
-                    case BIG_DECIMAL -> new StoredField(name, encode((BigDecimal) parser.numberValue()));
-                };
+                case INT -> new StoredField(name, parser.intValue());
+                case LONG -> new StoredField(name, parser.longValue());
+                case DOUBLE -> new StoredField(name, parser.doubleValue());
+                case FLOAT -> new StoredField(name, parser.floatValue());
+                case BIG_INTEGER -> new StoredField(name, encode((BigInteger) parser.numberValue()));
+                case BIG_DECIMAL -> new StoredField(name, encode((BigDecimal) parser.numberValue()));
+            };
             case VALUE_BOOLEAN -> new StoredField(name, new byte[] { parser.booleanValue() ? (byte) 't' : (byte) 'f' });
             case VALUE_EMBEDDED_OBJECT -> new StoredField(name, encode(parser.binaryValue()));
             case START_OBJECT, START_ARRAY -> {

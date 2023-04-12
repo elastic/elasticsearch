@@ -127,7 +127,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var clusterService = new ClusterService(
             settings,
             createBuiltInClusterSettings(settings),
-            new FakeThreadPoolMasterService(LOCAL_NODE_ID, "test", threadPool, deterministicTaskQueue::scheduleNow),
+            new FakeThreadPoolMasterService(LOCAL_NODE_ID, threadPool, deterministicTaskQueue::scheduleNow),
             new ClusterApplierService(LOCAL_NODE_ID, Settings.EMPTY, clusterSettings, threadPool) {
                 @Override
                 protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
@@ -172,14 +172,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                             .addAsNew(indexMetadata)
                     )
                     .build();
-                return allocationService.reroute(
-                    newState,
-                    "test",
-                    ActionListener.wrap(
-                        response -> listenerCalled.set(true),
-                        exception -> { throw new AssertionError("should not happen in test", exception); }
-                    )
-                );
+                return allocationService.reroute(newState, "test", ActionListener.wrap(response -> listenerCalled.set(true), exception -> {
+                    throw new AssertionError("should not happen in test", exception);
+                }));
             }
 
             @Override
@@ -370,14 +365,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                             .addAsNew(indexMetadata)
                     )
                     .build();
-                return allocationService.reroute(
-                    newState,
-                    "test",
-                    ActionListener.wrap(
-                        response -> { throw new AssertionError("Should not happen in test"); },
-                        exception -> listenersCalled.countDown()
-                    )
-                );
+                return allocationService.reroute(newState, "test", ActionListener.wrap(response -> {
+                    throw new AssertionError("Should not happen in test");
+                }, exception -> listenersCalled.countDown()));
             }
 
             @Override

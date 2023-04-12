@@ -250,7 +250,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             final MasterServiceTaskQueue<ClusterStateTaskListener> taskQueue = mock(MasterServiceTaskQueue.class);
 
-            if ((getQueueArgs[2]instanceof ReservedStateUpdateTaskExecutor executor)) {
+            if ((getQueueArgs[2] instanceof ReservedStateUpdateTaskExecutor executor)) {
                 doAnswer(submitTaskInvocation -> {
                     Object[] submitTaskArgs = submitTaskInvocation.getArguments();
                     ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask> context = new ClusterStateTaskExecutor.TaskContext<>() {

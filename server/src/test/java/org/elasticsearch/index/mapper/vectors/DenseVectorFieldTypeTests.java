@@ -118,7 +118,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unindexedField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10, null)
+            () -> unindexedField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10, null, null)
         );
         assertThat(e.getMessage(), containsString("to perform knn search on field [f], its mapping must have [index] set to [true]"));
 
@@ -131,7 +131,10 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             VectorSimilarity.DOT_PRODUCT,
             Collections.emptyMap()
         );
-        e = expectThrows(IllegalArgumentException.class, () -> dotProductField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10, null));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> dotProductField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10, null, null)
+        );
         assertThat(e.getMessage(), containsString("The [dot_product] similarity can only be used with unit-length vectors."));
 
         DenseVectorFieldType cosineField = new DenseVectorFieldType(
@@ -143,7 +146,10 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             VectorSimilarity.COSINE,
             Collections.emptyMap()
         );
-        e = expectThrows(IllegalArgumentException.class, () -> cosineField.createKnnQuery(new float[] { 0.0f, 0.0f, 0.0f }, 10, null));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> cosineField.createKnnQuery(new float[] { 0.0f, 0.0f, 0.0f }, 10, null, null)
+        );
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
     }
 
@@ -159,7 +165,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unindexedField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10, null)
+            () -> unindexedField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10, null, null)
         );
         assertThat(e.getMessage(), containsString("to perform knn search on field [f], its mapping must have [index] set to [true]"));
 
@@ -172,10 +178,13 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             VectorSimilarity.COSINE,
             Collections.emptyMap()
         );
-        e = expectThrows(IllegalArgumentException.class, () -> cosineField.createKnnQuery(new float[] { 0.0f, 0.0f, 0.0f }, 10, null));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> cosineField.createKnnQuery(new float[] { 0.0f, 0.0f, 0.0f }, 10, null, null)
+        );
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
 
-        e = expectThrows(IllegalArgumentException.class, () -> cosineField.createKnnQuery(new byte[] { 0, 0, 0 }, 10, null));
+        e = expectThrows(IllegalArgumentException.class, () -> cosineField.createKnnQuery(new byte[] { 0, 0, 0 }, 10, null, null));
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
     }
 }

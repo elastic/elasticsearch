@@ -528,11 +528,9 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             } else {
                 formatted = format.format(value);
             }
-            parsed = format.parseLong(
-                formatted.toString(),
-                false,
-                () -> { throw new UnsupportedOperationException("Using now() is not supported in after keys"); }
-            );
+            parsed = format.parseLong(formatted.toString(), false, () -> {
+                throw new UnsupportedOperationException("Using now() is not supported in after keys");
+            });
             if (parsed.equals(((Number) obj).longValue()) == false) {
                 throw new IllegalArgumentException(
                     "Format ["
@@ -556,11 +554,9 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             } else {
                 formatted = format.format(value);
             }
-            parsed = format.parseDouble(
-                formatted.toString(),
-                false,
-                () -> { throw new UnsupportedOperationException("Using now() is not supported in after keys"); }
-            );
+            parsed = format.parseDouble(formatted.toString(), false, () -> {
+                throw new UnsupportedOperationException("Using now() is not supported in after keys");
+            });
             if (parsed.equals(((Number) obj).doubleValue()) == false) {
                 throw new IllegalArgumentException(
                     "Format ["

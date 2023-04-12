@@ -28,12 +28,10 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.hamcrest.CoreMatchers;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,10 +40,10 @@ import java.util.TreeMap;
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -219,7 +217,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             }
             // Metric mapper rejects multi-valued data
             {
-                Exception e = expectThrows(MapperParsingException.class, () -> metricMapper.parse(source(b -> b.field("field", values))));
+                Exception e = expectThrows(DocumentParsingException.class, () -> metricMapper.parse(source(b -> b.field("field", values))));
                 assertThat(e.getCause().getMessage(), containsString("field type for [field] does not accept more than single value"));
             }
         }
@@ -256,7 +254,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
         assertThat(doc.rootDoc().getFields("field"), notNullValue());
-        assertThat(doc.rootDoc().getFields("field").length, equalTo(4));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(4));
     }
 
     public void testLatLonInOneValue() throws Exception {
@@ -273,7 +271,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     public void testLatLonStringWithZValueException() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", false)));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field", "1.2,1.3,10.0"))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", "1.2,1.3,10.0"))));
         assertThat(e.getCause().getMessage(), containsString("but [ignore_z_value] parameter is [false]"));
     }
 
@@ -291,7 +289,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
         assertThat(doc.rootDoc().getFields("field"), notNullValue());
-        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(4));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(4));
     }
 
     public void testLonLatArray() throws Exception {
@@ -320,7 +318,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     public void testLonLatArrayStored() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("store", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").value(1.3).value(1.2).endArray()));
-        assertThat(doc.rootDoc().getFields("field").length, equalTo(3));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(3));
     }
 
     public void testLonLatArrayArrayStored() throws Exception {
@@ -334,7 +332,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
         assertThat(doc.rootDoc().getFields("field"), notNullValue());
-        assertThat(doc.rootDoc().getFields("field").length, CoreMatchers.equalTo(4));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(4));
     }
 
     /**
@@ -374,11 +372,11 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
         LuceneDocument doc = mapper.parse(source(b -> b.field("field", "POINT (2 3)"))).rootDoc();
-        assertThat(doc.getFields("field"), arrayWithSize(1));
+        assertThat(doc.getFields("field"), hasSize(1));
         assertThat(doc.getField("field"), hasToString(both(containsString("field:2.999")).and(containsString("1.999"))));
-        assertThat(doc.getFields("field.geohash"), arrayWithSize(1));
+        assertThat(doc.getFields("field.geohash"), hasSize(1));
         assertThat(doc.getField("field.geohash").binaryValue().utf8ToString(), equalTo("s093jd0k72s1"));
-        assertThat(doc.getFields("field.latlon"), arrayWithSize(1));
+        assertThat(doc.getFields("field.latlon"), hasSize(1));
         assertThat(doc.getField("field.latlon").stringValue(), equalTo("s093jd0k72s1"));
     }
 
@@ -392,9 +390,9 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
         LuceneDocument doc = mapper.parse(source(b -> b.array("field", "POINT (2 3)", "POINT (4 5)"))).rootDoc();
-        assertThat(doc.getFields("field.geohash"), arrayWithSize(2));
-        assertThat(doc.getFields("field.geohash")[0].binaryValue().utf8ToString(), equalTo("s093jd0k72s1"));
-        assertThat(doc.getFields("field.geohash")[1].binaryValue().utf8ToString(), equalTo("s0fu7n0xng81"));
+        assertThat(doc.getFields("field.geohash"), hasSize(2));
+        assertThat(doc.getFields("field.geohash").get(0).binaryValue().utf8ToString(), equalTo("s093jd0k72s1"));
+        assertThat(doc.getFields("field.geohash").get(1).binaryValue().utf8ToString(), equalTo("s0fu7n0xng81"));
     }
 
     public void testKeywordWithGeopointSubfield() throws Exception {
@@ -407,9 +405,9 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
         LuceneDocument doc = mapper.parse(source(b -> b.array("field", "s093jd0k72s1"))).rootDoc();
-        assertThat(doc.getFields("field"), arrayWithSize(1));
-        assertEquals("s093jd0k72s1", doc.getFields("field")[0].binaryValue().utf8ToString());
-        assertThat(doc.getFields("field.geopoint"), arrayWithSize(1));
+        assertThat(doc.getFields("field"), hasSize(1));
+        assertEquals("s093jd0k72s1", doc.getFields("field").get(0).binaryValue().utf8ToString());
+        assertThat(doc.getFields("field.geopoint"), hasSize(1));
         assertThat(doc.getField("field.geopoint"), hasToString(both(containsString("field.geopoint:2.999")).and(containsString("1.999"))));
     }
 
@@ -450,11 +448,11 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
         assertThat(doc.rootDoc().getField("field"), nullValue());
-        assertThat(doc.rootDoc().getFields(FieldNamesFieldMapper.NAME).length, equalTo(0));
+        assertThat(doc.rootDoc().getFields(FieldNamesFieldMapper.NAME), hasSize(0));
 
         doc = mapper.parse(source(b -> b.startArray("field").value((String) null).endArray()));
         assertThat(doc.rootDoc().getField("field"), nullValue());
-        assertThat(doc.rootDoc().getFields(FieldNamesFieldMapper.NAME).length, equalTo(0));
+        assertThat(doc.rootDoc().getFields(FieldNamesFieldMapper.NAME), hasSize(0));
 
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("doc_values", false)));
         fieldMapper = mapper.mappers().getMapper("field");
@@ -462,7 +460,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
         doc = mapper.parse(source(b -> b.nullField("field")));
         assertThat(doc.rootDoc().getField("field"), nullValue());
-        assertThat(doc.rootDoc().getFields(FieldNamesFieldMapper.NAME).length, equalTo(0));
+        assertThat(doc.rootDoc().getFields(FieldNamesFieldMapper.NAME), hasSize(0));
 
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("null_value", "1,2")));
         fieldMapper = mapper.mappers().getMapper("field");
@@ -485,7 +483,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
         doc = mapper.parse(source(b -> b.startArray("field").nullValue().value("3, 4").endArray()));
         assertMap(
-            Arrays.stream(doc.rootDoc().getFields("field")).map(IndexableField::binaryValue).filter(Objects::nonNull).toList(),
+            doc.rootDoc().getFields("field").stream().map(IndexableField::binaryValue).filter(Objects::nonNull).toList(),
             matchesList().item(equalTo(defaultValue)).item(equalTo(threeFour))
         );
     }

@@ -110,10 +110,6 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
 
         MergedGeoLines mergedGeoLines = new MergedGeoLines(internalGeoLines, finalSize, sortOrder);
         mergedGeoLines.merge();
-        // the final reduce should always be in ascending order
-        if (reduceContext.isFinalReduce() && SortOrder.DESC.equals(sortOrder)) {
-            new PathArraySorter(mergedGeoLines.getFinalPoints(), mergedGeoLines.getFinalSortValues(), SortOrder.ASC).sort();
-        }
         return new InternalGeoLine(
             name,
             mergedGeoLines.getFinalPoints(),

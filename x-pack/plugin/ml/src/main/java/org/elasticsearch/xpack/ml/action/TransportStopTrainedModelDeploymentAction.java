@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -32,9 +31,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -43,7 +40,6 @@ import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMet
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -134,8 +130,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             if (referencedModels.contains(request.getId())) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Cannot stop deployment [{}] as it is referenced by ingest processors; "
-                            + "use force to stop the deployment",
+                        "Cannot stop deployment [{}] as it is referenced by ingest processors; " + "use force to stop the deployment",
                         RestStatus.CONFLICT,
                         request.getId()
                     )

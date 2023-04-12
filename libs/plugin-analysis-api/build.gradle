@@ -31,7 +31,7 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.named("thirdPartyAudit").configure {
-  if (BuildParams.runtimeJavaVersion == JavaVersion.VERSION_20) {
+  if (BuildParams.runtimeJavaVersion == JavaVersion.VERSION_20 || BuildParams.isRuntimeJavaHomeSet == false) {
     ignoreMissingClasses(
       // This class was removed in Java 20 but is only referenced by a class that requires preview features anyhow
       // See: https://github.com/apache/lucene/pull/12042

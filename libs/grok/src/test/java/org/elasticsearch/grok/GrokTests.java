@@ -58,6 +58,17 @@ public class GrokTests extends ESTestCase {
     public void testCapturesBytes() {
         testCapturesBytes(false);
         testCapturesBytes(true);
+        testCaptureBytesSuffix(true);
+        testCaptureBytesSuffix(false);
+    }
+
+    private void testCaptureBytesSuffix(boolean ecsCompatibility) {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:a} %{WORD:b} %{NUMBER:c:int}", logger::warn);
+        byte[] utf8 = "x1 a1 b1 12 x2 a2 b2 13 ".getBytes(StandardCharsets.UTF_8);
+        assertThat(captureBytes(grok, utf8, 0, 12), equalTo(Map.of("a", "a1", "b", "b1", "c", 12)));
+        assertNull(captureBytes(grok, utf8, 0, 9));
+        assertThat(captureBytes(grok, utf8, 12, 12), equalTo(Map.of("a", "a2", "b", "b2", "c", 13)));
+        assertNull(captureBytes(grok, utf8, 12, 9));
     }
 
     private void testCapturesBytes(boolean ecsCompatibility) {

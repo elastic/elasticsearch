@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.CompositeReaderContext;
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -29,7 +29,7 @@ class StoredFieldSourceProvider implements SourceProvider {
 
     @Override
     public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
-        LeafStoredFieldSourceProvider[] leaves = getLeavesUnderLock(ctx.parent);
+        LeafStoredFieldSourceProvider[] leaves = getLeavesUnderLock(findParentContext(ctx));
         if (leaves[ctx.ord] == null) {
             // individual segments are currently only accessed on one thread so there's no need
             // for locking here.
@@ -38,7 +38,15 @@ class StoredFieldSourceProvider implements SourceProvider {
         return leaves[ctx.ord].getSource(doc);
     }
 
-    private LeafStoredFieldSourceProvider[] getLeavesUnderLock(CompositeReaderContext parentCtx) {
+    private IndexReaderContext findParentContext(LeafReaderContext ctx) {
+        if (ctx.parent != null) {
+            return ctx.parent;
+        }
+        assert ctx.isTopLevel;
+        return ctx;
+    }
+
+    private LeafStoredFieldSourceProvider[] getLeavesUnderLock(IndexReaderContext parentCtx) {
         if (leaves == null) {
             synchronized (this) {
                 if (leaves == null) {

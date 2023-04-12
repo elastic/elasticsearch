@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
@@ -68,6 +69,18 @@ public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEm
     @Override
     protected TextEmbeddingConfig mutateInstanceForVersion(TextEmbeddingConfig instance, TransportVersion version) {
         return mutateForVersion(instance, version);
+    }
+
+    public void testInvariants() {
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new TextEmbeddingConfig(null, BertTokenizationTests.createRandom(), null, 0)
+        );
+        assertEquals("[embedding_size] must be a number greater than 0; configured size [0]", e.getMessage());
+
+        var invalidTokenization = new BertTokenization(true, true, 512, Tokenization.Truncate.NONE, 128);
+        e = expectThrows(ElasticsearchStatusException.class, () -> new TextEmbeddingConfig(null, invalidTokenization, null, 200));
+        assertEquals("[text_embedding] does not support windowing long text sequences; configured span [128]", e.getMessage());
     }
 
     public static TextEmbeddingConfig createRandom() {

@@ -81,6 +81,13 @@ public class TextEmbeddingConfig implements NlpConfig {
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
         this.resultsField = resultsField;
+        if (embeddingSize != null && embeddingSize <= 0) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be a number greater than 0; configured size [{}]",
+                EMBEDDING_SIZE.getPreferredName(),
+                embeddingSize
+            );
+        }
         this.embeddingSize = embeddingSize;
         if (this.tokenization.span != -1) {
             throw ExceptionsHelper.badRequestException(

@@ -1,0 +1,5 @@
+pr: 95193
+summary: Behavioral Analytics - Fix failing YAML tests on main
+area: Application
+type: bug
+issues: []

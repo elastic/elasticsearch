@@ -65,8 +65,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         public ClusterState execute(BatchExecutionContext<NodeTransportVersionTask> context) throws Exception {
             ClusterState.Builder builder = ClusterState.builder(context.initialState());
             for (var c : context.taskContexts()) {
-                NodeTransportVersionTask t = c.getTask();
-                for (var e : t.results().entrySet()) {
+                for (var e : c.getTask().results().entrySet()) {
                     // this node's transport version might have been updated already/node has gone away
                     if (Objects.equals(builder.transportVersions().get(e.getKey()), INFERRED_VERSION)) {
                         builder.putTransportVersion(e.getKey(), e.getValue());

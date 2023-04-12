@@ -126,7 +126,11 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
         }
 
         @Override
-        public CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage) {
+        public CoordinationState.PersistedState createFreshPersistedState(
+            DiscoveryNode localNode,
+            BooleanSupplier disruptStorage,
+            ThreadPool threadPool
+        ) {
             return new StatelessPersistedState(emptyClusterState(localNode), 0, clusterStateStore) {
                 @Override
                 public void close() throws IOException {
@@ -144,7 +148,8 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
             Function<Long, Long> adaptCurrentTerm,
             LongSupplier currentTimeInMillisSupplier,
             NamedWriteableRegistry namedWriteableRegistry,
-            BooleanSupplier disruptStorage
+            BooleanSupplier disruptStorage,
+            ThreadPool threadPool
         ) {
             return new StatelessPersistedState(emptyClusterState(newLocalNode), 0, clusterStateStore) {
                 @Override

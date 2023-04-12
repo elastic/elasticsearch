@@ -41,6 +41,7 @@ public class StartTrainedModelDeploymentTaskParamsTests extends AbstractXContent
     public static StartTrainedModelDeploymentAction.TaskParams createRandom() {
         return new TaskParams(
             randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
             randomNonNegativeLong(),
             randomIntBetween(1, 8),
             randomIntBetween(1, 8),

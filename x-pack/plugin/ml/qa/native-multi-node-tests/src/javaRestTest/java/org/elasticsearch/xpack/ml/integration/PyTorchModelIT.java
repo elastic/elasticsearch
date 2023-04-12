@@ -968,7 +968,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
     public void testUpdateDeployment_GivenMissingModel() throws IOException {
         ResponseException ex = expectThrows(ResponseException.class, () -> updateDeployment("missing", 4));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("deployment for model with id [missing] not found"));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("deployment with id [missing] not found"));
     }
 
     public void testUpdateDeployment_GivenAllocationsAreIncreased() throws Exception {

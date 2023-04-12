@@ -119,7 +119,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         var clusterService = new ClusterService(
             settings,
             createBuiltInClusterSettings(settings),
-            new FakeThreadPoolMasterService(LOCAL_NODE_ID, "test", threadPool, deterministicTaskQueue::scheduleNow),
+            new FakeThreadPoolMasterService(LOCAL_NODE_ID, threadPool, deterministicTaskQueue::scheduleNow),
             new ClusterApplierService(LOCAL_NODE_ID, Settings.EMPTY, clusterSettings, threadPool) {
                 @Override
                 protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {

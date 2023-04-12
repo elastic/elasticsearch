@@ -144,13 +144,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
     }
 
-    public void reset() {
-        Releasables.close(pages);
-        pages.clear();
-        pageIndex = -1;
-        currentPageOffset = pageSize;
-    }
-
     @Override
     public void flush() {
         // nothing to do
@@ -230,16 +223,16 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         if (newPosition > Integer.MAX_VALUE - (Integer.MAX_VALUE % pageSize)) {
             throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
         }
-        while (newPosition > currentCapacity) {
+        while (newPosition > currentCapacity - 1) {
             Recycler.V<BytesRef> newPage = recycler.obtain();
             assert pageSize == newPage.v().length;
             pages.add(newPage);
             // We are at the end of the current page, increment page index
-            if (currentPageOffset == pageSize) {
-                pageIndex++;
-                currentPageOffset = 0;
-            }
             currentCapacity += pageSize;
+        }
+        if (currentPageOffset == pageSize) {
+            pageIndex++;
+            currentPageOffset = 0;
         }
     }
 }

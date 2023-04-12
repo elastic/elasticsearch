@@ -112,6 +112,9 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
     }
 
     public void testCrossClusterAccessFeatureTrackingAndLicensing() throws Exception {
+        assertBasicLicense(fulfillingClusterClient);
+        assertBasicLicense(client());
+
         final boolean useProxyMode = randomBoolean();
         configureRemoteClusters(useProxyMode);
 
@@ -224,6 +227,20 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             exception.getMessage(),
             containsString("current license is non-compliant for [" + CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE_NAME + "]")
         );
+    }
+
+    private void assertBasicLicense(RestClient client) throws Exception {
+        final var request = new Request("GET", "/_license");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
+        assertBusy(() -> {
+            final Response response;
+            try {
+                response = client.performRequest(request);
+            } catch (ResponseException e) {
+                throw new AssertionError(e);
+            }
+            assertThat(ObjectPath.createFromResponse(response).evaluate("license.type"), equalTo("basic"));
+        });
     }
 
     private void deleteLicenseFromCluster(RestClient client) throws IOException {

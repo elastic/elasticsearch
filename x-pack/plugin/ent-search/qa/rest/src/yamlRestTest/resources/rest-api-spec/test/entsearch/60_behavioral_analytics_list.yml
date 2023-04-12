@@ -1,23 +1,23 @@
 setup:
   - do:
-      behavioral_analytics.put:
+      search_application.put_behavioral_analytics:
         name: my-test-analytics-collection
 
   - do:
-      behavioral_analytics.put:
+      search_application.put_behavioral_analytics:
         name: my-test-analytics-collection2
 
 ---
 teardown:
   - do:
-      behavioral_analytics.delete:
+      search_application.delete_behavioral_analytics:
         name: my-test-analytics-collection
         ignore: 404
 
 ---
 "Get Analytics Collection for a particular collection":
   - do:
-      behavioral_analytics.list:
+      search_application.get_behavioral_analytics:
         name: my-test-analytics-collection
 
   - match: {
@@ -31,7 +31,7 @@ teardown:
 ---
 "Get Analytics Collection list":
   - do:
-      behavioral_analytics.list:
+      search_application.get_behavioral_analytics:
         name:
 
   - match: {
@@ -53,6 +53,6 @@ teardown:
 "Get Analytics Collection - Resource does not exist":
   - do:
       catch: "missing"
-      behavioral_analytics.list:
+      search_application.get_behavioral_analytics:
         name: test-nonexistent-analytics-collection
 

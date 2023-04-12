@@ -846,13 +846,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
                     final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
                     sourceNode.removeShard(shardRouting);
-                    Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(
+                    ShardRouting newShard = routingNodes.relocateOrReinitializeShard(
                         shardRouting,
                         targetNode.getNodeId(),
                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
                         allocation.changes()
                     );
-                    targetNode.addShard(relocatingShards.v2());
+                    targetNode.addShard(newShard);
                     if (logger.isTraceEnabled()) {
                         logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
                     }

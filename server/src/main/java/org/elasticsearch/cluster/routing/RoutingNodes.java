@@ -439,6 +439,27 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         return initializedShard;
     }
 
+    public ShardRouting relocateOrReinitializeShard(
+        ShardRouting startedShard,
+        String nodeId,
+        long expectedShardSize,
+        RoutingChangesObserver changes
+    ) {
+        if (startedShard.isSearchable()) {
+            return relocateShard(startedShard, nodeId, expectedShardSize, changes).v2();
+        } else {
+            remove(startedShard);
+            final var unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, "relocating unsearchable shard");
+            for (ShardRouting unpromotableReplica : List.copyOf(assignedShards(startedShard.shardId()))) {
+                assert unpromotableReplica.primary() == false : unpromotableReplica;
+                assert unpromotableReplica.isPromotableToPrimary() == false : unpromotableReplica;
+                remove(unpromotableReplica);
+                unassignedShards.ignoreShard(unpromotableReplica.moveToUnassigned(unassignedInfo), AllocationStatus.NO_ATTEMPT, changes);
+            }
+            return initializeShard(startedShard.moveToUnassigned(unassignedInfo), nodeId, null, expectedShardSize, changes);
+        }
+    }
+
     /**
      * Relocate a shard to another node, adding the target initializing
      * shard as well as assigning it.
@@ -513,7 +534,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                                 routing,
                                 new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, "primary changed")
                             );
-                            relocateShard(
+                            relocateOrReinitializeShard(
                                 startedReplica,
                                 sourceShard.relocatingNodeId(),
                                 sourceShard.getExpectedShardSize(),

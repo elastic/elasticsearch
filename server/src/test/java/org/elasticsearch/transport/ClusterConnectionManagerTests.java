@@ -9,6 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -36,7 +37,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -263,11 +263,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         for (int i = 0; i < threadCount; i++) {
             final int threadIndex = i;
             Thread thread = new Thread(() -> {
-                try {
-                    barrier.await();
-                } catch (InterruptedException | BrokenBarrierException e) {
-                    throw new RuntimeException(e);
-                }
+                safeAwait(barrier);
                 CountDownLatch latch = new CountDownLatch(1);
                 try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                     final String contextValue = randomAlphaOfLength(10);
@@ -277,7 +273,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                         assertThat(threadContext.getHeader(contextHeader), equalTo(contextValue));
 
                         assertTrue(pendingCloses.tryAcquire());
-                        connectionManager.getConnection(node).addRemovedListener(ActionListener.wrap(pendingCloses::release));
+                        connectionManager.getConnection(node).addRemovedListener(ActionListener.running(pendingCloses::release));
 
                         if (randomBoolean()) {
                             releasables[threadIndex] = c;
@@ -296,17 +292,13 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                         latch.countDown();
                     }));
                 }
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new IllegalStateException(e);
-                }
+                safeAwait(latch);
             });
             threads.add(thread);
             thread.start();
         }
 
-        barrier.await();
+        safeAwait(barrier);
         threads.forEach(t -> {
             try {
                 t.join();
@@ -622,7 +614,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                 if (closePermits.tryAcquire() && closingRefs.tryIncRef()) {
                     try {
                         var connection = connectionManager.getConnection(node);
-                        connection.addRemovedListener(ActionListener.wrap(this::runAgain));
+                        connection.addRemovedListener(ActionListener.running(this::runAgain));
                         connection.close();
                     } catch (NodeNotConnectedException e) {
                         closePermits.release();
@@ -645,7 +637,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         assertTrue("threads did not all complete", countDownLatch.await(10, TimeUnit.SECONDS));
         assertFalse(closingRefs.hasReferences());
-        assertTrue(cleanlyOpenedConnectionFuture.actionGet(0, TimeUnit.SECONDS));
+        assertTrue(cleanlyOpenedConnectionFuture.result());
 
         assertTrue("validatorPermits not all released", validatorPermits.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
         connectionManager.close();
@@ -766,6 +758,11 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         @Override
         public Version getVersion() {
             return node.getVersion();
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
+            return TransportVersion.CURRENT;
         }
 
         @Override

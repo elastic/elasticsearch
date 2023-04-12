@@ -10,9 +10,10 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
@@ -22,7 +23,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.xcontent.XContentType;
 
-import static org.elasticsearch.client.internal.Requests.createIndexRequest;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
@@ -36,10 +36,9 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
     public void testIndexingBeforeAndAfterDataNodesStart() {
         internalCluster().startNode(nonDataNode());
-        client().admin().indices().create(createIndexRequest("test").waitForActiveShards(ActiveShardCount.NONE)).actionGet();
+        client().admin().indices().create(new CreateIndexRequest("test").waitForActiveShards(ActiveShardCount.NONE)).actionGet();
         try {
-            client().index(Requests.indexRequest("test").id("1").source(SOURCE, XContentType.JSON).timeout(timeValueSeconds(1)))
-                .actionGet();
+            client().index(new IndexRequest("test").id("1").source(SOURCE, XContentType.JSON).timeout(timeValueSeconds(1))).actionGet();
             fail("no allocation should happen");
         } catch (UnavailableShardsException e) {
             // all is well
@@ -61,8 +60,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
         // still no shard should be allocated
         try {
-            client().index(Requests.indexRequest("test").id("1").source(SOURCE, XContentType.JSON).timeout(timeValueSeconds(1)))
-                .actionGet();
+            client().index(new IndexRequest("test").id("1").source(SOURCE, XContentType.JSON).timeout(timeValueSeconds(1))).actionGet();
             fail("no allocation should happen");
         } catch (UnavailableShardsException e) {
             // all is well
@@ -83,7 +81,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
             equalTo(false)
         );
 
-        IndexResponse indexResponse = client().index(Requests.indexRequest("test").id("1").source(SOURCE, XContentType.JSON)).actionGet();
+        IndexResponse indexResponse = client().index(new IndexRequest("test").id("1").source(SOURCE, XContentType.JSON)).actionGet();
         assertThat(indexResponse.getId(), equalTo("1"));
     }
 
@@ -92,7 +90,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .create(
-                createIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
                     .waitForActiveShards(ActiveShardCount.NONE)
             )
             .actionGet();
@@ -127,7 +125,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .create(
-                createIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+                new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
                     .waitForActiveShards(ActiveShardCount.NONE)
             )
             .actionGet();

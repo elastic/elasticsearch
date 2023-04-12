@@ -10,6 +10,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -53,8 +55,10 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
+import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
+import static org.mockito.Mockito.mock;
 
 public abstract class ESAllocationTestCase extends ESTestCase {
 
@@ -85,56 +89,12 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static MockAllocationService createAllocationService(Settings settings) {
-        return createAllocationService(settings, createBuiltInClusterSettings(settings));
-    }
-
-    public static MockAllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings) {
-        return new MockAllocationService(
-            randomAllocationDeciders(settings, clusterSettings),
+        return createAllocationService(
+            settings,
             new TestGatewayAllocator(),
-            createShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
-    }
-
-    private static ShardsAllocator createShardsAllocator(Settings settings) {
-        return switch (randomFrom(BALANCED_ALLOCATOR, DESIRED_BALANCE_ALLOCATOR)) {
-            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
-            case DESIRED_BALANCE_ALLOCATOR -> createDesiredBalanceShardsAllocator(settings);
-            default -> throw new AssertionError("Unknown allocator");
-        };
-    }
-
-    private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
-        var queue = new DeterministicTaskQueue();
-        return new DesiredBalanceShardsAllocator(
-            createBuiltInClusterSettings(settings),
-            new BalancedShardsAllocator(settings),
-            queue.getThreadPool(),
-            null,
-            null
-        ) {
-            private RoutingAllocation lastAllocation;
-
-            @Override
-            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
-                lastAllocation = allocation;
-                super.allocate(allocation, listener);
-                queue.runAllTasks();
-            }
-
-            @Override
-            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
-                // do nothing as balance is not computed yet (during allocate)
-            }
-
-            @Override
-            protected void submitReconcileTask(DesiredBalance desiredBalance) {
-                // reconcile synchronously rather than in cluster state update task
-                super.reconcile(desiredBalance, lastAllocation);
-            }
-        };
     }
 
     public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
@@ -160,11 +120,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService
     ) {
-        var clusterSettings = createBuiltInClusterSettings(settings);
         return new MockAllocationService(
-            randomAllocationDeciders(settings, clusterSettings),
+            randomAllocationDeciders(settings, createBuiltInClusterSettings(settings)),
             gatewayAllocator,
-            new BalancedShardsAllocator(clusterSettings, WriteLoadForecaster.DEFAULT),
+            createShardsAllocator(settings),
             clusterInfoService,
             snapshotsInfoService
         );
@@ -176,6 +135,53 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         );
         Collections.shuffle(deciders, random());
         return new AllocationDeciders(deciders);
+    }
+
+    protected static ShardsAllocator createShardsAllocator(Settings settings) {
+        return switch (pickShardsAllocator(settings)) {
+            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
+            case DESIRED_BALANCE_ALLOCATOR -> createDesiredBalanceShardsAllocator(settings);
+            default -> throw new AssertionError("Unknown allocator");
+        };
+    }
+
+    private static String pickShardsAllocator(Settings settings) {
+        return SHARDS_ALLOCATOR_TYPE_SETTING.exists(settings)
+            ? SHARDS_ALLOCATOR_TYPE_SETTING.get(settings)
+            : randomFrom(BALANCED_ALLOCATOR, DESIRED_BALANCE_ALLOCATOR);
+    }
+
+    private static DesiredBalanceShardsAllocator createDesiredBalanceShardsAllocator(Settings settings) {
+        var queue = new DeterministicTaskQueue();
+        return new DesiredBalanceShardsAllocator(
+            createBuiltInClusterSettings(settings),
+            new BalancedShardsAllocator(settings),
+            queue.getThreadPool(),
+            mock(ClusterService.class),
+            null
+        ) {
+            private RoutingAllocation lastAllocation;
+
+            @Override
+            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
+                lastAllocation = allocation;
+                super.allocate(allocation, listener);
+                queue.runAllTasks();
+                completeToLastConvergedIndex();
+                queue.runAllTasks();
+            }
+
+            @Override
+            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+                // do nothing as balance is not computed yet (during allocate)
+            }
+
+            @Override
+            protected void submitReconcileTask(DesiredBalance desiredBalance) {
+                // reconcile synchronously rather than in cluster state update task
+                super.reconcile(desiredBalance, lastAllocation);
+            }
+        };
     }
 
     protected static Set<DiscoveryNodeRole> MASTER_DATA_ROLES = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE);
@@ -306,11 +312,14 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterState clusterState,
         List<ShardRouting> initializingShards
     ) {
-        return allocationService.reroute(
-            allocationService.applyStartedShards(clusterState, initializingShards),
-            "reroute after starting",
-            ActionListener.noop()
-        );
+        return reroute(allocationService, allocationService.applyStartedShards(clusterState, initializingShards));
+    }
+
+    public static ClusterState reroute(AllocationService allocationService, ClusterState clusterState) {
+        final var listener = new PlainActionFuture<Void>();
+        final var result = allocationService.reroute(clusterState, "test reroute", listener);
+        listener.result(); // ensures it completed successfully
+        return result;
     }
 
     public static class TestAllocateDecision extends AllocationDecider {
@@ -337,7 +346,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
         private volatile long nanoTimeOverride = -1L;
 
-        private final GatewayAllocator gatewayAllocator;
+        public final GatewayAllocator gatewayAllocator;
+        public final ShardsAllocator shardsAllocator;
 
         public MockAllocationService(
             AllocationDeciders allocationDeciders,
@@ -355,6 +365,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
             this.gatewayAllocator = gatewayAllocator;
+            this.shardsAllocator = shardsAllocator;
         }
 
         public void setNanoTimeOverride(long nanoTime) {
@@ -364,10 +375,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         @Override
         protected long currentNanoTime() {
             return nanoTimeOverride == -1L ? super.currentNanoTime() : nanoTimeOverride;
-        }
-
-        public GatewayAllocator getGatewayAllocator() {
-            return gatewayAllocator;
         }
     }
 

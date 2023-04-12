@@ -202,7 +202,7 @@ By default, searches return only the top 10 matching hits. To retrieve
 more or fewer documents, see <<paginate-search-results>>.
 
 *Retrieve selected fields* +
-The search response's `hit.hits` property includes the full document
+The search response's `hits.hits` property includes the full document
 <<mapping-source-field,`_source`>> for each hit. To retrieve only a subset of
 the `_source` or other fields, see <<search-fields>>.
 
@@ -527,3 +527,4 @@ include::search-shard-routing.asciidoc[]
 include::search-template.asciidoc[]
 include::sort-search-results.asciidoc[]
 include::knn-search.asciidoc[]
+include::semantic-search-elser.asciidoc[]

@@ -52,6 +52,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodesUsageAction;
+import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
@@ -255,6 +256,7 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
@@ -265,6 +267,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.RestGetHealthAction;
@@ -272,6 +275,7 @@ import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.health.stats.HealthApiStatsAction;
 import org.elasticsearch.health.stats.HealthApiStatsTransportAction;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
@@ -289,6 +293,7 @@ import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
@@ -433,6 +438,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -448,6 +454,12 @@ import static java.util.Collections.unmodifiableMap;
 public class ActionModule extends AbstractModule {
 
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
+    /**
+     *  This RestHandler is used as a placeholder for any routes that are unreachable (i.e. have no ServerlessScope annotation) when
+     *  running in serverless mode. It does nothing, and its handleRequest method is never called. It just provides a way to register the
+     *  routes so that we know they do exist.
+     */
+    private static final RestHandler placeholderRestHandler = (request, channel, client) -> {};
 
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -460,10 +472,13 @@ public class ActionModule extends AbstractModule {
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
+    /** Rest headers that are copied to internal requests made during a rest request. */
+    private final Set<RestHeaderDefinition> headersToCopy;
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
     private final ReservedClusterStateService reservedClusterStateService;
+    private final boolean serverlessEnabled;
 
     public ActionModule(
         Settings settings,
@@ -488,6 +503,7 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
+        this.serverlessEnabled = DiscoveryNode.isServerless();
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
@@ -529,9 +545,38 @@ public class ActionModule extends AbstractModule {
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
-
-        restController = new RestController(headers, restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
+        headersToCopy = headers;
+        restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer, serverlessEnabled);
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
+    }
+
+    /**
+     * Certain request header values need to be copied in the thread context under which request handlers are to be dispatched.
+     * Careful that this method modifies the thread context. The thread context must be reinstated after the request handler
+     * finishes and returns.
+     */
+    public void copyRequestHeadersToThreadContext(HttpPreRequest request, ThreadContext threadContext) {
+        for (final RestHeaderDefinition restHeader : headersToCopy) {
+            final String name = restHeader.getName();
+            final List<String> headerValues = request.getHeaders().get(name);
+            if (headerValues != null && headerValues.isEmpty() == false) {
+                final List<String> distinctHeaderValues = headerValues.stream().distinct().toList();
+                if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
+                    throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
+                } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {
+                    String traceparent = distinctHeaderValues.get(0);
+                    Optional<String> traceId = RestUtils.extractTraceId(traceparent);
+                    if (traceId.isPresent()) {
+                        threadContext.putHeader(Task.TRACE_ID, traceId.get());
+                        threadContext.putTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER, traceparent);
+                    }
+                } else if (name.equals(Task.TRACE_STATE)) {
+                    threadContext.putTransient("parent_" + Task.TRACE_STATE, distinctHeaderValues.get(0));
+                } else {
+                    threadContext.putHeader(name, String.join(",", distinctHeaderValues));
+                }
+            }
+        }
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -561,6 +606,7 @@ public class ActionModule extends AbstractModule {
         actions.register(MainAction.INSTANCE, TransportMainAction.class);
         actions.register(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         actions.register(RemoteInfoAction.INSTANCE, TransportRemoteInfoAction.class);
+        actions.register(RemoteClusterNodesAction.INSTANCE, RemoteClusterNodesAction.TransportAction.class);
         actions.register(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
         actions.register(NodesUsageAction.INSTANCE, TransportNodesUsageAction.class);
         actions.register(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
@@ -730,10 +776,18 @@ public class ActionModule extends AbstractModule {
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
         Consumer<RestHandler> registerHandler = handler -> {
-            if (handler instanceof AbstractCatAction) {
-                catActions.add((AbstractCatAction) handler);
+            if (shouldKeepRestHandler(handler)) {
+                if (handler instanceof AbstractCatAction) {
+                    catActions.add((AbstractCatAction) handler);
+                }
+                restController.registerHandler(handler);
+            } else {
+                /*
+                 * There's no way this handler can be reached, so we just register a placeholder so that requests for it are routed to
+                 * RestController for proper error messages.
+                 */
+                handler.routes().forEach(route -> restController.registerHandler(route, placeholderRestHandler));
             }
-            restController.registerHandler(handler);
         };
         registerHandler.accept(new RestAddVotingConfigExclusionAction());
         registerHandler.accept(new RestClearVotingConfigExclusionsAction());
@@ -916,6 +970,16 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
+    }
+
+    /**
+     * This method is used to determine whether a RestHandler ought to be kept in memory or not. Returns true if serverless mode is
+     * disabled, or if there is any ServlerlessScope annotation on the RestHandler.
+     * @param handler
+     * @return
+     */
+    private boolean shouldKeepRestHandler(final RestHandler handler) {
+        return serverlessEnabled == false || handler.getServerlessScope() != null;
     }
 
     @Override

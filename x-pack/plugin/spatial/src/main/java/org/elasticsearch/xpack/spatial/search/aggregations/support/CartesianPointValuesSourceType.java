@@ -48,7 +48,7 @@ public class CartesianPointValuesSourceType implements Writeable, ValuesSourceTy
 
     @Override
     public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
-        if (fieldContext.indexFieldData()instanceof IndexCartesianPointFieldData pointFieldData) {
+        if (fieldContext.indexFieldData() instanceof IndexCartesianPointFieldData pointFieldData) {
             return new CartesianPointValuesSource.Fielddata(pointFieldData);
         }
         throw new IllegalArgumentException(

@@ -21,7 +21,6 @@ import org.elasticsearch.search.profile.query.InternalProfileCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -41,7 +40,7 @@ abstract class QueryCollectorContext {
         }
     };
 
-    private String profilerName;
+    private final String profilerName;
 
     QueryCollectorContext(String profilerName) {
         this.profilerName = profilerName;
@@ -119,15 +118,15 @@ abstract class QueryCollectorContext {
     }
 
     /**
-     * Creates a multi collector from the provided <code>subs</code>
+     * Creates a multi collector from the provided sub-collector
      */
-    static QueryCollectorContext createMultiCollectorContext(Collection<Collector> subs) {
+    static QueryCollectorContext createAggsCollectorContext(Collector subCollector) {
         return new QueryCollectorContext(REASON_SEARCH_MULTI) {
             @Override
             Collector create(Collector in) {
                 List<Collector> subCollectors = new ArrayList<>();
                 subCollectors.add(in);
-                subCollectors.addAll(subs);
+                subCollectors.add(subCollector);
                 return MultiCollector.wrap(subCollectors);
             }
 
@@ -135,12 +134,10 @@ abstract class QueryCollectorContext {
             protected InternalProfileCollector createWithProfiler(InternalProfileCollector in) {
                 final List<InternalProfileCollector> subCollectors = new ArrayList<>();
                 subCollectors.add(in);
-                if (subs.stream().anyMatch((col) -> col instanceof InternalProfileCollector == false)) {
+                if (subCollector instanceof InternalProfileCollector == false) {
                     throw new IllegalArgumentException("non-profiling collector");
                 }
-                for (Collector collector : subs) {
-                    subCollectors.add((InternalProfileCollector) collector);
-                }
+                subCollectors.add((InternalProfileCollector) subCollector);
                 final Collector collector = MultiCollector.wrap(subCollectors);
                 return new InternalProfileCollector(collector, REASON_SEARCH_MULTI, subCollectors);
             }

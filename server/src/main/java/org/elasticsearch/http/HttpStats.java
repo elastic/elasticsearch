@@ -8,16 +8,20 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 
-public class HttpStats implements Writeable, ToXContentFragment {
+public class HttpStats implements Writeable, ChunkedToXContent {
 
     private final long serverOpen;
     private final long totalOpen;
@@ -78,17 +82,17 @@ public class HttpStats implements Writeable, ToXContentFragment {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.HTTP);
-        builder.field(Fields.CURRENT_OPEN, serverOpen);
-        builder.field(Fields.TOTAL_OPENED, totalOpen);
-        builder.startArray(Fields.CLIENTS);
-        for (ClientStats clientStats : this.clientStats) {
-            clientStats.toXContent(builder, params);
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.<ToXContent>concat(
+            Iterators.single(
+                (builder, params) -> builder.startObject(Fields.HTTP)
+                    .field(Fields.CURRENT_OPEN, serverOpen)
+                    .field(Fields.TOTAL_OPENED, totalOpen)
+                    .startArray(Fields.CLIENTS)
+            ),
+            Iterators.flatMap(clientStats.iterator(), Iterators::<ToXContent>single),
+            Iterators.single((builder, params) -> builder.endArray().endObject())
+        );
     }
 
     public static class ClientStats implements Writeable, ToXContentFragment {

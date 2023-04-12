@@ -318,7 +318,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             assertSame(clusterState, resultingState);
         }
 
-        for (final var shard : resultingState.getRoutingTable().allShards()) {
+        for (ShardRouting shard : resultingState.getRoutingTable().allShardsIterator()) {
             if (shard.assignedToNode()) {
                 for (final var task : tasks) {
                     assertFalse(
@@ -357,6 +357,6 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     }
 
     private static <T> ActionListener<T> createTestListener() {
-        return ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); });
+        return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
     }
 }

@@ -237,6 +237,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private Map<String, RoleDescriptor> roleMap = new HashMap<>();
     private CompositeRolesStore rolesStore;
+    private FieldPermissionsCache fieldPermissionsCache;
     private OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
     private boolean shouldFailOperatorPrivilegesCheck = false;
     private boolean setFakeOriginatingAction = true;
@@ -245,6 +246,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
+        fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         rolesStore = mock(CompositeRolesStore.class);
         clusterService = mock(ClusterService.class);
         final Settings settings = Settings.builder().put("cluster.remote.other_cluster.seeds", "localhost:9999").build();
@@ -257,7 +259,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         auditTrail = mock(AuditTrail.class);
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
-        auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
+        auditTrailService = new AuditTrailService(auditTrail, licenseState);
         threadContext = new ThreadContext(settings);
         securityContext = new SecurityContext(settings, threadContext);
         threadPool = mock(ThreadPool.class);
@@ -292,6 +294,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
@@ -1626,6 +1629,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
@@ -1673,6 +1677,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
@@ -2768,6 +2773,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(
             Settings.EMPTY,
             rolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
@@ -2922,6 +2928,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(
             Settings.EMPTY,
             rolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
@@ -3010,6 +3017,53 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         // The operator related exception is verified in the authorize(...) call
         verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testRemoteActionDenied() {
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
+        when(authorizationInfo.asMap()).thenReturn(
+            Map.of(PRINCIPAL_ROLES_FIELD_NAME, randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 8)))
+        );
+        threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
+        final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
+        final String clusterAlias = randomAlphaOfLengthBetween(5, 12);
+        final ElasticsearchSecurityException e = authorizationService.remoteActionDenied(authentication, action, clusterAlias);
+        assertThat(e.getCause(), nullValue());
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                Strings.format(
+                    "action [%s] towards remote cluster [%s] is unauthorized for %s"
+                        + " because no remote indices privileges apply for the target cluster",
+                    action,
+                    clusterAlias,
+                    AuthorizationDenialMessages.successfulAuthenticationDescription(authentication, authorizationInfo)
+                )
+            )
+        );
+    }
+
+    public void testActionDeniedForCrossClusterAccessAuthentication() {
+        final Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
+        final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
+        when(authorizationInfo.asMap()).thenReturn(
+            Map.of(PRINCIPAL_ROLES_FIELD_NAME, randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 8)))
+        );
+        threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
+        final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
+        final ElasticsearchSecurityException e = authorizationService.actionDenied(authentication, authorizationInfo, action, mock());
+        assertThat(e.getCause(), nullValue());
+        assertThat(
+            e.getMessage(),
+            containsString(
+                Strings.format(
+                    "action [%s] towards remote cluster is unauthorized for %s",
+                    action,
+                    AuthorizationDenialMessages.successfulAuthenticationDescription(authentication, authorizationInfo)
+                )
+            )
+        );
     }
 
     static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {

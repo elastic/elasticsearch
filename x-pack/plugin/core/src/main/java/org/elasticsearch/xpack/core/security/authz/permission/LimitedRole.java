@@ -7,18 +7,26 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.IsResourceAuthorizedPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -29,6 +37,8 @@ import java.util.Set;
  * provided role.
  */
 public final class LimitedRole implements Role {
+
+    private static final Logger logger = LogManager.getLogger(LimitedRole.class);
     private final Role baseRole;
     private final Role limitedByRole;
 
@@ -116,6 +126,41 @@ public final class LimitedRole implements Role {
             fieldPermissionsCache
         );
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
+    }
+
+    @Override
+    public RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(final String remoteClusterAlias) {
+        final RoleDescriptorsIntersection baseIntersection = baseRole.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias);
+        // Intersecting with empty descriptors list should result in an empty intersection.
+        if (baseIntersection.roleDescriptorsList().isEmpty()) {
+            logger.trace(
+                () -> "Base role ["
+                    + Strings.arrayToCommaDelimitedString(baseRole.names())
+                    + "] does not define any role descriptors for remote cluster alias ["
+                    + remoteClusterAlias
+                    + "]"
+            );
+            return RoleDescriptorsIntersection.EMPTY;
+        }
+        final RoleDescriptorsIntersection limitedByIntersection = limitedByRole.getRoleDescriptorsIntersectionForRemoteCluster(
+            remoteClusterAlias
+        );
+        if (limitedByIntersection.roleDescriptorsList().isEmpty()) {
+            logger.trace(
+                () -> "Limited-by role ["
+                    + Strings.arrayToCommaDelimitedString(limitedByRole.names())
+                    + "] does not define any role descriptors for remote cluster alias ["
+                    + remoteClusterAlias
+                    + "]"
+            );
+            return RoleDescriptorsIntersection.EMPTY;
+        }
+        final List<Set<RoleDescriptor>> mergedIntersection = new ArrayList<>(
+            baseIntersection.roleDescriptorsList().size() + limitedByIntersection.roleDescriptorsList().size()
+        );
+        mergedIntersection.addAll(baseIntersection.roleDescriptorsList());
+        mergedIntersection.addAll(limitedByIntersection.roleDescriptorsList());
+        return new RoleDescriptorsIntersection(Collections.unmodifiableList(mergedIntersection));
     }
 
     /**

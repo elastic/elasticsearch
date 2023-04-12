@@ -164,7 +164,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         BytesStreamOutput outStream = new BytesStreamOutput();
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.CURRENT.minimumCompatibilityVersion(),
+            TransportVersion.MINIMUM_COMPATIBLE,
             TransportVersion.CURRENT
         );
         outStream.setTransportVersion(version);
@@ -361,7 +361,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT.minimumCompatibilityVersion();
+            return TransportVersion.MINIMUM_COMPATIBLE;
         }
 
     }
@@ -400,7 +400,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with minimum compatibile version
         outStream = new BytesStreamOutput();
-        version = TransportVersion.CURRENT.minimumCompatibilityVersion();
+        version = TransportVersion.MINIMUM_COMPATIBLE;
         outStream.setTransportVersion(version);
         diffs.writeTo(outStream);
         inStream = outStream.bytes().streamInput();

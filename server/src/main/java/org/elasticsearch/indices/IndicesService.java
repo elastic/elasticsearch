@@ -17,7 +17,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -26,6 +25,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -798,7 +798,7 @@ public class IndicesService extends AbstractLifecycleComponent
             recoveryStateFactories
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
-        return indexModule.newIndexMapperService(parserConfig, mapperRegistry, scriptService);
+        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
     }
 
     /**
@@ -1226,12 +1226,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     private void addPendingDelete(Index index, PendingDelete pendingDelete) {
         synchronized (pendingDeletes) {
-            List<PendingDelete> list = pendingDeletes.get(index);
-            if (list == null) {
-                list = new ArrayList<>();
-                pendingDeletes.put(index, list);
-            }
-            list.add(pendingDelete);
+            pendingDeletes.computeIfAbsent(index, k -> new ArrayList<>()).add(pendingDelete);
             numUncompletedDeletes.incrementAndGet();
         }
     }
@@ -1651,7 +1646,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         Metadata metadata = state.metadata();
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
-        IndexAbstraction.DataStream dataStream = ia.getParentDataStream();
+        DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
             String dataStreamName = dataStream.getName();
             List<QueryBuilder> filters = Arrays.stream(aliases)
@@ -1725,13 +1720,6 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public Function<String, Predicate<String>> getFieldFilter() {
         return mapperRegistry.getFieldFilter();
-    }
-
-    /**
-     * Returns the registered metadata field names for the provided compatible {@link Version}.
-     */
-    public Set<String> getMetadataFields(Version version) {
-        return mapperRegistry.getMetadataMapperParsers(version).keySet();
     }
 
     private void setIdFieldDataEnabled(boolean value) {

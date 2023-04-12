@@ -101,19 +101,17 @@ public class FetchPhase {
 
         List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext, profiler);
 
-        StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
-        for (FetchSubPhaseProcessor proc : processors) {
-            storedFieldsSpec = storedFieldsSpec.merge(proc.storedFieldsSpec());
-        }
+        StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.build(processors, FetchSubPhaseProcessor::storedFieldsSpec);
         storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(false, false, sourceLoader.requiredStoredFields()));
 
-        StoredFieldLoader storedFieldLoader = profiler.storedFields(buildStoredFieldsLoader(storedFieldsSpec));
+        StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
         boolean requiresSource = storedFieldsSpec.requiresSource();
 
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
-        context.getSearchExecutionContext().setSourceProvider(sourceProvider);
+        PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();
+        context.getSearchExecutionContext().setLookupProviders(sourceProvider, ctx -> fieldLookupProvider);
 
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
 
@@ -129,6 +127,7 @@ public class FetchPhase {
                 this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                 this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
                 this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
+                fieldLookupProvider.setNextReader(ctx);
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.setNextReader(ctx);
                 }
@@ -151,6 +150,7 @@ public class FetchPhase {
                     leafSourceLoader
                 );
                 sourceProvider.source = hit.source();
+                fieldLookupProvider.storedFields = hit.loadedFields();
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.process(hit);
                 }
@@ -164,15 +164,8 @@ public class FetchPhase {
             throw new TaskCancelledException("cancelled");
         }
 
-        TotalHits totalHits = context.queryResult().getTotalHits();
-        return new SearchHits(hits, totalHits, context.queryResult().getMaxScore());
-    }
-
-    private static StoredFieldLoader buildStoredFieldsLoader(StoredFieldsSpec spec) {
-        if (spec.noRequirements()) {
-            return StoredFieldLoader.empty();
-        }
-        return StoredFieldLoader.create(spec.requiresSource(), spec.requiredStoredFields());
+        TotalHits totalHits = context.getTotalHits();
+        return new SearchHits(hits, totalHits, context.getMaxScore());
     }
 
     List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {
@@ -258,13 +251,13 @@ public class FetchPhase {
     private static Supplier<Source> lazyStoredSourceLoader(Profiler profiler, LeafReaderContext ctx, int doc) {
         return () -> {
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(true, Collections.emptySet()));
-            LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(ctx, null);
             try {
+                LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(ctx, null);
                 leafRootLoader.advanceTo(doc);
+                return Source.fromBytes(leafRootLoader.source());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-            return Source.fromBytes(leafRootLoader.source());
         };
     }
 

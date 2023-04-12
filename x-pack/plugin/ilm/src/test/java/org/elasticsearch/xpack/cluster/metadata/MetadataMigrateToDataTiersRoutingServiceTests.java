@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -486,11 +487,10 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private Settings.Builder getBaseIndexSettings() {
-        return Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        return indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+            LifecycleSettings.LIFECYCLE_NAME,
+            lifecycleName
+        );
     }
 
     public void testAllocateActionDefinesRoutingRules() {
@@ -1219,7 +1219,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             List.of("test-*"),
             Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
-                .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
                 .build(),
             Map.of(),
             Map.of()
@@ -1330,7 +1330,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             new Template(
                 Settings.builder()
                     .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
-                    .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                    .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
                     .build(),
                 null,
                 null
@@ -1433,7 +1433,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             new Template(
                 Settings.builder()
                     .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
-                    .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                    .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
                     .build(),
                 null,
                 null
@@ -1500,7 +1500,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             new Template(
                 Settings.builder()
                     .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
-                    .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                    .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
                     .build(),
                 null,
                 null

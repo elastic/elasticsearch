@@ -101,14 +101,13 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         }
 
         // Multiple documents to infer on, wait for all results
-        ActionListener<Collection<InferenceResults>> collectingListener = ActionListener.wrap(
-            pyTorchResults -> { listener.onResponse(new InferTrainedModelDeploymentAction.Response(new ArrayList<>(pyTorchResults))); },
-            listener::onFailure
-        );
+        ActionListener<Collection<InferenceResults>> collectingListener = ActionListener.wrap(pyTorchResults -> {
+            listener.onResponse(new InferTrainedModelDeploymentAction.Response(new ArrayList<>(pyTorchResults)));
+        }, listener::onFailure);
 
         GroupedActionListener<InferenceResults> groupedListener = new GroupedActionListener<>(nlpInputs.size(), collectingListener);
         for (var input : nlpInputs) {
-            task.infer(input, request.getUpdate(), request.isSkipQueue(), request.getInferenceTimeout(), actionTask, groupedListener);
+            task.infer(input, request.getUpdate(), request.isHighPriority(), request.getInferenceTimeout(), actionTask, groupedListener);
         }
     }
 }

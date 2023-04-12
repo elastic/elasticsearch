@@ -34,7 +34,7 @@ public class TransformConfigUpdate implements Writeable {
 
     public static final String NAME = "data_frame_transform_config_update";
 
-    public static TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+    public static final TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
 
     private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -233,6 +233,10 @@ public class TransformConfigUpdate implements Writeable {
 
     public boolean changesSettings(TransformConfig config) {
         return isNullOrEqual(settings, config.getSettings()) == false;
+    }
+
+    public boolean changesHeaders(TransformConfig config) {
+        return isNullOrEqual(headers, config.getHeaders()) == false;
     }
 
     private boolean isNullOrEqual(Object lft, Object rgt) {

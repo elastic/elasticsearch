@@ -21,7 +21,7 @@ import java.util.List;
  * values. Based on the supported metric types, the subclasses of this class compute values for
  * gauge and metric types.
  */
-abstract class MetricFieldProducer extends AbstractRollupFieldProducer {
+abstract class MetricFieldProducer extends AbstractDownsampleFieldProducer {
     /**
      * a list of metrics that will be computed for the field
      */

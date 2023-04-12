@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.termvectors.TermVectorsService;
@@ -17,11 +16,10 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
+
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
 
@@ -38,24 +36,14 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {}
 
-    private static SortedSet<String> set(String... values) {
-        return new TreeSet<>(Arrays.asList(values));
-    }
-
     private static void assertFieldNames(Set<String> expected, ParsedDocument doc) {
-        String[] got = TermVectorsService.getValues(doc.rootDoc().getFields("_field_names"));
-        assertEquals(expected, set(got));
+        assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("_field_names")), containsInAnyOrder(expected.toArray()));
     }
 
     public void testFieldType() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().hasDocValues());
-
-        assertEquals(IndexOptions.DOCS, FieldNamesFieldMapper.Defaults.FIELD_TYPE.indexOptions());
-        assertFalse(FieldNamesFieldMapper.Defaults.FIELD_TYPE.tokenized());
-        assertFalse(FieldNamesFieldMapper.Defaults.FIELD_TYPE.stored());
-        assertTrue(FieldNamesFieldMapper.Defaults.FIELD_TYPE.omitNorms());
     }
 
     public void testInjectIntoDocDuringParsing() throws Exception {

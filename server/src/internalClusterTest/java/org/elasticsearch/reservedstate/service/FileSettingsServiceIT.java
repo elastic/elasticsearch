@@ -111,11 +111,11 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
         logger.info("--> New file settings: [{}]", Strings.format(json, version));
     }
 
@@ -306,11 +306,8 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         assertThat(clusterStateResponse.getState().metadata().persistentSettings().get("search.allow_expensive_queries"), nullValue());
 
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("search.allow_expensive_queries", "false")
-        );
         // This should succeed, nothing was reserved
-        client().admin().cluster().updateSettings(req).get();
+        updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", "false"));
     }
 
     public void testErrorSaved() throws Exception {
@@ -337,6 +334,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateNotSaved(savedClusterState.v1(), savedClusterState.v2());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94464")
     public void testSettingsAppliedOnMasterReElection() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start master node");

@@ -58,7 +58,6 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
@@ -68,6 +67,7 @@ import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -100,6 +100,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -772,6 +773,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * creates an index with the given shard and replica counts
+     */
+    public final void createIndex(String name, int shards, int replicas) {
+        createIndex(name, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shards).put(SETTING_NUMBER_OF_REPLICAS, replicas).build());
+    }
+
+    /**
      * Creates a new {@link CreateIndexRequestBuilder} with the settings obtained from {@link #indexSettings()}.
      */
     public final CreateIndexRequestBuilder prepareCreate(String index) {
@@ -821,10 +829,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * updates the settings for an index
      */
-    public void updateIndexSettings(String index, Settings.Builder settingsBuilder) {
+    public static void updateIndexSettings(Settings.Builder settingsBuilder, String... index) {
         UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings(index);
         settingsRequest.setSettings(settingsBuilder);
         assertAcked(settingsRequest.execute().actionGet());
+    }
+
+    public static void setReplicaCount(int replicas, String index) {
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas), index);
     }
 
     private Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
@@ -886,7 +898,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Settings build = builder.build();
         if (build.isEmpty() == false) {
             logger.debug("allowNodes: updating [{}]'s setting to [{}]", index, build.toDelimitedString(';'));
-            client().admin().indices().prepareUpdateSettings(index).setSettings(build).execute().actionGet();
+            updateIndexSettings(builder, index);
         }
     }
 
@@ -934,8 +946,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
-        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest(indices)
-            .timeout(timeout)
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).timeout(timeout)
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)
@@ -991,7 +1002,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * using the cluster health API.
      */
     public ClusterHealthStatus waitForRelocation(ClusterHealthStatus status) {
-        ClusterHealthRequest request = Requests.clusterHealthRequest().waitForNoRelocatingShards(true).waitForEvents(Priority.LANGUID);
+        ClusterHealthRequest request = new ClusterHealthRequest(new String[] {}).waitForNoRelocatingShards(true)
+            .waitForEvents(Priority.LANGUID);
         if (status != null) {
             request.waitForStatus(status);
         }
@@ -1074,6 +1086,34 @@ public abstract class ESIntegTestCase extends ESTestCase {
             return List.of();
         }
         return tasks.tasks().stream().filter(t -> taskNames.contains(t.getTaskName())).toList();
+    }
+
+    /**
+     * Waits for the health node to be assigned and returns the node
+     * that it is assigned to.
+     * Returns null if the health node is not assigned in due time.
+     */
+    @Nullable
+    public static DiscoveryNode waitAndGetHealthNode(InternalTestCluster internalCluster) {
+        DiscoveryNode[] healthNode = new DiscoveryNode[1];
+        try {
+            waitUntil(() -> {
+                ClusterState state = internalCluster.client()
+                    .admin()
+                    .cluster()
+                    .prepareState()
+                    .clear()
+                    .setMetadata(true)
+                    .setNodes(true)
+                    .get()
+                    .getState();
+                healthNode[0] = HealthNode.findHealthNode(state);
+                return healthNode[0] != null;
+            }, 15, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return healthNode[0];
     }
 
     /**
@@ -1384,7 +1424,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final RefreshResponse refresh(String... indices) {
         waitForRelocation();
-        // TODO RANDOMIZE with flush?
         RefreshResponse actionGet = client().admin()
             .indices()
             .prepareRefresh(indices)
@@ -1450,22 +1489,20 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Syntactic sugar for enabling allocation for <code>indices</code>
      */
     protected final void enableAllocation(String... indices) {
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indices)
-            .setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all"))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all"),
+            indices
+        );
     }
 
     /**
      * Syntactic sugar for disabling allocation for <code>indices</code>
      */
     protected final void disableAllocation(String... indices) {
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indices)
-            .setSettings(Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"),
+            indices
+        );
     }
 
     /**
@@ -1642,16 +1679,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Disables an index block for the specified index */
     public static void disableIndexBlock(String index, String block) {
-        Settings settings = Settings.builder().put(block, false).build();
-        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+        updateIndexSettings(Settings.builder().put(block, false), index);
     }
 
     /** Enables an index block for the specified index */
     public static void enableIndexBlock(String index, String block) {
         if (IndexMetadata.APIBlock.fromSetting(block) == IndexMetadata.APIBlock.READ_ONLY_ALLOW_DELETE || randomBoolean()) {
             // the read-only-allow-delete block isn't supported by the add block API so we must use the update settings API here.
-            Settings settings = Settings.builder().put(block, true).build();
-            client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+            updateIndexSettings(Settings.builder().put(block, true), index);
         } else {
             client().admin().indices().prepareAddBlock(IndexMetadata.APIBlock.fromSetting(block), index).get();
         }
@@ -1659,14 +1694,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Sets or unsets the cluster read_only mode **/
     public static void setClusterReadOnly(boolean value) {
-        Settings settings = value
-            ? Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), value).build()
-            : Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey()).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
+        updateClusterSettings(
+            value
+                ? Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), value)
+                : Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey())
+        );
     }
 
     /** Sets cluster persistent settings **/
-    public void updateClusterSettings(Settings.Builder persistentSettings) {
+    public static void updateClusterSettings(Settings.Builder persistentSettings) {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(persistentSettings).get());
     }
 
@@ -2270,21 +2306,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     *  After the cluster is stopped, there are a few netty threads that can linger, so we wait for them to finish otherwise these
-     *  lingering threads can intermittently trigger the thread leak detector.
+     *  After the cluster is stopped, there are a few netty threads that can linger, so we make sure we don't leak any tasks on them.
      */
-    static void awaitGlobalNettyThreadsFinish() {
-        try {
-            GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (IllegalStateException e) {
-            if (e.getMessage().equals("thread was not started") == false) {
-                throw e;
-            }
-            // ignore since the thread was never started
-        }
-
+    static void awaitGlobalNettyThreadsFinish() throws Exception {
+        // Don't use GlobalEventExecutor#awaitInactivity. It will waste up to 1s for every call and we expect no tasks queued for it
+        // except for the odd scheduled shutdown task.
+        assertBusy(() -> assertEquals(0, GlobalEventExecutor.INSTANCE.pendingTasks()));
         try {
             ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {

@@ -23,7 +23,6 @@ import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -89,12 +88,12 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
-import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -103,10 +102,8 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
-import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authz.RBACEngine;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.BaseMatcher;
@@ -117,8 +114,6 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -1800,6 +1795,48 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertEquals("the user [_system] is the system user and we should never try to get its roles", iae.getMessage());
     }
 
+    public void testGetRolesForCrossClusterAccessUserThrowsException() {
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(anySet(), anyActionListener());
+        when(fileRolesStore.roleDescriptors(anySet())).thenReturn(Collections.emptySet());
+        doAnswer((invocationOnMock) -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            callback.onResponse(RoleRetrievalResult.failure(new RuntimeException("intentionally failed!")));
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
+        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
+
+        final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            fileRolesStore,
+            nativeRolesStore,
+            reservedRolesStore,
+            null,
+            null,
+            null,
+            null,
+            null,
+            effectiveRoleDescriptors::set
+        );
+        verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> compositeRolesStore.getRole(
+                new Subject(CrossClusterAccessUser.INSTANCE, new RealmRef("__attach", "__attach", randomAlphaOfLengthBetween(3, 8))),
+                null
+            )
+        );
+        assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
+        assertEquals(
+            "the user [_cross_cluster_access] is the cross cluster access user and we should never try to get its roles",
+            iae.getMessage()
+        );
+    }
+
     public void testApiKeyAuthUsesApiKeyService() throws Exception {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
@@ -1983,7 +2020,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.names()[0], containsString("user_role_"));
     }
 
-    public void testGetRoleForRemoteAccessAuthentication() throws Exception {
+    public void testGetRoleForCrossClusterAccessAuthentication() throws Exception {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
@@ -2055,13 +2092,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
             version
         );
         final boolean emptyRemoteRole = randomBoolean();
-        Authentication authentication = apiKeyAuthentication.toRemoteAccess(
-            AuthenticationTestHelper.randomRemoteAccessAuthentication(
+        Authentication authentication = apiKeyAuthentication.toCrossClusterAccess(
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
                 emptyRemoteRole
                     ? RoleDescriptorsIntersection.EMPTY
                     : new RoleDescriptorsIntersection(
                         new RoleDescriptor(
-                            RBACEngine.REMOTE_USER_ROLE_NAME,
+                            Role.REMOTE_USER_ROLE_NAME,
                             null,
                             new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read").build() },
@@ -2096,24 +2133,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         // Smoke-test for authorization
         final Metadata indexMetadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder("index1")
-                    .settings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    )
-            )
-            .put(
-                IndexMetadata.builder("index2")
-                    .settings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    )
-            )
+            .put(IndexMetadata.builder("index1").settings(indexSettings(Version.CURRENT, 1, 1)))
+            .put(IndexMetadata.builder("index2").settings(indexSettings(Version.CURRENT, 1, 1)))
             .build();
         final var emptyCache = new FieldPermissionsCache(Settings.EMPTY);
         assertThat(
@@ -2429,18 +2450,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
     }
 
-    public void testXPackUserCanReadAuditTrail() {
-        final String action = randomFrom(GetAction.NAME, SearchAction.NAME);
-        final IsResourceAuthorizedPredicate predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
-        assertThat(predicate.test(mockIndexAbstraction(getAuditLogName())), Matchers.is(true));
-    }
-
-    public void testXPackUserCannotWriteToAuditTrail() {
-        final String action = randomFrom(IndexAction.NAME, UpdateAction.NAME);
-        final IsResourceAuthorizedPredicate predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
-        assertThat(predicate.test(mockIndexAbstraction(getAuditLogName())), Matchers.is(false));
-    }
-
     public void testAsyncSearchUserCannotAccessNonRestrictedIndices() {
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             IsResourceAuthorizedPredicate predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
@@ -2477,19 +2486,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
     }
 
-    // async search can't read/write audit trail
-    public void testAsyncSearchUserCannotReadAuditTrail() {
-        final String action = randomFrom(GetAction.NAME, SearchAction.NAME);
-        final IsResourceAuthorizedPredicate predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
-        assertThat(predicate.test(mockIndexAbstraction(getAuditLogName())), Matchers.is(false));
-    }
-
-    public void testAsyncSearchUserCannotWriteToAuditTrail() {
-        final String action = randomFrom(IndexAction.NAME, UpdateAction.NAME);
-        final IsResourceAuthorizedPredicate predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
-        assertThat(predicate.test(mockIndexAbstraction(getAuditLogName())), Matchers.is(false));
-    }
-
     public void testXpackUserHasClusterPrivileges() {
         for (String action : Arrays.asList(ClusterStateAction.NAME, GetWatchAction.NAME, ClusterStatsAction.NAME, NodesStatsAction.NAME)) {
             assertThat(
@@ -2519,7 +2515,24 @@ public class CompositeRolesStoreTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
         );
-        assertThat(e1.getMessage(), containsString("system user and we should never try to get its role descriptors"));
+        assertThat(
+            e1.getMessage(),
+            equalTo("the user [" + SystemUser.NAME + "] is the system user and we should never try to get its role descriptors")
+        );
+
+        when(subject.getUser()).thenReturn(CrossClusterAccessUser.INSTANCE);
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
+        );
+        assertThat(
+            e2.getMessage(),
+            equalTo(
+                "the user ["
+                    + CrossClusterAccessUser.NAME
+                    + "] is the cross cluster access user and we should never try to get its role descriptors"
+            )
+        );
 
         for (var userAndDescriptor : List.of(
             new Tuple<>(XPackUser.INSTANCE, XPackUser.ROLE_DESCRIPTOR),
@@ -2770,12 +2783,6 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {}
-    }
-
-    private String getAuditLogName() {
-        final ZonedDateTime date = ZonedDateTime.now(ZoneOffset.UTC).plusDays(randomIntBetween(1, 360));
-        final IndexNameResolver.Rollover rollover = randomFrom(IndexNameResolver.Rollover.values());
-        return IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, date, rollover);
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {

@@ -34,14 +34,14 @@ public class DocValuesForUtilTests extends LuceneTestCase {
 
     public void testEncodeDecode() throws IOException {
         final int iterations = RandomNumbers.randomIntBetween(random(), 50, 1000);
-        final long[] values = new long[iterations * encoder.getBlockSize()];
+        final long[] values = new long[iterations * ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
         final int[] bpvs = new int[iterations];
 
         for (int i = 0; i < iterations; ++i) {
             final int bpv = TestUtil.nextInt(random(), 1, 64);
-            bpvs[i] = bpv;
-            for (int j = 0; j < encoder.getBlockSize(); ++j) {
-                values[i * encoder.getBlockSize() + j] = bpv == 64
+            bpvs[i] = DocValuesForUtil.roundBits(bpv);
+            for (int j = 0; j < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++j) {
+                values[i * ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE + j] = bpv == 64
                     ? random().nextLong()
                     : TestUtil.nextLong(random(), 0, PackedInts.maxValue(bpv));
             }
@@ -53,12 +53,12 @@ public class DocValuesForUtilTests extends LuceneTestCase {
         {
             // encode
             IndexOutput out = d.createOutput("test.bin", IOContext.DEFAULT);
-            final DocValuesForUtil forUtil = new DocValuesForUtil(encoder.getBlockSize());
+            final DocValuesForUtil forUtil = new DocValuesForUtil();
 
             for (int i = 0; i < iterations; ++i) {
-                long[] source = new long[encoder.getBlockSize()];
-                for (int j = 0; j < encoder.getBlockSize(); ++j) {
-                    source[j] = values[i * encoder.getBlockSize() + j];
+                long[] source = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+                for (int j = 0; j < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++j) {
+                    source[j] = values[i * ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE + j];
                 }
                 out.writeByte((byte) bpvs[i]);
                 forUtil.encode(source, bpvs[i], out);
@@ -70,14 +70,18 @@ public class DocValuesForUtilTests extends LuceneTestCase {
         {
             // decode
             IndexInput in = d.openInput("test.bin", IOContext.READONCE);
-            final DocValuesForUtil forUtil = new DocValuesForUtil(encoder.getBlockSize());
-            final long[] restored = new long[encoder.getBlockSize()];
+            final DocValuesForUtil forUtil = new DocValuesForUtil();
+            final long[] restored = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
             for (int i = 0; i < iterations; ++i) {
                 final int bitsPerValue = in.readByte();
                 forUtil.decode(bitsPerValue, in, restored);
                 assertArrayEquals(
                     Arrays.toString(restored),
-                    ArrayUtil.copyOfSubArray(values, i * encoder.getBlockSize(), (i + 1) * encoder.getBlockSize()),
+                    ArrayUtil.copyOfSubArray(
+                        values,
+                        i * ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE,
+                        (i + 1) * ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE
+                    ),
                     restored
                 );
             }

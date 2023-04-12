@@ -22,6 +22,8 @@ import org.elasticsearch.core.TimeValue;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -69,6 +71,20 @@ final class AzureStorageSettings {
     public static final AffixSetting<String> ENDPOINT_SUFFIX_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
         "endpoint_suffix",
+        key -> Setting.simpleString(key, Property.NodeScope),
+        () -> ACCOUNT_SETTING
+    );
+
+    public static final AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "endpoint",
+        key -> Setting.simpleString(key, Property.NodeScope),
+        () -> ACCOUNT_SETTING
+    );
+
+    public static final AffixSetting<String> SECONDARY_ENDPOINT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "secondary_endpoint",
         key -> Setting.simpleString(key, Property.NodeScope),
         () -> ACCOUNT_SETTING
     );
@@ -127,11 +143,13 @@ final class AzureStorageSettings {
         int maxRetries,
         Proxy.Type proxyType,
         String proxyHost,
-        Integer proxyPort
+        Integer proxyPort,
+        String endpoint,
+        String secondaryEndpoint
     ) {
         this.account = account;
         this.sasToken = sasToken;
-        this.connectString = buildConnectString(account, key, sasToken, endpointSuffix);
+        this.connectString = buildConnectString(account, key, sasToken, endpointSuffix, endpoint, secondaryEndpoint);
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
@@ -155,10 +173,6 @@ final class AzureStorageSettings {
         }
     }
 
-    public String getSasToken() {
-        return sasToken;
-    }
-
     public String getEndpointSuffix() {
         return endpointSuffix;
     }
@@ -179,7 +193,14 @@ final class AzureStorageSettings {
         return connectString;
     }
 
-    private static String buildConnectString(String account, @Nullable String key, @Nullable String sasToken, String endpointSuffix) {
+    private static String buildConnectString(
+        String account,
+        @Nullable String key,
+        @Nullable String sasToken,
+        String endpointSuffix,
+        @Nullable String endpoint,
+        @Nullable String secondaryEndpoint
+    ) {
         final boolean hasSasToken = Strings.hasText(sasToken);
         final boolean hasKey = Strings.hasText(key);
         if (hasSasToken == false && hasKey == false) {
@@ -195,9 +216,34 @@ final class AzureStorageSettings {
         } else {
             connectionStringBuilder.append(";SharedAccessSignature=").append(sasToken);
         }
-        if (Strings.hasText(endpointSuffix)) {
+        final boolean hasEndpointSuffix = Strings.hasText(endpointSuffix);
+        final boolean hasEndpoint = Strings.hasText(endpoint);
+        final boolean hasSecondaryEndpoint = Strings.hasText(secondaryEndpoint);
+
+        if (hasEndpointSuffix && hasEndpoint) {
+            throw new SettingsException("Both an endpoint suffix as well as a primary endpoint were set");
+        }
+
+        if (hasEndpointSuffix && hasSecondaryEndpoint) {
+            throw new SettingsException("Both an endpoint suffix as well as a secondary endpoint were set");
+        }
+
+        if (hasEndpoint == false && hasSecondaryEndpoint) {
+            throw new SettingsException("A primary endpoint is required when setting a secondary endpoint");
+        }
+
+        if (hasEndpointSuffix) {
             connectionStringBuilder.append(";EndpointSuffix=").append(endpointSuffix);
         }
+
+        if (hasEndpoint) {
+            connectionStringBuilder.append(";BlobEndpoint=").append(endpoint);
+        }
+
+        if (hasSecondaryEndpoint) {
+            connectionStringBuilder.append(";BlobSecondaryEndpoint=").append(secondaryEndpoint);
+        }
+
         return connectionStringBuilder.toString();
     }
 
@@ -251,7 +297,9 @@ final class AzureStorageSettings {
                 getValue(settings, clientName, MAX_RETRIES_SETTING),
                 getValue(settings, clientName, PROXY_TYPE_SETTING),
                 getValue(settings, clientName, PROXY_HOST_SETTING),
-                getValue(settings, clientName, PROXY_PORT_SETTING)
+                getValue(settings, clientName, PROXY_PORT_SETTING),
+                getValue(settings, clientName, ENDPOINT_SETTING),
+                getValue(settings, clientName, SECONDARY_ENDPOINT_SETTING)
             );
         }
     }
@@ -265,5 +313,57 @@ final class AzureStorageSettings {
         final Setting.AffixKey k = (Setting.AffixKey) setting.getRawKey();
         final String fullKey = k.toConcreteKey(groupName).toString();
         return setting.getConcreteSetting(fullKey).get(settings);
+    }
+
+    private static final String BLOB_ENDPOINT_NAME = "BlobEndpoint";
+    private static final String BLOB_SECONDARY_ENDPOINT_NAME = "BlobSecondaryEndpoint";
+
+    record StorageEndpoint(String primaryURI, @Nullable String secondaryURI) {}
+
+    StorageEndpoint getStorageEndpoint() {
+        String primaryURI = getProperty(BLOB_ENDPOINT_NAME);
+        String secondaryURI = getProperty(BLOB_SECONDARY_ENDPOINT_NAME);
+        if (primaryURI != null) {
+            return new StorageEndpoint(primaryURI, secondaryURI);
+        }
+        return new StorageEndpoint(deriveURIFromSettings(true), deriveURIFromSettings(false));
+    }
+
+    /**
+     * Returns the value for the given property name, or null if not configured.
+     * @throws IllegalArgumentException if the connectionString is malformed
+     */
+    private String getProperty(String propertyName) {
+        final String[] settings = getConnectString().split(";");
+        for (int i = 0; i < settings.length; i++) {
+            String setting = settings[i].trim();
+            if (setting.length() > 0) {
+                final int idx = setting.indexOf("=");
+                if (idx == -1 || idx == 0 || idx == settings[i].length() - 1) {
+                    new IllegalArgumentException("Invalid connection string: " + getConnectString());
+                }
+                if (propertyName.equals(setting.substring(0, idx))) {
+                    return setting.substring(idx + 1);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static final String DEFAULT_DNS = "core.windows.net";
+
+    /** Derives the primary or secondary endpoint from the settings. */
+    private String deriveURIFromSettings(boolean isPrimary) {
+        String uriString = new StringBuilder().append("https://")
+            .append(account)
+            .append(isPrimary ? "" : "-secondary")
+            .append(".blob.")
+            .append(Strings.isNullOrEmpty(endpointSuffix) ? DEFAULT_DNS : endpointSuffix)
+            .toString();
+        try {
+            return new URI(uriString).toString();  // validates the URI
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 }

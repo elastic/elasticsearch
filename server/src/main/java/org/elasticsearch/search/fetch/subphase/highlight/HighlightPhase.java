@@ -106,16 +106,9 @@ public class HighlightPhase implements FetchSubPhase {
 
             Collection<String> fieldNamesToHighlight = context.getSearchExecutionContext().getMatchingFieldNames(field.field());
 
-            if (highlightContext.forceSource(field)) {
-                if (context.getSearchExecutionContext().isSourceEnabled() == false) {
-                    throw new IllegalArgumentException("source is forced for fields " + fieldNamesToHighlight + " but _source is disabled");
-                }
-            }
-            boolean forceSource = highlightContext.forceSource(field);
-
             boolean fieldNameContainsWildcards = field.field().contains("*");
             Set<String> storedFields = new HashSet<>();
-            boolean sourceRequired = forceSource;
+            boolean sourceRequired = false;
             for (String fieldName : fieldNamesToHighlight) {
                 MappedFieldType fieldType = context.getSearchExecutionContext().getFieldType(fieldName);
 
@@ -156,15 +149,11 @@ public class HighlightPhase implements FetchSubPhase {
                         context,
                         hc,
                         highlightQuery == null ? query : highlightQuery,
-                        forceSource,
                         sharedCache
                     )
                 );
             }
-            // TODO in future we can load the storedFields in advance here and make use of them,
-            // but for now they are loaded separately in HighlightUtils so we only return whether
-            // or not we need source.
-            storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(sourceRequired, false, Set.of()));
+            storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(sourceRequired, false, storedFields));
         }
         return new FieldContext(storedFieldsSpec, builders);
     }

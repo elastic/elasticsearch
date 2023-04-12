@@ -139,6 +139,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.support;
     exports org.elasticsearch.action.support.broadcast;
     exports org.elasticsearch.action.support.broadcast.node;
+    exports org.elasticsearch.action.support.broadcast.unpromotable;
     exports org.elasticsearch.action.support.master;
     exports org.elasticsearch.action.support.master.info;
     exports org.elasticsearch.action.support.nodes;
@@ -159,6 +160,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.cluster.action.shard;
     exports org.elasticsearch.cluster.block;
     exports org.elasticsearch.cluster.coordination;
+    exports org.elasticsearch.cluster.coordination.stateless;
     exports org.elasticsearch.cluster.health;
     exports org.elasticsearch.cluster.metadata;
     exports org.elasticsearch.cluster.node;
@@ -205,6 +207,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.path;
     exports org.elasticsearch.common.recycler;
     exports org.elasticsearch.common.regex;
+    exports org.elasticsearch.common.scheduler;
     exports org.elasticsearch.common.settings;
     exports org.elasticsearch.common.text;
     exports org.elasticsearch.common.time;
@@ -362,6 +365,8 @@ module org.elasticsearch.server {
 
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
 
+    exports org.elasticsearch.action.dlm;
+
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
     provides org.elasticsearch.xcontent.XContentBuilderExtension with org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
@@ -371,6 +376,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+    uses org.elasticsearch.jdk.ModuleQualifiedExportsService;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

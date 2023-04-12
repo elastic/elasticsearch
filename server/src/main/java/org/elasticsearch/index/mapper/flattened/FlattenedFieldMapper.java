@@ -35,6 +35,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -51,6 +52,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -272,7 +274,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             throw new UnsupportedOperationException(
                 "[fuzzy] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
@@ -311,9 +314,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-            throws IOException {
-            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+        public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
             Terms terms = MultiTerms.getTerms(reader, name());
             if (terms == null) {
                 // Field does not exist on this shard.
@@ -322,9 +323,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
             Automaton a = Automata.makeString(key + FlattenedFieldParser.SEPARATOR);
             if (caseInsensitive) {
-                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(string));
+                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(prefix));
             } else {
-                a = Operations.concatenate(a, Automata.makeString(string));
+                a = Operations.concatenate(a, Automata.makeString(prefix));
                 a = Operations.concatenate(a, Automata.makeAnyString());
             }
             a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
@@ -364,6 +365,15 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 );
             }
             return SourceValueFetcher.identity(rootName + "." + key, context, null);
+        }
+
+        @Override
+        public Object valueForDisplay(Object value) {
+            if (value == null) {
+                return null;
+            }
+            BytesRef binaryValue = (BytesRef) value;
+            return binaryValue.utf8ToString();
         }
     }
 
@@ -719,5 +729,19 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasScript()) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+        if (fieldType().hasDocValues()) {
+            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(name() + "._keyed", simpleName());
+        }
+
+        throw new IllegalArgumentException(
+            "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+        );
     }
 }

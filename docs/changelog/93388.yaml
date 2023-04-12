@@ -1,5 +1,0 @@
-pr: 93388
-summary: Allow `null` to be provided for `dense_vector` field values
-area: Vector Search
-type: enhancement
-issues: []

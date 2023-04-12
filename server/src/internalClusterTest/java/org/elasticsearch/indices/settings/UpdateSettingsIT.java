@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -112,11 +114,9 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         @Override
         public void onIndexModule(IndexModule indexModule) {
-            indexModule.addSettingsUpdateConsumer(
-                DUMMY_SETTING,
-                (s) -> {},
-                (s) -> { if (s.equals("boom")) throw new IllegalArgumentException("this setting goes boom"); }
-            );
+            indexModule.addSettingsUpdateConsumer(DUMMY_SETTING, (s) -> {}, (s) -> {
+                if (s.equals("boom")) throw new IllegalArgumentException("this setting goes boom");
+            });
         }
 
         @Override
@@ -218,11 +218,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             );
             assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.acc.test.pw").putNull("cluster.acc.test.user"))
-                .get();
+            updateClusterSettings(Settings.builder().putNull("cluster.acc.test.pw").putNull("cluster.acc.test.user"));
         }
     }
 
@@ -341,7 +337,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             IndexService indexService = service.indexService(resolveIndex("test"));
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), -1);
-                assertEquals(indexService.getIndexSettings().getFlushThresholdSize().getBytes(), 1024);
+                assertEquals(indexService.getIndexSettings().getFlushThresholdSize(new ByteSizeValue(1, ByteSizeUnit.TB)).getBytes(), 1024);
                 assertEquals(indexService.getIndexSettings().getGenerationThresholdSize().getBytes(), 4096);
             }
         }
@@ -357,7 +353,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             IndexService indexService = service.indexService(resolveIndex("test"));
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), 1000);
-                assertEquals(indexService.getIndexSettings().getFlushThresholdSize().getBytes(), 1024);
+                assertEquals(indexService.getIndexSettings().getFlushThresholdSize(new ByteSizeValue(1, ByteSizeUnit.TB)).getBytes(), 1024);
                 assertEquals(indexService.getIndexSettings().getGenerationThresholdSize().getBytes(), 4096);
             }
         }

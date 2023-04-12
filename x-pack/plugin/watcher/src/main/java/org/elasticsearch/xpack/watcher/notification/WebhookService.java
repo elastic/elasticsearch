@@ -192,7 +192,7 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
      */
     public Tuple<HttpRequest, HttpResponse> modifyAndExecuteHttpRequest(HttpRequest request) throws IOException {
         final HttpRequest modifiedRequest = maybeModifyHttpResponse(request);
-        logger.info("--> executing request: {}", request);
+        logger.info("--> executing request: {}", modifiedRequest);
         final HttpResponse response = httpClient.execute(modifiedRequest);
         logger.info("--> webhook response status: {} — {}", response.status(), response);
         return Tuple.tuple(modifiedRequest, response);

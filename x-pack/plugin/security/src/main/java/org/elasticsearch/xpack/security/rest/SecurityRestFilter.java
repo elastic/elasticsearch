@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
@@ -19,13 +18,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -125,24 +122,7 @@ public class SecurityRestFilter implements RestHandler {
         logger.debug(() -> format("%s failed for REST request [%s]", actionType, request.uri()), e);
         threadContext.sanitizeHeaders();
         try {
-            channel.sendResponse(new RestResponse(channel, e) {
-
-                @Override
-                public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
-                    if (actionType != ActionType.RequestHandling
-                        || status() == RestStatus.UNAUTHORIZED
-                        || status() == RestStatus.FORBIDDEN) {
-                        if (headers.containsKey("Warning")) {
-                            headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
-                        }
-                        if (headers.containsKey("X-elastic-product")) {
-                            headers = Maps.copyMapWithRemovedEntry(headers, "X-elastic-product");
-                        }
-                    }
-                    return headers;
-                }
-
-            });
+            channel.sendResponse(new RestResponse(channel, e));
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error((Supplier<?>) () -> "failed to send failure response for uri [" + request.uri() + "]", inner);

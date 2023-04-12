@@ -1,0 +1,163 @@
+setup:
+  - do:
+      behavioral_analytics.put:
+        name: my-test-analytics-collection
+
+---
+teardown:
+  - do:
+      behavioral_analytics.delete:
+        name: my-test-analytics-collection
+        ignore: 404
+
+---
+"Post Pageview Analytics Event":
+  - do:
+      behavioral_analytics.post_event:
+        collectionName: my-test-analytics-collection
+        eventType: "pageview"
+        body:
+            session:
+              id: "123"
+            user:
+              id: "456"
+            page:
+              url: "https://www.elastic.co"
+---
+"Post Analytics Pageview Event - missing page url":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collectionName: my-test-analytics-collection
+        eventType: "pageview"
+        body:
+          session:
+            id: "123"
+  - match: { error.type: "illegal_argument_exception" }
+---
+"Post Search Analytics Event":
+  - do:
+      behavioral_analytics.post_event:
+        collectionName: my-test-analytics-collection
+        eventType: "search"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          search:
+            query: "test-query"
+---
+"Post Search Analytics Event – missing search query":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collectionName: my-test-analytics-collection
+        eventType: "search"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+  - match: { error.type: "illegal_argument_exception" }
+---
+"Post SearchClick Analytics Event":
+  - do:
+      behavioral_analytics.post_event:
+        collectionName: my-test-analytics-collection
+        eventType: "search_click"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          page:
+            url: "https://www.elastic.co"
+          search:
+            query: "test-query"
+---
+"Post SearchClick Analytics Event – missing search query":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collectionName: my-test-analytics-collection
+        eventType: "search_click"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          page:
+            url: "https://www.elastic.co"
+  - match: { error.type: "illegal_argument_exception" }
+---
+"Post SearchClick Analytics Event – missing page url":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collectionName: my-test-analytics-collection
+        eventType: "search_click"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          search:
+            query: "test-query"
+  - match: { error.type: "illegal_argument_exception" }
+---
+"Post Analytics Event - analytics collection does not exist":
+  - do:
+      catch: "missing"
+      behavioral_analytics.post_event:
+        collectionName: test-nonexistent-analytics-collection
+        eventType: "pageview"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          page:
+            url: "https://www.elastic.co"
+---
+"Post Analytics Event - event type does not exist":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collectionName: my-test-analytics-collection
+        eventType: "nonexistent-event-type"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          page:
+            url: "https://www.elastic.co"
+  - match: { error.type: "action_request_validation_exception" }
+---
+"Post Analytics Event - missing session id":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collectionName: my-test-analytics-collection
+        eventType: "pageview"
+        body:
+          user:
+            id: "456"
+          page:
+            url: "https://www.elastic.co"
+  - match: { error.type: "illegal_argument_exception" }
+---
+"Post Analytics Event - missing user id":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collectionName: my-test-analytics-collection
+        eventType: "pageview"
+        body:
+          session:
+            id: "123"
+          page:
+            url: "https://www.elastic.co"
+  - match: { error.type: "illegal_argument_exception" }
+

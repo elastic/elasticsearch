@@ -389,6 +389,33 @@ setup:
   - match: { trained_model_configs.0.fully_defined: true }
 
 ---
+"Test stop deployments with allow_no_match":
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        deployment_id: test_model_for_search
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+
+  - do:
+      ml.stop_trained_model_deployment:
+        model_id: test_model_for_search
+  - match: { stopped: true }
+
+  - do:
+      catch: missing
+      ml.stop_trained_model_deployment:
+        allow_no_match: false
+        model_id: test_model_for_search
+  - match: { error.reason: "No known model deployment with id [test_model_for_search]" }
+
+  - do:
+      ml.stop_trained_model_deployment:
+        allow_no_match: true
+        model_id: test_model_for_search
+  - match: { stopped: true }
+
+---
 "Test start and stop multiple deployments":
   - skip:
       features: allowed_warnings

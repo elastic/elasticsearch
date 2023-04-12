@@ -119,7 +119,11 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
         );
 
         if (maybeAssignment.isEmpty()) {
-            listener.onFailure(ExceptionsHelper.missingModelDeployment(request.getId()));
+            if (request.isAllowNoMatch() == false) {
+                listener.onFailure(ExceptionsHelper.missingModelDeployment(request.getId()));
+            } else {
+                listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
+            }
             return;
         }
 

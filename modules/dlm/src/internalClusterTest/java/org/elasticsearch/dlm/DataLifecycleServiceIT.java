@@ -36,6 +36,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.dlm.action.PutDataLifecycleAction;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -58,7 +59,6 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -187,9 +187,17 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testAutomaticForceMerge() throws Exception {
-        updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, "1000s"));
+        /*
+         * This test makes sure that (1) DLM does _not_ call forcemerge on an index in the same DLM pass when it rolls over the index and
+         * that (2) it _does_ call forcemerge on an index that was rolled over in a previous DLM pass.
+         * It's harder than you would think to detect through the REST API that forcemerge has been called. The reason is that segment
+         * merging happens automatically during indexing, and when forcemerge is called it likely does nothing because all nececssary
+         * merging has already happened automatically. In order to force forcemerge to merge segments, we change
+         * "index.merge.policy.merge_factor" on the index to a value lower than the default. If the number of segments goes down, that is
+         *  proof that DLM called forcemerge.
+         */
         DataLifecycle lifecycle = new DataLifecycle();
-
+        disableDLM();
         putComposableIndexTemplate(
             "id1",
             null,
@@ -207,9 +215,8 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
             String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration);
             for (int i = 0; i < randomIntBetween(10, 50); i++) {
                 indexDocs(dataStreamName, randomIntBetween(1, 300));
-                FlushResponse flushResponse = client().admin().indices().flush(new FlushRequest(writeIndexName)).actionGet(); // forcing a
-                                                                                                                              // segment to
-                                                                                                                              // be written
+                // Make sure the segments get written:
+                FlushResponse flushResponse = client().admin().indices().flush(new FlushRequest(writeIndexName)).actionGet();
                 assertThat(flushResponse.getStatus(), equalTo(RestStatus.OK));
             }
             /*
@@ -217,67 +224,72 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
              * merge_factor on its own does not do anything, but it results in calls to forcemerge making observable changes to the
              * number of segments. So we're doing this just so that we can check that DLM did actually call forcemerge.
              */
-            updateIndexSettings(Settings.builder().put("index.merge.policy.merge_factor", 5), writeIndexName);
+            updateIndexSettings(
+                Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), 5),
+                writeIndexName
+            );
 
-            if (currentGeneration > 1) {
-                String previousWriteIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration - 1);
-                int preDlmSegments = getSegmentCount(previousWriteIndexName);
-                updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, "  1s"));
-                long dlmEnabledTime = System.nanoTime();
-                int currentBackingIndexCount = currentGeneration;
-                assertBusy(() -> {
-                    if (TimeValue.timeValueNanos(System.nanoTime()).millis() - TimeValue.timeValueNanos(dlmEnabledTime).millis() > 1000) {
-                        updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, "1000s"));
-                    }
-                    GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
-                    GetDataStreamAction.Response getDataStreamResponse = client().execute(
-                        GetDataStreamAction.INSTANCE,
-                        getDataStreamRequest
-                    ).actionGet();
-                    assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-                    DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
-                    assertThat(dataStream.getName(), equalTo(dataStreamName));
-                    List<Index> backingIndices = dataStream.getIndices();
-                    assertThat(backingIndices.size(), equalTo(currentBackingIndexCount + 1));
-                    updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, "1000s"));
-                    String writeIndex = dataStream.getWriteIndex().getName();
-                    assertThat(writeIndex, backingIndexEqualTo(dataStreamName, currentBackingIndexCount + 1));
-                    int postDlmSegments = getSegmentCount(previousWriteIndexName);
-                    logger.info(
-                        "*** expected fewer than " + preDlmSegments + " and got " + postDlmSegments + " for " + previousWriteIndexName
-                    );
-                    assertThat("Unexpected number of segments for " + previousWriteIndexName, postDlmSegments, lessThan(preDlmSegments));
-
-                });
+            final String newIndex = writeIndexName;
+            final String rolledOverIndex;
+            final int preDlmSegmentsRolledOverIndex;
+            if (currentGeneration == 1) {
+                rolledOverIndex = null;
+                preDlmSegmentsRolledOverIndex = -1; // Not going to be used
             } else {
-                int preDlmSegments = getSegmentCount(writeIndexName);
-                assertThat(preDlmSegments, greaterThan(1));
-                updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, "1s"));
-                long dlmEnabledTime = System.nanoTime();
-                int currentBackingIndexCount = currentGeneration;
-                assertBusy(() -> {
-                    if (TimeValue.timeValueNanos(System.nanoTime()).millis() - TimeValue.timeValueNanos(dlmEnabledTime).millis() > 1000) {
-                        updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, "1000s"));
-                    }
-                    GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
-                    GetDataStreamAction.Response getDataStreamResponse = client().execute(
-                        GetDataStreamAction.INSTANCE,
-                        getDataStreamRequest
-                    ).actionGet();
-                    assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-                    DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
-                    assertThat(dataStream.getName(), equalTo(dataStreamName));
-                    List<Index> backingIndices = dataStream.getIndices();
-                    assertThat(backingIndices.size(), equalTo(currentBackingIndexCount + 1));
-                    updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, "1000s"));
-                    String writeIndex = dataStream.getWriteIndex().getName();
-                    assertThat(writeIndex, backingIndexEqualTo(dataStreamName, currentBackingIndexCount + 1));
-                    int postDlmSegments = getSegmentCount(writeIndexName);
-                    logger.info("*** expected " + preDlmSegments + " and got " + postDlmSegments);
-                    assertThat(postDlmSegments, equalTo(preDlmSegments));
-                });
+                rolledOverIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration - 1);
+                preDlmSegmentsRolledOverIndex = getSegmentCount(rolledOverIndex);
             }
+            final int preDlmSegmentsNewIndex = getSegmentCount(newIndex);
+            TimeValue dlmPollInterval = TimeValue.timeValueMillis(1000);
+            enableDLM(dlmPollInterval);
+            long dlmEnabledTime = System.nanoTime();
+            int currentBackingIndexCount = currentGeneration;
+            assertBusy(() -> {
+                if (TimeValue.timeValueNanos(System.nanoTime()).millis() - TimeValue.timeValueNanos(dlmEnabledTime)
+                    .millis() > dlmPollInterval.millis()) {
+                    /*
+                     * We want to disable DLM immediately after it has run the first time so that it doesn't roll over the latest
+                     * generation or force merge the second one.
+                     */
+                    disableDLM();
+                } else {
+                    throw new AssertionError("DLM hasn't run yet so no point in going on");
+                }
+                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+                GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                    .actionGet();
+                assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+                DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
+                assertThat(dataStream.getName(), equalTo(dataStreamName));
+                List<Index> backingIndices = dataStream.getIndices();
+                assertThat(backingIndices.size(), equalTo(currentBackingIndexCount + 1));
+                String writeIndex = dataStream.getWriteIndex().getName();
+                assertThat(writeIndex, backingIndexEqualTo(dataStreamName, currentBackingIndexCount + 1));
+                int postDlmSegmentsNewIndex = getSegmentCount(newIndex);
+                if (currentBackingIndexCount > 1) {
+                    int postDlmSegmentsRolledOverIndex = getSegmentCount(rolledOverIndex);
+                    assertThat(
+                        "The segments for " + rolledOverIndex + " were not merged",
+                        postDlmSegmentsRolledOverIndex,
+                        lessThan(preDlmSegmentsRolledOverIndex)
+                    );
+                }
+                // We want to assert that the first run of DLM only rolls over the index, and doesn't forcemerge it
+                assertThat(
+                    "The segments for " + newIndex + " were unexpectedly merged",
+                    postDlmSegmentsNewIndex,
+                    equalTo(preDlmSegmentsNewIndex)
+                );
+            });
         }
+    }
+
+    private static void enableDLM(TimeValue pollInterval) {
+        updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, pollInterval));
+    }
+
+    private static void disableDLM() {
+        updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, "10000s"));
     }
 
     private int getSegmentCount(String indexName) throws ExecutionException, InterruptedException {

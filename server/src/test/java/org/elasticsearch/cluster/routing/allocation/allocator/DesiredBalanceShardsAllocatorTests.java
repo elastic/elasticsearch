@@ -446,8 +446,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         {
             when(desiredBalanceComputer.compute(any(), any(), any(), any())).thenReturn(computedDesiredBalance3);
             rerouteAndWait(service, clusterState, "reset-desired-balance");
-            verify(desiredBalanceComputer).compute(eq(new DesiredBalance(1, Map.of())), any(), any(), any());// based on resetted empty
-                                                                                                             // balance
+            verify(desiredBalanceComputer).compute(eq(new DesiredBalance(1, Map.of())), any(), any(), any());// based on resetted/empty
             reset(desiredBalanceComputer);
         }
 

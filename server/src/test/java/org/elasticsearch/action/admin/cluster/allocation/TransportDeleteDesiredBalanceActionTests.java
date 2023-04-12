@@ -11,39 +11,33 @@ package org.elasticsearch.action.admin.cluster.allocation;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.cluster.allocation.TransportDeleteDesiredBalanceAction.ResetDesiredBalanceClusterExecutor;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.mockito.ArgumentCaptor;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.Consumer;
-
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCase {
 
@@ -71,102 +65,40 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
 
     public void testDeleteDesiredBalance() throws Exception {
 
-        var listener = spy(ActionListener.<ActionResponse.Empty>noop());
+        var threadPool = new TestThreadPool(getTestName());
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("master")).localNodeId("master").masterNodeId("master").build())
+            .build();
+
+        var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
+
+        var listener = new PlainActionFuture<ActionResponse.Empty>();
         var allocator = mock(DesiredBalanceShardsAllocator.class);
         var allocationService = mock(AllocationService.class);
-
-        var executor = new ResetDesiredBalanceClusterExecutor(allocationService, allocator);
-        var queue = new TestMasterServiceTaskQueue<>(executor);
-
-        var clusterService = mock(ClusterService.class);
-        when(
-            clusterService.createTaskQueue(eq("reset-desired-balance"), eq(Priority.NORMAL), any(ResetDesiredBalanceClusterExecutor.class))
-        ).thenReturn(queue);
+        doAnswer(invocation -> invocation.getArgument(0, ClusterState.class)).when(allocationService)
+            .reroute(any(), eq("reset-desired-balance"), any());
 
         var action = new TransportDeleteDesiredBalanceAction(
             mock(TransportService.class),
             clusterService,
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             allocationService,
             allocator
         );
 
-        action.masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), ClusterState.EMPTY_STATE, listener);
-        queue.processAllTasks(ClusterState.EMPTY_STATE);
+        action.masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
+        ClusterServiceUtils.awaitNoPendingTasks(clusterService);
 
-        verify(listener).onResponse(ActionResponse.Empty.INSTANCE);
-        verify(allocator).resetDesiredBalance();
-        verify(allocationService).reroute(any(), eq("reset-desired-balance"), any());
-    }
-
-    public static class TestMasterServiceTaskQueue<T extends ClusterStateTaskListener> implements MasterServiceTaskQueue<T> {
-
-        private final ClusterStateTaskExecutor<T> executor;
-        private final List<T> tasks = new ArrayList<>();
-
-        public TestMasterServiceTaskQueue(ClusterStateTaskExecutor<T> executor) {
-            this.executor = executor;
-        }
-
-        @Override
-        public void submitTask(String source, T task, TimeValue timeout) {
-            tasks.add(task);
-        }
-
-        public ClusterState processAllTasks(ClusterState clusterState) throws Exception {
-            var tasksContexts = createTaskContexts(tasks);
-            tasks.clear();
-            return executor.execute(
-                new ClusterStateTaskExecutor.BatchExecutionContext<>(
-                    clusterState,
-                    tasksContexts,
-                    () -> TestMasterServiceTaskQueue::dummyReleasable
-                )
-            );
-        }
-
-        private static void dummyReleasable() {}
-
-        private List<? extends ClusterStateTaskExecutor.TaskContext<T>> createTaskContexts(List<T> tasks) {
-            return tasks.stream().map(task -> new ClusterStateTaskExecutor.TaskContext<T>() {
-                @Override
-                public T getTask() {
-                    return task;
-                }
-
-                @Override
-                public void success(Runnable onPublicationSuccess) {
-                    onPublicationSuccess.run();
-                }
-
-                @Override
-                public void success(Consumer<ClusterState> publishedStateConsumer) {
-                    throw new UnsupportedOperationException("Operation is deprecated and should not be used");
-                }
-
-                @Override
-                public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {
-                    onPublicationSuccess.run();
-                    clusterStateAckListener.onAllNodesAcked();
-                }
-
-                @Override
-                public void success(Consumer<ClusterState> publishedStateConsumer, ClusterStateAckListener clusterStateAckListener) {
-                    throw new UnsupportedOperationException("Operation is deprecated and should not be used");
-                }
-
-                @Override
-                public void onFailure(Exception failure) {
-
-                }
-
-                @Override
-                public Releasable captureResponseHeaders() {
-                    return TestMasterServiceTaskQueue::dummyReleasable;
-                }
-            }).toList();
+        try {
+            assertThat(listener.get(), notNullValue());
+            verify(allocator).resetDesiredBalance();
+            verify(allocationService).reroute(any(), eq("reset-desired-balance"), any());
+        } finally {
+            clusterService.close();
+            terminate(threadPool);
         }
     }
 }

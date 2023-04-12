@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -57,6 +58,7 @@ import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
 import static org.elasticsearch.rest.RestStatus.NOT_ACCEPTABLE;
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
 
 public class RestController implements HttpServerTransport.Dispatcher {
 
@@ -331,7 +333,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 e = new ElasticsearchException(cause);
             }
-            channel.sendResponse(new RestResponse(channel, BAD_REQUEST, e));
+            RestStatus status = ExceptionsHelper.status(e) == UNAUTHORIZED ? UNAUTHORIZED : BAD_REQUEST;
+            channel.sendResponse(new RestResponse(channel, status, e));
         } catch (final IOException e) {
             if (cause != null) {
                 e.addSuppressed(cause);

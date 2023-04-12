@@ -67,7 +67,7 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
             assertThat(response.getDataStreamLifecycles().get(0).lifecycle(), equalTo(lifecycle));
             assertThat(response.getDataStreamLifecycles().get(1).dataStreamName(), equalTo("with-lifecycle-2"));
             assertThat(response.getDataStreamLifecycles().get(1).lifecycle(), equalTo(lifecycle));
-            assertThat(response.getRolloverConditions(), nullValue());
+            assertThat(response.getRolloverConfiguration(), nullValue());
         }
 
         // Test retrieving all lifecycles prefixed wildcard
@@ -79,7 +79,7 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
             assertThat(response.getDataStreamLifecycles().get(0).lifecycle(), equalTo(lifecycle));
             assertThat(response.getDataStreamLifecycles().get(1).dataStreamName(), equalTo("with-lifecycle-2"));
             assertThat(response.getDataStreamLifecycles().get(1).lifecycle(), equalTo(lifecycle));
-            assertThat(response.getRolloverConditions(), nullValue());
+            assertThat(response.getRolloverConfiguration(), nullValue());
         }
 
         // Test retrieving concrete data streams
@@ -91,7 +91,7 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
             assertThat(response.getDataStreamLifecycles().size(), equalTo(2));
             assertThat(response.getDataStreamLifecycles().get(0).dataStreamName(), equalTo("with-lifecycle-1"));
             assertThat(response.getDataStreamLifecycles().get(0).lifecycle(), equalTo(lifecycle));
-            assertThat(response.getRolloverConditions(), nullValue());
+            assertThat(response.getRolloverConfiguration(), nullValue());
         }
 
         // Test include defaults
@@ -106,7 +106,7 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
         assertThat(responseWithRollover.getDataStreamLifecycles().get(0).lifecycle(), equalTo(lifecycle));
         assertThat(responseWithRollover.getDataStreamLifecycles().get(1).dataStreamName(), equalTo("with-lifecycle-2"));
         assertThat(responseWithRollover.getDataStreamLifecycles().get(1).lifecycle(), equalTo(lifecycle));
-        assertThat(responseWithRollover.getRolloverConditions(), notNullValue());
+        assertThat(responseWithRollover.getRolloverConfiguration(), notNullValue());
     }
 
     public void testPutLifecycle() throws Exception {

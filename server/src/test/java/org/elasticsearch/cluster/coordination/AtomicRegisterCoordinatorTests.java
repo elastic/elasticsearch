@@ -166,10 +166,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94905")
-    public void testClusterRecoversAfterExceptionDuringSerialization() {}
-
-    @Override
     protected CoordinatorStrategy getCoordinatorStrategy() {
         var atomicRegister = new AtomicRegister();
         var sharedStore = new SharedStore();
@@ -347,7 +343,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
 
         @Override
-        public CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage) {
+        public CoordinationState.PersistedState createFreshPersistedState(
+            DiscoveryNode localNode,
+            BooleanSupplier disruptStorage,
+            ThreadPool threadPool
+        ) {
             return new AtomicRegisterPersistedState(localNode, sharedStore);
         }
 
@@ -359,7 +359,8 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             Function<Long, Long> adaptCurrentTerm,
             LongSupplier currentTimeInMillisSupplier,
             NamedWriteableRegistry namedWriteableRegistry,
-            BooleanSupplier disruptStorage
+            BooleanSupplier disruptStorage,
+            ThreadPool threadPool
         ) {
             return new AtomicRegisterPersistedState(newLocalNode, sharedStore);
         }

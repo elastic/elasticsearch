@@ -26,11 +26,12 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.license.internal.MutableLicenseService;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,7 +44,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -56,7 +56,7 @@ import java.util.stream.Collectors;
  */
 public class ClusterStateLicenseService extends AbstractLifecycleComponent
     implements
-        LicenseService.MutableLicenseService,
+        MutableLicenseService,
         ClusterStateListener,
         SchedulerEngine.Listener {
     private static final Logger logger = LogManager.getLogger(ClusterStateLicenseService.class);
@@ -92,8 +92,6 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     private final MasterServiceTaskQueue<StartBasicClusterTask> startBasicTaskQueue;
 
     public static final String LICENSE_JOB = "licenseJob";
-
-    public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("EEEE, MMMM dd, yyyy");
 
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, "
         + "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
@@ -137,7 +135,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
             License [{}] on [{}].
             # If you have a new license, please update it. Otherwise, please reach out to
             # your support contact.
-            #\s""", expiredMsg, DATE_FORMATTER.formatMillis(expirationMillis));
+            #\s""", expiredMsg, LicenseUtils.DATE_FORMATTER.formatMillis(expirationMillis));
         if (expired) {
             general = general.toUpperCase(Locale.ROOT);
         }
@@ -464,49 +462,20 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         }
     }
 
-    protected String getExpiryWarning(long licenseExpiryDate, long currentTime) {
-        final long diff = licenseExpiryDate - currentTime;
-        if (LicenseSettings.LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
-            final long days = TimeUnit.MILLISECONDS.toDays(diff);
-            final String expiryMessage = (days == 0 && diff > 0)
-                ? "expires today"
-                : (diff > 0
-                    ? String.format(Locale.ROOT, "will expire in [%d] days", days)
-                    : String.format(
-                        Locale.ROOT,
-                        "expired on [%s]",
-                        ClusterStateLicenseService.DATE_FORMATTER.formatMillis(licenseExpiryDate)
-                    ));
-            return "Your license "
-                + expiryMessage
-                + ". "
-                + "Contact your administrator or update your license for continued use of features";
-        }
-        return null;
-    }
-
     private void updateXPackLicenseState(License license) {
-        long time = clock.millis();
         if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
-            xPacklicenseState.update(License.OperationMode.MISSING, false, getExpiryWarning(LicenseUtils.getExpiryDate(license), time));
+            xPacklicenseState.update(LicenseUtils.getXPackLicenseStatus(license, clock));
             return;
         }
         checkForExpiredLicense(license);
     }
 
     private boolean checkForExpiredLicense(License license) {
-        long time = clock.millis();
         if (license != null) {
-            final boolean active;
-            if (LicenseUtils.getExpiryDate(license) == LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
-                active = true;
-            } else {
-                active = time >= license.issueDate() && time < LicenseUtils.getExpiryDate(license);
-            }
-            xPacklicenseState.update(license.operationMode(), active, getExpiryWarning(LicenseUtils.getExpiryDate(license), time));
-
-            if (active) {
+            XPackLicenseStatus xPackLicenseStatus = LicenseUtils.getXPackLicenseStatus(license, clock);
+            xPacklicenseState.update(xPackLicenseStatus);
+            if (xPackLicenseStatus.active()) {
                 logger.debug("license [{}] - valid", license.uid());
                 return false;
             } else {

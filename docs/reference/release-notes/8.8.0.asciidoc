@@ -5,4 +5,207 @@ coming[8.8.0]
 
 Also see <<breaking-changes-8.8,Breaking changes in 8.8>>.
 
+[[bug-8.8.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Merge two histograms usign the higher number of digits among all histograms {es-pull}93704[#93704] (issue: {es-issue}92822[#92822])
+
+Allocation::
+* Avoid copying during iteration of all shards in routing table {es-pull}94417[#94417]
+* Avoid duplicate application of RoutingTable diff {es-pull}94379[#94379]
+* Streamline AsyncShardFetch#getNumberOfInFlightFetches {es-pull}93632[#93632] (issue: {es-issue}93631[#93631])
+* Use applied state after `DiskThresholdMonitor` reroute {es-pull}94916[#94916]
+
+Authorization::
+* Fix role transformation to include missing properties {es-pull}94714[#94714]
+
+DLM::
+* Remove rollover cluster setting validator {es-pull}94447[#94447]
+
+Distributed::
+* Fix `GetPipelineResponse` equality {es-pull}93695[#93695]
+
+Engine::
+* Ensure refresh to return the latest commit generation {es-pull}94249[#94249]
+
+Geo::
+* Fix bug where `geo_line` does not respect `sort_order` {es-pull}94734[#94734] (issue: {es-issue}94733[#94733])
+
+ILM+SLM::
+* Allow ILM to transition to implicit cached steps {es-pull}91779[#91779] (issue: {es-issue}91749[#91749])
+* Downsample ILM action should skip non-time-series indices {es-pull}94835[#94835] (issue: {es-issue}93123[#93123])
+
+Infra/Core::
+* Check no unassigned shards even if the node already left {es-pull}94722[#94722]
+* Fix race condition in `NodeEnvironment.close()` {es-pull}94677[#94677] (issue: {es-issue}94672[#94672])
+* Use double wildcards for filtered excludes properly {es-pull}94195[#94195] (issue: {es-issue}92632[#92632])
+
+Infra/REST API::
+* Add level parameter validation in REST layer {es-pull}94136[#94136] (issue: {es-issue}93981[#93981])
+* Fixes CORS headers needed by Elastic clients {es-pull}85791[#85791]
+
+Infra/Scripting::
+* Allow low level paging in `LeafDocLookup` {es-pull}93711[#93711]
+
+Ingest Node::
+* Fix async enrich execution prematurely releases enrich policy lock {es-pull}94702[#94702] (issue: {es-issue}94690[#94690])
+
+Recovery::
+* Async creation of `IndexShard` instances {es-pull}94545[#94545]
+
+Search::
+* Fix '_terms_enum' on docvalue-only keywords fields {es-pull}94719[#94719] (issue: {es-issue}94673[#94673])
+* Fix `_terms_enum` display values {es-pull}94080[#94080] (issue: {es-issue}94041[#94041])
+* Return 200 when closing empty PIT or scroll {es-pull}94708[#94708]
+* Support ignore malformed in boolean fields {es-pull}93239[#93239] (issue: {es-issue}89542[#89542])
+* Support search template api explain query string argument {es-pull}94832[#94832] (issue: {es-issue}83363[#83363])
+
+Snapshot/Restore::
+* Stop sorting indices in get-snapshots API {es-pull}94890[#94890]
+
+Stats::
+* Fix _cluster/stats `.nodes.fs` deduplication {es-pull}94798[#94798] (issue: {es-issue}24472[#24472])
+* Fix `FsInfo` device deduplication {es-pull}94744[#94744]
+
+Transform::
+* Catch deprecations as `Exception` rather than `IOException` {es-pull}94553[#94553]
+* Secondary credentials used with transforms should only require source and destination index privileges, not transform privileges {es-pull}94420[#94420]
+
+[[deprecation-8.8.0]]
+[float]
+=== Deprecations
+
+Allocation::
+* Deprecate `cluster.routing.allocation.type` {es-pull}94066[#94066]
+
+[[enhancement-8.8.0]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Don't create many Rounding.Prepared instances when checking for empty buckets in date_histogram aggregator. {es-pull}94649[#94649]
+
+Analysis::
+* Add origin of synonym rules to exception message {es-pull}93702[#93702]
+
+Authentication::
+* Do not fail node if SAML HTTP metadata is unavailable {es-pull}92810[#92810] (issue: {es-issue}37608[#37608])
+* Finer control over authentication metadata serialization {es-pull}93726[#93726]
+
+Cluster Coordination::
+* Improve master service batching queues {es-pull}92021[#92021] (issue: {es-issue}81626[#81626])
+
+Engine::
+* Increase the merge factor to 32 for time-based data {es-pull}94134[#94134]
+* Reduce the likelihood of writing small segments due to an oversize translog {es-pull}93524[#93524] (issue: {es-issue}75611[#75611])
+* Sort segments on timestamp in read only engine {es-pull}93576[#93576]
+* Use `LogByteSizeMergePolicy` instead of `TieredMergePolicy` for time-based data {es-pull}92684[#92684]
+* Use mmap for temporary files {es-pull}93595[#93595]
+
+Geo::
+* Allow docvalues-only search on `geo_shape` {es-pull}94396[#94396]
+* Support for store parameter in `geo_shape` field {es-pull}94418[#94418] (issue: {es-issue}83655[#83655])
+
+ILM+SLM::
+* Implicitly rollover data streams / aliases based on `max_primary_shard_docs` {es-pull}94065[#94065] (issue: {es-issue}87246[#87246])
+* Sort ILM explain output by natural index name {es-pull}94879[#94879] (issue: {es-issue}94768[#94768])
+
+Indices APIs::
+* Adding initial public and internal serverless scopes to data management rest handlers {es-pull}93990[#93990]
+* Servlerless API protection with annotations {es-pull}93607[#93607]
+
+Infra/Core::
+* Allow preserving specific headers on thread context stash {es-pull}94680[#94680]
+
+Infra/Plugins::
+* Improve module/plugin loading logging message. {es-pull}93952[#93952] (issue: {es-issue}93881[#93881])
+
+Infra/Transport API::
+* Add `transport_version` to node info JSON {es-pull}94669[#94669]
+
+Ingest Node::
+* Introduce redirect method on IngestDocument {es-pull}94000[#94000] (issue: {es-issue}83653[#83653])
+
+Machine Learning::
+* Add `_meta` field to data frame analytics config {es-pull}94529[#94529]
+
+Mapping::
+* Cut over from Field to `StringField` when applicable {es-pull}94540[#94540]
+* Enable `_terms_enum` on `ip` fields {es-pull}94322[#94322] (issue: {es-issue}89933[#89933])
+* Enable synthetic source for malformed booleans {es-pull}94121[#94121]
+* Index sequence numbers via a single Lucene field {es-pull}94504[#94504]
+* Use a combined field to index terms and doc values on keyword fields {es-pull}93579[#93579]
+
+Network::
+* Add request/response body logging to HTTP tracer {es-pull}93133[#93133]
+* Avoid deserializing responses in proxy node {es-pull}93799[#93799]
+* Report transport message size per action {es-pull}94543[#94543] (issue: {es-issue}88151[#88151])
+
+Search::
+* Adding initial public and internal serverless scopes to Search team REST handlers {es-pull}94035[#94035]
+* Enable _terms_enum on version fields {es-pull}93839[#93839] (issue: {es-issue}83403[#83403])
+* Leverage Weight#count when size is set to 0 {es-pull}94858[#94858]
+* Shortcut total hit count when `terminate_after` is used {es-pull}94889[#94889]
+* [Profiling] Map stack frames more efficiently {es-pull}94327[#94327]
+* [Profiling] Parallelize response handling {es-pull}93960[#93960]
+
+Security::
+* Fleet: Add new mappings for .fleet-actions signing {es-pull}93802[#93802]
+
+Snapshot/Restore::
+* Add cluster stats re. snapshot activity {es-pull}93680[#93680]
+* Add register analysis to repo analysis API {es-pull}93955[#93955]
+* Add support for custom endpoints in the Azure repository {es-pull}94576[#94576] (issue: {es-issue}94537[#94537])
+
+TSDB::
+* Support position `time_series_metric` on `geo_point` fields {es-pull}93946[#93946]
+
+Transform::
+* Add `delete_destination_index` parameter to the `Delete Transform API` {es-pull}94162[#94162]
+
+Watcher::
+* Porting watcher over to `BulkProcessor2` {es-pull}94133[#94133]
+
+[[feature-8.8.0]]
+[float]
+=== New features
+
+CRUD::
+* New `TransportBroadcastUnpromotableAction` action {es-pull}93600[#93600]
+
+DLM::
+* Initial implementation for `DataLifecycleService` {es-pull}94012[#94012]
+* Introduce a _lifecycle/explain API for data stream backing indices {es-pull}94621[#94621]
+* [DLM] Introduce default rollover cluster setting & expose it via APIs {es-pull}94240[#94240]
+
+Health::
+* Add new `ShardsCapacity` Health Indicator Service {es-pull}94552[#94552]
+* Add to `HealthMetadata` information about `ShardLimits` {es-pull}94116[#94116]
+
+Machine Learning::
+* Text Expansion Query {es-pull}93694[#93694]
+
+Search::
+* Add new `similarity` field to `knn` clause in `_search` {es-pull}94828[#94828]
+* Add the ability to return the score of the named queries {es-pull}94564[#94564] (issue: {es-issue}29606[#29606])
+
+[[upgrade-8.8.0]]
+[float]
+=== Upgrades
+
+Ingest Node::
+* Upgrading tika to 2.7.0 {es-pull}93759[#93759]
+
+Network::
+* Upgrade to Netty 4.1.89 {es-pull}94179[#94179]
+
+Packaging::
+* Upgrade bundled JDK to Java 20 {es-pull}94600[#94600]
+
+Search::
+* Upgrade to lucene-9.6.0-snapshot-8a815153fbe {es-pull}94635[#94635]
+* Upgrade to lucene-9.6.0-snapshot-f5d1e1c787c {es-pull}94494[#94494]
+
 

@@ -19,7 +19,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.DocumentAnalyticsEventField.DOCUMENT_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.PageAnalyticsEventField.PAGE_FIELD;
 
-public class AnalyticsEventSearchResultField {
+public class SearchResultAnalyticsEventField {
     public static ParseField SEARCH_RESULTS_TOTAL_FIELD = new ParseField("total_results");
 
     public static ParseField SEARCH_RESULT_ITEMS_FIELD = new ParseField("items");
@@ -50,7 +50,7 @@ public class AnalyticsEventSearchResultField {
         ITEM_PARSER.declareObject((b, v) -> b.put(PAGE_FIELD.getPreferredName(), v), PageAnalyticsEventField::fromXContent, PAGE_FIELD);
     }
 
-    private AnalyticsEventSearchResultField() {}
+    private SearchResultAnalyticsEventField() {}
 
     public static Map<String, Object> fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
         return PARSER.parse(parser, context).immutableMap();

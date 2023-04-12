@@ -15,11 +15,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSearchResultField.SEARCH_RESULTS_TOTAL_FIELD;
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSearchResultField.SEARCH_RESULT_ITEMS_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.DocumentAnalyticsEventField.DOCUMENT_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.DocumentAnalyticsEventFieldTests.randomEventDocumentField;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.PageAnalyticsEventField.PAGE_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchResultAnalyticsEventField.SEARCH_RESULTS_TOTAL_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchResultAnalyticsEventField.SEARCH_RESULT_ITEMS_FIELD;
 
 public class AnalyticsEventSearchResultFieldTests extends AnalyticsEventFieldParserTestCase<Object> {
     @Override
@@ -34,7 +34,7 @@ public class AnalyticsEventSearchResultFieldTests extends AnalyticsEventFieldPar
 
     @Override
     protected ContextParser<AnalyticsEvent.Context, Map<String, Object>> parser() {
-        return AnalyticsEventSearchResultField::fromXContent;
+        return SearchResultAnalyticsEventField::fromXContent;
     }
 
     public static Map<String, Object> randomEventSearchResultField() {

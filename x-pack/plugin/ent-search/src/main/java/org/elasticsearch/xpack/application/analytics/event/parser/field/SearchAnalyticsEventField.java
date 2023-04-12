@@ -44,7 +44,7 @@ public class SearchAnalyticsEventField {
         );
         PARSER.declareObject(
             (b, v) -> b.put(SEARCH_RESULTS_FIELD.getPreferredName(), v),
-            AnalyticsEventSearchResultField::fromXContent,
+            SearchResultAnalyticsEventField::fromXContent,
             SEARCH_RESULTS_FIELD
         );
 

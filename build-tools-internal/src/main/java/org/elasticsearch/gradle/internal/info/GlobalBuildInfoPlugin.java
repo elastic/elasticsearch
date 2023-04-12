@@ -20,6 +20,9 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.plugins.JvmToolchainsPlugin;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.internal.jvm.Jvm;
@@ -27,10 +30,17 @@ import org.gradle.internal.jvm.inspection.JvmInstallationMetadata;
 import org.gradle.internal.jvm.inspection.JvmMetadataDetector;
 import org.gradle.internal.jvm.inspection.JvmVendor;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
+import org.gradle.jvm.toolchain.JavaLauncher;
+import org.gradle.jvm.toolchain.JavaToolchainRequest;
+import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
+import org.gradle.jvm.toolchain.JvmImplementation;
 import org.gradle.jvm.toolchain.JvmVendorSpec;
 import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.jvm.toolchain.internal.JavaInstallationRegistry;
+import org.gradle.platform.Architecture;
+import org.gradle.platform.BuildPlatform;
+import org.gradle.platform.OperatingSystem;
 import org.gradle.util.GradleVersion;
 
 import java.io.BufferedReader;
@@ -56,19 +66,25 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
 
+    private ObjectFactory objectFactory;
     private final JavaInstallationRegistry javaInstallationRegistry;
     private final JvmMetadataDetector metadataDetector;
     private final ProviderFactory providers;
+    private JavaToolchainService toolChainService;
 
     @Inject
     public GlobalBuildInfoPlugin(
+            ObjectFactory objectFactory,
         JavaInstallationRegistry javaInstallationRegistry,
         JvmMetadataDetector metadataDetector,
         ProviderFactory providers
     ) {
+        this.objectFactory = objectFactory;
         this.javaInstallationRegistry = javaInstallationRegistry;
         this.metadataDetector = new ErrorTraceMetadataDetector(metadataDetector);
         this.providers = providers;
+
+
     }
 
     @Override
@@ -76,6 +92,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (project != project.getRootProject()) {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
+        project.getPlugins().apply(JvmToolchainsPlugin.class);
+        toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
         GradleVersion minimumGradleVersion = GradleVersion.version(getResourceContents("/minimumGradleVersion"));
         if (GradleVersion.current().compareTo(minimumGradleVersion) < 0) {
             throw new GradleException("Gradle " + minimumGradleVersion.getVersion() + "+ is required");
@@ -297,33 +315,44 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         Provider<String> javaHomeNames = providers.gradleProperty("org.gradle.java.installations.fromEnv");
         String javaHomeEnvVar = getJavaHomeEnvVarName(version);
 
-        // Provide a useful error if we're looking for a Java home version that we haven't told Gradle about yet
-        Arrays.stream(javaHomeNames.get().split(","))
-            .filter(s -> s.equals(javaHomeEnvVar))
-            .findFirst()
-            .orElseThrow(
-                () -> new GradleException(
-                    "Environment variable '"
-                        + javaHomeEnvVar
-                        + "' is not registered with Gradle installation supplier. Ensure 'org.gradle.java.installations.fromEnv' is "
-                        + "updated in gradle.properties file."
-                )
-            );
-
-        String versionedJavaHome = System.getenv(javaHomeEnvVar);
-        if (versionedJavaHome == null) {
-            final String exceptionMessage = String.format(
-                Locale.ROOT,
-                "$%s must be set to build Elasticsearch. "
-                    + "Note that if the variable was just set you "
-                    + "might have to run `./gradlew --stop` for "
-                    + "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details.",
-                javaHomeEnvVar
-            );
-
-            throw new GradleException(exceptionMessage);
+        System.out.println("version = " + version);
+        System.out.println("javaHomeEnvVar = " + javaHomeEnvVar);
+        String getenv = System.getenv(javaHomeEnvVar);
+        System.out.println("getenv = " + getenv);
+        Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
+        Provider<JavaLauncher> javaLauncherProvider = toolChainService.launcherFor(javaToolchainSpec -> javaToolchainSpec.getLanguageVersion().value(value));
+        try {
+            return javaLauncherProvider.get().getExecutablePath().getAsFile().getCanonicalPath();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
-        return versionedJavaHome;
+//        // Provide a useful error if we're looking for a Java home version that we haven't told Gradle about yet
+//        Arrays.stream(javaHomeNames.get().split(","))
+//            .filter(s -> s.equals(javaHomeEnvVar))
+//            .findFirst()
+//            .orElseThrow(
+//                () -> new GradleException(
+//                    "Environment variable '"
+//                        + javaHomeEnvVar
+//                        + "' is not registered with Gradle installation supplier. Ensure 'org.gradle.java.installations.fromEnv' is "
+//                        + "updated in gradle.properties file."
+//                )
+//            );
+//
+//        String versionedJavaHome = System.getenv(javaHomeEnvVar);
+//        if (versionedJavaHome == null) {
+//            final String exceptionMessage = String.format(
+//                Locale.ROOT,
+//                "$%s must be set to build Elasticsearch. "
+//                    + "Note that if the variable was just set you "
+//                    + "might have to run `./gradlew --stop` for "
+//                    + "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details.",
+//                javaHomeEnvVar
+//            );
+//
+//            throw new GradleException(exceptionMessage);
+//        }
+//        return versionedJavaHome;
     }
 
     private static String getJavaHomeEnvVarName(String version) {

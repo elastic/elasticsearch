@@ -1,17 +1,20 @@
+import org.elasticsearch.gradle.internal.toolchain.JavaToolchainResolverImplementation
+
 pluginManagement {
   repositories {
     mavenCentral()
     gradlePluginPortal()
   }
+
+  includeBuild "build-conventions"
+  includeBuild "build-tools"
+  includeBuild "build-tools-internal"
 }
 
 plugins {
   id "com.gradle.enterprise" version "3.12.6"
+  id 'elasticsearch.java-toolchain'
 }
-
-includeBuild "build-conventions"
-includeBuild "build-tools"
-includeBuild "build-tools-internal"
 
 rootProject.name = "elasticsearch"
 
@@ -19,6 +22,16 @@ dependencyResolutionManagement {
   versionCatalogs {
     buildLibs {
       from(files("gradle/build.versions.toml"))
+    }
+  }
+}
+
+toolchainManagement {
+  jvm {
+    javaRepositories {
+      repository('ourJdks') {
+        resolverClass = JavaToolchainResolverImplementation
+      }
     }
   }
 }

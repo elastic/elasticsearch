@@ -19,7 +19,7 @@ public class VersionPropertiesPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        File workspaceDir = Util.locateElasticsearchWorkspace(project.getGradle());
+        File workspaceDir = Util.locateElasticsearchWorkspace(project);
 
         // Register the service if not done yet
         File infoPath = new File(workspaceDir, "build-tools-internal");

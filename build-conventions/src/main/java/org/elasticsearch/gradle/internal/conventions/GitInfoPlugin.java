@@ -35,9 +35,15 @@ class GitInfoPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        File rootDir = (project.getGradle().getParent() == null) ?
-                project.getRootDir() :
-                project.getGradle().getParent().getRootProject().getRootDir();
+        File rootDir;
+        if(project.getName() == "elasticsearch") {
+            rootDir = project.getRootDir();
+        } else {
+            rootDir = project.getRootDir().getParentFile();
+        }
+//        File rootDir = (project.getGradle().getParent() == null) ?
+//                project.getRootDir() :
+//                project.getGradle().getParent().getRootProject().getRootDir();
 
         gitInfo = objectFactory.property(GitInfo.class).value(factory.provider(() ->
             GitInfo.gitInfo(rootDir)

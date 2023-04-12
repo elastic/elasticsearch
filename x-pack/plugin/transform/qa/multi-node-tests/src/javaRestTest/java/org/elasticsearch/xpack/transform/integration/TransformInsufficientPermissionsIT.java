@@ -50,6 +50,8 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     private static final String SENIOR_HEADER = basicAuthHeaderValue(SENIOR_USERNAME, TEST_PASSWORD_SECURE_STRING);
     private static final String NOT_A_TRANSFORM_ADMIN = "not_a_transform_admin";
     private static final String NOT_A_TRANSFORM_ADMIN_HEADER = basicAuthHeaderValue(NOT_A_TRANSFORM_ADMIN, TEST_PASSWORD_SECURE_STRING);
+    private static final String FLEET_ACCESS_USERNAME = "fleet_access";
+    private static final String FLEET_ACCESS_HEADER = basicAuthHeaderValue(FLEET_ACCESS_USERNAME, TEST_PASSWORD_SECURE_STRING);
 
     private static final int NUM_USERS = 28;
 
@@ -386,6 +388,26 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
         );
 
         previewTransform(Strings.toString(config), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build());
+    }
+
+    public void testFleetIndicesAccess() throws Exception {
+        String transformId = "transform-permissions-fleet";
+        String sourceIndexPattern = ".fleet-agents*";
+        String destIndexName = transformId + "-dest";
+
+        TransformConfig config = createConfig(transformId, sourceIndexPattern, destIndexName, false);
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> previewTransform(
+                Strings.toString(config),
+                RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, FLEET_ACCESS_HEADER).build()
+            )
+        );
+        // The _preview request got past the authorization step (which is what interests us in this test) but failed because the referenced
+        // source indices do not exist.
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(400)));
+        assertThat(e.getMessage(), containsString("Source indices have been deleted or closed."));
     }
 
     @Override

@@ -19,34 +19,36 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.http.HttpPreRequest;
-import org.elasticsearch.http.netty4.HttpHeaderValidator.ValidatableHttpHeaders.ValidationContext;
+import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationContext;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.List;
 import java.util.Map;
 
-public final class HttpHeaderValidator {
+public final class HttpHeadersValidator {
 
-    public static HttpHeaderValidator NOOP_VALIDATOR = new HttpHeaderValidator(
-        ((httpPreRequest, channel, listener) -> listener.onResponse(null))
+    public static HttpHeadersValidator NOOP_VALIDATOR = new HttpHeadersValidator(
+        (httpPreRequest, channel, listener) -> listener.onResponse(null)
     );
 
     private final TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationContext>> validator;
 
-    public HttpHeaderValidator(TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationContext>> validator) {
+    public HttpHeadersValidator(TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationContext>> validator) {
         this.validator = validator;
     }
 
     public Netty4HttpHeaderValidator getValidatorInboundHandler() {
-        TriConsumer<HttpRequest, Channel, ActionListener<Void>> nettyValidator = (httpRequest, channel, listener) -> this.validator.apply(
-            asHttpPreRequest(httpRequest),
-            channel,
-            listener.delegateFailure((l, response) -> {
-                ((ValidatableHttpHeaders) httpRequest.headers()).markValidationSucceeded(response);
+        return new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
+            if ((httpRequest.headers() instanceof ValidatableHttpHeaders) == false) {
+                listener.onFailure(new IllegalStateException("Expected a validatable request for validation"));
+                return;
+            }
+            ValidatableHttpHeaders validatableHttpHeaders = ((ValidatableHttpHeaders) httpRequest.headers());
+            validator.apply(asHttpPreRequest(httpRequest), channel, listener.delegateFailure((l, response) -> {
+                validatableHttpHeaders.markValidationSucceeded(response);
                 l.onResponse(null);
-            })
-        );
-        return new Netty4HttpHeaderValidator(nettyValidator);
+            }));
+        });
     }
 
     public HttpMessage wrapAsValidatableMessage(HttpMessage newlyDecodedMessage) {
@@ -55,12 +57,12 @@ public final class HttpHeaderValidator {
         return new DefaultHttpRequest(httpRequest.protocolVersion(), httpRequest.method(), httpRequest.uri(), validatableHttpHeaders);
     }
 
-    public static ValidationContext extractValidationContext(HttpPreRequest request) {
+    public static ValidationContext extractValidationContext(org.elasticsearch.http.HttpRequest request) {
         ValidatableHttpHeaders authenticatedHeaders = unwrapValidatableHeaders(request);
         return authenticatedHeaders != null ? authenticatedHeaders.validationContextSetOnce.get() : null;
     }
 
-    private static ValidatableHttpHeaders unwrapValidatableHeaders(HttpPreRequest request) {
+    private static ValidatableHttpHeaders unwrapValidatableHeaders(org.elasticsearch.http.HttpRequest request) {
         if (request instanceof Netty4HttpRequest == false) {
             return null;
         }

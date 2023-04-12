@@ -55,7 +55,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.netty4.HttpHeaderValidator;
+import org.elasticsearch.http.netty4.HttpHeadersValidator;
+import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationContext;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -1661,28 +1662,25 @@ public class Security extends Plugin
                     return null;
                 }));
             };
-            final TriConsumer<
-                HttpPreRequest,
-                Channel,
-                ActionListener<HttpHeaderValidator.ValidatableHttpHeaders.ValidationContext>> authenticateMessage = (
-                    httpRequest,
-                    channel,
-                    listener) -> {
-                    var contextPreservingListener = new ContextPreservingActionListener<>(
-                        threadContext.wrapRestorable(threadContext.newStoredContext()),
-                        listener
+            final TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationContext>> authenticateMessage = (
+                httpRequest,
+                channel,
+                listener) -> {
+                var contextPreservingListener = new ContextPreservingActionListener<>(
+                    threadContext.wrapRestorable(threadContext.newStoredContext()),
+                    listener
+                );
+                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                    populatePerRequestThreadContext.accept(httpRequest, channel);
+                    authenticate.accept(
+                        httpRequest,
+                        ActionListener.wrap(
+                            ignored -> contextPreservingListener.onResponse(threadContext.newStoredContext()::restore),
+                            contextPreservingListener::onFailure
+                        )
                     );
-                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                        populatePerRequestThreadContext.accept(httpRequest, channel);
-                        authenticate.accept(
-                            httpRequest,
-                            ActionListener.wrap(
-                                ignored -> contextPreservingListener.onResponse(threadContext.newStoredContext()::restore),
-                                contextPreservingListener::onFailure
-                            )
-                        );
-                    }
-                };
+                }
+            };
             return new Netty4HttpServerTransport(
                 settings,
                 networkService,
@@ -1694,12 +1692,11 @@ public class Security extends Plugin
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
-                new HttpHeaderValidator(authenticateMessage)
+                new HttpHeadersValidator(authenticateMessage)
             ) {
                 @Override
                 protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    HttpHeaderValidator.ValidatableHttpHeaders.ValidationContext validationContext = HttpHeaderValidator
-                        .extractValidationContext(restRequest.getHttpRequest());
+                    ValidationContext validationContext = HttpHeadersValidator.extractValidationContext(restRequest.getHttpRequest());
                     assert validationContext != null : "all HTTP requests must be authenticated";
                     validationContext.assertValid();
                 }

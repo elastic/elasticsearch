@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class Netty4HttpHeaderValidatorTests extends ESTestCase {
+public class Netty4HttpHeadersValidatorTests extends ESTestCase {
 
     private final AtomicReference<Object> header = new AtomicReference<>();
     private final AtomicReference<ActionListener<Void>> listener = new AtomicReference<>();

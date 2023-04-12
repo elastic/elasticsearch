@@ -144,7 +144,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final RecvByteBufAllocator recvByteBufAllocator;
     private final TLSConfig tlsConfig;
     private final AcceptChannelHandler.AcceptPredicate acceptChannelPredicate;
-    private final HttpHeaderValidator headerValidator;
+    private final HttpHeadersValidator headerValidator;
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
@@ -163,7 +163,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         Tracer tracer,
         TLSConfig tlsConfig,
         @Nullable AcceptChannelHandler.AcceptPredicate acceptChannelPredicate,
-        @Nullable HttpHeaderValidator headerValidator
+        @Nullable HttpHeadersValidator headersValidator
     ) {
         super(
             settings,
@@ -180,7 +180,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.sharedGroupFactory = sharedGroupFactory;
         this.tlsConfig = tlsConfig;
         this.acceptChannelPredicate = acceptChannelPredicate;
-        this.headerValidator = headerValidator;
+        this.headerValidator = headersValidator;
 
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
 
@@ -338,14 +338,14 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final HttpHandlingSettings handlingSettings;
         private final TLSConfig tlsConfig;
         private final BiPredicate<String, InetSocketAddress> acceptChannelPredicate;
-        private final HttpHeaderValidator headerValidator;
+        private final HttpHeadersValidator headerValidator;
 
         protected HttpChannelHandler(
             final Netty4HttpServerTransport transport,
             final HttpHandlingSettings handlingSettings,
             final TLSConfig tlsConfig,
             @Nullable final BiPredicate<String, InetSocketAddress> acceptChannelPredicate,
-            @Nullable final HttpHeaderValidator headerValidator
+            @Nullable final HttpHeadersValidator headerValidator
         ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;

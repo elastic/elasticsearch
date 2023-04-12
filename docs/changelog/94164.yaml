@@ -1,5 +1,0 @@
-pr: 94164
-summary: Avoid NPE in Stateless Get/mGet
-area: CRUD
-type: bug
-issues: []

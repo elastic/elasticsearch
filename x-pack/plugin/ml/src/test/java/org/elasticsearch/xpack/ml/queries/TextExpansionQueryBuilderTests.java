@@ -86,11 +86,11 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         // asserts that 2 rewritten queries are the same
         var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
         for (int i = 0; i < NUM_TOKENS; i++) {
-            tokens.add(new TextExpansionResults.WeightedToken(i, (i + 1) * 1.0f));
+            tokens.add(new TextExpansionResults.WeightedToken(Integer.toString(i), (i + 1) * 1.0f));
         }
 
         var response = InferModelAction.Response.builder()
-            .setModelId(request.getModelId())
+            .setId(request.getId())
             .addInferenceResults(List.of(new TextExpansionResults("foo", tokens, randomBoolean())))
             .build();
         @SuppressWarnings("unchecked")  // We matched the method above.

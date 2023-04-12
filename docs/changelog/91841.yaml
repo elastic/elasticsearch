@@ -1,0 +1,5 @@
+pr: 91841
+summary: Use `storedFieldsSpec` to load stored fields for highlighting
+area: Highlighting
+type: enhancement
+issues: []

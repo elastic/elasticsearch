@@ -71,7 +71,7 @@ final class DefaultSearchContext extends SearchContext {
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
     private final LongSupplier relativeTimeSupplier;
-    private SearchType searchType;
+    private final SearchType searchType;
     private final IndexShard indexShard;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
@@ -125,7 +125,7 @@ final class DefaultSearchContext extends SearchContext {
     private Profilers profilers;
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
-    private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
+    private Collector aggCollector;
     private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
 
@@ -745,8 +745,13 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {
-        return queryCollectors;
+    public Collector getAggsCollector() {
+        return aggCollector;
+    }
+
+    @Override
+    public void registerAggsCollector(Collector collector) {
+        this.aggCollector = collector;
     }
 
     @Override

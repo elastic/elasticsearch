@@ -218,7 +218,7 @@ public class AuthenticationConsistencyTests extends ESTestCase {
                 )
             ),
             entry(
-                "Remote access authentication cannot run-as other user",
+                "Cross cluster access authentication cannot run-as other user",
                 encodeAuthentication(
                     new Subject(userBar, realm2),
                     new Subject(

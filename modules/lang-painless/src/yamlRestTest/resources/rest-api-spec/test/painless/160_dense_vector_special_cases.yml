@@ -26,6 +26,9 @@ setup:
 
 ---
 "Indexing of Dense vectors should error when dims don't match defined in the mapping":
+  - skip:
+      version: " - 8.7.99"
+      reason: "exception changed in 8.8"
 
   - do:
       catch: bad_request
@@ -34,7 +37,7 @@ setup:
         id: "1"
         body:
           vector: [10, 2]
-  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.type: "document_parsing_exception" }
 
   - do:
       catch: bad_request
@@ -43,7 +46,7 @@ setup:
         id: "1"
         body:
           indexed_vector: [10, 2]
-  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.type: "document_parsing_exception" }
 
 ---
 "Vectors of mixed integers and floats":

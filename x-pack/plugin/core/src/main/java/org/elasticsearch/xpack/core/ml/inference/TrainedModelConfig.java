@@ -890,40 +890,41 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
                 // packaged model validation
                 validationException = checkIllegalSetting(modelPackageConfig, MODEL_PACKAGE.getPreferredName(), validationException);
-
-                if (packagedModel) {
-                    validationException = checkIllegalPackagedModelSetting(
-                        description,
-                        DESCRIPTION.getPreferredName(),
-                        validationException
-                    );
-                    validationException = checkIllegalPackagedModelSetting(definition, DEFINITION.getPreferredName(), validationException);
-                    validationException = checkIllegalPackagedModelSetting(modelType, MODEL_TYPE.getPreferredName(), validationException);
-                    validationException = checkIllegalPackagedModelSetting(metadata, METADATA.getPreferredName(), validationException);
-                    validationException = checkIllegalPackagedModelSetting(
-                        modelSize,
-                        MODEL_SIZE_BYTES.getPreferredName(),
-                        validationException
-                    );
-                    validationException = checkIllegalPackagedModelSetting(
-                        inferenceConfig,
-                        INFERENCE_CONFIG.getPreferredName(),
-                        validationException
-                    );
-                    if (tags != null && tags.isEmpty() == false) {
-                        validationException = addValidationError(
-                            "illegal to set [tags] at inference model creation for packaged model",
-                            validationException
-                        );
-                    }
-                }
-
             }
             if (validationException != null) {
                 throw validationException;
             }
 
             return this;
+        }
+
+        /**
+         * Validate that fields defined by the packaged aren't defined in the request.
+         *
+         * To be called by the transport after checking that the package exists.
+         */
+        public void validateNoPackageOverrides() {
+            ActionRequestValidationException validationException = null;
+            validationException = checkIllegalPackagedModelSetting(description, DESCRIPTION.getPreferredName(), validationException);
+            validationException = checkIllegalPackagedModelSetting(definition, DEFINITION.getPreferredName(), validationException);
+            validationException = checkIllegalPackagedModelSetting(modelType, MODEL_TYPE.getPreferredName(), validationException);
+            validationException = checkIllegalPackagedModelSetting(metadata, METADATA.getPreferredName(), validationException);
+            validationException = checkIllegalPackagedModelSetting(modelSize, MODEL_SIZE_BYTES.getPreferredName(), validationException);
+            validationException = checkIllegalPackagedModelSetting(
+                inferenceConfig,
+                INFERENCE_CONFIG.getPreferredName(),
+                validationException
+            );
+            if (tags != null && tags.isEmpty() == false) {
+                validationException = addValidationError(
+                    "illegal to set [tags] at inference model creation for packaged model",
+                    validationException
+                );
+            }
+
+            if (validationException != null) {
+                throw validationException;
+            }
         }
 
         private static ActionRequestValidationException checkIllegalSetting(

@@ -85,14 +85,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         restHandler = mock(RestHandler.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService, new AuditTrailService(null, null));
-        filter = new SecurityRestFilter(
-            true,
-            threadContext,
-            authcService,
-            secondaryAuthenticator,
-            new AuditTrailService(null, null),
-            restHandler
-        );
+        filter = new SecurityRestFilter(true, threadContext, secondaryAuthenticator, new AuditTrailService(null, null), restHandler);
     }
 
     public void testProcess() throws Exception {
@@ -158,14 +151,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessWithSecurityDisabled() throws Exception {
-        filter = new SecurityRestFilter(
-            false,
-            threadContext,
-            authcService,
-            secondaryAuthenticator,
-            mock(AuditTrailService.class),
-            restHandler
-        );
+        filter = new SecurityRestFilter(false, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), restHandler);
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
@@ -173,14 +159,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessAuthenticationFailedNoTrace() throws Exception {
-        filter = new SecurityRestFilter(
-            true,
-            threadContext,
-            authcService,
-            secondaryAuthenticator,
-            mock(AuditTrailService.class),
-            restHandler
-        );
+        filter = new SecurityRestFilter(true, threadContext, secondaryAuthenticator, mock(AuditTrailService.class), restHandler);
         testProcessAuthenticationFailed(
             randomBoolean()
                 ? authenticationError("failed authn")
@@ -306,7 +285,6 @@ public class SecurityRestFilterTests extends ESTestCase {
         filter = new SecurityRestFilter(
             true,
             threadContext,
-            authcService,
             secondaryAuthenticator,
             new AuditTrailService(auditTrail, licenseState),
             restHandler

@@ -149,6 +149,8 @@ type.
 
 NOTE: Counter fields do come with a limitation in aggregations. Only the following aggregations are supported with the `counter` field: `rate`, `histogram`, `range`, `min`, `max`, `top_metrics` and `variable_width_histogram`.
 
+NOTE: Counter fields aren't accessible in Kibana due to https://github.com/elastic/kibana/issues/152912[an integration issue] between Elasticsearch and Kibana. This means that no visualizations can be made with counter fields. This issue will be fixed in 8.8.0.
+
 // tag::time-series-metric-gauge[]
 `gauge`:: A number that can increase or decrease. For example, a temperature or
 available disk space.

@@ -44,16 +44,20 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
     // TODO fill in the version indicating an inferred version
     private static final TransportVersion INFERRED_VERSION = TransportVersion.V_8_8_0;
 
-    private final MasterServiceTaskQueue<NodeTransportVersionTask> masterService;
+    private final MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue;
     private final ClusterAdminClient client;
     private final Set<String> pendingNodes = Collections.synchronizedSet(new HashSet<>());
 
     public TransportVersionsFixupListener(ClusterService service, ClusterAdminClient client) {
-        masterService = service.createTaskQueue("fixup-transport-versions", Priority.LOW, new TransportVersionUpdater());
+        this(service.createTaskQueue("fixup-transport-versions", Priority.LOW, new TransportVersionUpdater()), client);
+    }
+
+    TransportVersionsFixupListener(MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue, ClusterAdminClient client) {
+        this.taskQueue = taskQueue;
         this.client = client;
     }
 
-    private record NodeTransportVersionTask(Map<String, TransportVersion> results) implements ClusterStateTaskListener {
+    record NodeTransportVersionTask(Map<String, TransportVersion> results) implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
             Log.error("Could not apply transport version for nodes {} to cluster state", results.keySet(), e);
@@ -80,18 +84,19 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster() == false) return; // only if we're master
 
-        // if the min node version >= 8.8.0, and the min transport version is inferred,
+        // if the min node version >= 8.8.0, and the cluster state has some inferred transport versions,
         // then refresh all inferred transport versions to their real versions
         // now that everything should understand cluster state with transport versions
+        Set<String> inferredNodes;
         if (event.state().nodes().getMinNodeVersion().onOrAfter(Version.V_8_8_0)
-            && event.state().getMinTransportVersion().equals(INFERRED_VERSION)) {
+            && (inferredNodes = event.state().nodesInferredTransportVersions()).isEmpty() == false) {
 
             // find all the relevant nodes
             Set<String> nodes = new HashSet<>();
             synchronized (pendingNodes) {
-                for (Map.Entry<String, TransportVersion> e : event.state().transportVersions().entrySet()) {
-                    if (e.getValue().equals(INFERRED_VERSION) && pendingNodes.add(e.getKey())) {
-                        nodes.add(e.getKey());
+                for (String n : inferredNodes) {
+                    if (pendingNodes.add(n)) {
+                        nodes.add(n);
                     }
                 }
             }
@@ -101,7 +106,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             }
 
             NodesInfoRequest request = new NodesInfoRequest(nodes.toArray(String[]::new));
-            request.clear().addMetric(ClusterState.Metric.NODES.toString());
+            request.clear();    // only requesting base data
             client.nodesInfo(request, new ActionListener<>() {
                 @Override
                 public void onResponse(NodesInfoResponse response) {
@@ -129,7 +134,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             .collect(Collectors.toUnmodifiableMap(n -> n.getNode().getId(), NodeInfo::getTransportVersion));
 
         if (results.isEmpty() == false) {
-            masterService.submitTask("update-transport-version", new NodeTransportVersionTask(results), null);
+            taskQueue.submitTask("update-transport-version", new NodeTransportVersionTask(results), null);
         }
     }
 }

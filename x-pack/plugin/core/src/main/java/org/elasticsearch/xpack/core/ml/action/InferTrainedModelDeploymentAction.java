@@ -75,7 +75,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
         static {
-            PARSER.declareString(Request.Builder::setModelId, InferModelAction.Request.MODEL_ID);
+            PARSER.declareString(Request.Builder::setModelId, InferModelAction.Request.DEPLOYMENT_ID);
             PARSER.declareObjectArray(Request.Builder::setDocs, (p, c) -> p.mapOrdered(), DOCS);
             PARSER.declareString(Request.Builder::setInferenceTimeout, TIMEOUT);
             PARSER.declareNamedObject(
@@ -110,7 +110,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             TimeValue inferenceTimeout
         ) {
             return new Request(
-                ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID),
+                ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.DEPLOYMENT_ID),
                 update,
                 ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
                 null,
@@ -126,7 +126,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             TimeValue inferenceTimeout
         ) {
             return new Request(
-                ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID),
+                ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.DEPLOYMENT_ID),
                 update,
                 List.of(),
                 ExceptionsHelper.requireNonNull(textInput, "inference text input"),
@@ -144,7 +144,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             boolean highPriority,
             TimeValue inferenceTimeout
         ) {
-            this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
+            this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.DEPLOYMENT_ID);
             this.docs = docs;
             this.textInput = textInput;
             this.update = update;
@@ -278,7 +278,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             private Builder() {}
 
             public Builder setModelId(String modelId) {
-                this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
+                this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.DEPLOYMENT_ID);
                 return this;
             }
 

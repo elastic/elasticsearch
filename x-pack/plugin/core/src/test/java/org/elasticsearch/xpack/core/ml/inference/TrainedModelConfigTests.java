@@ -403,7 +403,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         TrainedModelConfig.Builder builder = TrainedModelConfig.builder().setModelId(modelId);
 
         // all fine
-        assertNotNull(TrainedModelConfig.builder().setModelId(modelId).validate(true));
+        assertNotNull(builder.validate(true));
+        assertNotNull(builder.validateNoPackageOverrides());
 
         String field = "";
         switch (randomIntBetween(0, 4)) {
@@ -434,7 +435,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         ActionRequestValidationException ex = expectThrows(
             ActionRequestValidationException.class,
             "expected to throw for field: " + field,
-            () -> builder.validate(true)
+            () -> builder.validateNoPackageOverrides()
         );
         assertThat(ex.getMessage(), containsString("illegal to set [" + field + "] at inference model creation for packaged model;"));
     }

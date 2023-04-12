@@ -903,7 +903,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
          *
          * To be called by the transport after checking that the package exists.
          */
-        public void validateNoPackageOverrides() {
+        public Builder validateNoPackageOverrides() {
             ActionRequestValidationException validationException = null;
             validationException = checkIllegalPackagedModelSetting(description, DESCRIPTION.getPreferredName(), validationException);
             validationException = checkIllegalPackagedModelSetting(definition, DEFINITION.getPreferredName(), validationException);
@@ -925,6 +925,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             if (validationException != null) {
                 throw validationException;
             }
+
+            return this;
         }
 
         private static ActionRequestValidationException checkIllegalSetting(

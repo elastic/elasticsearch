@@ -17,6 +17,7 @@ import org.elasticsearch.ingest.WrappingProcessor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -198,6 +199,32 @@ public class RerouteProcessorTests extends ESTestCase {
             processor.execute(ingestDocument);
             assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("bar"));
         }
+    }
+
+    public void testDatasetSanitization() {
+        assertDatasetSanitization("\\/*?\"<>| ,#:-", "_____________");
+        assertDatasetSanitization("foo*bar", "foo_bar");
+    }
+
+    public void testNamespaceSanitization() {
+        assertNamespaceSanitization("\\/*?\"<>| ,#:-", "____________-");
+        assertNamespaceSanitization("foo*bar", "foo_bar");
+    }
+
+    private static void assertDatasetSanitization(String dataset, String sanitizedDataset) {
+        assertThat(
+            RerouteProcessor.DataStreamValueSource.dataset("{{foo}}")
+                .resolve(RandomDocumentPicks.randomIngestDocument(random(), Map.of("foo", dataset))),
+            equalTo(sanitizedDataset)
+        );
+    }
+
+    private static void assertNamespaceSanitization(String namespace, String sanitizedNamespace) {
+        assertThat(
+            RerouteProcessor.DataStreamValueSource.namespace("{{foo}}")
+                .resolve(RandomDocumentPicks.randomIngestDocument(random(), Map.of("foo", namespace))),
+            equalTo(sanitizedNamespace)
+        );
     }
 
     private RerouteProcessor createRerouteProcessor(List<String> dataset, List<String> namespace) {

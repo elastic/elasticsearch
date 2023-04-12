@@ -63,14 +63,24 @@ public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestC
         assertThat(originalConfig, sameInstance(new TextEmbeddingConfigUpdate.Builder().build().apply(originalConfig)));
 
         assertThat(
-            new TextEmbeddingConfig(originalConfig.getVocabularyConfig(), originalConfig.getTokenization(), "ml-results"),
+            new TextEmbeddingConfig(
+                originalConfig.getVocabularyConfig(),
+                originalConfig.getTokenization(),
+                "ml-results",
+                originalConfig.getEmbeddingSize()
+            ),
             equalTo(new TextEmbeddingConfigUpdate.Builder().setResultsField("ml-results").build().apply(originalConfig))
         );
 
         Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
         Tokenization tokenization = cloneWithNewTruncation(originalConfig.getTokenization(), truncate);
         assertThat(
-            new TextEmbeddingConfig(originalConfig.getVocabularyConfig(), tokenization, originalConfig.getResultsField()),
+            new TextEmbeddingConfig(
+                originalConfig.getVocabularyConfig(),
+                tokenization,
+                originalConfig.getResultsField(),
+                originalConfig.getEmbeddingSize()
+            ),
             equalTo(
                 new TextEmbeddingConfigUpdate.Builder().setTokenizationUpdate(
                     createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)

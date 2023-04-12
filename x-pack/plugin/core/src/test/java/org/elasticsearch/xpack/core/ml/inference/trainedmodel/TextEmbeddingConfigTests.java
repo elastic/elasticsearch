@@ -18,11 +18,21 @@ import java.util.function.Predicate;
 public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEmbeddingConfig> {
 
     public static TextEmbeddingConfig mutateForVersion(TextEmbeddingConfig instance, TransportVersion version) {
-        return new TextEmbeddingConfig(
-            instance.getVocabularyConfig(),
-            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
-            instance.getResultsField()
-        );
+        if (version.before(TransportVersion.V_8_8_0)) {
+            return new TextEmbeddingConfig(
+                instance.getVocabularyConfig(),
+                InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+                instance.getResultsField(),
+                null
+            );
+        } else {
+            return new TextEmbeddingConfig(
+                instance.getVocabularyConfig(),
+                InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+                instance.getResultsField(),
+                instance.getEmbeddingSize()
+            );
+        }
     }
 
     @Override
@@ -70,7 +80,8 @@ public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEm
                     MPNetTokenizationTests.createRandom(),
                     RobertaTokenizationTests.createRandom()
                 ),
-            randomBoolean() ? null : randomAlphaOfLength(7)
+            randomBoolean() ? null : randomAlphaOfLength(7),
+            randomBoolean() ? null : randomIntBetween(1, 1000)
         );
     }
 }

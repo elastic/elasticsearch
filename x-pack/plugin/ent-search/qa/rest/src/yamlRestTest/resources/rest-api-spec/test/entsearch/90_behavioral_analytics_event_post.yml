@@ -1,12 +1,12 @@
 setup:
   - do:
-      behavioral_analytics.put:
+      search_application.put_behavioral_analytics:
         name: my-test-analytics-collection
 
 ---
 teardown:
   - do:
-      behavioral_analytics.delete:
+      search_application.delete_behavioral_analytics:
         name: my-test-analytics-collection
         ignore: 404
 
@@ -15,7 +15,7 @@ teardown:
 ---
 "Post page_view analytics event":
   - do:
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
         body:
@@ -30,7 +30,7 @@ teardown:
 "Post page_view analytics event - Missing page.url":
   - do:
       catch: "bad_request"
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
         body:
@@ -43,7 +43,7 @@ teardown:
 ---
 "Post page_view analytics event - With document":
   - do:
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
         body:
@@ -60,7 +60,7 @@ teardown:
 ---
 "Post page_view analytics event - With page title":
   - do:
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
         body:
@@ -75,7 +75,7 @@ teardown:
 ---
 "Post page_view analytics event - With referrer":
   - do:
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
         body:
@@ -91,7 +91,7 @@ teardown:
 ---
 "Post search analytics event":
   - do:
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
         body:
@@ -106,7 +106,7 @@ teardown:
 "Post search analytics event – Missing search query":
   - do:
       catch: "bad_request"
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
         body:
@@ -119,7 +119,7 @@ teardown:
 ---
 "Post search analytics event - With sort order":
   - do:
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
         body:
@@ -135,7 +135,7 @@ teardown:
 ---
 "Post search analytics event - With sort name and direction":
   - do:
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
         body:
@@ -152,7 +152,7 @@ teardown:
 ---
 "Post search analytics event - With pagination":
   - do:
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
         body:
@@ -169,7 +169,7 @@ teardown:
 ---
 "Post search analytics event - With search application":
   - do:
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
         body:
@@ -184,7 +184,7 @@ teardown:
 ---
 "Post search analytics event - With search results":
   - do:
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
         body:
@@ -214,7 +214,7 @@ teardown:
 ---
 "Post search_click analytics event":
   - do:
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
         body:
@@ -232,7 +232,7 @@ teardown:
 ---
 "Post search_click analytics event - Page Only":
   - do:
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
         body:
@@ -248,7 +248,7 @@ teardown:
 ---
 "Post search_click analytics event - Document Only":
   - do:
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
         body:
@@ -266,7 +266,7 @@ teardown:
 "Post search_click analytics event – Missing search query":
   - do:
       catch: "bad_request"
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
         body:
@@ -282,7 +282,7 @@ teardown:
 "Post search_click analytics event – Missing page url and document":
   - do:
       catch: "bad_request"
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
         body:
@@ -299,7 +299,7 @@ teardown:
 "Post analytics event - Analytics collection does not exist":
   - do:
       catch: "missing"
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: test-nonexistent-analytics-collection
         event_type: "page_view"
         body:
@@ -314,7 +314,7 @@ teardown:
 "Post analytics event - Event type does not exist":
   - do:
       catch: "bad_request"
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "nonexistent-event-type"
         body:
@@ -331,7 +331,7 @@ teardown:
 "Post page_view analytics event - Missing session.id":
   - do:
       catch: "bad_request"
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
         body:
@@ -345,7 +345,7 @@ teardown:
 "Post page_view analytics event - Missing user.id":
   - do:
       catch: "bad_request"
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
         body:
@@ -359,7 +359,7 @@ teardown:
 "Post analytics event - Unknown event field":
   - do:
       catch: "bad_request"
-      behavioral_analytics.post_event:
+      search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "nonexistent-event-type"
         body:

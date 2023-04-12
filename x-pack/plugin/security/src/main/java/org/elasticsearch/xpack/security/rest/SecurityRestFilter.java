@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.Maps;
@@ -125,19 +124,14 @@ public class SecurityRestFilter implements RestHandler {
     protected void handleException(ActionType actionType, RestRequest request, RestChannel channel, Exception e) {
         logger.debug(() -> format("%s failed for REST request [%s]", actionType, request.uri()), e);
         threadContext.sanitizeHeaders();
-        final RestStatus restStatus = ExceptionsHelper.status(e);
         try {
-            channel.sendResponse(new RestResponse(channel, restStatus, e) {
-
-                @Override
-                protected boolean skipStackTrace() {
-                    return restStatus == RestStatus.UNAUTHORIZED;
-                }
+            channel.sendResponse(new RestResponse(channel, e) {
 
                 @Override
                 public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
                     if (actionType != ActionType.RequestHandling
-                        || (restStatus == RestStatus.UNAUTHORIZED || restStatus == RestStatus.FORBIDDEN)) {
+                        || status() == RestStatus.UNAUTHORIZED
+                        || status() == RestStatus.FORBIDDEN) {
                         if (headers.containsKey("Warning")) {
                             headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
                         }

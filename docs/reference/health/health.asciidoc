@@ -384,7 +384,7 @@ watermark threshold>>.
 [[health-api-response-details-shards-usage]]
 ===== shards_capacity
 `data`::
-(map) A view with information about the current capacity of shards for data nodes that do not belong to the frozen layer.
+(map) A view with information about the current capacity of shards for data nodes that do not belong to the frozen tier.
 +
 .Properties of `data`
 [%collapsible%open]
@@ -398,16 +398,16 @@ watermark threshold>>.
 =====
 
 `frozen`::
-(map) A view with information about the current capacity of shards for data nodes that belong to the frozen layer.
+(map) A view with information about the current capacity of shards for data nodes that belong to the frozen tier.
 +
 .Properties of `frozen`
 [%collapsible%open]
 =====
 `max_shards_in_cluster`::
-(int) Indicates the maximum number of shards that the cluster can hold.
+(int) Indicates the maximum number of shards the cluster can hold for the partially mounted indices.
 
 `current_used_shards`::
-(optional, int) The total number of shards hold by the cluster. Only displayed in the case the indicator's status is `red` or `yellow`.
+(optional, int) The total number of shards the partially mounted indices have in the cluster. Only displayed in the case the indicator's status is `red` or `yellow`.
 
 =====
 

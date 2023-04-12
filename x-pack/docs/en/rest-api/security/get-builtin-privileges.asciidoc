@@ -106,6 +106,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "read_pipeline",
     "read_security",
     "read_slm",
+    "post_behavioral_analytics_event",
     "transport_client"
   ],
   "index" : [

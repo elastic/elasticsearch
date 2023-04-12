@@ -38,6 +38,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.PluginsService;
 
@@ -170,13 +171,14 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
         // Check that the translog on the object store contains the correct sequence numbers and number of operations
         var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode.getName());
-        var reader = new TranslogReplicatorReader(indexObjectStoreService, shardId, 0);
+        var reader = new TranslogReplicatorReader(indexObjectStoreService, shardId);
         long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         long totalOps = 0;
-        while (reader.hasNext()) {
-            var translogEntry = reader.next();
-            maxSeqNo = SequenceNumbers.max(maxSeqNo, translogEntry.metadata().maxSeqNo());
-            totalOps += translogEntry.metadata().totalOps();
+        Translog.Operation next = reader.next();
+        while (next != null) {
+            maxSeqNo = SequenceNumbers.max(maxSeqNo, next.seqNo());
+            totalOps++;
+            next = reader.next();
         }
         assertThat(maxSeqNo, equalTo(0L));
         assertThat(totalOps, equalTo(1L));
@@ -216,13 +218,14 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
                 // Check that the translog on the object store contains the correct sequence numbers and number of operations
                 var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode.getName());
-                var reader = new TranslogReplicatorReader(indexObjectStoreService, objShardId, 0);
+                var reader = new TranslogReplicatorReader(indexObjectStoreService, objShardId);
                 long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
                 long totalOps = 0;
-                while (reader.hasNext()) {
-                    var translogEntry = reader.next();
-                    maxSeqNo = SequenceNumbers.max(maxSeqNo, translogEntry.metadata().maxSeqNo());
-                    totalOps += translogEntry.metadata().totalOps();
+                Translog.Operation next = reader.next();
+                while (next != null) {
+                    maxSeqNo = SequenceNumbers.max(maxSeqNo, next.seqNo());
+                    totalOps++;
+                    next = reader.next();
                 }
                 assertThat(maxSeqNo, equalTo(indexShard.seqNoStats().getMaxSeqNo()));
                 assertThat(totalOps, equalTo(indexShard.seqNoStats().getMaxSeqNo() + 1));

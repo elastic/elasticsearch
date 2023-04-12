@@ -201,33 +201,38 @@ public abstract class BlockDocValuesReader {
         public LongBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
             var blockBuilder = LongBlock.newBlockBuilder(positionCount);
-            int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
-                if (lastDoc >= doc) {
+                if (this.docID >= doc) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
-                if (numericDocValues.advanceExact(doc)) {
-                    blockBuilder.appendLong(numericDocValues.nextValue());
-                } else {
-                    blockBuilder.appendNull();
-                }
-                lastDoc = doc;
-                this.docID = doc;
+                read(doc, blockBuilder);
             }
             return blockBuilder.build();
         }
 
         @Override
         public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
-            this.docID = docId;
-            LongBlock.Builder blockBuilder = (LongBlock.Builder) builder;
-            if (numericDocValues.advanceExact(docId)) {
-                blockBuilder.appendLong(numericDocValues.nextValue());
-            } else {
-                blockBuilder.appendNull();
+            read(docId, (LongBlock.Builder) builder);
+        }
+
+        private void read(int doc, LongBlock.Builder builder) throws IOException {
+            this.docID = doc;
+            if (false == numericDocValues.advanceExact(doc)) {
+                builder.appendNull();
+                return;
             }
+            int count = numericDocValues.docValueCount();
+            if (count == 1) {
+                builder.appendLong(numericDocValues.nextValue());
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                builder.appendLong(numericDocValues.nextValue());
+            }
+            builder.endPositionEntry();
         }
 
         @Override
@@ -313,34 +318,39 @@ public abstract class BlockDocValuesReader {
         public IntBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
             var blockBuilder = builder(positionCount);
-            int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
-                if (lastDoc >= doc) {
+                if (this.docID >= doc) {
                     // TODO this may not be true after sorting many docs in a single segment.
                     throw new IllegalStateException("docs within same block must be in order");
                 }
-                if (numericDocValues.advanceExact(doc)) {
-                    blockBuilder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
-                } else {
-                    blockBuilder.appendNull();
-                }
-                lastDoc = doc;
-                this.docID = doc;
+                read(doc, blockBuilder);
             }
             return blockBuilder.build();
         }
 
         @Override
         public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
-            this.docID = docId;
-            IntBlock.Builder blockBuilder = (IntBlock.Builder) builder;
-            if (numericDocValues.advanceExact(docId)) {
-                blockBuilder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
-            } else {
-                blockBuilder.appendNull();
+            read(docId, (IntBlock.Builder) builder);
+        }
+
+        private void read(int doc, IntBlock.Builder builder) throws IOException {
+            this.docID = doc;
+            if (false == numericDocValues.advanceExact(doc)) {
+                builder.appendNull();
+                return;
             }
+            int count = numericDocValues.docValueCount();
+            if (count == 1) {
+                builder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                builder.appendInt(Math.toIntExact(numericDocValues.nextValue()));
+            }
+            builder.endPositionEntry();
         }
 
         @Override
@@ -429,33 +439,38 @@ public abstract class BlockDocValuesReader {
         public DoubleBlock readValues(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
             var blockBuilder = DoubleBlock.newBlockBuilder(positionCount);
-            int lastDoc = -1;
             for (int i = 0; i < positionCount; i++) {
                 int doc = docs.getInt(i);
                 // docs within same block must be in order
-                if (lastDoc >= doc) {
+                if (this.docID >= doc) {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
-                if (numericDocValues.advanceExact(doc)) {
-                    blockBuilder.appendDouble(numericDocValues.nextValue());
-                } else {
-                    blockBuilder.appendNull();
-                }
-                lastDoc = doc;
-                this.docID = doc;
+                read(doc, blockBuilder);
             }
             return blockBuilder.build();
         }
 
         @Override
         public void readValuesFromSingleDoc(int docId, Block.Builder builder) throws IOException {
-            this.docID = docId;
-            DoubleBlock.Builder blockBuilder = (DoubleBlock.Builder) builder;
-            if (numericDocValues.advanceExact(this.docID)) {
-                blockBuilder.appendDouble(numericDocValues.nextValue());
-            } else {
-                blockBuilder.appendNull();
+            read(docId, (DoubleBlock.Builder) builder);
+        }
+
+        private void read(int doc, DoubleBlock.Builder builder) throws IOException {
+            this.docID = doc;
+            if (false == numericDocValues.advanceExact(doc)) {
+                builder.appendNull();
+                return;
             }
+            int count = numericDocValues.docValueCount();
+            if (count == 1) {
+                builder.appendDouble(numericDocValues.nextValue());
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                builder.appendDouble(numericDocValues.nextValue());
+            }
+            builder.endPositionEntry();
         }
 
         @Override

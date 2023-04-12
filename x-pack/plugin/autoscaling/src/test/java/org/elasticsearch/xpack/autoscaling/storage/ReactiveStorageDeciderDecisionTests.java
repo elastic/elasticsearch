@@ -60,6 +60,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -618,7 +619,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         RoutingAllocation allocation = createRoutingAllocation(state, deciders);
         // There could be duplicated of shard ids, and numOfShards is calculated based on them,
         // so we can't just collect to the shard ids to `TreeSet`
-        List<ShardId> allocatableShards = state.getRoutingNodes()
+        List<ShardRouting> allocatableShards = state.getRoutingNodes()
             .unassigned()
             .stream()
             .filter(shard -> subjectShards.contains(shard.shardId()))

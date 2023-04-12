@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -36,7 +37,12 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        public static Request parseRequest(String modelId, boolean deferDefinitionValidation, XContentParser parser) {
+        public static Request parseRequest(
+            String modelId,
+            boolean deferDefinitionValidation,
+            boolean waitForCompletion,
+            XContentParser parser
+        ) {
             TrainedModelConfig.Builder builder = TrainedModelConfig.STRICT_PARSER.apply(parser, null);
 
             if (builder.getModelId() == null) {
@@ -54,21 +60,33 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
             }
             // Validations are done against the builder so we can build the full config object.
             // This allows us to not worry about serializing a builder class between nodes.
-            return new Request(builder.validate(true).build(), deferDefinitionValidation);
+            return new Request(builder.validate(true).build(), deferDefinitionValidation, waitForCompletion);
         }
 
         private final TrainedModelConfig config;
         private final boolean deferDefinitionDecompression;
+        private final boolean waitForCompletion;
 
+        // TODO: remove this constructor after re-factoring ML parts
         public Request(TrainedModelConfig config, boolean deferDefinitionDecompression) {
+            this(config, deferDefinitionDecompression, false);
+        }
+
+        public Request(TrainedModelConfig config, boolean deferDefinitionDecompression, boolean waitForCompletion) {
             this.config = config;
             this.deferDefinitionDecompression = deferDefinitionDecompression;
+            this.waitForCompletion = waitForCompletion;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.config = new TrainedModelConfig(in);
             this.deferDefinitionDecompression = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+                this.waitForCompletion = in.readBoolean();
+            } else {
+                this.waitForCompletion = false;
+            }
         }
 
         public TrainedModelConfig getTrainedModelConfig() {
@@ -95,11 +113,18 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
             return deferDefinitionDecompression;
         }
 
+        public boolean isWaitForCompletion() {
+            return waitForCompletion;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             config.writeTo(out);
             out.writeBoolean(deferDefinitionDecompression);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+                out.writeBoolean(waitForCompletion);
+            }
         }
 
         @Override
@@ -107,12 +132,14 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(config, request.config) && deferDefinitionDecompression == request.deferDefinitionDecompression;
+            return Objects.equals(config, request.config)
+                && deferDefinitionDecompression == request.deferDefinitionDecompression
+                && waitForCompletion == request.waitForCompletion;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(config, deferDefinitionDecompression);
+            return Objects.hash(config, deferDefinitionDecompression, waitForCompletion);
         }
 
         @Override

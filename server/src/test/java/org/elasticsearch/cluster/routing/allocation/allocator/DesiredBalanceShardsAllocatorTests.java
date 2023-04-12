@@ -48,11 +48,11 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -63,12 +63,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
@@ -403,16 +397,38 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         var node1 = newNode(LOCAL_NODE_ID);
         var node2 = newNode(OTHER_NODE_ID);
+
+        var shardId = new ShardId("test-index", UUIDs.randomBase64UUID(), 0);
+        var index = createIndex(shardId.getIndexName());
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()))
+            .metadata(Metadata.builder().put(index, false).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(index).build())
             .build();
 
         var threadPool = new TestThreadPool(getTestName());
         var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
-        var desiredBalanceComputer = mock(DesiredBalanceComputer.class);
+
+        var delegateAllocator = createShardsAllocator();
+
+        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, delegateAllocator) {
+
+            final AtomicReference<DesiredBalance> previousDesiredBalanceRef = new AtomicReference<>();
+
+            @Override
+            public DesiredBalance compute(
+                DesiredBalance previousDesiredBalance,
+                DesiredBalanceInput desiredBalanceInput,
+                Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
+                Predicate<DesiredBalanceInput> isFresh
+            ) {
+                previousDesiredBalanceRef.set(previousDesiredBalance);
+                return super.compute(previousDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, isFresh);
+            }
+        };
 
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
-            createShardsAllocator(),
+            delegateAllocator,
             threadPool,
             clusterService,
             desiredBalanceComputer,
@@ -421,37 +437,28 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
 
-        var shardId = new ShardId("test-index", UUIDs.randomBase64UUID(), 0);
-        var computedDesiredBalance1 = new DesiredBalance(0, Map.of(shardId, new ShardAssignment(Set.of("node-1"), 1, 0, 0)));
-        var computedDesiredBalance2 = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-2"), 1, 0, 0)));
-        var computedDesiredBalance3 = new DesiredBalance(2, Map.of(shardId, new ShardAssignment(Set.of("node-3"), 1, 0, 0)));
-        // initial allocation
-        {
-            when(desiredBalanceComputer.compute(any(), any(), any(), any())).thenReturn(computedDesiredBalance1);
+        try {
+            // initial computation is based on DesiredBalance.INITIAL
             rerouteAndWait(service, clusterState, "initial-allocation");
-            verify(desiredBalanceComputer).compute(eq(DesiredBalance.INITIAL), any(), any(), any());// based on initial empty balance
-            reset(desiredBalanceComputer);
-        }
+            assertThat(desiredBalanceComputer.previousDesiredBalanceRef.get(), equalTo(DesiredBalance.INITIAL));
 
-        // followup allocation
-        {
-            when(desiredBalanceComputer.compute(any(), any(), any(), any())).thenReturn(computedDesiredBalance2);
-            rerouteAndWait(service, clusterState, "followup-allocation");
-            verify(desiredBalanceComputer).compute(eq(computedDesiredBalance1), any(), any(), any());// based on previous balance
-            reset(desiredBalanceComputer);
-        }
+            // any next computation is based on current desired balance
+            var current = desiredBalanceShardsAllocator.getDesiredBalance();
+            rerouteAndWait(service, clusterState, "next-allocation");
+            assertThat(desiredBalanceComputer.previousDesiredBalanceRef.get(), equalTo(current));
 
-        // reset desired balance
-        desiredBalanceShardsAllocator.resetDesiredBalance();
-        {
-            when(desiredBalanceComputer.compute(any(), any(), any(), any())).thenReturn(computedDesiredBalance3);
+            // when desired balance is resetted then computation is based on balance with no previous assignments
+            desiredBalanceShardsAllocator.resetDesiredBalance();
+            current = desiredBalanceShardsAllocator.getDesiredBalance();
             rerouteAndWait(service, clusterState, "reset-desired-balance");
-            verify(desiredBalanceComputer).compute(eq(new DesiredBalance(1, Map.of())), any(), any(), any());// based on resetted/empty
-            reset(desiredBalanceComputer);
+            assertThat(
+                desiredBalanceComputer.previousDesiredBalanceRef.get(),
+                equalTo(new DesiredBalance(current.lastConvergedIndex(), Map.of()))
+            );
+        } finally {
+            clusterService.close();
+            terminate(threadPool);
         }
-
-        clusterService.close();
-        terminate(threadPool);
     }
 
     private static IndexMetadata createIndex(String name) {

@@ -69,6 +69,7 @@ public class BulkProcessorFactoryTests extends ESTestCase {
 
     public void testMaxBulkActions() throws InterruptedException {
         int maxBulkActions = randomIntBetween(1, 10);
+        int totalEvents = randomIntBetween(1, 5) * maxBulkActions + randomIntBetween(1, maxBulkActions);
 
         BulkProcessorConfig config = mock(BulkProcessorConfig.class);
         doReturn(maxBulkActions).when(config).maxNumberOfEventsPerBulk();
@@ -79,23 +80,24 @@ public class BulkProcessorFactoryTests extends ESTestCase {
         doReturn(testThreadPool).when(client).threadPool();
         BulkProcessor2 bulkProcessor = new BulkProcessorFactory(config).create(client);
 
-        for (int i = 0; i <= 2 * maxBulkActions; i++) {
+        for (int i = 0; i < totalEvents; i++) {
             bulkProcessor.add(mock(IndexRequest.class));
         }
 
-        inOrder.verify(client, times(2)).bulk(argThat((BulkRequest bulkRequest) -> {
+        inOrder.verify(client, times(totalEvents / maxBulkActions)).bulk(argThat((BulkRequest bulkRequest) -> {
             // Verify a bulk is executed immediately with maxNumberOfEventsPerBulk is reached.
             assertThat(bulkRequest.numberOfActions(), equalTo(maxBulkActions));
             return true;
         }), any());
 
         bulkProcessor.awaitClose(1, TimeUnit.SECONDS);
-
-        inOrder.verify(client).bulk(argThat((BulkRequest bulkRequest) -> {
-            // Verify another bulk with only 1 event (the remaining) is executed when closing the processor.
-            assertThat(bulkRequest.numberOfActions(), equalTo(1));
-            return true;
-        }), any());
+        if (totalEvents % maxBulkActions > 0) {
+            inOrder.verify(client).bulk(argThat((BulkRequest bulkRequest) -> {
+                // Verify another bulk with only 1 event (the remaining) is executed when closing the processor.
+                assertThat(bulkRequest.numberOfActions(), equalTo(totalEvents % maxBulkActions));
+                return true;
+            }), any());
+        }
     }
 
     public void testMaxRetries() {

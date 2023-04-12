@@ -77,12 +77,12 @@ final class ModelLoaderUtils {
                 }
                 bytesRead += read;
             }
-            digestSha256.update(buf,0, bytesRead);
+            digestSha256.update(buf, 0, bytesRead);
 
             return new BytesArray(buf, 0, bytesRead);
         }
 
-        public String getSha256(){
+        public String getSha256() {
             return MessageDigests.toHexString(digestSha256.digest());
         }
 

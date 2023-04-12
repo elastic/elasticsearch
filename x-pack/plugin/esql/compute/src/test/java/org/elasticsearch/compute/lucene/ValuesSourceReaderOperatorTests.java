@@ -15,6 +15,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -23,6 +24,8 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -114,11 +117,15 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     new KeywordFieldMapper.KeywordField("kwd", new BytesRef(Integer.toString(d)), KeywordFieldMapper.Defaults.FIELD_TYPE)
                 );
                 doc.add(new SortedNumericDocValuesField("bool", d % 2 == 0 ? 1 : 0));
+                doc.add(new SortedNumericDocValuesField("double", NumericUtils.doubleToSortableLong(d / 123_456d)));
                 for (int v = 0; v <= d % 3; v++) {
                     doc.add(
                         new KeywordFieldMapper.KeywordField("mv_kwd", new BytesRef(PREFIX[v] + d), KeywordFieldMapper.Defaults.FIELD_TYPE)
                     );
                     doc.add(new SortedNumericDocValuesField("mv_bool", v % 2 == 0 ? 1 : 0));
+                    doc.add(new SortedNumericDocValuesField("mv_key", 1_000 * d + v));
+                    doc.add(new SortedNumericDocValuesField("mv_long", -1_000 * d + v));
+                    doc.add(new SortedNumericDocValuesField("mv_double", NumericUtils.doubleToSortableLong(d / 123_456d + v)));
                 }
                 writer.addDocument(doc);
                 if (d % commitEvery == 0) {
@@ -205,7 +212,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     factory(
                         CoreValuesSourceType.NUMERIC,
                         ElementType.INT,
-                        new NumberFieldMapper.NumberFieldType("key", NumberFieldMapper.NumberType.LONG)
+                        new NumberFieldMapper.NumberFieldType("key", NumberFieldMapper.NumberType.INTEGER)
                     ).get(),
                     factory(
                         CoreValuesSourceType.NUMERIC,
@@ -215,7 +222,27 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("kwd")).get(),
                     factory(CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("mv_kwd")).get(),
                     factory(CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("bool")).get(),
-                    factory(CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("mv_bool")).get()
+                    factory(CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("mv_bool")).get(),
+                    factory(
+                        CoreValuesSourceType.NUMERIC,
+                        ElementType.INT,
+                        new NumberFieldMapper.NumberFieldType("mv_key", NumberFieldMapper.NumberType.INTEGER)
+                    ).get(),
+                    factory(
+                        CoreValuesSourceType.NUMERIC,
+                        ElementType.LONG,
+                        new NumberFieldMapper.NumberFieldType("mv_long", NumberFieldMapper.NumberType.LONG)
+                    ).get(),
+                    factory(
+                        CoreValuesSourceType.NUMERIC,
+                        ElementType.DOUBLE,
+                        new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE)
+                    ).get(),
+                    factory(
+                        CoreValuesSourceType.NUMERIC,
+                        ElementType.DOUBLE,
+                        new NumberFieldMapper.NumberFieldType("mv_double", NumberFieldMapper.NumberType.DOUBLE)
+                    ).get()
                 ),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
@@ -225,13 +252,17 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
         assertThat(results, hasSize(input.size()));
         for (Page p : results) {
-            assertThat(p.getBlockCount(), equalTo(7));
+            assertThat(p.getBlockCount(), equalTo(11));
             IntVector keys = p.<IntBlock>getBlock(1).asVector();
             LongVector longs = p.<LongBlock>getBlock(2).asVector();
             BytesRefVector keywords = p.<BytesRefBlock>getBlock(3).asVector();
             BytesRefBlock mvKeywords = p.getBlock(4);
             BooleanVector bools = p.<BooleanBlock>getBlock(5).asVector();
             BooleanBlock mvBools = p.getBlock(6);
+            IntBlock mvInts = p.<IntBlock>getBlock(7);
+            LongBlock mvLongs = p.<LongBlock>getBlock(8);
+            DoubleVector doubles = p.<DoubleBlock>getBlock(9).asVector();
+            DoubleBlock mvDoubles = p.getBlock(10);
             for (int i = 0; i < p.getPositionCount(); i++) {
                 int key = keys.getInt(i);
                 assertThat(longs.getLong(i), equalTo((long) key));
@@ -248,6 +279,24 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 offset = mvBools.getFirstValueIndex(i);
                 for (int v = 0; v <= key % 3; v++) {
                     assertThat(mvBools.getBoolean(offset + v), equalTo(BOOLEANS[key % 3][v]));
+                }
+
+                assertThat(mvInts.getValueCount(i), equalTo(key % 3 + 1));
+                offset = mvInts.getFirstValueIndex(i);
+                for (int v = 0; v <= key % 3; v++) {
+                    assertThat(mvInts.getInt(offset + v), equalTo(1_000 * key + v));
+                }
+
+                assertThat(mvLongs.getValueCount(i), equalTo(key % 3 + 1));
+                offset = mvLongs.getFirstValueIndex(i);
+                for (int v = 0; v <= key % 3; v++) {
+                    assertThat(mvLongs.getLong(offset + v), equalTo(-1_000L * key + v));
+                }
+
+                assertThat(doubles.getDouble(i), equalTo(key / 123_456d));
+                offset = mvDoubles.getFirstValueIndex(i);
+                for (int v = 0; v <= key % 3; v++) {
+                    assertThat(mvDoubles.getDouble(offset + v), equalTo(key / 123_456d + v));
                 }
             }
         }

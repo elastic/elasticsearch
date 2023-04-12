@@ -137,7 +137,7 @@ renameDrop
 from employees
  | sort hire_date
  | rename x = hire_date, y = emp_no
- | drop first_name, last_name, gender, birth_date, salary, languages*, height*, still_hired, avg_worked_seconds, job_positions, is_rehired 
+ | drop first_name, last_name, gender, birth_date, salary, languages*, height*, still_hired, avg_worked_seconds, job_positions, is_rehired, salary_change* 
  | limit 5;
 
 y:integer | x:date

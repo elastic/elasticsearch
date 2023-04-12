@@ -57,10 +57,21 @@
             "type" : "long"
         },
         "job_positions" : {
-          "type" : "keyword"
+            "type" : "keyword"
         },
         "is_rehired" : {
-          "type" : "boolean"
+            "type" : "boolean"
+        },
+        "salary_change": {
+            "type": "double",
+            "fields": {
+                "int": {
+                   "type": "integer"
+                },
+                "long": {
+                    "type": "long"
+                }
+            }
         }
     }
 }

@@ -114,6 +114,61 @@ wildcard:
   - match: {values.0.0: 16}
 
 ---
+numbers:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              i:
+                type: integer
+              l:
+                type: long
+              d:
+                type: double
+              mv_i:
+                type: integer
+              mv_l:
+                type: long
+              mv_d:
+                type: double
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { i: 123, l: -1234567891011121131, d: 1.234567891234568, mv_i: [123456, -123456], mv_l: [1234567891011121131, -1234567891011121131], mv_d: [1.234567891234568, -1.234567891234568] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: {columns.0.name: d}
+  - match: {columns.0.type: double}
+  - match: {columns.1.name: i}
+  - match: {columns.1.type: integer}
+  - match: {columns.2.name: l}
+  - match: {columns.2.type: long}
+  - match: {columns.3.name: mv_d}
+  - match: {columns.3.type: double}
+  - match: {columns.4.name: mv_i}
+  - match: {columns.4.type: integer}
+  - match: {columns.5.name: mv_l}
+  - match: {columns.5.type: long}
+  - length: {values: 1}
+  - match: {values.0.0: 1.234567891234568}
+  - match: {values.0.1: 123}
+  - match: {values.0.2: -1234567891011121131}
+  - match: {values.0.3: [-1.234567891234568, 1.234567891234568]}
+  - match: {values.0.4: [-123456, 123456]}
+  - match: {values.0.5: [-1234567891011121131, 1234567891011121131]}
+
+---
 small_numbers:
   - do:
       indices.create:

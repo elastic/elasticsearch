@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
@@ -73,7 +73,6 @@ public final class EvalMapper {
     }
 
     static class BooleanLogic extends ExpressionMapper<BinaryLogic> {
-
         @Override
         protected Supplier<ExpressionEvaluator> map(BinaryLogic bc, Layout layout) {
             Supplier<ExpressionEvaluator> leftEval = toEvaluator(bc.left(), layout);
@@ -91,17 +90,10 @@ public final class EvalMapper {
     }
 
     static class Nots extends ExpressionMapper<Not> {
-
         @Override
         protected Supplier<ExpressionEvaluator> map(Not not, Layout layout) {
             Supplier<ExpressionEvaluator> expEval = toEvaluator(not.field(), layout);
-            record NotsExpressionEvaluator(ExpressionEvaluator expEval) implements ExpressionEvaluator {
-                @Override
-                public Object computeRow(Page page, int pos) {
-                    return NotProcessor.apply(expEval.computeRow(page, pos));
-                }
-            }
-            return () -> new NotsExpressionEvaluator(expEval.get());
+            return () -> new org.elasticsearch.xpack.esql.expression.predicate.logical.NotEvaluator(expEval.get());
         }
     }
 
@@ -174,6 +166,19 @@ public final class EvalMapper {
                     }
                 }
                 return () -> new Booleans(channel);
+            }
+            if (attr.dataType() == DataTypes.NULL) {
+                record Nulls(int channel) implements ExpressionEvaluator {
+                    @Override
+                    public Object computeRow(Page page, int pos) {
+                        Block block = page.getBlock(channel);
+                        if (block.isNull(pos)) {
+                            return null;
+                        }
+                        throw new QlIllegalArgumentException("null block has non null!?");
+                    }
+                }
+                return () -> new Nulls(channel);
             }
             throw new UnsupportedOperationException("unsupported field type [" + attr.dataType().typeName() + "]");
         }

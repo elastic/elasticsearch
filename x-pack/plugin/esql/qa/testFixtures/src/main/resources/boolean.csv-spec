@@ -46,3 +46,87 @@ from employees | eval always_false = starts_with(first_name, "nonestartwiththis"
 avg(salary):double | always_false:boolean
  48353.72222222222 | false
 ;
+
+trueTrue
+row lhs=true, rhs=true | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+true       | true
+;
+
+trueFalse
+row lhs=true, rhs=false | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+false      | true
+;
+
+trueNull
+row lhs=true, rhs=null | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+null       | true
+;
+
+falseTrue
+row lhs=false, rhs=true | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+false      | true
+;
+
+falseFalse
+row lhs=false, rhs=false | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+false      | false
+;
+
+falseNull
+row lhs=false, rhs=null | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+false      | null
+;
+
+nullTrue
+row lhs=null, rhs=true | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+null       | true
+;
+
+nullFalse
+row lhs=null, rhs=false | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+false      | null
+;
+
+nullNull
+row lhs=null, rhs=null | eval aa=lhs AND rhs, oo=lhs OR rhs | project aa, oo;
+
+aa:boolean | oo:boolean
+null       | null
+;
+
+notTrue
+row v=true | eval v=NOT v | project v;
+
+v:boolean
+false
+;
+
+notFalse
+row v=false | eval v=NOT v | project v;
+
+v:boolean
+true
+;
+
+notNull
+row v=null | eval v=NOT v | project v;
+
+v:boolean
+null
+;

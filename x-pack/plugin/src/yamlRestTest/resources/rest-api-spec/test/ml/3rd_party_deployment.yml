@@ -467,3 +467,19 @@ setup:
       ml.stop_trained_model_deployment:
         model_id: test_model_for_ingest
   - match: { stopped: true }
+
+---
+"Test cannot start 2 deployments with the same Id":
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        deployment_id: test_model_deployment
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+
+  - do:
+      catch: /Could not start model deployment because an existing deployment with the same id \[test_model_deployment\] exist/
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        deployment_id: test_model_deployment
+        wait_for: started

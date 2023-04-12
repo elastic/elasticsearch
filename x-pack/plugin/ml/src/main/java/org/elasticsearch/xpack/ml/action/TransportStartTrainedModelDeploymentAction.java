@@ -148,12 +148,24 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             return;
         }
 
-        if (TrainedModelAssignmentMetadata.fromState(state).allAssignments().size() >= MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS) {
+        var assignments = TrainedModelAssignmentMetadata.fromState(state);
+        if (assignments.allAssignments().size() >= MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Could not start model deployment because existing deployments reached the limit of [{}]",
                     RestStatus.TOO_MANY_REQUESTS,
                     MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS
+                )
+            );
+            return;
+        }
+
+        if (assignments.getDeploymentAssignment(request.getDeploymentId()) != null) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Could not start model deployment because an existing deployment with the same id [{}] exist",
+                    RestStatus.BAD_REQUEST,
+                    request.getDeploymentId()
                 )
             );
             return;

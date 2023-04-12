@@ -166,8 +166,8 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
                 throws IOException {
                 builder.startObject();
                 builder.field(NAME_FIELD.getPreferredName(), dataStreamName);
-                builder.field(LIFECYCLE_FIELD.getPreferredName());
                 if (lifecycle != null) {
+                    builder.field(LIFECYCLE_FIELD.getPreferredName());
                     lifecycle.toXContent(builder, params, rolloverConfiguration);
                 }
                 builder.endObject();

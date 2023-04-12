@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringC
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.junit.Before;
 
@@ -128,7 +129,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             equalTo(
                 "unrecognized inference configuration type [unknown_type]."
                     + " Supported types [classification, regression, fill_mask, ner, pass_through, "
-                    + "text_classification, text_embedding, zero_shot_classification]"
+                    + "question_answering, text_classification, text_embedding, "
+                    + "text_similarity, zero_shot_classification]"
             )
         );
 
@@ -219,8 +221,10 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             FillMaskConfig.NAME,
             NerConfig.NAME,
             PassThroughConfig.NAME,
+            QuestionAnsweringConfig.NAME,
             TextClassificationConfig.NAME,
             TextEmbeddingConfig.NAME,
+            TextSimilarityConfig.NAME,
             ZeroShotClassificationConfig.NAME
         )) {
             ElasticsearchException ex = expectThrows(
@@ -230,6 +234,17 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             assertThat(
                 ex.getMessage(),
                 equalTo("Configuration [" + name + "] requires minimum node version [8.0.0] (current minimum node version [7.5.0]")
+            );
+        }
+
+        for (String name : List.of(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName())) {
+            ElasticsearchException ex = expectThrows(
+                ElasticsearchException.class,
+                () -> processorFactory.inferenceConfigUpdateFromMap(Map.of(name, Map.of()))
+            );
+            assertThat(
+                ex.getMessage(),
+                equalTo("Configuration [" + name + "] requires minimum node version [7.6.0] (current minimum node version [7.5.0]")
             );
         }
     }

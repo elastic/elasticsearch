@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -26,13 +27,31 @@ import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResu
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResultsTests;
 
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+
 public class InferModelActionResponseTests extends AbstractWireSerializingTestCase<Response> {
+
+    private static List<String> INFERENCE_RESULT_TYPES = List.of(
+        ClassificationInferenceResults.NAME,
+        NerResults.NAME,
+        FillMaskResults.NAME,
+        PyTorchPassThroughResults.NAME,
+        QuestionAnsweringInferenceResults.NAME,
+        RegressionInferenceResults.NAME,
+        TextEmbeddingResults.NAME,
+        TextSimilarityInferenceResults.NAME,
+        WarningInferenceResults.NAME
+    );
 
     @Override
     protected Response createTestInstance() {
@@ -59,26 +78,26 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
     }
 
     private static InferenceResults randomInferenceResult(String resultType) {
-        switch (resultType) {
-            case ClassificationInferenceResults.NAME:
-                return ClassificationInferenceResultsTests.createRandomResults();
-            case RegressionInferenceResults.NAME:
-                return RegressionInferenceResultsTests.createRandomResults();
-            case NerResults.NAME:
-                return NerResultsTests.createRandomResults();
-            case TextEmbeddingResults.NAME:
-                return TextEmbeddingResultsTests.createRandomResults();
-            case PyTorchPassThroughResults.NAME:
-                return PyTorchPassThroughResultsTests.createRandomResults();
-            case FillMaskResults.NAME:
-                return FillMaskResultsTests.createRandomResults();
-            case WarningInferenceResults.NAME:
-                return WarningInferenceResultsTests.createRandomResults();
-            case QuestionAnsweringInferenceResults.NAME:
-                return QuestionAnsweringInferenceResultsTests.createRandomResults();
-            default:
-                fail("unexpected result type [" + resultType + "]");
-                return null;
+        return switch (resultType) {
+            case ClassificationInferenceResults.NAME -> ClassificationInferenceResultsTests.createRandomResults();
+            case NerResults.NAME -> NerResultsTests.createRandomResults();
+            case FillMaskResults.NAME -> FillMaskResultsTests.createRandomResults();
+            case PyTorchPassThroughResults.NAME -> PyTorchPassThroughResultsTests.createRandomResults();
+            case QuestionAnsweringInferenceResults.NAME -> QuestionAnsweringInferenceResultsTests.createRandomResults();
+            case RegressionInferenceResults.NAME -> RegressionInferenceResultsTests.createRandomResults();
+            case TextEmbeddingResults.NAME -> TextEmbeddingResultsTests.createRandomResults();
+            case TextSimilarityInferenceResults.NAME -> TextSimilarityInferenceResultsTests.createRandomResults();
+            case WarningInferenceResults.NAME -> WarningInferenceResultsTests.createRandomResults();
+            default -> throw new AssertionError("unexpected result type [" + resultType + "]");
+        };
+    }
+
+    public void testToXContentString() {
+        // assert that the toXContent method does not error
+        for (var inferenceType : INFERENCE_RESULT_TYPES) {
+            var s = Strings.toString(randomInferenceResult(inferenceType));
+            assertNotNull(s);
+            assertThat(s, not(containsString("error")));
         }
     }
 

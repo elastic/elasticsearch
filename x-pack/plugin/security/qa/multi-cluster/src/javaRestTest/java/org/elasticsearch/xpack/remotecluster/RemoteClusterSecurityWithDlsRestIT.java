@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class RemoteClusterSecurityWithDlsRestIT extends AbstractRemoteClusterSecurityWithDlsAndFlsRestIT {
+public class RemoteClusterSecurityWithDlsRestIT extends AbstractRemoteClusterSecurityDlsAndFlsRestIT {
 
     private static final String REMOTE_CLUSTER_DLS = REMOTE_CLUSTER_ALIAS + "_dls";
 
@@ -101,6 +101,38 @@ public class RemoteClusterSecurityWithDlsRestIT extends AbstractRemoteClusterSec
                 performRequestWithApiKey(searchRequest, apiKeyNoDlsFls),
                 Map.ofEntries(Map.entry("remote_index1", Set.of("field1", "field2", "field3")))
             );
+
+            // API key's role restrictions should be respected.
+            String apiKeyNoDlsFlsRestricted = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_NO_DLS_FLS, """
+                {
+                    "role1": {
+                      "remote_indices": [
+                        {
+                          "names": ["remote_index1", "remote_index2", "*4"],
+                          "privileges": ["read", "read_cross_cluster"],
+                          "clusters": ["*"],
+                          "query": {"bool": {"must_not": {"term" : {"field1" : "value4"}}}},
+                          "field_security": {"grant": ["field1"]}
+                        }
+                      ]
+                    },
+                    "role2": {
+                      "remote_indices": [
+                        {
+                          "names": ["remote_index1", "remote_index2", "*3"],
+                          "privileges": ["read", "read_cross_cluster"],
+                          "clusters": ["*"],
+                          "query": {"bool": {"must_not": {"term" : {"field1" : "value3"}}}},
+                          "field_security": {"grant": ["field2"]}
+                        }
+                      ]
+                    }
+                }
+                """).v2();
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                performRequestWithApiKey(searchRequest, apiKeyNoDlsFlsRestricted),
+                Map.ofEntries(Map.entry("remote_index1", Set.of("field1", "field2")))
+            );
         }
 
         // Running a CCS request with a user with DLS and FLS should be intersected with cross cluster API key's DLS and FLS permissions.
@@ -116,6 +148,24 @@ public class RemoteClusterSecurityWithDlsRestIT extends AbstractRemoteClusterSec
                 performRequestWithApiKey(searchRequest, apiKeyDlsFls),
                 Map.ofEntries(Map.entry("remote_index1", Set.of("field1", "field2")))
             );
+
+            // API key's role restrictions should be respected.
+            String apiKeyDlsFlsRestricted = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_DLS_FLS, """
+                {
+                    "role1": {
+                      "remote_indices": [
+                        {
+                          "names": ["*"],
+                          "privileges": ["all"],
+                          "clusters": ["*"],
+                          "query": {"bool": {"must_not": {"term" : {"field1" : "value1"}}}},
+                          "field_security": {"grant": ["field1"]}
+                        }
+                      ]
+                    }
+                }
+                """).v2();
+            assertSearchResponseContainsEmptyResult(performRequestWithApiKey(searchRequest, apiKeyDlsFlsRestricted));
         }
 
         // Running a CCS request with a user with DLS only.
@@ -125,6 +175,23 @@ public class RemoteClusterSecurityWithDlsRestIT extends AbstractRemoteClusterSec
             // API key with owner's permissions should return the same empty search result.
             final String apiKeyDls = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_DLS, "{}").v2();
             assertSearchResponseContainsEmptyResult(performRequestWithApiKey(searchRequest, apiKeyDls));
+
+            // API key's role should not make any difference here
+            String apiKeyDlsRestricted = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_DLS, """
+                {
+                    "role1": {
+                      "remote_indices": [
+                        {
+                          "names": ["*"],
+                          "privileges": ["all"],
+                          "clusters": ["*"],
+                          "query": {"bool": {"must": {"term" : {"field1" : "value4"}}}}
+                        }
+                      ]
+                    }
+                }
+                """).v2();
+            assertSearchResponseContainsEmptyResult(performRequestWithApiKey(searchRequest, apiKeyDlsRestricted));
         }
 
         // Running a CCS request with a user with FLS only.
@@ -139,6 +206,26 @@ public class RemoteClusterSecurityWithDlsRestIT extends AbstractRemoteClusterSec
             assertSearchResponseContainsExpectedIndicesAndFields(
                 performRequestWithApiKey(searchRequest, apiKeyFls),
                 Map.ofEntries(Map.entry("remote_index1", Set.of("field1", "field3")))
+            );
+
+            // API key's role restrictions should be respected. In this case no fields should be returned.
+            String apiKeyFlsRestricted = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_FLS, """
+                {
+                    "role1": {
+                      "remote_indices": [
+                        {
+                          "names": ["*"],
+                          "privileges": ["all"],
+                          "clusters": ["*"],
+                          "field_security": {"grant": ["field1"]}
+                        }
+                      ]
+                    }
+                }
+                """).v2();
+            assertSearchResponseContainsExpectedIndicesAndFields(
+                performRequestWithApiKey(searchRequest, apiKeyFlsRestricted),
+                Map.ofEntries(Map.entry("remote_index1", Set.of("field1")))
             );
         }
     }

@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public abstract class AbstractRemoteClusterSecurityWithDlsAndFlsRestIT extends AbstractRemoteClusterSecurityTestCase {
+public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     protected static final String REMOTE_SEARCH_USER_NO_DLS_FLS = REMOTE_SEARCH_USER + "_no_dls_fls";
     protected static final String REMOTE_SEARCH_USER_DLS_FLS = REMOTE_SEARCH_USER + "_dls_fls";

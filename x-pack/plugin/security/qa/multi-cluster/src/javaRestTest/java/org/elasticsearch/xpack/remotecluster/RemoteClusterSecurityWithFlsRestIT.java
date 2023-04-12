@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class RemoteClusterSecurityWithFlsRestIT extends AbstractRemoteClusterSecurityWithDlsAndFlsRestIT {
+public class RemoteClusterSecurityWithFlsRestIT extends AbstractRemoteClusterSecurityDlsAndFlsRestIT {
 
     private static final String REMOTE_CLUSTER_FLS = REMOTE_CLUSTER_ALIAS + "_fls";
 
@@ -142,8 +142,8 @@ public class RemoteClusterSecurityWithFlsRestIT extends AbstractRemoteClusterSec
                           "names": ["*"],
                           "privileges": ["read", "read_cross_cluster"],
                           "clusters": ["*"],
-                          "query": {"bool": { "must_not": { "term" : {"field1" : "value4"}}}},
-                          "field_security": {"grant": [ "field1" ]}
+                          "query": {"bool": {"must_not": {"term": {"field1": "value4"}}}},
+                          "field_security": {"grant": ["field1"]}
                         }
                       ]
                     }
@@ -178,8 +178,8 @@ public class RemoteClusterSecurityWithFlsRestIT extends AbstractRemoteClusterSec
                           "names": ["remote_index*"],
                           "privileges": ["read", "read_cross_cluster"],
                           "clusters": ["*"],
-                          "query": {"bool": { "must": { "term" : {"field1" : "value4"}}}},
-                          "field_security": {"grant": [ "field1" ]}
+                          "query": {"bool": {"must": {"term": {"field1": "value4"}}}},
+                          "field_security": {"grant": ["field1"]}
                         }
                       ]
                     },
@@ -189,8 +189,8 @@ public class RemoteClusterSecurityWithFlsRestIT extends AbstractRemoteClusterSec
                           "names": ["remote_index2", "remote_index3"],
                           "privileges": ["read", "read_cross_cluster"],
                           "clusters": ["*"],
-                          "query": {"bool": { "must_not": { "term" : {"field1" : "value3"}}}},
-                          "field_security": {"grant": [ "field2" ]}
+                          "query": {"bool": {"must_not": {"term": {"field1": "value3"}}}},
+                          "field_security": {"grant": ["field2"]}
                         }
                       ]
                     }
@@ -225,8 +225,8 @@ public class RemoteClusterSecurityWithFlsRestIT extends AbstractRemoteClusterSec
                           "names": ["*"],
                           "privileges": ["read", "read_cross_cluster"],
                           "clusters": ["*"],
-                          "query": {"bool": { "must_not": { "term" : {"field1" : "value4"}}}},
-                          "field_security": {"grant": [ "field1" ]}
+                          "query": {"bool": {"must_not": {"term": {"field1": "value4"}}}},
+                          "field_security": {"grant": ["field1"]}
                         }
                       ]
                     },
@@ -236,8 +236,8 @@ public class RemoteClusterSecurityWithFlsRestIT extends AbstractRemoteClusterSec
                           "names": ["*2", "*3"],
                           "privileges": ["read", "read_cross_cluster"],
                           "clusters": ["*"],
-                          "query": {"bool": { "should": [{ "term" : {"field1" : "value3"}}]}},
-                          "field_security": {"grant": [ "field2" ]}
+                          "query": {"bool": {"should": [{"term": {"field1": "value3"}}]}},
+                          "field_security": {"grant": ["field2"]}
                         }
                       ]
                     }

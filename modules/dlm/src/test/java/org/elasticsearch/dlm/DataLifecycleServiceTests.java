@@ -312,6 +312,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testForceMerge() throws Exception {
         // We want this test method to get fake force merge responses, because this is what triggers a cluster state update
         clientDelegate = (action, request, listener) -> {

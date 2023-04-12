@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.rest;
 import io.netty.channel.Channel;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.HttpChannel;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -23,6 +24,11 @@ public class RemoteHostHeader {
      */
     public static void process(Channel channel, ThreadContext threadContext) {
         threadContext.putTransient(KEY, channel.remoteAddress());
+    }
+
+    // for tests only
+    public static void process(HttpChannel channel, ThreadContext threadContext) {
+        threadContext.putTransient(KEY, channel.getRemoteAddress());
     }
 
     /**

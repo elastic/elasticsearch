@@ -16,8 +16,8 @@ teardown:
 "Post page_view analytics event":
   - do:
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "page_view"
+        collection_name: my-test-analytics-collection
+        event_type: "page_view"
         body:
             session:
               id: "123"
@@ -31,8 +31,8 @@ teardown:
   - do:
       catch: "bad_request"
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "page_view"
+        collection_name: my-test-analytics-collection
+        event_type: "page_view"
         body:
           session:
             id: "123"
@@ -44,8 +44,8 @@ teardown:
 "Post page_view analytics event - With document":
   - do:
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "page_view"
+        collection_name: my-test-analytics-collection
+        event_type: "page_view"
         body:
           session:
             id: "123"
@@ -61,8 +61,8 @@ teardown:
 "Post page_view analytics event - With page title":
   - do:
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "page_view"
+        collection_name: my-test-analytics-collection
+        event_type: "page_view"
         body:
           session:
             id: "123"
@@ -76,8 +76,8 @@ teardown:
 "Post page_view analytics event - With referrer":
   - do:
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "page_view"
+        collection_name: my-test-analytics-collection
+        event_type: "page_view"
         body:
           session:
             id: "123"
@@ -92,8 +92,8 @@ teardown:
 "Post search analytics event":
   - do:
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "search"
+        collection_name: my-test-analytics-collection
+        event_type: "search"
         body:
           session:
             id: "123"
@@ -107,8 +107,8 @@ teardown:
   - do:
       catch: "bad_request"
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "search"
+        collection_name: my-test-analytics-collection
+        event_type: "search"
         body:
           session:
             id: "123"
@@ -120,8 +120,8 @@ teardown:
 "Post search analytics event - With sort order":
   - do:
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "search"
+        collection_name: my-test-analytics-collection
+        event_type: "search"
         body:
           session:
             id: "123"
@@ -136,8 +136,8 @@ teardown:
 "Post search analytics event - With sort name and direction":
   - do:
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "search"
+        collection_name: my-test-analytics-collection
+        event_type: "search"
         body:
           session:
             id: "123"
@@ -153,8 +153,8 @@ teardown:
 "Post search analytics event - With pagination":
   - do:
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "search"
+        collection_name: my-test-analytics-collection
+        event_type: "search"
         body:
           session:
             id: "123"
@@ -170,8 +170,8 @@ teardown:
 "Post search analytics event - With search application":
   - do:
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "search"
+        collection_name: my-test-analytics-collection
+        event_type: "search"
         body:
           session:
             id: "123"
@@ -185,8 +185,8 @@ teardown:
 "Post search analytics event - With search results":
   - do:
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "search"
+        collection_name: my-test-analytics-collection
+        event_type: "search"
         body:
           session:
             id: "123"
@@ -215,8 +215,8 @@ teardown:
 "Post search_click analytics event":
   - do:
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "search_click"
+        collection_name: my-test-analytics-collection
+        event_type: "search_click"
         body:
           session:
             id: "123"
@@ -233,8 +233,8 @@ teardown:
 "Post search_click analytics event - Page Only":
   - do:
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "search_click"
+        collection_name: my-test-analytics-collection
+        event_type: "search_click"
         body:
           session:
             id: "123"
@@ -249,8 +249,8 @@ teardown:
 "Post search_click analytics event - Document Only":
   - do:
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "search_click"
+        collection_name: my-test-analytics-collection
+        event_type: "search_click"
         body:
           session:
             id: "123"
@@ -267,8 +267,8 @@ teardown:
   - do:
       catch: "bad_request"
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "search_click"
+        collection_name: my-test-analytics-collection
+        event_type: "search_click"
         body:
           session:
             id: "123"
@@ -283,8 +283,8 @@ teardown:
   - do:
       catch: "bad_request"
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "search_click"
+        collection_name: my-test-analytics-collection
+        event_type: "search_click"
         body:
           session:
             id: "123"
@@ -300,8 +300,8 @@ teardown:
   - do:
       catch: "missing"
       behavioral_analytics.post_event:
-        collectionName: test-nonexistent-analytics-collection
-        eventType: "page_view"
+        collection_name: test-nonexistent-analytics-collection
+        event_type: "page_view"
         body:
           session:
             id: "123"
@@ -315,8 +315,8 @@ teardown:
   - do:
       catch: "bad_request"
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "nonexistent-event-type"
+        collection_name: my-test-analytics-collection
+        event_type: "nonexistent-event-type"
         body:
           session:
             id: "123"
@@ -332,8 +332,8 @@ teardown:
   - do:
       catch: "bad_request"
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "page_view"
+        collection_name: my-test-analytics-collection
+        event_type: "page_view"
         body:
           user:
             id: "456"
@@ -346,8 +346,8 @@ teardown:
   - do:
       catch: "bad_request"
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "page_view"
+        collection_name: my-test-analytics-collection
+        event_type: "page_view"
         body:
           session:
             id: "123"
@@ -360,8 +360,8 @@ teardown:
   - do:
       catch: "bad_request"
       behavioral_analytics.post_event:
-        collectionName: my-test-analytics-collection
-        eventType: "nonexistent-event-type"
+        collection_name: my-test-analytics-collection
+        event_type: "nonexistent-event-type"
         body:
           session:
             id: "123"

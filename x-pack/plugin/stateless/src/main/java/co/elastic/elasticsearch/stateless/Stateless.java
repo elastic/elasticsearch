@@ -121,6 +121,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     private final SetOnce<SharedBlobCacheService<FileCacheKey>> sharedBlobCacheService = new SetOnce<>();
 
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
+    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
@@ -183,6 +184,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         this.sharedBlobCacheService.set(sharedBlobCache);
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, settings, objectStoreService);
         this.translogReplicator.set(translogReplicator);
+        this.clusterService.set(clusterService);
         return List.of(objectStoreService, translogReplicator, sharedBlobCache);
     }
 
@@ -325,7 +327,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                     config.getIndexCommitListener(),
                     config.isPromotableToPrimary()
                 );
-                return new IndexEngine(newConfig, translogReplicator.get());
+                return new IndexEngine(newConfig, translogReplicator.get(), clusterService.get().localNode().getEphemeralId());
             } else {
                 return new SearchEngine(config);
             }

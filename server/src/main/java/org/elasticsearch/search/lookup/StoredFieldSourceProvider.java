@@ -15,6 +15,9 @@ import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 
 import java.io.IOException;
 
+// NB This is written under the assumption that individual segments are accessed by a single
+// thread, even if separate segments may be searched concurrently.  If we ever implement
+// within-segment concurrency this will have to work entirely differently.
 class StoredFieldSourceProvider implements SourceProvider {
 
     private final StoredFieldLoader storedFieldLoader;
@@ -28,8 +31,8 @@ class StoredFieldSourceProvider implements SourceProvider {
     public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
         LeafStoredFieldSourceProvider[] leaves = getLeavesUnderLock(ctx.parent);
         if (leaves[ctx.ord] == null) {
-            // individual segments are only accessed on one thread so there's no need
-            // for locking here
+            // individual segments are currently only accessed on one thread so there's no need
+            // for locking here.
             leaves[ctx.ord] = new LeafStoredFieldSourceProvider(storedFieldLoader.getLoader(ctx, null));
         }
         return leaves[ctx.ord].getSource(doc);

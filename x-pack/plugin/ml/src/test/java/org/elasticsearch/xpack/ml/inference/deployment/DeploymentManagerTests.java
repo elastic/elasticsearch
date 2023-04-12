@@ -70,6 +70,7 @@ public class DeploymentManagerTests extends ESTestCase {
         when(task.getId()).thenReturn(taskId);
         when(task.isStopped()).thenReturn(Boolean.FALSE);
         when(task.getModelId()).thenReturn("test-rejected");
+        when(task.getDeploymentId()).thenReturn("test-rejected-deployment");
 
         DeploymentManager deploymentManager = new DeploymentManager(
             mock(Client.class),

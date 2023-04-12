@@ -1,0 +1,374 @@
+setup:
+  - do:
+      behavioral_analytics.put:
+        name: my-test-analytics-collection
+
+---
+teardown:
+  - do:
+      behavioral_analytics.delete:
+        name: my-test-analytics-collection
+        ignore: 404
+
+
+# Page view event tests #########################################
+---
+"Post page_view analytics event":
+  - do:
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "page_view"
+        body:
+            session:
+              id: "123"
+            user:
+              id: "456"
+            page:
+              url: "https://www.elastic.co"
+
+---
+"Post page_view analytics event - Missing page.url":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "page_view"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "123"
+  - match: { error.type: "illegal_argument_exception" }
+
+---
+"Post page_view analytics event - With document":
+  - do:
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "page_view"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "123"
+          page:
+            url: "https://www.elastic.co"
+          document:
+            id: "doc-1"
+            index: "search-index"
+
+---
+"Post page_view analytics event - With page title":
+  - do:
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "page_view"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "123"
+          page:
+            url: "https://www.elastic.co"
+            title: "Elastic - Homepage"
+
+---
+"Post page_view analytics event - With referrer":
+  - do:
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "page_view"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "123"
+          page:
+            url: "https://www.elastic.co"
+            referrer: "http://anotherdomain.com/homepage"
+
+# Search event tests ############################################
+---
+"Post search analytics event":
+  - do:
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "search"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          search:
+            query: "test-query"
+
+---
+"Post search analytics event – Missing search query":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "search"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+  - match: { error.type: "illegal_argument_exception" }
+
+---
+"Post search analytics event - With sort order":
+  - do:
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "search"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          search:
+            query: "test-query"
+            sort:
+              name: "Latest release"
+
+---
+"Post search analytics event - With sort name and direction":
+  - do:
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "search"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          search:
+            query: "test-query"
+            sort:
+              name: "price"
+              direction: "desc"
+
+---
+"Post search analytics event - With pagination":
+  - do:
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "search"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          search:
+            query: "test-query"
+            page:
+              current: 1
+              size: 10
+
+---
+"Post search analytics event - With search application":
+  - do:
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "search"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          search:
+            query: "test-query"
+            search_application: "my-search-application"
+
+---
+"Post search analytics event - With search results":
+  - do:
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "search"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          search:
+            query: "test-query"
+            results:
+              total_results: 150
+              items:
+                - document :
+                    id: doc-1
+                - document:
+                    id: doc-2
+                    index: my-search-index
+                - page:
+                    url: "https://www.elastic.co"
+                - page:
+                    url: "https://www.elastic.co/doc/getting-stared"
+                  document:
+                    id: "getting-started"
+                    index: elastic-documentation-en
+
+# Search click event tests #######################################
+---
+"Post search_click analytics event":
+  - do:
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "search_click"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          document:
+            id: "doc-1"
+          page:
+            url: "https://www.elastic.co"
+          search:
+            query: "test-query"
+
+---
+"Post search_click analytics event - Page Only":
+  - do:
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "search_click"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          page:
+            url: "https://www.elastic.co"
+          search:
+            query: "test-query"
+
+---
+"Post search_click analytics event - Document Only":
+  - do:
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "search_click"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          document:
+            id: "doc-1"
+            index: "search-index"
+          search:
+            query: "test-query"
+
+---
+"Post search_click analytics event – Missing search query":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "search_click"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          page:
+            url: "https://www.elastic.co"
+  - match: { error.type: "illegal_argument_exception" }
+
+---
+"Post search_click analytics event – Missing page url and document":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "search_click"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          search:
+            query: "test-query"
+  - match: { error.type: "illegal_argument_exception" }
+
+# Generic errors tests ###############################################
+---
+"Post analytics event - Analytics collection does not exist":
+  - do:
+      catch: "missing"
+      behavioral_analytics.post_event:
+        collection_name: test-nonexistent-analytics-collection
+        event_type: "page_view"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          page:
+            url: "https://www.elastic.co"
+
+---
+"Post analytics event - Event type does not exist":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "nonexistent-event-type"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          page:
+            url: "https://www.elastic.co"
+  - match: { error.type: "action_request_validation_exception" }
+
+
+---
+"Post page_view analytics event - Missing session.id":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "page_view"
+        body:
+          user:
+            id: "456"
+          page:
+            url: "https://www.elastic.co"
+  - match: { error.type: "illegal_argument_exception" }
+
+---
+"Post page_view analytics event - Missing user.id":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "page_view"
+        body:
+          session:
+            id: "123"
+          page:
+            url: "https://www.elastic.co"
+  - match: { error.type: "illegal_argument_exception" }
+
+---
+"Post analytics event - Unknown event field":
+  - do:
+      catch: "bad_request"
+      behavioral_analytics.post_event:
+        collection_name: my-test-analytics-collection
+        event_type: "nonexistent-event-type"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          page:
+            url: "https://www.elastic.co"
+          unknown_field: "value"
+  - match: { error.type: "action_request_validation_exception" }
+

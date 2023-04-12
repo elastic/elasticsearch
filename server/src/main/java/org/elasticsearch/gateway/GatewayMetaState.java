@@ -542,10 +542,13 @@ public class GatewayMetaState implements Closeable {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, lastAcceptedState);
                 } else {
                     writeNextStateFully = true; // in case of failure; this flag is cleared on success
+                    Metadata metadata = lastAcceptedState.metadata();
                     getWriterSafe().writeIncrementalTermUpdateAndCommit(
                         currentTerm,
                         lastAcceptedState.version(),
-                        lastAcceptedState.metadata().oldestIndexVersion()
+                        metadata.oldestIndexVersion(),
+                        metadata.clusterUUID(),
+                        metadata.clusterUUIDCommitted()
                     );
                 }
             } catch (IOException e) {

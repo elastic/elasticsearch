@@ -76,7 +76,7 @@ grant codeBase "${codebase.log4j-api}" {
   permission java.lang.RuntimePermission "getClassLoader";
 };
 
-grant codeBase "${codebase.preallocate}" {
+grant codeBase "${codebase.elasticsearch-preallocate}" {
   // for registering native methods
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   // for accessing the file descriptor field in FileChannel

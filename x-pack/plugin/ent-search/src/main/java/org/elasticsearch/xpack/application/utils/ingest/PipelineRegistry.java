@@ -54,11 +54,7 @@ public abstract class PipelineRegistry implements ClusterStateListener {
 
     private final ConcurrentMap<String, AtomicBoolean> pipelineCreationsInProgress = new ConcurrentHashMap<>();
 
-    public PipelineRegistry(
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        Client client
-    ) {
+    public PipelineRegistry(ClusterService clusterService, ThreadPool threadPool, Client client) {
         this.threadPool = threadPool;
         this.client = client;
         clusterService.addListener(this);

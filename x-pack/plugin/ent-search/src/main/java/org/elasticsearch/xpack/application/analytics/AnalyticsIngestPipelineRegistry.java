@@ -15,10 +15,10 @@ import org.elasticsearch.xpack.application.utils.ingest.PipelineTemplateConfigur
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX;
+import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PREFIX;
+import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.ROOT_RESOURCE_PATH;
+import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.TEMPLATE_VERSION_VARIABLE;
 import static org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry.REGISTRY_VERSION;
-import static org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry.ROOT_RESOURCE_PATH;
-import static org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry.TEMPLATE_VERSION_VARIABLE;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 /**
@@ -27,8 +27,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 public class AnalyticsIngestPipelineRegistry extends PipelineRegistry {
 
     // Ingest pipelines configuration.
-    protected static final String EVENT_DATA_STREAM_INGEST_PIPELINE_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "final_pipeline";
-    protected static final List<PipelineTemplateConfiguration> INGEST_PIPELINES = Collections.singletonList(
+    static final String EVENT_DATA_STREAM_INGEST_PIPELINE_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "final_pipeline";
+    static final List<PipelineTemplateConfiguration> INGEST_PIPELINES = Collections.singletonList(
         new PipelineTemplateConfiguration(
             EVENT_DATA_STREAM_INGEST_PIPELINE_NAME,
             ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_INGEST_PIPELINE_NAME + ".json",

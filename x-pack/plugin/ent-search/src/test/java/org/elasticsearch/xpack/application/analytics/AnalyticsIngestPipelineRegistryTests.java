@@ -99,9 +99,9 @@ public class AnalyticsIngestPipelineRegistryTests extends ESTestCase {
             return null;
         });
 
-        Map<String, Integer> existingPipelines = registry.getIngestPipelineConfigs().stream().collect(Collectors.toMap(
-            PipelineTemplateConfiguration::getId, PipelineTemplateConfiguration::getVersion
-        ));
+        Map<String, Integer> existingPipelines = registry.getIngestPipelineConfigs()
+            .stream()
+            .collect(Collectors.toMap(PipelineTemplateConfiguration::getId, PipelineTemplateConfiguration::getVersion));
 
         ClusterChangedEvent event = createClusterChangedEvent(existingPipelines, nodes);
         registry.clusterChanged(event);
@@ -111,9 +111,9 @@ public class AnalyticsIngestPipelineRegistryTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        Map<String, Integer> existingPipelines = registry.getIngestPipelineConfigs().stream().collect(Collectors.toMap(
-            PipelineTemplateConfiguration::getId, pipelineConfig -> pipelineConfig.getVersion() - 1
-        ));
+        Map<String, Integer> existingPipelines = registry.getIngestPipelineConfigs()
+            .stream()
+            .collect(Collectors.toMap(PipelineTemplateConfiguration::getId, pipelineConfig -> pipelineConfig.getVersion() - 1));
 
         ClusterChangedEvent event = createClusterChangedEvent(existingPipelines, nodes);
 
@@ -127,9 +127,9 @@ public class AnalyticsIngestPipelineRegistryTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        Map<String, Integer> existingPipelines = registry.getIngestPipelineConfigs().stream().collect(Collectors.toMap(
-            PipelineTemplateConfiguration::getId, pipelineConfig -> pipelineConfig.getVersion() + 1
-        ));
+        Map<String, Integer> existingPipelines = registry.getIngestPipelineConfigs()
+            .stream()
+            .collect(Collectors.toMap(PipelineTemplateConfiguration::getId, pipelineConfig -> pipelineConfig.getVersion() + 1));
 
         ClusterChangedEvent event = createClusterChangedEvent(existingPipelines, nodes);
 
@@ -158,7 +158,7 @@ public class AnalyticsIngestPipelineRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
     }
 
-   public static class VerifyingClient extends NoOpClient {
+    public static class VerifyingClient extends NoOpClient {
         private TriFunction<ActionType<?>, ActionRequest, ActionListener<?>, ActionResponse> verifier = (a, r, l) -> {
             fail("verifier not set");
             return null;
@@ -199,7 +199,8 @@ public class AnalyticsIngestPipelineRegistryTests extends ESTestCase {
             assertThat(request, instanceOf(PutPipelineRequest.class));
             final PutPipelineRequest putRequest = (PutPipelineRequest) request;
             assertThat(putRequest.getId(), equalTo(EVENT_DATA_STREAM_INGEST_PIPELINE_NAME));
-            Map<String, ?> requestContentMap = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
+            Map<String, ?> requestContentMap = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType())
+                .v2();
             assertThat(requestContentMap.get("version"), equalTo(REGISTRY_VERSION));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;
@@ -238,7 +239,7 @@ public class AnalyticsIngestPipelineRegistryTests extends ESTestCase {
     }
 
     private PipelineConfiguration createMockPipelineConfiguration(String pipelineId, int version) {
-        try(XContentBuilder configBuilder = JsonXContent.contentBuilder().startObject().field("version", version).endObject()) {
+        try (XContentBuilder configBuilder = JsonXContent.contentBuilder().startObject().field("version", version).endObject()) {
             BytesReference config = BytesReference.bytes(configBuilder);
             return new PipelineConfiguration(pipelineId, config, configBuilder.contentType());
         } catch (IOException e) {

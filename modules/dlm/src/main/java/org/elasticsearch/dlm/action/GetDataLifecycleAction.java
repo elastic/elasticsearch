@@ -139,7 +139,7 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
-        public record DataStreamLifecycle(String dataStreamName, DataLifecycle lifecycle) implements Writeable, ToXContentObject {
+        public record DataStreamLifecycle(String dataStreamName, @Nullable DataLifecycle lifecycle) implements Writeable, ToXContentObject {
 
             public static final ParseField NAME_FIELD = new ParseField("name");
             public static final ParseField LIFECYCLE_FIELD = new ParseField("lifecycle");
@@ -167,7 +167,9 @@ public class GetDataLifecycleAction extends ActionType<GetDataLifecycleAction.Re
                 builder.startObject();
                 builder.field(NAME_FIELD.getPreferredName(), dataStreamName);
                 builder.field(LIFECYCLE_FIELD.getPreferredName());
-                lifecycle.toXContent(builder, params, rolloverConfiguration);
+                if (lifecycle != null) {
+                    lifecycle.toXContent(builder, params, rolloverConfiguration);
+                }
                 builder.endObject();
                 return builder;
             }

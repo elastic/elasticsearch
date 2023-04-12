@@ -67,7 +67,7 @@ class MlAutoscalingContext {
         anomalyDetectionTasks = anomalyDetectionTasks(tasks);
         snapshotUpgradeTasks = snapshotUpgradeTasks(tasks);
         dataframeAnalyticsTasks = dataframeAnalyticsTasks(tasks);
-        modelAssignments = TrainedModelAssignmentMetadata.fromState(clusterState).modelAssignments();
+        modelAssignments = TrainedModelAssignmentMetadata.fromState(clusterState).allAssignments();
 
         waitingAnomalyJobs = anomalyDetectionTasks.stream()
             .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))

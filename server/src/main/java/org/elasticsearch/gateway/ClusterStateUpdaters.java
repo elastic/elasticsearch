@@ -36,7 +36,10 @@ public class ClusterStateUpdaters {
             .build();
     }
 
-    static ClusterState upgradeAndArchiveUnknownOrInvalidSettings(final ClusterState clusterState, final ClusterSettings clusterSettings) {
+    public static ClusterState upgradeAndArchiveUnknownOrInvalidSettings(
+        final ClusterState clusterState,
+        final ClusterSettings clusterSettings
+    ) {
         final Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
 
         metadataBuilder.persistentSettings(

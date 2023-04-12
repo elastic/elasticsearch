@@ -91,12 +91,3 @@ date returned to something more relevant.
 
 By default, `time series` aggregations return 10000 results. The "size" parameter can be used to limit the results
 further. Alternatively, using sub aggregations can limit the amount of values returned as a time series aggregation.
-
-//////////////////////////
-
-==== Rate Aggregations
-
-The rate aggregation computes the rate of a field over a set of documents. It may be added as a sub aggregation on
-time series, see [[TODO:link rate agg docs]] for details.
-
-----

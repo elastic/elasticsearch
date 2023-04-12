@@ -462,7 +462,7 @@ public class XPackPlugin extends XPackClientPlugin
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
 
         // Don't register the license setting if there is an alternate implementation loaded as an extension.
-        // this relies on the order in which methods are called - loadExtensions, getSettings, then createComponents
+        // this relies on the order in which methods are called - loadExtensions, (this method) getSettings, then createComponents
         if (getSharedLicenseService() == null) {
             settings.add(LicenseSettings.SELF_GENERATED_LICENSE_TYPE);
             settings.add(LicenseSettings.ALLOWED_LICENSE_TYPES_SETTING);

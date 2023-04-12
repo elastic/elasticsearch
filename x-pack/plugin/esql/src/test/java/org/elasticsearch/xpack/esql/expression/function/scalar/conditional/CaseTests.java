@@ -7,21 +7,92 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
-import org.elasticsearch.test.ESTestCase;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.hamcrest.Matcher;
 
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
+import static org.hamcrest.Matchers.equalTo;
 
-public class CaseTests extends ESTestCase {
+public class CaseTests extends AbstractFunctionTestCase {
+    @Override
+    protected List<Object> simpleData() {
+        return List.of(true, new BytesRef("a"), new BytesRef("b"));
+    }
+
+    @Override
+    protected Expression expressionForSimpleData() {
+        return new Case(
+            Source.EMPTY,
+            List.of(field("cond", DataTypes.BOOLEAN), field("a", DataTypes.KEYWORD), field("b", DataTypes.KEYWORD))
+        );
+    }
+
+    @Override
+    protected DataType expressionForSimpleDataType() {
+        return DataTypes.KEYWORD;
+    }
+
+    @Override
+    protected String expectedEvaluatorSimpleToString() {
+        return "CaseEvaluator[children=[Booleans[channel=0], Keywords[channel=1], Keywords[channel=2]]]";
+    }
+
+    @Override
+    protected Expression constantFoldable(List<Object> data) {
+        return caseExpr(data.toArray());
+    }
+
+    @Override
+    protected void assertSimpleWithNulls(List<Object> data, Object value, int nullBlock) {
+        if (nullBlock == 0) {
+            assertThat(value, equalTo(data.get(2)));
+            return;
+        }
+        if (((Boolean) data.get(0)).booleanValue()) {
+            if (nullBlock == 1) {
+                super.assertSimpleWithNulls(data, value, nullBlock);
+            } else {
+                assertThat(value, equalTo(data.get(1)));
+            }
+            return;
+        }
+        if (nullBlock == 2) {
+            super.assertSimpleWithNulls(data, value, nullBlock);
+        } else {
+            assertThat(value, equalTo(data.get(2)));
+        }
+    }
+
+    @Override
+    protected Matcher<Object> resultMatcher(List<Object> data) {
+        for (int i = 0; i < data.size() - 1; i += 2) {
+            Object cond = data.get(i);
+            if (cond != null && ((Boolean) cond).booleanValue()) {
+                return equalTo(data.get(i + 1));
+            }
+        }
+        if (data.size() % 2 == 0) {
+            return null;
+        }
+        return equalTo(data.get(data.size() - 1));
+    }
+
+    @Override
+    protected Expression build(Source source, List<Literal> args) {
+        return new Case(Source.EMPTY, args.stream().map(l -> (Expression) l).toList());
+    }
+
     public void testEvalCase() {
         testCase(caseExpr -> caseExpr.toEvaluator(child -> () -> (page, pos) -> child.fold()).get().computeRow(null, 0));
     }
@@ -43,12 +114,15 @@ public class CaseTests extends ESTestCase {
         assertEquals(3, toValue.apply(caseExpr(false, 1, false, 2, 3)));
         assertNull(toValue.apply(caseExpr(true, null, 1)));
         assertEquals(1, toValue.apply(caseExpr(false, null, 1)));
+        assertEquals(1, toValue.apply(caseExpr(false, field("ignored", DataTypes.INTEGER), 1)));
+        assertEquals(1, toValue.apply(caseExpr(true, 1, field("ignored", DataTypes.INTEGER))));
     }
 
     public void testIgnoreLeadingNulls() {
-        assertEquals(INTEGER, resolveType(false, null, 1));
-        assertEquals(INTEGER, resolveType(false, null, false, null, false, 2, null));
-        assertEquals(NULL, resolveType(false, null, null));
+        assertEquals(DataTypes.INTEGER, resolveType(false, null, 1));
+        assertEquals(DataTypes.INTEGER, resolveType(false, null, false, null, false, 2, null));
+        assertEquals(DataTypes.NULL, resolveType(false, null, null));
+        assertEquals(DataTypes.BOOLEAN, resolveType(false, null, field("bool", DataTypes.BOOLEAN)));
     }
 
     public void testCaseWithInvalidCondition() {
@@ -85,14 +159,12 @@ public class CaseTests extends ESTestCase {
     }
 
     private static Case caseExpr(Object... args) {
-        return new Case(
-            Source.synthetic("<case>"),
-            Stream.of(args)
-                .<Expression>map(
-                    arg -> new Literal(Source.synthetic(arg == null ? "null" : arg.toString()), arg, EsqlDataTypes.fromJava(arg))
-                )
-                .toList()
-        );
+        return new Case(Source.synthetic("<case>"), Stream.of(args).<Expression>map(arg -> {
+            if (arg instanceof Expression e) {
+                return e;
+            }
+            return new Literal(Source.synthetic(arg == null ? "null" : arg.toString()), arg, EsqlDataTypes.fromJava(arg));
+        }).toList());
     }
 
     private static TypeResolution resolveCase(Object... args) {

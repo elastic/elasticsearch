@@ -111,15 +111,35 @@ public class Case extends ScalarFunction implements Mappable {
 
     @Override
     public boolean foldable() {
-        return children().stream().allMatch(Expression::foldable);
+        for (int c = 0; c + 1 < children().size(); c += 2) {
+            Expression child = children().get(c);
+            if (child.foldable() == false) {
+                return false;
+            }
+            Boolean b = (Boolean) child.fold();
+            if (b != null && b) {
+                return children().get(c + 1).foldable();
+            }
+        }
+        if (children().size() % 2 == 0) {
+            return true;
+        }
+        return children().get(children().size() - 1).foldable();
     }
 
     @Override
     public Object fold() {
-        List<EvalOperator.ExpressionEvaluator> children = children().stream().<EvalOperator.ExpressionEvaluator>map(
-            c -> ((page, pos) -> c.fold())
-        ).toList();
-        return new CaseEvaluator(children).computeRow(null, 0);
+        for (int c = 0; c + 1 < children().size(); c += 2) {
+            Expression child = children().get(c);
+            Boolean b = (Boolean) child.fold();
+            if (b != null && b) {
+                return children().get(c + 1).fold();
+            }
+        }
+        if (children().size() % 2 == 0) {
+            return null;
+        }
+        return children().get(children().size() - 1).fold();
     }
 
     @Override
@@ -133,7 +153,8 @@ public class Case extends ScalarFunction implements Mappable {
         @Override
         public Object computeRow(Page page, int position) {
             for (int i = 0; i + 1 < children().size(); i += 2) {
-                Boolean condition = (Boolean) children.get(i).computeRow(page, position);
+                EvalOperator.ExpressionEvaluator child = children.get(i);
+                Boolean condition = (Boolean) child.computeRow(page, position);
                 if (condition != null && condition) {
                     return children.get(i + 1).computeRow(page, position);
                 }

@@ -192,7 +192,8 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             "metrics-" + randomAlphaOfLengthBetween(1, 20),
             "traces-" + randomAlphaOfLengthBetween(1, 20),
             ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(1, 20),
-            ".logs-endpoint.action.responses-" + randomAlphaOfLengthBetween(1, 20)
+            ".logs-endpoint.action.responses-" + randomAlphaOfLengthBetween(1, 20),
+            "profiling-" + randomAlphaOfLengthBetween(1, 20)
         ).stream().map(this::mockIndexAbstraction).forEach(index -> {
             assertThat(role.indices().allowedIndicesMatcher(AutoPutMappingAction.NAME).test(index), is(true));
             assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(index), is(true));

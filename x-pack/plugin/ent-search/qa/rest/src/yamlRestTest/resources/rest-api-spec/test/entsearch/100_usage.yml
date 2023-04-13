@@ -1,0 +1,40 @@
+setup:
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      search_application.put:
+        name: test-search-application
+        body:
+          indices: [ "test-index1" ]
+
+---
+teardown:
+  - do:
+      search_application.delete:
+        name: test-search-application
+        ignore: 404
+
+  - do:
+      indices.delete:
+        index: test-index1
+
+---
+"xpack usage includes Enterprise Search":
+  - do:
+      xpack.usage: {}
+
+  - match: {
+    enterprise_search: {
+      enabled: true,
+      available: true,
+      search_applications: { count: 1 }
+    }
+  }
+

@@ -68,7 +68,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.assignedShardsIn;
-import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShardsOfType;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShardsWithState;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -1237,10 +1237,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         logger.info(
             "--> counts: total: {}, unassigned: {}, initializing: {}, relocating: {}, started: {}",
             assignedShardsIn(rn).count(),
-            numberOfShardsOfType(rn, UNASSIGNED),
-            numberOfShardsOfType(rn, INITIALIZING),
-            numberOfShardsOfType(rn, RELOCATING),
-            numberOfShardsOfType(rn, STARTED)
+            numberOfShardsWithState(rn, UNASSIGNED),
+            numberOfShardsWithState(rn, INITIALIZING),
+            numberOfShardsWithState(rn, RELOCATING),
+            numberOfShardsWithState(rn, STARTED)
         );
         logger.info(
             "--> unassigned: {}, initializing: {}, relocating: {}, started: {}",

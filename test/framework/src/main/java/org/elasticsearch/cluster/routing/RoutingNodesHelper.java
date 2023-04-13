@@ -22,7 +22,7 @@ public final class RoutingNodesHelper {
 
     private RoutingNodesHelper() {}
 
-    public static int numberOfShardsOfType(RoutingNodes nodes, ShardRoutingState state) {
+    public static int numberOfShardsWithState(RoutingNodes nodes, ShardRoutingState state) {
         if (state == ShardRoutingState.UNASSIGNED) {
             return nodes.unassigned().size();
         }

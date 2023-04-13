@@ -141,6 +141,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
+            builder.transportVersions(currentState.transportVersions());
         }
         if (request.routingTable()) {
             if (request.indices().length > 0) {

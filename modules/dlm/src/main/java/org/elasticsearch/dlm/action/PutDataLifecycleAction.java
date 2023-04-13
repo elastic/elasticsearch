@@ -17,14 +17,19 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+
+import static org.elasticsearch.cluster.metadata.DataLifecycle.DATA_RETENTION_FIELD;
 
 /**
  * Sets the data lifecycle that was provided in the request to the requested data streams.
@@ -42,10 +47,20 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
 
         public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "put_data_stream_lifecycle_request",
-            args -> new Request(null, ((DataLifecycle) args[0]))
+            args -> new Request(null, ((TimeValue) args[0]))
         );
+
         static {
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), DataLifecycle.PARSER, new ParseField("lifecycle"));
+            PARSER.declareField(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DATA_RETENTION_FIELD.getPreferredName()),
+                DATA_RETENTION_FIELD,
+                ObjectParser.ValueType.STRING_OR_NULL
+            );
+        }
+
+        public static Request parseRequest(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
 
         private String[] names;
@@ -67,9 +82,9 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
             out.writeWriteable(lifecycle);
         }
 
-        public Request(String[] names, DataLifecycle lifecycle) {
+        public Request(String[] names, @Nullable TimeValue dataRetention) {
             this.names = names;
-            this.lifecycle = lifecycle;
+            this.lifecycle = new DataLifecycle(dataRetention);
         }
 
         public String[] getNames() {

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.reservedstate.service;
+package org.elasticsearch.common.file;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.reservedstate.service.FileChangedListener;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 
 import java.io.IOException;
 import java.nio.file.ClosedWatchServiceException;
@@ -81,7 +83,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
      * @throws ExecutionException if there is an issue while applying the changes from the file
      * @throws InterruptedException if the file processing is interrupted by another thread.
      */
-    abstract void processFileChanges() throws InterruptedException, ExecutionException, IOException;
+    protected abstract void processFileChanges() throws InterruptedException, ExecutionException, IOException;
 
     /**
      * There may be an indication in cluster state that the file we are watching
@@ -195,7 +197,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         }
     }
 
-    final synchronized void startWatcher(ClusterState clusterState) {
+    public final synchronized void startWatcher(ClusterState clusterState) {
         if (watching() || active == false) {
             refreshExistingFileStateIfNeeded(clusterState);
 
@@ -363,8 +365,14 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         } while (true);
     }
 
-    // package private for testing
-    void processSettingsAndNotifyListeners() throws InterruptedException {
+    /**
+     * Process settings and notify listeners
+     *
+     * <p>Logs an error if the file can't be read or if changes can't be applied
+     *
+     * @throws InterruptedException if the file processing is interrupted by another thread.
+     */
+    public final void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
             processFileChanges();
             for (var listener : eventListeners) {
@@ -385,5 +393,5 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
      * Holds information about the last known state of the file we watched. We use this
      * class to determine if a file has been changed.
      */
-    record FileUpdateState(long timestamp, String path, Object fileKey) {}
+    public record FileUpdateState(long timestamp, String path, Object fileKey) {}
 }

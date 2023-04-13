@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.file.AbstractFileWatchingService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -110,7 +111,7 @@ public class FileSettingsService extends AbstractFileWatchingService {
      * @throws InterruptedException if the file processing is interrupted by another thread.
      */
     @Override
-    void processFileChanges() throws ExecutionException, InterruptedException, IOException {
+    protected void processFileChanges() throws ExecutionException, InterruptedException, IOException {
         PlainActionFuture<Void> completion = PlainActionFuture.newFuture();
         logger.info("processing path [{}] for [{}]", watchedFile(), NAMESPACE);
         try (

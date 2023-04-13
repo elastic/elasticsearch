@@ -1,0 +1,105 @@
+[discrete]
+[[troubleshoot-shards-capacity-issues]]
+=== Troubleshoot shards capacity health issues
+
+Elastic limits the maximum number of shards to be held per node using the
+<<cluster-max-shards-per-node, `cluster.max_shards_per_node`>> and
+<<cluster-max-shards-per-node-frozen, `cluster.max_shards_per_node.frozen`>> settings.
+The current shards capacity of the cluster is available in the
+<<health-api-response-details-shards-capacity, health API shards capacity section>>.
+
+[discrete]
+==== Cluster is close to reaching the configured maximum number of shards for data nodes.
+
+The <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> cluster
+setting limits the maximum number of open shards for a cluster, only counting over data nodes
+that do not belong to the frozen tier.
+
+This symptom indicates that an action should be taken, otherwise, either the creation of new
+indices or the upgrading of the cluster could be blocked.
+
+If you're confident your changes won't destabilize the cluster, you can
+temporarily increase the limit using the <<cluster-update-settings,cluster update settings API>>:
+
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.max_shards_per_node": 1200
+  }
+}
+----
+
+This increase should only be temporary. As a long-term solution, we recommend
+you add nodes to the oversharded data tier or
+<<reduce-cluster-shard-count,reduce your cluster's shard count>> in nodes that do not belong
+to the frozen tier. To verify that the change has fixed the issue, you can get the current
+status of the `shards_capacity` indicator by checking the `data` section of the
+<<health-api-example,health API>>:
+
+[source,console]
+----
+GET _health_report/shards_capacity
+----
+
+When a long-term solution is in place, we recommend you reset the
+`cluster.max_shards_per_node` limit.
+
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.max_shards_per_node": null
+  }
+}
+----
+
+[discrete]
+==== Cluster is close to reaching the configured maximum number of shards for frozen nodes.
+
+The <<cluster-max-shards-per-node-frozen,`cluster.max_shards_per_node.frozen`>> cluster
+setting limits the maximum number of open shards for a cluster, only counting over data nodes
+that belong to the frozen tier.
+
+This symptom indicates that an action should be taken, otherwise, either the creation of new
+indices in the frozen tier or the upgrading of the cluster could be blocked.
+
+If you're confident your changes won't destabilize the cluster, you can
+temporarily increase the limit using the <<cluster-update-settings,cluster update settings API>>:
+
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.max_shards_per_node.frozen": 4200
+  }
+}
+----
+
+This increase should only be temporary. As a long-term solution, we recommend you add nodes to
+the oversharded frozen data tier or
+<<reduce-cluster-shard-count,reduce your cluster's shard count>> for nodes that do belong
+to the frozen tier. To verify that the change has fixed the issue, you can get the current
+status of the `shards_capacity` indicator by checking the `frozen` section of the
+<<health-api-example,health API>>:
+
+[source,console]
+----
+GET _health_report/shards_capacity
+----
+
+When a long-term solution is in place, we recommend you reset the
+`cluster.max_shards_per_node.frozen` limit.
+
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.max_shards_per_node.frozen": null
+  }
+}
+----

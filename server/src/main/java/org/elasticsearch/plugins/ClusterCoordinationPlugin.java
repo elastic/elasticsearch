@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiConsumer;
-import java.util.function.LongSupplier;
 
 public interface ClusterCoordinationPlugin {
 
@@ -66,7 +65,6 @@ public interface ClusterCoordinationPlugin {
             NodeEnvironment nodeEnvironment,
             NamedXContentRegistry xContentRegistry,
             ClusterSettings clusterSettings,
-            LongSupplier relativeTimeMillisSupplier,
             ThreadPool threadPool
         );
     }

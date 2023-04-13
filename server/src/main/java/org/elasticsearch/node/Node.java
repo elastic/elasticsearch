@@ -1299,13 +1299,7 @@ public class Node implements Closeable {
 
         if (persistedClusterStateServiceFactories.size() == 1) {
             return persistedClusterStateServiceFactories.get(0)
-                .newPersistedClusterStateService(
-                    nodeEnvironment,
-                    xContentRegistry,
-                    clusterSettings,
-                    threadPool::relativeTimeInMillis,
-                    threadPool
-                );
+                .newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool);
         }
 
         return new PersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool::relativeTimeInMillis);

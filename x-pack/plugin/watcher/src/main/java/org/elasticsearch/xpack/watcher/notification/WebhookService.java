@@ -125,7 +125,7 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
         HttpRequest originalRequest = action.getRequest().render(templateEngine, model);
 
         if (ctx.simulateAction(actionId)) {
-            HttpRequest request = maybeModifyHttpResponse(originalRequest);
+            HttpRequest request = maybeModifyHttpRequest(originalRequest);
             // If the request was modified, then the request has had the token added
             boolean tokenAdded = originalRequest != request;
             // Skip execution, return only the simulated (and redacted if necessary) response
@@ -156,7 +156,7 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
      * If no modifications are made the same instance is returned, otherwise a new
      * HttpRequest is returned.
      */
-    private HttpRequest maybeModifyHttpResponse(HttpRequest request) {
+    HttpRequest maybeModifyHttpRequest(HttpRequest request) {
         WebhookAccount account = getAccount(NAME);
         if (this.additionalTokenEnabled && account.hostTokenMap.size() > 0) {
             // Generate a string like example.com:9200 to match against the list of hosts where the
@@ -184,7 +184,7 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
      * {@link HttpResponse} is returned.
      */
     public Tuple<HttpRequest, HttpResponse> modifyAndExecuteHttpRequest(HttpRequest request) throws IOException {
-        final HttpRequest modifiedRequest = maybeModifyHttpResponse(request);
+        final HttpRequest modifiedRequest = maybeModifyHttpRequest(request);
         final HttpResponse response = httpClient.execute(modifiedRequest);
         logger.debug(
             "executed watcher webhook request for {}://{}:{}, response code: {}",

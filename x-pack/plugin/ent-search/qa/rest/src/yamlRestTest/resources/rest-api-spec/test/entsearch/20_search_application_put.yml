@@ -44,6 +44,11 @@ teardown:
 
   - do:
       search_application.delete:
+        name: another-test-search-application
+        ignore: 404
+
+  - do:
+      search_application.delete:
         name: test-updated-search-application
         ignore: 404
 
@@ -96,6 +101,37 @@ teardown:
         }
       }
     }
+---
+"Create Search Application with string encoded template script":
+  - do:
+      search_application.put:
+        name: another-test-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          template:
+            script: {
+              source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"_all\" } } }",
+              params: {
+                query_string: "elastic"
+              },
+              lang: "mustache"
+            }
+
+  - do:
+      search_application.get:
+        name: another-test-search-application
+  - match: {
+    template: {
+      script: {
+        source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"_all\" } } }",
+        params: {
+          query_string: "elastic"
+        },
+        lang: "mustache"
+      }
+    }
+  }
+  - match: { indices: [ "test-index1", "test-index2" ] }
 ---
 "Update Search Application with null template, results in default template being applied":
   - do:

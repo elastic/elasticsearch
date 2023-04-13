@@ -38,14 +38,21 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
         Map<String, Object> localResponse = entityAsMap(client().performRequest(request));
         // should either be empty, or using inferred versions
         assumeTrue("Local node needs to know about transport versions", masterResponse.containsKey("transport_versions"));
-        Map<?, Version> vs = Maps.transformValues(((Map<?, ?>)localResponse.get("nodes")), v -> Version.fromString(((Map<?, ?>)v).get("version").toString()));
+        Map<?, Version> vs = Maps.transformValues(
+            ((Map<?, ?>) localResponse.get("nodes")),
+            v -> Version.fromString(((Map<?, ?>) v).get("version").toString())
+        );
         Map<?, TransportVersion> tvs = ((List<?>) localResponse.get("transport_versions")).stream()
             .map(o -> (Map<?, ?>) o)
             .collect(Collectors.toMap(m -> m.get("node_id"), m -> TransportVersion.fromString(m.get("transport_version").toString())));
 
         for (var ver : vs.entrySet()) {
             if (ver.getValue().after(Version.V_8_8_0)) {
-                assertThat("Node " + ver.getKey() + " should have an inferred transport version", tvs.get(ver.getKey()), equalTo(TransportVersion.V_8_8_0));
+                assertThat(
+                    "Node " + ver.getKey() + " should have an inferred transport version",
+                    tvs.get(ver.getKey()),
+                    equalTo(TransportVersion.V_8_8_0)
+                );
             }
         }
     }

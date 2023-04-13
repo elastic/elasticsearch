@@ -182,6 +182,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.component;
     exports org.elasticsearch.common.compress;
     exports org.elasticsearch.common.document;
+    exports org.elasticsearch.common.file;
     exports org.elasticsearch.common.filesystem;
     exports org.elasticsearch.common.geo;
     exports org.elasticsearch.common.hash;

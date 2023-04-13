@@ -166,6 +166,7 @@ public class Verifier {
 
         List<DataType> allowed = new ArrayList<>();
         allowed.add(DataTypes.KEYWORD);
+        allowed.add(DataTypes.IP);
         allowed.add(DataTypes.DATETIME);
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataTypes.BOOLEAN);

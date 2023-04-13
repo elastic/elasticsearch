@@ -46,9 +46,9 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 
 public class CsvTestsDataLoader {
-    public static final String TEST_INDEX_SIMPLE = "employees";
-    public static final String MAPPING = "mapping-default.json";
-    public static final String DATA = "employees.csv";
+    private static final TestsDataset EMPLOYEES = new TestsDataset("employees", "mapping-default.json", "employees.csv");
+    private static final TestsDataset HOSTS = new TestsDataset("hosts", "mapping-hosts.json", "hosts.csv");
+    public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.of(EMPLOYEES.indexName, EMPLOYEES, HOSTS.indexName, HOSTS);
 
     /**
      * <p>
@@ -113,7 +113,9 @@ public class CsvTestsDataLoader {
     }
 
     public static void loadDataSetIntoEs(RestClient client, Logger logger) throws IOException {
-        load(client, TEST_INDEX_SIMPLE, "/" + MAPPING, "/" + DATA, logger);
+        for (var dataSet : CSV_DATASET_MAP.values()) {
+            load(client, dataSet.indexName, "/" + dataSet.mappingFileName, "/" + dataSet.dataFileName, logger);
+        }
     }
 
     private static void load(RestClient client, String indexName, String mappingName, String dataName, Logger logger) throws IOException {
@@ -264,19 +266,19 @@ public class CsvTestsDataLoader {
                 Object errors = result.get("errors");
                 if (Boolean.FALSE.equals(errors)) {
                     logger.info("Data loading OK");
-                    request = new Request("POST", "/" + TEST_INDEX_SIMPLE + "/_forcemerge?max_num_segments=1");
+                    request = new Request("POST", "/" + indexName + "/_forcemerge?max_num_segments=1");
                     response = client.performRequest(request);
                     if (response.getStatusLine().getStatusCode() != 200) {
-                        logger.info("Force-merge to 1 segment failed: " + response.getStatusLine());
+                        logger.warn("Force-merge to 1 segment failed: " + response.getStatusLine());
                     } else {
                         logger.info("Forced-merge to 1 segment");
                     }
                 } else {
-                    logger.info("Data loading FAILED");
+                    logger.error("Data loading FAILED");
                 }
             }
         } else {
-            logger.info("Error loading data: " + response.getStatusLine());
+            logger.error("Error loading data: " + response.getStatusLine());
         }
     }
 
@@ -286,4 +288,6 @@ public class CsvTestsDataLoader {
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         return xContent.createParser(config, data);
     }
+
+    public record TestsDataset(String indexName, String mappingFileName, String dataFileName) {}
 }

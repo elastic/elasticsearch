@@ -124,7 +124,7 @@ abstract class ComparisonMapper<T extends BinaryComparison> extends EvalMapper.E
         }
         Supplier<EvalOperator.ExpressionEvaluator> leftEval = EvalMapper.toEvaluator(bc.left(), layout);
         Supplier<EvalOperator.ExpressionEvaluator> rightEval = EvalMapper.toEvaluator(bc.right(), layout);
-        if (bc.left().dataType() == DataTypes.KEYWORD) {
+        if (bc.left().dataType() == DataTypes.KEYWORD || bc.left().dataType() == DataTypes.IP) {
             return () -> keywords.apply(leftEval.get(), rightEval.get());
         }
         if (bc.left().dataType() == DataTypes.BOOLEAN) {

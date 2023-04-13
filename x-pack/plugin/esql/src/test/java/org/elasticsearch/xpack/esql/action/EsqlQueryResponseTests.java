@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -76,6 +77,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case "integer" -> ((IntBlock.Builder) builder).appendInt(randomInt());
                 case "double" -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
                 case "keyword" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+                case "ip" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
+                    new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())))
+                );
                 case "date" -> ((LongBlock.Builder) builder).appendLong(randomInstant().toEpochMilli());
                 case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(randomBoolean());
                 case "unsupported" -> ((BytesRefBlock.Builder) builder).appendBytesRef(

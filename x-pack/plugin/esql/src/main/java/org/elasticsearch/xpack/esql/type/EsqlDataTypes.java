@@ -25,6 +25,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.HALF_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
@@ -54,6 +55,7 @@ public final class EsqlDataTypes {
         DATETIME,
         DATE_PERIOD,
         TIME_DURATION,
+        IP,
         OBJECT,
         NESTED,
         SCALED_FLOAT
@@ -61,7 +63,7 @@ public final class EsqlDataTypes {
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
-    private static Map<String, DataType> ES_TO_TYPE;
+    private static final Map<String, DataType> ES_TO_TYPE;
 
     static {
         Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(toMap(DataType::esType, t -> t));

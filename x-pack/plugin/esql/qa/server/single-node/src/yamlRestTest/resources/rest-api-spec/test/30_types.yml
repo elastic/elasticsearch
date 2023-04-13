@@ -311,3 +311,48 @@ multivalued boolean:
   - match: { columns.0.type: boolean }
   - length: { values: 1 }
   - match: { values.0.0: [ false, false, false, true ] }
+
+---
+ip:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              ip:
+                type: ip
+              keyword:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "ip": "127.0.0.1", "keyword": "127.0.0.2" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: ip }
+  - match: { columns.0.type: ip }
+  - match: { columns.1.name: keyword }
+  - match: { columns.1.type: keyword }
+  - length: { values: 1 }
+  - match: { values.0.0: "127.0.0.1" }
+  - match: { values.0.1: "127.0.0.2" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where keyword == "127.0.0.2" | rename IP = ip | drop keyword'
+
+  - match: {columns.0.name: IP }
+  - match: {columns.0.type: ip }
+  - length: {values: 1 }
+  - match: {values.0.0: "127.0.0.1" }

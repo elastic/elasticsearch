@@ -17,7 +17,6 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
@@ -50,12 +49,11 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.SpecReader;
 import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
-import org.elasticsearch.xpack.ql.analyzer.TableInfo;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.junit.After;
 import org.junit.Before;
 
@@ -72,7 +70,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.TEST_INDEX_SIMPLE;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
@@ -115,7 +113,7 @@ public class CsvTests extends ESTestCase {
     private final String testName;
     private final Integer lineNumber;
     private final CsvSpecReader.CsvTestCase testCase;
-    private final IndexResolution indexResolution = loadIndexResolution();
+
     private final EsqlConfiguration configuration = new EsqlConfiguration(
         ZoneOffset.UTC,
         null,
@@ -125,16 +123,10 @@ public class CsvTests extends ESTestCase {
     );
     private final FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final EsqlParser parser = new EsqlParser();
-    private final Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indexResolution), new Verifier());
     private final LogicalPlanOptimizer logicalPlanOptimizer = new LogicalPlanOptimizer();
     private final Mapper mapper = new Mapper(functionRegistry);
     private final PhysicalPlanOptimizer physicalPlanOptimizer = new TestPhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
     private ThreadPool threadPool;
-
-    private static IndexResolution loadIndexResolution() {
-        var mapping = new TreeMap<String, EsField>(loadMapping(CsvTestsDataLoader.MAPPING));
-        return IndexResolution.valid(new EsIndex(TEST_INDEX_SIMPLE, mapping));
-    }
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -176,10 +168,8 @@ public class CsvTests extends ESTestCase {
         return false;
     }
 
-    public void doTest() throws Throwable {
-        Tuple<Page, List<String>> testData = loadPageFromCsv(CsvTests.class.getResource("/" + CsvTestsDataLoader.DATA));
-
-        var actualResults = executePlan(new TestPhysicalOperationProviders(testData.v1(), testData.v2()));
+    private void doTest() throws Exception {
+        var actualResults = executePlan();
         var expected = loadCsvSpecValues(testCase.expectedResults);
 
         var log = logResults() ? LOGGER : null;
@@ -196,14 +186,14 @@ public class CsvTests extends ESTestCase {
         // CsvTestUtils.logData(actual.values(), LOGGER);
     }
 
-    private PhysicalPlan physicalPlan() {
-        var parsed = parser.createStatement(testCase.query);
-        var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
-        for (TableInfo t : preAnalysis.indices) {
-            if (false == t.id().index().equals("employees")) {
-                throw new IllegalArgumentException("only [employees] table available");
-            }
-        }
+    private static IndexResolution loadIndexResolution(String mappingName, String indexName) {
+        var mapping = new TreeMap<>(loadMapping(mappingName));
+        return IndexResolution.valid(new EsIndex(indexName, mapping));
+    }
+
+    private PhysicalPlan physicalPlan(LogicalPlan parsed, CsvTestsDataLoader.TestsDataset dataset) {
+        var indexResolution = loadIndexResolution(dataset.mappingFileName(), dataset.indexName());
+        var analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indexResolution), new Verifier());
         var analyzed = analyzer.analyze(parsed);
         var logicalOptimized = logicalPlanOptimizer.optimize(analyzed);
         var physicalPlan = mapper.map(logicalOptimized);
@@ -212,7 +202,32 @@ public class CsvTests extends ESTestCase {
         return optimizedPlan;
     }
 
-    private ActualResults executePlan(TestPhysicalOperationProviders operationProviders) {
+    private static CsvTestsDataLoader.TestsDataset testsDataset(LogicalPlan parsed) {
+        var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
+        var indices = preAnalysis.indices;
+        if (indices.size() == 0) {
+            return CSV_DATASET_MAP.values().iterator().next(); // default dataset for `row` source command
+        } else if (preAnalysis.indices.size() > 1) {
+            throw new IllegalArgumentException("unexpected index resolution to multiple entries [" + preAnalysis.indices.size() + "]");
+        }
+
+        String indexName = indices.get(0).id().index();
+        var dataset = CSV_DATASET_MAP.get(indexName);
+        if (dataset == null) {
+            throw new IllegalArgumentException("unknown CSV dataset for table [" + indexName + "]");
+        }
+        return dataset;
+    }
+
+    private static TestPhysicalOperationProviders testOperationProviders(CsvTestsDataLoader.TestsDataset dataset) throws Exception {
+        var testData = loadPageFromCsv(CsvTests.class.getResource("/" + dataset.dataFileName()));
+        return new TestPhysicalOperationProviders(testData.v1(), testData.v2());
+    }
+
+    private ActualResults executePlan() throws Exception {
+        var parsed = parser.createStatement(testCase.query);
+        var testDataset = testsDataset(parsed);
+
         ExchangeService exchangeService = new ExchangeService(mock(TransportService.class), threadPool);
         String sessionId = "csv-test";
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
@@ -221,9 +236,9 @@ public class CsvTests extends ESTestCase {
             threadPool,
             configuration.pragmas(),
             exchangeService,
-            operationProviders
+            testOperationProviders(testDataset)
         );
-        PhysicalPlan physicalPlan = physicalPlan();
+        PhysicalPlan physicalPlan = physicalPlan(parsed, testDataset);
         List<Driver> drivers = new ArrayList<>();
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
         List<String> columnNames = Expressions.names(physicalPlan.output());

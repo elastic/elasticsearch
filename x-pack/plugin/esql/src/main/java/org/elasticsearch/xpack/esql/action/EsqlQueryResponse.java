@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -43,6 +44,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
 
 public class EsqlQueryResponse extends ActionResponse implements ChunkedToXContent {
 
@@ -220,6 +222,10 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
             case "integer" -> ((IntBlock) block).getInt(offset);
             case "double" -> ((DoubleBlock) block).getDouble(offset);
             case "keyword" -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
+            case "ip" -> {
+                BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
+                yield DocValueFormat.IP.format(val);
+            }
             case "date" -> {
                 long longVal = ((LongBlock) block).getLong(offset);
                 yield UTC_DATE_TIME_FORMATTER.formatMillis(longVal);
@@ -241,19 +247,20 @@ public class EsqlQueryResponse extends ActionResponse implements ChunkedToXConte
 
         for (List<Object> row : values) {
             for (int c = 0; c < row.size(); c++) {
+                var builder = results.get(c);
+                var value = row.get(c);
                 switch (dataTypes.get(c)) {
-                    case "long" -> ((LongBlock.Builder) results.get(c)).appendLong(((Number) row.get(c)).longValue());
-                    case "integer" -> ((IntBlock.Builder) results.get(c)).appendInt(((Number) row.get(c)).intValue());
-                    case "double" -> ((DoubleBlock.Builder) results.get(c)).appendDouble(((Number) row.get(c)).doubleValue());
-                    case "keyword", "unsupported" -> ((BytesRefBlock.Builder) results.get(c)).appendBytesRef(
-                        new BytesRef(row.get(c).toString())
-                    );
+                    case "long" -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
+                    case "integer" -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
+                    case "double" -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
+                    case "keyword", "unsupported" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
+                    case "ip" -> ((BytesRefBlock.Builder) builder).appendBytesRef(parseIP(value.toString()));
                     case "date" -> {
-                        long longVal = UTC_DATE_TIME_FORMATTER.parseMillis(row.get(c).toString());
-                        ((LongBlock.Builder) results.get(c)).appendLong(longVal);
+                        long longVal = UTC_DATE_TIME_FORMATTER.parseMillis(value.toString());
+                        ((LongBlock.Builder) builder).appendLong(longVal);
                     }
-                    case "boolean" -> ((BooleanBlock.Builder) results.get(c)).appendBoolean(((Boolean) row.get(c)));
-                    case "null" -> results.get(c).appendNull();
+                    case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));
+                    case "null" -> builder.appendNull();
                     default -> throw new UnsupportedOperationException("unsupported data type [" + dataTypes.get(c) + "]");
                 }
             }

@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.hamcrest.Matchers;
 
@@ -113,6 +115,8 @@ public final class CsvAssert {
 
                 if (blockType == Type.LONG && expectedType == Type.DATETIME) {
                     blockType = Type.DATETIME;
+                } else if (blockType == Type.KEYWORD && expectedType == Type.IP) {
+                    continue;
                 }
 
                 assertEquals(
@@ -142,7 +146,6 @@ public final class CsvAssert {
         Logger logger,
         Function<Object, Object> valueTransformer
     ) {
-        var columns = expected.columnNames();
         var expectedValues = expected.values();
 
         int row = 0;
@@ -159,14 +162,27 @@ public final class CsvAssert {
 
                 int column = 0;
                 for (column = 0; column < expectedRow.size(); column++) {
-                    assertTrue("Missing column [" + column + "] at row  [" + row + "]", column < expectedRow.size());
-
                     var expectedValue = expectedRow.get(column);
                     var actualValue = actualRow.get(column);
 
-                    // convert the long from CSV back to its STRING form
-                    if (expectedValue != null && expected.columnTypes().get(column) == Type.DATETIME) {
-                        expectedValue = UTC_DATE_TIME_FORMATTER.formatMillis((long) expectedValue);
+                    if (expectedValue != null) {
+                        var expectedType = expected.columnTypes().get(column);
+                        // convert the long from CSV back to its STRING form
+                        if (expectedType == Type.DATETIME) {
+                            expectedValue = UTC_DATE_TIME_FORMATTER.formatMillis((long) expectedValue);
+                        } else if (expectedType == Type.IP) {
+                            // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
+                            if (List.class.isAssignableFrom(expectedValue.getClass())) {
+                                assertThat(((List<?>) expectedValue).get(0), Matchers.instanceOf(BytesRef.class));
+                                expectedValue = ((List<?>) expectedValue).stream()
+                                    .map(x -> DocValueFormat.IP.format((BytesRef) x))
+                                    .toList();
+                            } else {
+                                assertThat(expectedValue, Matchers.instanceOf(BytesRef.class));
+                                expectedValue = DocValueFormat.IP.format((BytesRef) expectedValue);
+                            }
+                        }
+
                     }
                     assertEquals(valueTransformer.apply(expectedValue), valueTransformer.apply(actualValue));
                 }

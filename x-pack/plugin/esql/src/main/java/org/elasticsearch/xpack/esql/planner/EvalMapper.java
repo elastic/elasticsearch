@@ -141,7 +141,7 @@ public final class EvalMapper {
                 }
                 return () -> new Ints(channel);
             }
-            if (attr.dataType() == DataTypes.KEYWORD) {
+            if (attr.dataType() == DataTypes.KEYWORD || attr.dataType() == DataTypes.IP) {
                 record Keywords(int channel) implements ExpressionEvaluator {
                     @Override
                     public Object computeRow(Page page, int pos) {

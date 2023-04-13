@@ -107,7 +107,7 @@ public abstract class BlockDocValuesReader {
                 };
             }
         }
-        if (CoreValuesSourceType.KEYWORD.equals(valuesSourceType)) {
+        if (CoreValuesSourceType.KEYWORD.equals(valuesSourceType) || CoreValuesSourceType.IP.equals(valuesSourceType)) {
             if (elementType != ElementType.BYTES_REF) {
                 throw new UnsupportedOperationException("can't extract [" + elementType + "] from keywords");
             }

@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -128,6 +129,14 @@ public record ColumnInfo(String name, String type) implements Writeable {
                         val = BytesRef.deepCopyOf(scratch);
                     }
                     return builder.utf8Value(val.bytes, val.offset, val.length);
+                }
+            };
+            case "ip" -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
+                    return builder.value(DocValueFormat.IP.format(val));
                 }
             };
             case "date" -> new PositionToXContent(block) {

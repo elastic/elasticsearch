@@ -20,6 +20,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
@@ -295,6 +296,7 @@ public final class CsvTestUtils {
             Double.class
         ),
         KEYWORD(Object::toString, BytesRef.class),
+        IP(StringUtils::parseIP, BytesRef.class),
         NULL(s -> null, Void.class),
         DATETIME(x -> x == null ? null : DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(x)).toInstant().toEpochMilli(), Long.class),
         BOOLEAN(Booleans::parseBoolean, Boolean.class);

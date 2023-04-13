@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.esql.CsvAssert.assertData;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.TEST_INDEX_SIMPLE;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
@@ -61,7 +61,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Before
     public void setup() throws IOException {
-        if (indexExists(TEST_INDEX_SIMPLE) == false) {
+        if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
             loadDataSetIntoEs(client());
         }
     }

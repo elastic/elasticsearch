@@ -13,6 +13,8 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
@@ -23,6 +25,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.file.Files;
@@ -50,7 +53,7 @@ final class ModelLoaderUtils {
     public static String METADATA_FILE_EXTENSION = ".metadata.json";
     public static String MODEL_FILE_EXTENSION = ".pt";
 
-    private static long VOCABULARY_SIZE_LIMIT = 10 * 1024 * 1024; // 10 MB
+    private static ByteSizeValue VOCABULARY_SIZE_LIMIT = new ByteSizeValue(10, ByteSizeUnit.MB);
     private static final String VOCABULARY = "vocabulary";
     private static final String MERGES = "merges";
 
@@ -107,7 +110,10 @@ final class ModelLoaderUtils {
 
             if (uri.getPath().endsWith(".json")) {
                 XContentParser sourceParser = XContentType.JSON.xContent()
-                    .createParser(XContentParserConfiguration.EMPTY, Streams.limitStream(vocabInputStream, VOCABULARY_SIZE_LIMIT));
+                    .createParser(
+                        XContentParserConfiguration.EMPTY,
+                        Streams.limitStream(vocabInputStream, VOCABULARY_SIZE_LIMIT.getBytes())
+                    );
                 Map<String, List<Object>> vocabAndMerges = sourceParser.map(HashMap::new, XContentParser::list);
 
                 List<String> vocabulary = vocabAndMerges.containsKey(VOCABULARY)
@@ -154,7 +160,7 @@ final class ModelLoaderUtils {
                         throw new ElasticsearchStatusException("error during downloading {}", RestStatus.fromCode(responseCode), uri);
                 }
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new UncheckedIOException(e);
             }
         };
 
@@ -179,7 +185,7 @@ final class ModelLoaderUtils {
             try {
                 return Files.newInputStream(file.toPath());
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new UncheckedIOException(e);
             }
         };
 

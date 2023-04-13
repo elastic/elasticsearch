@@ -21,6 +21,14 @@ public final class RoutingNodesHelper {
 
     private RoutingNodesHelper() {}
 
+    public static int numberOfShardsOfType(RoutingNodes nodes, ShardRoutingState state) {
+        int count = 0;
+        for (RoutingNode routingNode : nodes) {
+            count += routingNode.numberOfShardsWithState(state);
+        }
+        return count;
+    }
+
     public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState state) {
         return state == ShardRoutingState.UNASSIGNED
             ? iterableAsArrayList(routingNodes.unassigned())

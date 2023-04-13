@@ -184,8 +184,7 @@ public class RemoteClusterSecurityWithDlsRestIT extends AbstractRemoteClusterSec
                         {
                           "names": ["*"],
                           "privileges": ["all"],
-                          "clusters": ["*"],
-                          "query": {"bool": {"must": {"term" : {"field1" : "value4"}}}}
+                          "clusters": ["*"]
                         }
                       ]
                     }
@@ -208,7 +207,7 @@ public class RemoteClusterSecurityWithDlsRestIT extends AbstractRemoteClusterSec
                 Map.ofEntries(Map.entry("remote_index1", Set.of("field1", "field3")))
             );
 
-            // API key's role restrictions should be respected. In this case no fields should be returned.
+            // API key's role restrictions should be respected.
             String apiKeyFlsRestricted = createRemoteSearchApiKeyWithUser(REMOTE_SEARCH_USER_FLS, """
                 {
                     "role1": {

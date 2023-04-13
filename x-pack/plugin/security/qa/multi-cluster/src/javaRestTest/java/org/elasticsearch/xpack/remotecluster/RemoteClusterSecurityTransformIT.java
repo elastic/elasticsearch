@@ -74,7 +74,7 @@ public class RemoteClusterSecurityTransformIT extends AbstractRemoteClusterSecur
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testCrossClusterTransform() throws Exception {
-        configureRemoteClusters();
+        configureRemoteCluster();
 
         // Fulfilling cluster
         {

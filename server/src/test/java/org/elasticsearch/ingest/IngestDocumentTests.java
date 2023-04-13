@@ -1033,9 +1033,16 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testCopyConstructor() {
+        // generic test with a random document and copy
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         IngestDocument copy = new IngestDocument(ingestDocument);
+
+        // these fields should not be the same instance
         assertThat(ingestDocument.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
+        assertThat(ingestDocument.getCtxMap(), not(sameInstance(copy.getCtxMap())));
+        assertThat(ingestDocument.getCtxMap().getMetadata(), not(sameInstance(copy.getCtxMap().getMetadata())));
+
+        // but the two objects should be very much equal to each other
         assertIngestDocument(ingestDocument, copy);
     }
 

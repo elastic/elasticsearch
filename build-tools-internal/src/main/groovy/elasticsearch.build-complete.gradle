@@ -38,6 +38,8 @@ if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(projec
             exclude("**/build/testrun/*/temp/**/repo/**")
             exclude("**/build/testrun/*/temp/**/extract/**")
             exclude("**/build/testrun/*/temp/**/tmp/**")
+            exclude("**/build/reports/jacoco/testCodeCoverageReport/html/**")
+            exclude("**/build/reports/jacoco/testCodeCoverageReport/**")
           }
             .files
             .findAll { Files.isRegularFile(it.toPath()) }

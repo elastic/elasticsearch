@@ -15,12 +15,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.application.analytics.event.parser.field.AnalyticsEventSearchResultFieldTests.randomEventSearchResultField;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.PaginationAnalyticsEventField.PAGINATION_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.PaginationAnalyticsEventFieldTests.randomEventSearchPaginationField;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchAnalyticsEventField.SEARCH_APPLICATION_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchAnalyticsEventField.SEARCH_QUERY_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchAnalyticsEventField.SEARCH_RESULTS_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchFiltersAnalyticsEventField.SEARCH_FILTERS_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchFiltersAnalyticsEventFieldTests.randomEventSearchFiltersField;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchResultAnalyticsEventFieldTests.randomEventSearchResultField;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SortOrderAnalyticsEventField.SORT_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SortOrderAnalyticsEventFieldTests.randomEventSearchSortOrderField;
 
@@ -47,6 +49,7 @@ public class SearchAnalyticsEventFieldTests extends AnalyticsEventFieldParserTes
             .put(SORT_FIELD.getPreferredName(), randomEventSearchSortOrderField())
             .put(PAGINATION_FIELD.getPreferredName(), randomEventSearchPaginationField())
             .put(SEARCH_RESULTS_FIELD.getPreferredName(), randomEventSearchResultField())
+            .put(SEARCH_FILTERS_FIELD.getPreferredName(), randomEventSearchFiltersField())
             .map();
     }
 }

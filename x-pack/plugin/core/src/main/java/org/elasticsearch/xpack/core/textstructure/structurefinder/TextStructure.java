@@ -27,6 +27,8 @@ import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
+
 /**
  * Stores the determined file format.
  */
@@ -131,7 +133,7 @@ public class TextStructure implements ToXContentObject, Writeable {
     }
 
     private static String getNonNullEcsCompatibilityString(String ecsCompatibility) {
-        return (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[0] : ecsCompatibility;
+        return (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? ECS_COMPATIBILITY_DISABLED : ecsCompatibility;
     }
 
     private final int numLinesAnalyzed;

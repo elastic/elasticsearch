@@ -86,16 +86,7 @@
                 "ignore_above": 1024
             },
             "filters": {
-              "properties": {
-                "field": {
-                    "type": "keyword",
-                    "ignore_above": 1024
-                },
-                "value": {
-                    "type": "keyword",
-                    "ignore_above": 1024
-                }
-              }
+              "type": "flattened"
             },
             "page": {
               "properties": {

@@ -23,9 +23,7 @@ public final class RoutingNodesHelper {
     private RoutingNodesHelper() {}
 
     public static int numberOfShardsWithState(RoutingNodes nodes, ShardRoutingState state) {
-        if (state == ShardRoutingState.UNASSIGNED) {
-            return nodes.unassigned().size();
-        }
+        assert state != ShardRoutingState.UNASSIGNED : "unassigned state is not supported here, use nodes.unassigned().size() instead";
         int count = 0;
         for (RoutingNode routingNode : nodes) {
             count += routingNode.numberOfShardsWithState(state);

@@ -1237,7 +1237,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         logger.info(
             "--> counts: total: {}, unassigned: {}, initializing: {}, relocating: {}, started: {}",
             assignedShardsIn(rn).count(),
-            numberOfShardsWithState(rn, UNASSIGNED),
+            rn.unassigned().size(),
             numberOfShardsWithState(rn, INITIALIZING),
             numberOfShardsWithState(rn, RELOCATING),
             numberOfShardsWithState(rn, STARTED)

@@ -18,6 +18,7 @@ import io.netty.handler.codec.http.HttpRequest;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationContext;
 import org.elasticsearch.rest.RestRequest;
@@ -39,15 +40,14 @@ public final class HttpHeadersValidator {
 
     public Netty4HttpHeaderValidator getValidatorInboundHandler() {
         return new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
-            if ((httpRequest.headers() instanceof ValidatableHttpHeaders) == false) {
+            if (httpRequest.headers() instanceof ValidatableHttpHeaders validatableHttpHeaders) {
+                validator.apply(asHttpPreRequest(httpRequest), channel, ActionListener.wrap(validationContext -> {
+                    validatableHttpHeaders.markValidationSucceeded(validationContext);
+                    listener.onResponse(null);
+                }, e -> listener.onFailure(new HttpHeadersValidationException(e))));
+            } else {
                 listener.onFailure(new IllegalStateException("Expected a validatable request for validation"));
-                return;
             }
-            ValidatableHttpHeaders validatableHttpHeaders = ((ValidatableHttpHeaders) httpRequest.headers());
-            validator.apply(asHttpPreRequest(httpRequest), channel, listener.delegateFailure((l, response) -> {
-                validatableHttpHeaders.markValidationSucceeded(response);
-                l.onResponse(null);
-            }));
         });
     }
 

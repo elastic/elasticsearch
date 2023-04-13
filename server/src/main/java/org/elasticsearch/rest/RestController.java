@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
@@ -50,6 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.ExceptionsHelper.status;
 import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.indices.SystemIndices.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.rest.RestResponse.TEXT_CONTENT_TYPE;
@@ -58,7 +60,6 @@ import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
 import static org.elasticsearch.rest.RestStatus.NOT_ACCEPTABLE;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
 
 public class RestController implements HttpServerTransport.Dispatcher {
 
@@ -333,7 +334,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 e = new ElasticsearchException(cause);
             }
-            RestStatus status = ExceptionsHelper.status(e) == UNAUTHORIZED ? UNAUTHORIZED : BAD_REQUEST;
+            RestStatus status = e instanceof HttpHeadersValidationException ? ExceptionsHelper.status(e) : BAD_REQUEST;
             channel.sendResponse(new RestResponse(channel, status, e));
         } catch (final IOException e) {
             if (cause != null) {

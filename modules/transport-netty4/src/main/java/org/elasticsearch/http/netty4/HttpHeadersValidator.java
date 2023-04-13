@@ -14,7 +14,6 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpRequest;
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.TriConsumer;
@@ -42,7 +41,7 @@ public final class HttpHeadersValidator {
         return new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
             if (httpRequest.headers() instanceof ValidatableHttpHeaders validatableHttpHeaders) {
                 validator.apply(asHttpPreRequest(httpRequest), channel, ActionListener.wrap(validationContext -> {
-                    validatableHttpHeaders.markValidationSucceeded(validationContext);
+                    validatableHttpHeaders.markAsValidated(validationContext);
                     listener.onResponse(null);
                 }, e -> listener.onFailure(new HttpHeadersValidationException(e))));
             } else {
@@ -107,7 +106,7 @@ public final class HttpHeadersValidator {
             set(httpHeaders);
         }
 
-        public void markValidationSucceeded(ValidationContext validationContext) {
+        public void markAsValidated(ValidationContext validationContext) {
             this.validationContextSetOnce.set(validationContext);
         }
     }

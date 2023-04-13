@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 @ServerlessScope(Scope.PUBLIC)
 public final class RestClearRolesCacheAction extends SecurityBaseRestHandler {
 

@@ -32,6 +32,7 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
         Setting.Property.Dynamic
     );
 
+    // re-using thread pool setup by the ml plugin
     public static final String UTILITY_THREAD_POOL_NAME = "ml_utility";
 
     public MachineLearningPackageLoader(Settings settings) {

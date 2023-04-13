@@ -87,6 +87,23 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
                 URI uri = new URI(repository).resolve(packagedModelId + ModelLoaderUtils.MODEL_FILE_EXTENSION);
+
+                // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
+                // download is complete
+                if (Strings.isNullOrEmpty(modelPackageConfig.getVocabularyFile()) == false) {
+                    Tuple<List<String>, List<String>> vocabularyAndMerges = ModelLoaderUtils.loadVocabulary(
+                        new URI(repository).resolve(modelPackageConfig.getVocabularyFile())
+                    );
+
+                    PutTrainedModelVocabularyAction.Request r2 = new PutTrainedModelVocabularyAction.Request(
+                        modelId,
+                        vocabularyAndMerges.v1(),
+                        vocabularyAndMerges.v2()
+                    );
+                    client.execute(PutTrainedModelVocabularyAction.INSTANCE, r2).actionGet();
+                    logger.debug(() -> format("uploaded model vocabulary [%s]", modelPackageConfig.getVocabularyFile()));
+                }
+
                 InputStream modelInputStream = ModelLoaderUtils.getInputStreamFromModelRepository(uri);
 
                 ModelLoaderUtils.InputStreamChunker chunkIterator = new ModelLoaderUtils.InputStreamChunker(
@@ -109,21 +126,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
                     client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
                 }
-                logger.trace(() -> format("finished uploading model using [%d] parts", totalParts));
-
-                if (Strings.isNullOrEmpty(modelPackageConfig.getVocabularyFile()) == false) {
-                    Tuple<List<String>, List<String>> vocabularyAndMerges = ModelLoaderUtils.loadVocabulary(
-                        new URI(repository).resolve(modelPackageConfig.getVocabularyFile())
-                    );
-
-                    PutTrainedModelVocabularyAction.Request r2 = new PutTrainedModelVocabularyAction.Request(
-                        modelId,
-                        vocabularyAndMerges.v1(),
-                        vocabularyAndMerges.v2()
-                    );
-                    client.execute(PutTrainedModelVocabularyAction.INSTANCE, r2).actionGet();
-                    logger.trace(() -> format("uploaded model vocabulary [%s]", modelPackageConfig.getVocabularyFile()));
-                }
+                logger.debug(() -> format("finished uploading model using [%d] parts", totalParts));
             } catch (MalformedURLException e) {
                 logger.error(format("Invalid URL [%s]", e));
             } catch (URISyntaxException e) {

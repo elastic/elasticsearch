@@ -1647,11 +1647,6 @@ public class Security extends Plugin
             }
             final AuthenticationService authenticationService = this.authcService.get();
             final ThreadContext threadContext = this.threadContext.get();
-            final BiConsumer<HttpPreRequest, Channel> populatePerRequestThreadContext = (httpRequest, channel) -> {
-                perRequestThreadContext.accept(httpRequest, threadContext);
-                populateClientCertificate.accept(channel, threadContext);
-                RemoteHostHeader.process(channel, threadContext);
-            };
             final BiConsumer<HttpPreRequest, ActionListener<Void>> authenticate = (httpRequest, listener) -> {
                 authenticationService.authenticate(httpRequest, listener.map(authentication -> {
                     if (authentication == null) {
@@ -1671,7 +1666,9 @@ public class Security extends Plugin
                     listener
                 );
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    populatePerRequestThreadContext.accept(httpRequest, channel);
+                    perRequestThreadContext.accept(httpRequest, threadContext);
+                    populateClientCertificate.accept(channel, threadContext);
+                    RemoteHostHeader.process(channel, threadContext);
                     authenticate.accept(
                         httpRequest,
                         ActionListener.wrap(

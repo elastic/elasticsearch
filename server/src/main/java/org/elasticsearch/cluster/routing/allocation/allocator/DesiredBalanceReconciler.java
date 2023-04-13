@@ -343,7 +343,7 @@ public class DesiredBalanceReconciler {
 
             final var moveTarget = findRelocationTarget(shardRouting, assignment.nodeIds());
             if (moveTarget != null) {
-                routingNodes.relocateShard(
+                routingNodes.relocateOrReinitializeShard(
                     shardRouting,
                     moveTarget.getId(),
                     allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
@@ -392,7 +392,7 @@ public class DesiredBalanceReconciler {
 
             final var rebalanceTarget = findRelocationTarget(shardRouting, assignment.nodeIds(), this::decideCanAllocate);
             if (rebalanceTarget != null) {
-                routingNodes.relocateShard(
+                routingNodes.relocateOrReinitializeShard(
                     shardRouting,
                     rebalanceTarget.getId(),
                     allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),

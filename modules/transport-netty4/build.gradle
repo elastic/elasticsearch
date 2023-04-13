@@ -60,6 +60,8 @@ tasks.named("dependencyLicenses").configure {
 TaskProvider<Test> pooledTest = tasks.register("pooledTest", Test) {
   include '**/*Tests.class'
   systemProperty 'es.use_unpooled_allocator', 'false'
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
 }
 
 TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClusterTest", Test) {

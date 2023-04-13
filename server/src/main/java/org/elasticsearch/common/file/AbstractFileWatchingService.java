@@ -372,7 +372,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
      *
      * @throws InterruptedException if the file processing is interrupted by another thread.
      */
-    public final void processSettingsAndNotifyListeners() throws InterruptedException {
+    public void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
             processFileChanges();
             for (var listener : eventListeners) {

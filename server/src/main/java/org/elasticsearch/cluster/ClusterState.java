@@ -1031,12 +1031,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             routingTable.writeTo(out);
             nodes.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-                if (transportVersions == null) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    transportVersions.writeTo(out);
-                }
+                out.writeOptionalWriteable(transportVersions);
             }
             metadata.writeTo(out);
             blocks.writeTo(out);

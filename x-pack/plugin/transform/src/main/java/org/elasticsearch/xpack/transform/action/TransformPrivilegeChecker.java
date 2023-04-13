@@ -13,7 +13,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -40,6 +42,7 @@ final class TransformPrivilegeChecker {
 
     static void checkPrivileges(
         String operationName,
+        Settings settings,
         SecurityContext securityContext,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState clusterState,
@@ -48,6 +51,8 @@ final class TransformPrivilegeChecker {
         boolean checkDestIndexPrivileges,
         ActionListener<Void> listener
     ) {
+        assert XPackSettings.SECURITY_ENABLED.get(settings);
+
         useSecondaryAuthIfAvailable(securityContext, () -> {
             final String username = securityContext.getUser().principal();
 
@@ -90,6 +95,7 @@ final class TransformPrivilegeChecker {
                 .indices(sourceIndex)
                 // We need to read the source indices mapping to deduce the destination mapping, hence the need for view_index_metadata
                 .privileges("read", "view_index_metadata")
+                .allowRestrictedIndices(true)
                 .build();
             indicesPrivileges.add(sourceIndexPrivileges);
         }
@@ -116,6 +122,7 @@ final class TransformPrivilegeChecker {
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(destIndex)
                 .privileges(destPrivileges)
+                .allowRestrictedIndices(true)
                 .build();
             indicesPrivileges.add(destIndexPrivileges);
         }

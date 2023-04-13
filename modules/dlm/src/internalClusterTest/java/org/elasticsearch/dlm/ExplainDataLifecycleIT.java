@@ -11,6 +11,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -113,7 +114,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
                 .actionGet();
             assertThat(response.getIndices().size(), is(2));
             // we requested the explain for indices with the default include_details=false
-            assertThat(response.getRolloverConditions(), nullValue());
+            assertThat(response.getRolloverConfiguration(), nullValue());
             for (ExplainIndexDataLifecycle explainIndex : response.getIndices()) {
                 assertThat(explainIndex.isManagedByDLM(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
@@ -148,9 +149,9 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
             ExplainDataLifecycleAction.Response response = client().execute(ExplainDataLifecycleAction.INSTANCE, explainIndicesRequest)
                 .actionGet();
             assertThat(response.getIndices().size(), is(2));
-            RolloverConditions rolloverConditions = response.getRolloverConditions();
-            assertThat(rolloverConditions, notNullValue());
-            Map<String, Condition<?>> conditions = rolloverConditions.getConditions();
+            RolloverConfiguration rolloverConfiguration = response.getRolloverConfiguration();
+            assertThat(rolloverConfiguration, notNullValue());
+            Map<String, Condition<?>> conditions = rolloverConfiguration.resolveRolloverConditions(null).getConditions();
             assertThat(conditions.size(), is(2));
             assertThat(conditions.get(RolloverConditions.MAX_DOCS_FIELD.getPreferredName()).value(), is(1L));
             assertThat(conditions.get(RolloverConditions.MIN_DOCS_FIELD.getPreferredName()).value(), is(1L));
@@ -198,7 +199,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
                 .actionGet();
             assertThat(response.getIndices().size(), is(1));
             // we requested the explain for indices with the default include_details=false
-            assertThat(response.getRolloverConditions(), nullValue());
+            assertThat(response.getRolloverConfiguration(), nullValue());
             for (ExplainIndexDataLifecycle explainIndex : response.getIndices()) {
                 assertThat(explainIndex.getIndex(), is(writeIndexName));
                 assertThat(explainIndex.isManagedByDLM(), is(true));
@@ -244,7 +245,7 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
             ExplainDataLifecycleAction.Response response = client().execute(ExplainDataLifecycleAction.INSTANCE, explainIndicesRequest)
                 .actionGet();
             assertThat(response.getIndices().size(), is(1));
-            assertThat(response.getRolloverConditions(), nullValue());
+            assertThat(response.getRolloverConfiguration(), nullValue());
             for (ExplainIndexDataLifecycle explainIndex : response.getIndices()) {
                 assertThat(explainIndex.isManagedByDLM(), is(false));
                 assertThat(explainIndex.getIndex(), is(writeIndexName));

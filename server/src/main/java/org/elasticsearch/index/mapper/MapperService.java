@@ -8,9 +8,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Setting;
@@ -124,6 +126,31 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private volatile DocumentMapper mapper;
 
     public MapperService(
+        ClusterService clusterService,
+        IndexSettings indexSettings,
+        IndexAnalyzers indexAnalyzers,
+        XContentParserConfiguration parserConfiguration,
+        SimilarityService similarityService,
+        MapperRegistry mapperRegistry,
+        Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+        IdFieldMapper idFieldMapper,
+        ScriptCompiler scriptCompiler
+    ) {
+        this(
+            () -> clusterService.state().getMinTransportVersion(),
+            indexSettings,
+            indexAnalyzers,
+            parserConfiguration,
+            similarityService,
+            mapperRegistry,
+            searchExecutionContextSupplier,
+            idFieldMapper,
+            scriptCompiler
+        );
+    }
+
+    public MapperService(
+        Supplier<TransportVersion> clusterTransportVersion,
         IndexSettings indexSettings,
         IndexAnalyzers indexAnalyzers,
         XContentParserConfiguration parserConfiguration,
@@ -142,6 +169,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             type -> mapperRegistry.getMapperParser(type, indexVersionCreated),
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexVersionCreated,
+            clusterTransportVersion,
             searchExecutionContextSupplier,
             scriptCompiler,
             indexAnalyzers,

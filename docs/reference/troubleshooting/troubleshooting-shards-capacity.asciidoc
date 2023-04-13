@@ -1,5 +1,5 @@
 [[troubleshoot-shards-capacity-issues]]
-=== Troubleshoot shards capacity health issues
+== Troubleshoot shards capacity health issues
 
 Elastic limits the maximum number of shards to be held per node using the
 <<cluster-max-shards-per-node, `cluster.max_shards_per_node`>> and
@@ -8,7 +8,7 @@ The current shards capacity of the cluster is available in the
 <<health-api-response-details-shards-capacity, health API shards capacity section>>.
 
 [discrete]
-==== Cluster is close to reaching the configured maximum number of shards for data nodes.
+=== Cluster is close to reaching the configured maximum number of shards for data nodes.
 
 The <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> cluster
 setting limits the maximum number of open shards for a cluster, only counting over data nodes
@@ -56,7 +56,7 @@ PUT _cluster/settings
 ----
 
 [discrete]
-==== Cluster is close to reaching the configured maximum number of shards for frozen nodes.
+=== Cluster is close to reaching the configured maximum number of shards for frozen nodes.
 
 The <<cluster-max-shards-per-node-frozen,`cluster.max_shards_per_node.frozen`>> cluster
 setting limits the maximum number of open shards for a cluster, only counting over data nodes

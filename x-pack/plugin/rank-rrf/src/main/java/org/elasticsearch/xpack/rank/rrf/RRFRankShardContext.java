@@ -24,8 +24,8 @@ public class RRFRankShardContext extends RankShardContext {
 
     protected final int rankConstant;
 
-    public RRFRankShardContext(List<Query> queries, int size, int from, int windowSize, int rankConstant) {
-        super(queries, size, from, windowSize);
+    public RRFRankShardContext(List<Query> queries, int from, int windowSize, int rankConstant) {
+        super(queries, from, windowSize);
         this.rankConstant = rankConstant;
     }
 

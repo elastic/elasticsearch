@@ -138,7 +138,7 @@ public class RRFRankIT extends ESIntegTestCase {
         float[] queryVector = { 0.0f };
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 3, null);
         SearchResponse response = client().prepareSearch("tiny_index")
-            .setRankContextBuilder(new RRFRankBuilder().windowSize(100).rankConstant(1))
+            .setRankBuilder(new RRFRankBuilder().windowSize(100).rankConstant(1))
             .setKnnSearch(List.of(knnSearch))
             .setQuery(QueryBuilders.termQuery("text", "term"))
             .addFetchField("vector")
@@ -169,7 +169,7 @@ public class RRFRankIT extends ESIntegTestCase {
         float[] queryVector = { 500.0f };
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
-            .setRankContextBuilder(new RRFRankBuilder().windowSize(101).rankConstant(1))
+            .setRankBuilder(new RRFRankBuilder().windowSize(101).rankConstant(1))
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(
@@ -210,7 +210,7 @@ public class RRFRankIT extends ESIntegTestCase {
         KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
         KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
-            .setRankContextBuilder(new RRFRankBuilder().windowSize(51).rankConstant(1))
+            .setRankBuilder(new RRFRankBuilder().windowSize(51).rankConstant(1))
             .setTrackTotalHits(true)
             .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
             .addFetchField("vector_asc")
@@ -261,7 +261,7 @@ public class RRFRankIT extends ESIntegTestCase {
         KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
         KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
-            .setRankContextBuilder(new RRFRankBuilder().windowSize(51).rankConstant(1))
+            .setRankBuilder(new RRFRankBuilder().windowSize(51).rankConstant(1))
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
             .setQuery(
@@ -331,7 +331,7 @@ public class RRFRankIT extends ESIntegTestCase {
         float[] queryVector = { 500.0f };
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
-            .setRankContextBuilder(new RRFRankBuilder().windowSize(101).rankConstant(1))
+            .setRankBuilder(new RRFRankBuilder().windowSize(101).rankConstant(1))
             .setTrackTotalHits(true)
             .setKnnSearch(List.of(knnSearch))
             .setQuery(
@@ -388,7 +388,7 @@ public class RRFRankIT extends ESIntegTestCase {
         KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
         KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
-            .setRankContextBuilder(new RRFRankBuilder().windowSize(51).rankConstant(1))
+            .setRankBuilder(new RRFRankBuilder().windowSize(51).rankConstant(1))
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
             .addFetchField("vector_asc")
@@ -455,7 +455,7 @@ public class RRFRankIT extends ESIntegTestCase {
         KnnSearchBuilder knnSearchAsc = new KnnSearchBuilder("vector_asc", queryVectorAsc, 51, 1001, null);
         KnnSearchBuilder knnSearchDesc = new KnnSearchBuilder("vector_desc", queryVectorDesc, 51, 1001, null);
         SearchResponse response = client().prepareSearch("nrd_index")
-            .setRankContextBuilder(new RRFRankBuilder().windowSize(51).rankConstant(1))
+            .setRankBuilder(new RRFRankBuilder().windowSize(51).rankConstant(1))
             .setTrackTotalHits(true)
             .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
             .setQuery(

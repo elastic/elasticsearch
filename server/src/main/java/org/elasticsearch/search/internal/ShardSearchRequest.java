@@ -146,7 +146,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             numberOfShards,
             searchRequest.searchType(),
             searchRequest.source(),
-            null,
             searchRequest.requestCache(),
             aliasFilter,
             indexBoost,
@@ -189,7 +188,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             SearchType.QUERY_THEN_FETCH,
             null,
             null,
-            null,
             aliasFilter,
             1.0f,
             true,
@@ -211,7 +209,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         int numberOfShards,
         SearchType searchType,
         SearchSourceBuilder source,
-        List<QueryBuilder> rankQueryBuilders,
         Boolean requestCache,
         AliasFilter aliasFilter,
         float indexBoost,
@@ -230,7 +227,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source(source);
-        this.rankQueryBuilders = rankQueryBuilders == null ? List.of() : rankQueryBuilders;
+        this.rankQueryBuilders = List.of();
         this.requestCache = requestCache;
         this.aliasFilter = aliasFilter;
         this.indexBoost = indexBoost;
@@ -434,7 +431,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     }
 
     public void rankQueryBuilders(List<QueryBuilder> rankQueryBuilders) {
-        this.rankQueryBuilders = rankQueryBuilders == null ? List.of() : rankQueryBuilders;
+        this.rankQueryBuilders = rankQueryBuilders;
     }
 
     public AliasFilter getAliasFilter() {

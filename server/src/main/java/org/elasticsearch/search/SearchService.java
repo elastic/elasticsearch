@@ -1006,7 +1006,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 for (QueryBuilder queryBuilder : request.rankQueryBuilders()) {
                     rankQueries.add(queryBuilder.toQuery(context.getSearchExecutionContext()));
                 }
-                context.rankShardContext(request.source().rankContextBuilder().build(rankQueries, context.size(), context.from()));
+                context.rankShardContext(request.source().rankBuilder().buildRankShardContext(rankQueries, context.from()));
             }
             context.setTask(task);
 

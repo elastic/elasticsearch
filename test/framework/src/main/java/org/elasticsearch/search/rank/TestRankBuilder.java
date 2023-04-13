@@ -10,10 +10,8 @@ package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -75,17 +73,12 @@ public class TestRankBuilder extends RankBuilder<TestRankBuilder> {
     }
 
     @Override
-    public ActionRequestValidationException validate(ActionRequestValidationException validationException, SearchSourceBuilder source) {
-        return validationException;
-    }
-
-    @Override
-    public RankShardContext build(List<Query> queries, int size, int from) {
+    public RankShardContext buildRankShardContext(List<Query> queries, int from) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public RankCoordinatorContext build(int size, int from) {
+    public RankCoordinatorContext buildRankCoordinatorContext(int size, int from) {
         throw new UnsupportedOperationException();
     }
 

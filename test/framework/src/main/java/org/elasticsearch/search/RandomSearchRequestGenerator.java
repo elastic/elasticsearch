@@ -332,7 +332,7 @@ public class RandomSearchRequestGenerator {
             builder.suggest(randomSuggestBuilder.get());
         }
         if (randomBoolean()) {
-            builder.rankContextBuilder(rankContextBuilderSupplier.get());
+            builder.rankBuilder(rankContextBuilderSupplier.get());
         }
         if (randomBoolean()) {
             int numRescores = randomIntBetween(1, 5);

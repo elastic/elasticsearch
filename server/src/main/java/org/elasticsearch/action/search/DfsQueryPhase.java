@@ -137,7 +137,7 @@ final class DfsQueryPhase extends SearchPhase {
             return request;
         }
 
-        if (source.rankContextBuilder() == null) {
+        if (source.rankBuilder() == null) {
             // this path will use linear combination if there are
             // multiple knn queries to combine all knn queries into
             // a single query per shard

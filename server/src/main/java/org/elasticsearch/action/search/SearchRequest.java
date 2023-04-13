@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -361,23 +362,31 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);
             }
-            if (source.rankContextBuilder() != null) {
-                if (scroll) {
-                    validationException = addValidationError("[rank] cannot be used in a scroll context", validationException);
-                }
-                if (source.size() < -1 || source.size() == 0) {
+            if (source.rankBuilder() != null) {
+                int size = source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
+                if (size == 0) {
                     validationException = addValidationError("[rank] requires [size] greater than [0]", validationException);
                 }
-                if (source.size() > source.rankContextBuilder().windowSize()) {
+                if (size > source.rankBuilder().windowSize()) {
                     validationException = addValidationError(
                         "[rank] requires [window_size: "
-                            + source.rankContextBuilder().windowSize()
+                            + source.rankBuilder().windowSize()
                             + "]"
                             + " be greater than or equal to [size: "
-                            + source.size()
+                            + size
                             + "]",
                         validationException
                     );
+                }
+                if (source.knnSearch().isEmpty() || source.query() == null && source.knnSearch().size() < 2) {
+                    validationException = addValidationError(
+                        "[rank] requires a minimum of [2] result sets which"
+                            + " either needs at minimum [a query and a knn search] or [multiple knn searches]",
+                        validationException
+                    );
+                }
+                if (scroll) {
+                    validationException = addValidationError("[rank] cannot be used in a scroll context", validationException);
                 }
                 if (source.rescores() != null && source.rescores().isEmpty() == false) {
                     validationException = addValidationError("[rank] cannot be used with [rescore]", validationException);
@@ -403,7 +412,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 if (source.explain() != null && source.explain()) {
                     validationException = addValidationError("[rank] requires [explain] is [false]", validationException);
                 }
-                validationException = source.rankContextBuilder().validate(validationException, source);
             }
         }
         if (pointInTimeBuilder() != null) {

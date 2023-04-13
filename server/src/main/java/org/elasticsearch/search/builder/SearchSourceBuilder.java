@@ -400,12 +400,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return Collections.unmodifiableList(knnSearch);
     }
 
-    public SearchSourceBuilder rankContextBuilder(RankBuilder<?> rankBuilder) {
+    public SearchSourceBuilder rankBuilder(RankBuilder<?> rankBuilder) {
         this.rankBuilder = rankBuilder;
         return this;
     }
 
-    public RankBuilder<?> rankContextBuilder() {
+    public RankBuilder<?> rankBuilder() {
         return rankBuilder;
     }
 
@@ -1283,17 +1283,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
                         throw new ParsingException(
                             parser.getTokenLocation(),
-                            "unexpected start token [" + token + "] for [" + RANK_FIELD.getPreferredName() + "]"
+                            "expected a rank name, but found token [" + token + "] for [" + RANK_FIELD.getPreferredName() + "]"
                         );
                     }
                     rankBuilder = parser.namedObject(RankBuilder.class, parser.currentName(), null);
                     if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
                         throw new ParsingException(
                             parser.getTokenLocation(),
-                            "unexpected end token [" + token + "] for [" + RANK_FIELD.getPreferredName() + "]"
+                            "expected token '}', but found token [" + token + "] for [" + RANK_FIELD.getPreferredName() + "]"
                         );
                     }
                     parser.nextToken();
+                    searchUsage.trackSectionUsage(rankBuilder.getWriteableName());
                 } else if (_SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);
                     if (fetchSourceContext.fetchSource() == false

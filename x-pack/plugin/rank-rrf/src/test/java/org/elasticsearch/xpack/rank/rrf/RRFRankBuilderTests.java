@@ -8,26 +8,33 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.rank.RankBuilderTests;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Assert;
 
 import java.io.IOException;
 
-public class RRFRankBuilderTests extends RankBuilderTests<RRFRankBuilder> {
+public class RRFRankBuilderTests extends AbstractXContentSerializingTestCase<RRFRankBuilder> {
 
     @Override
-    protected RRFRankBuilder doCreateTestInstance() {
+    protected RRFRankBuilder createTestInstance() {
         RRFRankBuilder builder = new RRFRankBuilder();
-        builder.rankConstant(randomIntBetween(1, Integer.MAX_VALUE));
+        if (frequently()) {
+            builder.rankConstant(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        if (frequently()) {
+            builder.windowSize(randomIntBetween(0, 10000));
+        }
         return builder;
     }
 
     @Override
-    protected RRFRankBuilder doMutateInstance(RRFRankBuilder instance) throws IOException {
+    protected RRFRankBuilder mutateInstance(RRFRankBuilder instance) throws IOException {
         RRFRankBuilder builder = new RRFRankBuilder();
         if (randomBoolean()) {
             builder.rankConstant(instance.rankConstant() == 1 ? 2 : instance.rankConstant() - 1);
+        } else {
+            builder.windowSize(builder.windowSize() == 0 ? 1 : builder.windowSize() - 1);
         }
         return builder;
     }

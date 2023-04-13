@@ -75,14 +75,12 @@ public class QueryPhase {
         try {
             RankShardContext rankShardContext = searchContext.rankShardContext();
             QuerySearchResult querySearchResult = searchContext.queryResult();
-            RankSearchContext rankSearchContext = new RankSearchContext(searchContext);
 
             // run the combined boolean query total hits or aggregations
             // otherwise mark top docs as empty
-            if (searchContext.suggest() != null
-                || searchContext.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED
-                || searchContext.aggregations() != null) {
-                QueryPhase.executeQuery(rankSearchContext);
+            if (searchContext.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED || searchContext.aggregations() != null) {
+                searchContext.size(0);
+                QueryPhase.executeQuery(searchContext);
             } else {
                 searchContext.queryResult()
                     .topDocs(
@@ -94,8 +92,8 @@ public class QueryPhase {
                     );
             }
 
+            RankSearchContext rankSearchContext = new RankSearchContext(searchContext, rankShardContext.windowSize());
             List<TopDocs> rrfRankResults = new ArrayList<>();
-            rankSearchContext.windowSize(rankShardContext.windowSize());
             boolean searchTimedOut = querySearchResult.searchTimedOut();
             long serviceTimeEWMA = querySearchResult.serviceTimeEWMA();
             int nodeQueueSize = querySearchResult.nodeQueueSize();
@@ -107,7 +105,7 @@ public class QueryPhase {
                     break;
                 }
                 rankSearchContext.rankQuery(query);
-                QueryPhase.executeQuery(rankSearchContext);
+                QueryPhase.addCollectorsAndSearch(rankSearchContext);
                 QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
                 rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
                 serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
@@ -148,7 +146,7 @@ public class QueryPhase {
         // here to make sure it happens during the QUERY phase
         AggregationPhase.preProcess(searchContext);
 
-        executeWithCollectors(searchContext);
+        addCollectorsAndSearch(searchContext);
 
         RescorePhase.execute(searchContext);
         SuggestPhase.execute(searchContext);
@@ -163,7 +161,7 @@ public class QueryPhase {
      * In a package-private method so that it can be tested without having to
      * wire everything (mapperService, etc.)
      */
-    static void executeWithCollectors(SearchContext searchContext) throws QueryPhaseExecutionException {
+    static void addCollectorsAndSearch(SearchContext searchContext) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();

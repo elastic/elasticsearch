@@ -21,13 +21,11 @@ import java.util.List;
 public abstract class RankShardContext {
 
     protected final List<Query> queries;
-    protected final int size;
     protected final int from;
     protected final int windowSize;
 
-    public RankShardContext(List<Query> queries, int size, int from, int windowSize) {
+    public RankShardContext(List<Query> queries, int from, int windowSize) {
         this.queries = queries;
-        this.size = size;
         this.from = from;
         this.windowSize = windowSize;
     }
@@ -36,17 +34,16 @@ public abstract class RankShardContext {
         return queries;
     }
 
-    public int size() {
-        return size;
-    }
-
-    public int from() {
-        return from;
-    }
-
     public int windowSize() {
         return windowSize;
     }
 
+    /**
+     * This is used to reduce the number of required results that are serialized
+     * to the coordinating node. Normally we would have to serialize {@code (queries + knns)*window_size}
+     * results, but we can infer that there will likely be overlap of document results. Given that we
+     * know any searches that match the same document must be on the same shard, we can sort on the shard
+     * instead for a top window_size set of results and reduce the amount of data we serialize.
+     */
     public abstract RankShardResult sort(List<TopDocs> rrfRankResults);
 }

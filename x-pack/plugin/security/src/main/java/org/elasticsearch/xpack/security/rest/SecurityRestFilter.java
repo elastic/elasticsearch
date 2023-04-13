@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.security.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
@@ -20,13 +18,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -40,23 +36,6 @@ public class SecurityRestFilter implements RestHandler {
     private final AuditTrailService auditTrailService;
     private final boolean enabled;
     private final ThreadContext threadContext;
-
-    public enum ActionType {
-        Authentication("Authentication"),
-        SecondaryAuthentication("Secondary authentication"),
-        RequestHandling("Request handling");
-
-        private final String name;
-
-        ActionType(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
-    }
 
     public SecurityRestFilter(
         boolean enabled,
@@ -108,47 +87,26 @@ public class SecurityRestFilter implements RestHandler {
                 if (secondaryAuthentication != null) {
                     logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, request.uri());
                 }
-                try {
-                    doHandleRequest(request, channel, client);
-                } catch (Exception e) {
-                    handleException(ActionType.RequestHandling, request, channel, e);
-                }
-            }, e -> handleException(ActionType.SecondaryAuthentication, request, channel, e)));
-        }, e -> handleException(ActionType.Authentication, request, channel, e)));
+                doHandleRequest(request, channel, client);
+            }, e -> handleException(request, channel, e)));
+        }, e -> handleException(request, channel, e)));
     }
 
     private void doHandleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         threadContext.sanitizeHeaders();
-        restHandler.handleRequest(request, channel, client);
+        try {
+            restHandler.handleRequest(request, channel, client);
+        } catch (Exception e) {
+            logger.debug(() -> format("Request handling failed for REST request [%s]", request.uri()), e);
+            throw e;
+        }
     }
 
-    protected void handleException(ActionType actionType, RestRequest request, RestChannel channel, Exception e) {
-        logger.debug(() -> format("%s failed for REST request [%s]", actionType, request.uri()), e);
+    protected void handleException(RestRequest request, RestChannel channel, Exception e) {
+        logger.debug(() -> format("failed for REST request [%s]", request.uri()), e);
         threadContext.sanitizeHeaders();
-        final RestStatus restStatus = ExceptionsHelper.status(e);
         try {
-            channel.sendResponse(new RestResponse(channel, restStatus, e) {
-
-                @Override
-                protected boolean skipStackTrace() {
-                    return restStatus == RestStatus.UNAUTHORIZED;
-                }
-
-                @Override
-                public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
-                    if (actionType != ActionType.RequestHandling
-                        || (restStatus == RestStatus.UNAUTHORIZED || restStatus == RestStatus.FORBIDDEN)) {
-                        if (headers.containsKey("Warning")) {
-                            headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
-                        }
-                        if (headers.containsKey("X-elastic-product")) {
-                            headers = Maps.copyMapWithRemovedEntry(headers, "X-elastic-product");
-                        }
-                    }
-                    return headers;
-                }
-
-            });
+            channel.sendResponse(new RestResponse(channel, e));
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error((Supplier<?>) () -> "failed to send failure response for uri [" + request.uri() + "]", inner);

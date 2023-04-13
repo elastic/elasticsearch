@@ -23,7 +23,7 @@ module org.elasticsearch.xcore {
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
-    exports org.elasticsearch.license.internal to org.elasticsearch.serverless.license;
+    exports org.elasticsearch.license.internal to org.elasticsearch.internal.license;
     exports org.elasticsearch.protocol.xpack.common;
     exports org.elasticsearch.protocol.xpack.frozen;
     exports org.elasticsearch.protocol.xpack.graph;

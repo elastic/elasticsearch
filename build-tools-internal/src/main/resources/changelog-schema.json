@@ -85,7 +85,8 @@
             "Transform",
             "TSDB",
             "Vector Search",
-            "Watcher"
+            "Watcher",
+            "Application"
           ]
         },
         "type": {

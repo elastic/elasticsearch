@@ -76,7 +76,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 }
             }
             """;
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, mapping);
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, mapping);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(true));
     }
 
@@ -97,7 +97,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 }
             }
             """;
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(false, mapping);
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(false, true, mapping);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(false));
     }
 
@@ -118,7 +118,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 }
             }
             """;
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, mapping);
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, mapping);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(true));
     }
 
@@ -139,7 +139,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 }
             }
             """;
-        PerFieldMapperCodec perFieldMapperCodec = createCodec(false, mapping);
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(false, true, mapping);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
     }
 
@@ -171,12 +171,40 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         return new PerFieldMapperCodec(Lucene95Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
-    private PerFieldMapperCodec createCodec(boolean timeSeries, String mapping) throws IOException {
+    public void testUseES87TSDBEncodingSettingDisabled() throws IOException {
+        String mapping = """
+            {
+                "_data_stream_timestamp": {
+                    "enabled": true
+                },
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "counter": {
+                        "type": "long",
+                        "time_series_metric": "counter"
+                    },
+                    "gauge": {
+                        "type": "long",
+                        "time_series_metric": "gauge"
+                    }
+                }
+            }
+            """;
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(false, true, mapping);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(false));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
+    }
+
+    private PerFieldMapperCodec createCodec(boolean enableES87TSDBCodec, boolean timeSeries, String mapping) throws IOException {
         Settings.Builder settings = Settings.builder();
         if (timeSeries) {
             settings.put(IndexSettings.MODE.getKey(), "time_series");
             settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
         }
+        settings.put(IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING.getKey(), enableES87TSDBCodec);
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         return new PerFieldMapperCodec(Lucene95Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE);

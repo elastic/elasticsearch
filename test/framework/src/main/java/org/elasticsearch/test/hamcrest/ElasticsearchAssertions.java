@@ -81,7 +81,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -113,10 +112,11 @@ public class ElasticsearchAssertions {
      * state update was successful and that the requisite number of shard copies were started before returning.
      */
     public static void assertAcked(CreateIndexResponse response) {
-        assertThat(response.getClass().getSimpleName() + " failed - not acked", response.isAcknowledged(), equalTo(true));
-        assertTrue(
+        assertThat(response.getClass().getSimpleName() + " failed - not acked", response.isAcknowledged(), is(true));
+        assertThat(
             response.getClass().getSimpleName() + " failed - index creation acked but not all shards were started",
-            response.isShardsAcknowledged()
+            response.isShardsAcknowledged(),
+            is(true)
         );
     }
 
@@ -262,7 +262,7 @@ public class ElasticsearchAssertions {
 
     public static void assertExists(GetResponse response) {
         String message = String.format(Locale.ROOT, "Expected %s/%s to exist, but does not", response.getIndex(), response.getId());
-        assertTrue(message, response.isExists());
+        assertThat(message, response.isExists(), is(true));
     }
 
     public static void assertFirstHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {
@@ -300,7 +300,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNoFailures(BulkResponse response) {
-        assertFalse("Unexpected ShardFailures: " + response.buildFailureMessage(), response.hasFailures());
+        assertThat("Unexpected ShardFailures: " + response.buildFailureMessage(), response.hasFailures(), is(false));
     }
 
     public static void assertFailures(SearchRequestBuilder searchRequestBuilder, RestStatus restStatus, Matcher<String> reasonMatcher) {
@@ -675,7 +675,7 @@ public class ElasticsearchAssertions {
         TimeValue timeValue = new TimeValue(timeout, unit);
         String message = String.format(Locale.ROOT, "expected latch to be counted down after %s, but was not", timeValue);
         boolean isCountedDown = latch.await(timeout, unit);
-        assertTrue(message, isCountedDown);
+        assertThat(message, isCountedDown, is(true));
     }
 
     /**

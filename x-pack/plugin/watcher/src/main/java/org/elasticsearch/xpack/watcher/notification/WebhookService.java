@@ -158,26 +158,19 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
      */
     private HttpRequest maybeModifyHttpResponse(HttpRequest request) {
         WebhookAccount account = getAccount(NAME);
-        logger.info(
-            "--> executing webhook request: {} — hostTokenMap: {} — addl token? {}",
-            request,
-            account.hostTokenMap,
-            this.additionalTokenEnabled
-        );
         if (this.additionalTokenEnabled && account.hostTokenMap.size() > 0) {
             // Generate a string like example.com:9200 to match against the list of hosts where the
             // additional token should be provided. The token will only be added to the headers if
             // the request matches the list.
             String reqHostAndPort = request.host() + ":" + request.port();
-            logger.info("--> reqHostAndPort: {}", reqHostAndPort);
             if (Strings.hasText(account.hostTokenMap.get(reqHostAndPort))) {
                 // Add the additional token
-                logger.info(
-                    "--> token added to request for {}://{}:{}{}",
-                    request.scheme(),
+                logger.debug(
+                    "additional [{}] header token added to watcher webhook request for {}://{}:{}",
+                    TOKEN_HEADER_NAME,
+                    request.scheme().scheme(),
                     request.host(),
-                    request.port(),
-                    request.path()
+                    request.port()
                 );
                 return request.copy().setHeader(TOKEN_HEADER_NAME, account.hostTokenMap.get(reqHostAndPort)).build();
             }
@@ -192,9 +185,14 @@ public class WebhookService extends NotificationService<WebhookService.WebhookAc
      */
     public Tuple<HttpRequest, HttpResponse> modifyAndExecuteHttpRequest(HttpRequest request) throws IOException {
         final HttpRequest modifiedRequest = maybeModifyHttpResponse(request);
-        logger.info("--> executing request: {}", modifiedRequest);
         final HttpResponse response = httpClient.execute(modifiedRequest);
-        logger.info("--> webhook response status: {} — {}", response.status(), response);
+        logger.debug(
+            "executed watcher webhook request for {}://{}:{}, response code: {}",
+            modifiedRequest.scheme().scheme(),
+            modifiedRequest.host(),
+            modifiedRequest.port(),
+            response.status()
+        );
         return Tuple.tuple(modifiedRequest, response);
     }
 

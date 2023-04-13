@@ -354,7 +354,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
         TextTemplateEngine templateEngine = new TextTemplateEngine(scriptService);
         Map<String, EmailAttachmentParser<?>> emailAttachmentParsers = new HashMap<>();
-        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, templateEngine));
+        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(webhookService, templateEngine));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
         emailAttachmentParsers.put(
             ReportingAttachmentParser.TYPE,

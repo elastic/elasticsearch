@@ -1,18 +1,23 @@
 [[esql-source-commands]]
-== ESQL source commands
+== Source commands
 
-A source command produces a table from Elasticsearch. 
+An ESQL source command produces a table, typically with data from {es}. 
 
-image::images/esql/source-command.svg[A source command produces a table from {es},align="center"]
+image::images/esql/source-command.svg[A source command producing a table from {es},align="center"]
 
-[discrete]
+ESQL supports these source commands:
+
+* <<esql-from>>
+* <<esql-row>>
+* <<esql-show>>
+
 [[esql-from]]
 === `FROM`
 
 The `FROM` source command returns a table with up to 10,000 documents from a
 data stream, index, or alias. Each row in the resulting table represents a
-document. Each column corresponds to a field, and can be accessed by the name of
-that field.
+document. Each column corresponds to a field, and can be accessed by the name
+of that field.
 
 [source,esql]
 ----
@@ -36,7 +41,24 @@ or aliases:
 FROM employees-00001,employees-*
 ----
 
-[discrete]
+[[esql-row]]
+=== `ROW`
+
+The `ROW` source command produces a row with one or more columns with values
+that you specify. This can be useful for testing.
+
+[source,esql]
+----
+ROW a = 1, b = "two", c = null
+----
+
+`ROW` supports the use of <<esql-functions,functions>>:
+
+[source,esql]
+----
+ROW a = ROUND(1.23, 0)
+----
+
 [[esql-show]]
 === `SHOW <item>`
 
@@ -46,9 +68,3 @@ its capabilities:
 * Use `SHOW INFO` to return the deployment's version, build date and hash.
 * Use `SHOW FUNCTIONS` to return a list of all supported functions and a 
 synopsis of each function.
-
-[discrete]
-[[esql-row]]
-=== `ROW`
-
-TODO

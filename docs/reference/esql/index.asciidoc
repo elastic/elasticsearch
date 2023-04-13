@@ -6,26 +6,27 @@
 
 [partintro]
 --
-
-The Elasticsearch Query Language (ESQL) is a query language that enables the
-iterative exploration of data.
+The {es} Query Language (ESQL) is a query language that enables the iterative 
+exploration of data.
 
 An ESQL query consists of a series of commands, separated by pipes. Each query
 starts with a <<esql-source-commands,source command>>. A source command produces
-a table from {es}.
+a table, typically with data from {es}.
 
-image::images/esql/source-command.svg[A source command produces a table from {es},align="center"]
+image::images/esql/source-command.svg[A source command producing a table from {es},align="center"]
 
 A source command can be followed by one or more
 <<esql-processing-commands,processing commands>>. Processing commands change an
 input table by adding, removing, or changing rows and columns.
 
-image::images/esql/processing-command.svg[A processing command changes an input table,align="center"]
+image::images/esql/processing-command.svg[A processing command changing an input table,align="center"]
 
 You can chain processing commands, separated by a pipe character: `|`. Each
 processing command works on the output table of the previous command.
 
 image::images/esql/chaining-processing-commands.svg[Processing commands can be chained,align="center"]
+
+The result of a query is the table produced by the final processing command.
 
 [discrete]
 [[esql-console]]
@@ -89,7 +90,7 @@ POST /_esql?format=txt
 // TEST[continued]
 
 [discrete]
-==== Discover and Lens
+==== {kib}
 
 ESQL can be used in Discover to explore a data set, and in Lens to visualize it.
 First, enable the `enableTextBased` setting in *Advanced Settings*. Next, in
@@ -112,13 +113,11 @@ ESQL currently supports only the following field types:
 
 --
 
+include::esql-get-started.asciidoc[]
+include::esql-syntax.asciidoc[]
 include::esql-source-commands.asciidoc[]
 include::esql-processing-commands.asciidoc[]
 include::esql-functions.asciidoc[]
-include::esql-timespan-literals.asciidoc[]
-
-include::from.asciidoc[]
-
 
 :esql-tests!:
 :esql-specs!:

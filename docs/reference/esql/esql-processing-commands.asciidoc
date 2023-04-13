@@ -1,10 +1,10 @@
 [[esql-processing-commands]]
-== ESQL processing commands
+== Processing commands
 
-Processing commands change an input table by adding, removing, or changing rows
-and columns.
+ESQL processing commands change an input table by adding, removing, or changing
+rows and columns.
 
-image::images/esql/processing-command.svg[A processing command changes an input table,align="center"]
+image::images/esql/processing-command.svg[A processing command changing an input table,align="center"]
 
 ESQL supports these processing commands:
 
@@ -23,16 +23,42 @@ ESQL supports these processing commands:
 [[esql-dissect]]
 === `DISSECT`
 
-TODO
+`DISSECT` enables you to extract structured data out of a string. `DISSECT`
+matches the string against a delimiter-based pattern, and extracts the specified
+keys as columns. 
+
+Refer to the <<dissect-processor,dissect processor documentation>> for the
+syntax of dissect patterns.
+
+[source,esql]
+----
+ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1" 
+| DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip}"
+----
 
 [[esql-drop]]
 === `DROP`
 
-TODO
+Use `DROP` to remove columns from a table:
+
+[source,esql]
+----
+FROM employees
+| DROP height
+----
+
+Rather than specify each column by name, you can use wildcards to drop all
+columns with a name that matches a pattern:
+
+[source,esql]
+----
+FROM employees
+| DROP height*
+----
 
 [[esql-eval]]
 === `EVAL`
-`EVAL` enables you to add new columns to the end of the table:
+`EVAL` enables you to add new columns to the end of a table:
 
 [source,esql]
 ----
@@ -59,7 +85,18 @@ FROM employees
 [[esql-grok]]
 === `GROK`
 
-TODO
+`GROK` enables you to extract structured data out of a string. `GROK` matches
+the string against patterns, based on regular expressions, and extracts the
+specified patterns as columns. 
+
+Refer to the <<grok-processor,grok processor documentation>> for the syntax for
+of grok patterns.
+
+[source,esql]
+----
+ROW a = "12 15.5 15.6 true" 
+| GROK a "%{NUMBER:b:int} %{NUMBER:c:float} %{NUMBER:d:double} %{WORD:e:boolean}"
+----
 
 [[esql-limit]]
 === `LIMIT`
@@ -75,11 +112,8 @@ FROM employees
 [[esql-project]]
 === `PROJECT`
 
-The `PROJECT` command enables you to change:
-
-* the columns that are returned,
-* the order in which they are returned,
-* and the name with which they are returned.
+The `PROJECT` command enables you to specify what columns are returned and the
+order in which they are returned.
 
 To limit the columns that are returned, use a comma-separated list of column
 names. The columns are returned in the specified order:
@@ -109,26 +143,27 @@ FROM employees
 | PROJECT h*, *
 ----
 
-Use a dash to specify columns you do not want returned:
-
-[source,esql]
-----
-FROM employees
-| PROJECT -h*
-----
-
-Use `=` to rename columns:
-
-[source,esql]
-----
-FROM employees
-| PROJECT current_employee = still_hired, *
-----
-
 [[esql-rename]]
 === `RENAME`
 
-TODO
+Use `RENAME` to rename a column. If a column with the new name already exists,
+it will be replaced by the new column.
+
+[source,esql]
+----
+FROM employees
+| PROJECT first_name, last_name, still_hired
+| RENAME employed = still_hired
+----
+
+Multiple columns can be renamed with a single `RENAME` command:
+
+[source,esql]
+----
+FROM employees
+| PROJECT first_name, last_name
+| RENAME fn = first_name, ln = last_name
+----
 
 [[esql-sort]]
 === `SORT`

@@ -1,7 +1,8 @@
 [[esql-functions]]
-== ESQL functions
+== Functions
 
-<<esql-eval,`EVAL`>> and <<esql-where,`WHERE`>> support these functions:
+<<esql-row,`ROW`>>, <<esql-eval,`EVAL`>> and <<esql-where,`WHERE`>> support
+these functions:
 
 * <<esql-abs>>
 * <<esql-concat>>

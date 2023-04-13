@@ -41,7 +41,6 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
 
     private static final Logger Log = LogManager.getLogger(TransportVersionsFixupListener.class);
 
-    // TODO fill in the version indicating an inferred version
     private static final TransportVersion INFERRED_VERSION = TransportVersion.V_8_8_0;
 
     private final MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue;
@@ -84,24 +83,23 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster() == false) return; // only if we're master
 
-        // if the min node version >= 8.8.0, and the cluster state has some inferred transport versions,
+        // if the min node version > 8.8.0, and the cluster state has some transport versions == 8.8.0,
         // then refresh all inferred transport versions to their real versions
         // now that everything should understand cluster state with transport versions
-        Set<String> inferredNodes;
-        if (event.state().nodes().getMinNodeVersion().onOrAfter(Version.V_8_8_0)
-            && (inferredNodes = event.state().nodesInferredTransportVersions()).isEmpty() == false) {
+        if (event.state().nodes().getMinNodeVersion().after(Version.V_8_8_0)
+            && event.state().getMinTransportVersion().equals(INFERRED_VERSION)) {
 
             // find all the relevant nodes
             Set<String> nodes = new HashSet<>();
             synchronized (pendingNodes) {
-                for (String n : inferredNodes) {
-                    if (pendingNodes.add(n)) {
-                        nodes.add(n);
+                for (var e : event.state().transportVersions().entrySet()) {
+                    if (e.getValue().equals(INFERRED_VERSION) && pendingNodes.add(e.getKey())) {
+                        nodes.add(e.getKey());
                     }
                 }
             }
             if (nodes.isEmpty()) {
-                // all nodes already got in-progress requests
+                // all nodes already have in-progress requests
                 return;
             }
 

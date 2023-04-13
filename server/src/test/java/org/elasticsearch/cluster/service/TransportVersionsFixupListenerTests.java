@@ -29,7 +29,6 @@ import org.hamcrest.Matcher;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,6 +42,10 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportVersionsFixupListenerTests extends ESTestCase {
 
+    // TODO: replace with real constants when 8.8.0 is released
+    private static final Version NEXT_VERSION = Version.fromString("8.8.1");
+    private static final TransportVersion NEXT_TRANSPORT_VERSION = TransportVersion.fromId(NEXT_VERSION.id);
+
     @SuppressWarnings("unchecked")
     private static MasterServiceTaskQueue<NodeTransportVersionTask> newMockTaskQueue() {
         return mock(MasterServiceTaskQueue.class);
@@ -51,7 +54,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
     private static DiscoveryNodes node(Version... versions) {
         var builder = DiscoveryNodes.builder();
         for (int i = 0; i < versions.length; i++) {
-            builder.add(new DiscoveryNode("node" + i, new TransportAddress(TransportAddress.META_ADDRESS, i), versions[i]));
+            builder.add(new DiscoveryNode("node" + i, new TransportAddress(TransportAddress.META_ADDRESS, 9200 + i), versions[i]));
         }
         builder.localNodeId("node0").masterNodeId("node0");
         return builder.build();
@@ -76,7 +79,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
                         null,
                         e.getValue(),
                         null,
-                        new DiscoveryNode(e.getKey(), new TransportAddress(TransportAddress.META_ADDRESS, 1), null),
+                        new DiscoveryNode(e.getKey(), new TransportAddress(TransportAddress.META_ADDRESS, 9200), null),
                         null,
                         null,
                         null,
@@ -121,8 +124,23 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         ClusterAdminClient client = mock(ClusterAdminClient.class);
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .nodes(node(Version.V_8_8_0, Version.V_8_8_0))
-            .transportVersions(versions(TransportVersion.V_8_8_0, TransportVersion.V_8_8_0))
+            .nodes(node(Version.V_8_8_0))
+            .transportVersions(versions(TransportVersion.V_8_8_0))
+            .build();
+
+        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client);
+        listeners.clusterChanged(new ClusterChangedEvent("test", testState, ClusterState.EMPTY_STATE));
+
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+    }
+
+    public void testNothingFixedWhenOnNextVersion() {
+        MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue = newMockTaskQueue();
+        ClusterAdminClient client = mock(ClusterAdminClient.class);
+
+        ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(node(NEXT_VERSION))
+            .transportVersions(versions(NEXT_TRANSPORT_VERSION))
             .build();
 
         TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client);
@@ -137,7 +155,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(Version.V_8_7_0, Version.V_8_8_0))
-            .transportVersions(versions(TransportVersion.V_8_8_0, TransportVersion.V_8_8_0))
+            .transportVersions(versions(TransportVersion.V_8_7_0, TransportVersion.V_8_8_0))
             .build();
 
         TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client);
@@ -152,8 +170,8 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         ClusterAdminClient client = mock(ClusterAdminClient.class);
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .nodes(node(Version.V_8_8_0, Version.V_8_8_0, Version.V_8_8_0))
-            .actualTransportVersions(versions(Optional.of(TransportVersion.V_8_8_0), Optional.empty(), Optional.empty()))
+            .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
+            .transportVersions(versions(NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0, TransportVersion.V_8_8_0))
             .build();
 
         var action = captureListener(
@@ -167,9 +185,9 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client);
         listeners.clusterChanged(new ClusterChangedEvent("test", testState, ClusterState.EMPTY_STATE));
-        action[0].onResponse(getResponse(Map.of("node1", TransportVersion.V_8_8_0, "node2", TransportVersion.V_8_8_0)));
+        action[0].onResponse(getResponse(Map.of("node1", NEXT_TRANSPORT_VERSION, "node2", NEXT_TRANSPORT_VERSION)));
 
-        assertThat(task[0].results(), equalTo(Map.of("node1", TransportVersion.V_8_8_0, "node2", TransportVersion.V_8_8_0)));
+        assertThat(task[0].results(), equalTo(Map.of("node1", NEXT_TRANSPORT_VERSION, "node2", NEXT_TRANSPORT_VERSION)));
     }
 
     public void testConcurrentChangesDoNotOverlap() {
@@ -177,8 +195,8 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         ClusterAdminClient client = mock(ClusterAdminClient.class);
 
         ClusterState testState1 = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .nodes(node(Version.V_8_8_0, Version.V_8_8_0, Version.V_8_8_0))
-            .actualTransportVersions(versions(Optional.of(TransportVersion.V_8_8_0), Optional.empty(), Optional.empty()))
+            .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
+            .transportVersions(versions(NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0, TransportVersion.V_8_8_0))
             .build();
 
         var action1 = captureListener(
@@ -195,10 +213,8 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         // don't send back the response yet
 
         ClusterState testState2 = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .nodes(node(Version.V_8_8_0, Version.V_8_8_0, Version.V_8_8_0))
-            .actualTransportVersions(
-                versions(Optional.of(TransportVersion.V_8_8_0), Optional.of(TransportVersion.V_8_8_0), Optional.empty())
-            )
+            .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
+            .transportVersions(versions(NEXT_TRANSPORT_VERSION, NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0))
             .build();
         // should not send any requests
         listeners.clusterChanged(new ClusterChangedEvent("test", testState2, testState1));

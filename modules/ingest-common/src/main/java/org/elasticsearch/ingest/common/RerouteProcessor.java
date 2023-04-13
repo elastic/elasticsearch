@@ -37,8 +37,6 @@ public final class RerouteProcessor extends AbstractProcessor {
     private static final String DATA_STREAM_DATASET = DATA_STREAM_PREFIX + "dataset";
     private static final String DATA_STREAM_NAMESPACE = DATA_STREAM_PREFIX + "namespace";
     private static final String EVENT_DATASET = "event.dataset";
-    private static final int MAX_LENGTH = 100;
-    private static final char REPLACEMENT_CHAR = '_';
     private final List<DataStreamValueSource> dataset;
     private final List<DataStreamValueSource> namespace;
     private final String destination;
@@ -191,6 +189,8 @@ public final class RerouteProcessor extends AbstractProcessor {
      */
     static final class DataStreamValueSource {
 
+        private static final int MAX_LENGTH = 100;
+        private static final char REPLACEMENT_CHAR = '_';
         private static final char[] DISALLOWED_IN_DATASET = new char[] { '\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',', '#', ':', '-' };
         private static final char[] DISALLOWED_IN_NAMESPACE = new char[] { '\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',', '#', ':' };
         static final DataStreamValueSource DATASET_VALUE_SOURCE = dataset("{{" + DATA_STREAM_DATASET + "}}");

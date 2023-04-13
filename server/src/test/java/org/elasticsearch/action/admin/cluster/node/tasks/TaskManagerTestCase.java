@@ -79,10 +79,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     public void setupTestNodes(Settings settings) {
         nodesCount = randomIntBetween(2, 10);
         testNodes = new TestNode[nodesCount];
-        final Settings reservedPortRangeSettings = Settings.builder()
-            .put(TransportSettings.PORT.getKey(), getPortRange())
-            .put(settings)
-            .build();
+        final Settings reservedPortRangeSettings = Settings.builder().put(TransportSettings.PORT.getKey(), getPort()).put(settings).build();
         for (int i = 0; i < testNodes.length; i++) {
             testNodes[i] = new TestNode("node" + i, threadPool, reservedPortRangeSettings);
         }

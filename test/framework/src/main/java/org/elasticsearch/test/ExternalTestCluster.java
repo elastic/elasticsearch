@@ -84,7 +84,7 @@ public final class ExternalTestCluster extends TestCluster {
             .putList("node.roles", Collections.emptyList())
             .put("node.name", EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
             .put("cluster.name", clusterName)
-            .put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange())
+            .put(TransportSettings.PORT.getKey(), ESTestCase.getPort())
             .putList(
                 "discovery.seed_hosts",
                 Arrays.stream(transportAddresses).map(TransportAddress::toString).collect(Collectors.toList())

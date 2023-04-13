@@ -88,7 +88,7 @@ public class MockNode extends Node {
     ) {
         this(
             InternalSettingsPreparer.prepareEnvironment(
-                Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build(),
+                Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPort()).put(settings).build(),
                 Collections.emptyMap(),
                 configPath,
                 () -> "mock_ node"

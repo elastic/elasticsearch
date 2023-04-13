@@ -48,7 +48,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE)
-            .put("transport.port", getPortRange())
+            .put("transport.port", getPort())
             .build();
     }
 

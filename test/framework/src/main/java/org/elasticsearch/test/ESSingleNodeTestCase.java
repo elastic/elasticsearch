@@ -243,7 +243,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("transport.type", getTestTransportType())
-            .put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange())
+            .put(TransportSettings.PORT.getKey(), ESTestCase.getPort())
             .put(dataNode())
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
             // default the watermarks low values to prevent tests from failing on nodes without enough disk space

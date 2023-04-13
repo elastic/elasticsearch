@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -56,6 +57,32 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AuthenticationTests extends ESTestCase {
+
+    static class Base {
+        static AtomicInteger counter = new AtomicInteger();
+    }
+
+    static class A extends Base {
+
+        void m() {
+            System.out.println("A " + counter.getAndIncrement());
+        }
+    }
+
+    static class B extends Base {
+        void m() {
+            System.out.println("B " + counter.getAndIncrement());
+        }
+    }
+
+    public void test() {
+        final var a = new A();
+        a.m();
+        a.m();
+        final var b = new B();
+        b.m();
+        b.m();
+    }
 
     public void testIsFailedRunAs() {
         final Authentication failedAuthentication = randomRealmAuthentication(randomBoolean()).runAs(randomUser(), null);

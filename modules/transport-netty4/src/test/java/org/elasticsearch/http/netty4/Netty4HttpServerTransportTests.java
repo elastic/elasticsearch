@@ -648,6 +648,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
     }
 
     private Settings.Builder createBuilderWithPort() {
-        return Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange());
+        return Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPort());
     }
 }

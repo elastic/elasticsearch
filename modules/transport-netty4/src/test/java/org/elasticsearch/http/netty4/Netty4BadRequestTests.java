@@ -75,7 +75,7 @@ public class Netty4BadRequestTests extends ESTestCase {
             }
         };
 
-        Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange()).build();
+        Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPort()).build();
         try (
             HttpServerTransport httpServerTransport = new Netty4HttpServerTransport(
                 settings,

@@ -1794,14 +1794,19 @@ public abstract class ESTestCase extends LuceneTestCase {
         assert getWorkerBasePort(MAX_EFFECTIVE_WORKER_ID) + PORTS_PER_WORKER - 1 <= MAX_PRIVATE_PORT;
     }
 
+    private static final AtomicInteger PER_WORKER_PORT_COUNTER = new AtomicInteger();
+
     /**
-     * Returns a port range for this JVM according to its Gradle worker ID. See also [NOTE: Port ranges for tests].
+     * Returns a port for this JVM according to its Gradle worker ID. See also [NOTE: Port ranges for tests].
      */
-    public static String getPortRange() {
-        final var firstPort = getWorkerBasePort();
-        final var lastPort = firstPort + PORTS_PER_WORKER - 1; // upper bound is inclusive
-        assert MIN_PRIVATE_PORT <= firstPort && lastPort <= MAX_PRIVATE_PORT;
-        return firstPort + "-" + lastPort;
+    public static String getPort() {
+        final var basePort = getWorkerBasePort();
+        // We use port sequentially in the range of [basePort, basePort + PORTS_PER_WORKER)
+        // The port number wraps around when it reaches the maximum.
+        final var port = basePort + PER_WORKER_PORT_COUNTER.getAndIncrement() % PORTS_PER_WORKER;
+        assert MIN_PRIVATE_PORT <= basePort && port <= MAX_PRIVATE_PORT;
+        System.out.println("generate port " + port);
+        return String.valueOf(port);
     }
 
     /**

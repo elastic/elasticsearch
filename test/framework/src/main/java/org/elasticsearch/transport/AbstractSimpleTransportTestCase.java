@@ -207,7 +207,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         TransportInterceptor interceptor
     ) {
         Settings updatedSettings = Settings.builder()
-            .put(TransportSettings.PORT.getKey(), getPortRange())
+            .put(TransportSettings.PORT.getKey(), getPort())
             .put(settings)
             .put(Node.NODE_NAME_SETTING.getKey(), name)
             .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling

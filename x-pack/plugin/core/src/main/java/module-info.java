@@ -213,5 +213,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
 
-    opens org.elasticsearch.license.internal; // spi
+    // opens org.elasticsearch.license.internal to org.elasticsearch.server; // spi
+    provides org.elasticsearch.jdk.ModuleQualifiedExportsService with org.elasticsearch.xpack.core.XPackCoreModuleExportsService;
 }

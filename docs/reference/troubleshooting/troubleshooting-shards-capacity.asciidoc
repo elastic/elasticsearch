@@ -1,4 +1,3 @@
-[discrete]
 [[troubleshoot-shards-capacity-issues]]
 === Troubleshoot shards capacity health issues
 

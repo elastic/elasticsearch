@@ -289,13 +289,13 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
 
         if (config.isPackagedModel()) {
             resolvePackageConfig(config.getModelId(), ActionListener.wrap(resolvedModelPackageConfig -> {
-                modelPackageConfigHolder.set(resolvedModelPackageConfig);
-                setTrainedModelConfigFieldsFromPackagedModel(trainedModelConfig, resolvedModelPackageConfig);
                 try {
                     trainedModelConfig.validateNoPackageOverrides();
                 } catch (ValidationException e) {
                     listener.onFailure(e);
                 }
+                modelPackageConfigHolder.set(resolvedModelPackageConfig);
+                setTrainedModelConfigFieldsFromPackagedModel(trainedModelConfig, resolvedModelPackageConfig);
 
                 checkModelIdAgainstTags(trainedModelConfig.getModelId(), modelIdTagCheckListener);
             }, listener::onFailure));

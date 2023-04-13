@@ -96,11 +96,8 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         );
     }
 
-    @SuppressWarnings({"rawtypes"})
-    private static ActionListener[] captureListener(
-        ClusterAdminClient client,
-        Matcher<NodesInfoRequest> request
-    ) {
+    @SuppressWarnings({ "rawtypes" })
+    private static ActionListener[] captureListener(ClusterAdminClient client, Matcher<NodesInfoRequest> request) {
         ActionListener[] listener = new ActionListener[1];
         doAnswer(i -> {
             assertThat(i.getArgument(0), request);
@@ -199,7 +196,9 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
         ClusterState testState2 = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(node(Version.V_8_8_0, Version.V_8_8_0, Version.V_8_8_0))
-            .actualTransportVersions(versions(Optional.of(TransportVersion.V_8_8_0), Optional.of(TransportVersion.V_8_8_0), Optional.empty()))
+            .actualTransportVersions(
+                versions(Optional.of(TransportVersion.V_8_8_0), Optional.of(TransportVersion.V_8_8_0), Optional.empty())
+            )
             .build();
         // should not send any requests
         listeners.clusterChanged(new ClusterChangedEvent("test", testState2, testState1));

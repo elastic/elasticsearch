@@ -37,7 +37,7 @@ public class LambdaMatchers {
             try {
                 u = transform.apply((T) actual);
             } catch (ClassCastException e) {
-                return false;
+                throw new AssertionError(e);
             }
 
             return matcher.matches(u);
@@ -79,25 +79,23 @@ public class LambdaMatchers {
 
         @Override
         protected boolean matchesSafely(Iterable<T> item) {
-            List<U> us = transform(item, Description.NONE);
-            if (us == null) return false;
+            List<U> us = new ArrayList<>();
+            for (T i : item) {
+                try {
+                    us.add(transform.apply(i)); // this might not actually be a T
+                } catch (ClassCastException e) {
+                    throw new AssertionError(e);
+                }
+            }
 
             return matcher.matches(us);
         }
 
         @Override
         protected void describeMismatchSafely(Iterable<T> item, Description description) {
-            List<U> us = transform(item, description);
-            if (us == null) return;
-
-            description.appendText("transformed item ");
-            matcher.describeMismatch(us, description);
-        }
-
-        private List<U> transform(Iterable<T> it, Description description) {
             List<U> us = new ArrayList<>();
             int i = 0;
-            for (Iterator<T> iterator = it.iterator(); iterator.hasNext(); i++) {
+            for (Iterator<T> iterator = item.iterator(); iterator.hasNext(); i++) {
                 try {
                     us.add(transform.apply(iterator.next())); // this might not actually be a T
                 } catch (ClassCastException e) {
@@ -106,10 +104,12 @@ public class LambdaMatchers {
                         .appendText(" is not of the correct type (")
                         .appendText(e.getMessage())
                         .appendText(")");
-                    return null;
+                    return;
                 }
             }
-            return us;
+
+            description.appendText("transformed item ");
+            matcher.describeMismatch(us, description);
         }
 
         @Override
@@ -132,44 +132,51 @@ public class LambdaMatchers {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         protected boolean matchesSafely(T[] item) {
-            U[] us = transform(item, Description.NONE);
-            if (us == null) return false;
+            U[] us = null;
+            for (int i = 0; i < item.length; i++) {
+                U u;
+                try {
+                    u = transform.apply(item[i]);   // this might not actually be a T
+                } catch (ClassCastException e) {
+                    throw new AssertionError(e);
+                }
+                if (us == null) {
+                    // now we actually have a U, we can create an array of the correct type
+                    us = (U[]) Array.newInstance(u.getClass(), item.length);
+                }
+                us[i] = u;
+            }
 
             return matcher.matches(us);
         }
 
         @Override
-        protected void describeMismatchSafely(T[] item, Description description) {
-            U[] us = transform(item, description);
-            if (us == null) return;
-
-            description.appendText("transformed item ");
-            matcher.describeMismatch(us, description);
-        }
-
         @SuppressWarnings("unchecked")
-        private U[] transform(T[] array, Description description) {
+        protected void describeMismatchSafely(T[] item, Description description) {
             U[] us = null;
-            for (int i = 0; i < array.length; i++) {
+            for (int i = 0; i < item.length; i++) {
                 U u;
                 try {
-                    u = transform.apply(array[i]);   // this might not actually be a T
+                    u = transform.apply(item[i]);   // this might not actually be a T
                 } catch (ClassCastException e) {
                     description.appendValue(i)
                         .appendText(" at index " + i)
                         .appendText(" is not of the correct type (")
                         .appendText(e.getMessage())
                         .appendText(")");
-                    return null;
+                    return;
                 }
                 if (us == null) {
                     // now we actually have a U, we can create an array of the correct type
-                    us = (U[]) Array.newInstance(u.getClass(), array.length);
+                    us = (U[]) Array.newInstance(u.getClass(), item.length);
                 }
                 us[i] = u;
             }
-            return us;
+
+            description.appendText("transformed item ");
+            matcher.describeMismatch(us, description);
         }
 
         @Override

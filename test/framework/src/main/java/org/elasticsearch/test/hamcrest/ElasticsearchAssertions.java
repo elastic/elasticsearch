@@ -170,8 +170,11 @@ public class ElasticsearchAssertions {
         assertThat(e.status(), equalTo(status));
 
         if (expectedBlockId != null) {
-            boolean exists = e.blocks().stream().anyMatch(b -> b.id() == expectedBlockId);
-            assertTrue("Request should have been blocked by [" + expectedBlockId + "] instead of " + e.blocks(), exists);
+            assertThat(
+                "Request should have been blocked by [" + expectedBlockId + "] instead of " + e.blocks(),
+                e.blocks(),
+                hasItem(transformed(ClusterBlock::id, equalTo(expectedBlockId)))
+            );
         }
     }
 

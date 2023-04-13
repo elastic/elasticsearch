@@ -41,12 +41,12 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringC
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.SlimConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -308,15 +308,15 @@ public class InferenceProcessor extends AbstractProcessor {
             } else if (configMap.containsKey(RegressionConfig.NAME.getPreferredName())) {
                 checkSupportedVersion(RegressionConfig.EMPTY_PARAMS);
                 return RegressionConfigUpdate.fromMap(valueMap);
-            } else if (configMap.containsKey(SlimConfig.NAME)) {
-                checkNlpSupported(SlimConfig.NAME);
-                return SlimConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(TextClassificationConfig.NAME)) {
                 checkNlpSupported(TextClassificationConfig.NAME);
                 return TextClassificationConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(TextEmbeddingConfig.NAME)) {
                 checkNlpSupported(TextEmbeddingConfig.NAME);
                 return TextEmbeddingConfigUpdate.fromMap(valueMap);
+            } else if (configMap.containsKey(TextSimilarityConfig.NAME)) {
+                checkNlpSupported(TextSimilarityConfig.NAME);
+                return TextSimilarityConfigUpdate.fromMap(valueMap);
             } else if (configMap.containsKey(ZeroShotClassificationConfig.NAME)) {
                 checkNlpSupported(ZeroShotClassificationConfig.NAME);
                 return ZeroShotClassificationConfigUpdate.fromMap(valueMap);
@@ -333,8 +333,10 @@ public class InferenceProcessor extends AbstractProcessor {
                         FillMaskConfig.NAME,
                         NerConfig.NAME,
                         PassThroughConfig.NAME,
+                        QuestionAnsweringConfig.NAME,
                         TextClassificationConfig.NAME,
                         TextEmbeddingConfig.NAME,
+                        TextSimilarityConfig.NAME,
                         ZeroShotClassificationConfig.NAME
                     )
                 );

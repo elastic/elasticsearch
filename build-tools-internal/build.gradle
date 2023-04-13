@@ -230,14 +230,6 @@ configurations {
   integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
 }
 
-configurations.all {
-  resolutionStrategy.eachDependency { DependencyResolveDetails details ->
-    if (details.requested.name == 'snakeyaml') {
-      details.useVersion "1.33"
-    }
-  }
-}
-
 dependencies {
   components.all(JacksonAlignmentRule)
   constraints {
@@ -245,7 +237,9 @@ dependencies {
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
     integTestImplementation('org.ow2.asm:asm:9.4')
-    api "org.yaml:snakeyaml:${versions.snakeyaml}"
+    api("org.yaml:snakeyaml") {
+      version { strictly(versions.snakeyaml) }
+    }
   }
   // Forcefully downgrade the jackson platform as used in production
   api enforcedPlatform(buildLibs.jackson.platform)

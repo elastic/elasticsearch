@@ -28,16 +28,6 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 
-buildscript {
-  dependencies {
-    constraints {
-      classpath("org.yaml:snakeyaml") {
-          version { strictly("1.33") }
-      }
-    }
-  }
-}
-
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'

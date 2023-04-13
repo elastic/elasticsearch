@@ -805,8 +805,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ".logs-endpoint.diagnostic.collection-*",
                         ".logs-endpoint.actions-*",
                         ".logs-osquery_manager.actions-*",
-                        ".logs-osquery_manager.action.responses-*",
-                        "profiling-*"
+                        ".logs-osquery_manager.action.responses-*"
                     )
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
                     .build(),

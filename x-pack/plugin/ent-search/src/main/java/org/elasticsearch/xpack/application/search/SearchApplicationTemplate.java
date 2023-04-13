@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.application.search;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -21,6 +26,10 @@ import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationA
 import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction.Request;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -30,6 +39,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * {@link QuerySearchApplicationAction}, overriding the parameters included on it via {@link Request}
  */
 public class SearchApplicationTemplate implements ToXContentObject, Writeable {
+
+    public static final SearchApplicationTemplate DEFAULT_TEMPLATE = buildDefaultTemplate();
     private final Script script;
 
     public SearchApplicationTemplate(StreamInput in) throws IOException {
@@ -96,4 +107,21 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
     public Script script() {
         return script;
     }
+
+    private static SearchApplicationTemplate buildDefaultTemplate() {
+        Map<String,Object> params = Map.of("query_string", "*", "default_field", "*");
+        String query = """
+            {
+                "query": {
+                  "query_string":{
+                    "query": "{{query_string}}",
+                    "default_field": "{{default_field}}"
+                  }
+                }
+              }
+            """;
+        final Script script = new Script(ScriptType.INLINE, "mustache", query, params);
+        return new SearchApplicationTemplate(script);
+    }
+
 }

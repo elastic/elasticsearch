@@ -18,13 +18,13 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.Streamable;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.AbstractCollection;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,8 +42,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
@@ -59,7 +57,7 @@ import java.util.stream.StreamSupport;
  * <li> {@link #failShard} fails/cancels an assigned shard.
  * </ul>
  */
-public class RoutingNodes extends AbstractCollection<RoutingNode> {
+public class RoutingNodes implements Streamable<RoutingNode> {
 
     private final Map<String, RoutingNode> nodesToShards;
 
@@ -899,7 +897,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         );
     }
 
-    public static final class UnassignedShards implements Iterable<ShardRouting> {
+    public static final class UnassignedShards implements Streamable<ShardRouting> {
 
         private final RoutingNodes nodes;
         private final List<ShardRouting> unassigned;
@@ -966,10 +964,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         @Override
         public UnassignedIterator iterator() {
             return new UnassignedIterator();
-        }
-
-        public Stream<ShardRouting> stream() {
-            return StreamSupport.stream(spliterator(), false);
         }
 
         /**

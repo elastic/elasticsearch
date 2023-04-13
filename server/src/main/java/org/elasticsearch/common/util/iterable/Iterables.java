@@ -13,6 +13,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class Iterables {
@@ -78,6 +79,10 @@ public class Iterables {
     }
 
     public static long size(Iterable<?> iterable) {
-        return StreamSupport.stream(iterable.spliterator(), true).count();
+        return stream(iterable).count();
+    }
+
+    public static <T> Stream<T> stream(Iterable<T> iterable) {
+        return StreamSupport.stream(iterable.spliterator(), true);
     }
 }

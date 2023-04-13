@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.Streamable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,7 +31,7 @@ import java.util.stream.Stream;
  * A {@link RoutingNode} represents a cluster node associated with a single {@link DiscoveryNode} including all shards
  * that are hosted on that nodes. Each {@link RoutingNode} has a unique node id that can be used to identify the node.
  */
-public class RoutingNode implements Iterable<ShardRouting> {
+public class RoutingNode implements Streamable<ShardRouting> {
 
     private final String nodeId;
 
@@ -111,6 +112,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return this.nodeId;
     }
 
+    @Override
     public int size() {
         return shards.size();
     }

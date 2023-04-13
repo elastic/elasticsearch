@@ -42,7 +42,13 @@ public class RestPutTrainedModelAction extends BaseRestHandler {
         String id = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
         boolean deferDefinitionDecompression = restRequest.paramAsBoolean(PutTrainedModelAction.DEFER_DEFINITION_DECOMPRESSION, false);
-        PutTrainedModelAction.Request putRequest = PutTrainedModelAction.Request.parseRequest(id, deferDefinitionDecompression, parser);
+        boolean waitForCompletion = restRequest.paramAsBoolean("wait_for_completion", false);
+        PutTrainedModelAction.Request putRequest = PutTrainedModelAction.Request.parseRequest(
+            id,
+            deferDefinitionDecompression,
+            waitForCompletion,
+            parser
+        );
         putRequest.timeout(restRequest.paramAsTime("timeout", putRequest.timeout()));
         return channel -> client.execute(PutTrainedModelAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }

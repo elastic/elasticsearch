@@ -41,6 +41,10 @@ index template doesn't specify a mapping for the `@timestamp` field, {es} maps
 The same index template can be used for multiple data streams. You cannot
 delete an index template in use by a data stream.
 
+The name pattern for the backing indices is an implementation detail and no
+intelligence should be derived from it. The only invariant the holds is that
+each data stream generation index will have a unique name.
+
 [discrete]
 [[data-stream-read-requests]]
 == Read requests
@@ -86,8 +90,7 @@ a data stream.
 [[data-streams-generation]]
 == Generation
 
-Each data stream tracks its generation: a six-digit, zero-padded integer that
-acts as a cumulative count of the stream's rollovers, starting at `000001`.
+Each data stream tracks its generation: a six-digit, zero-padded integer starting at `000001`.
 
 When a backing index is created, the index is named using the following
 convention:
@@ -105,6 +108,11 @@ created on 7 March 2099, is named `.ds-web-server-logs-2099.03.07-000034`.
 Some operations, such as a <<indices-shrink-index,shrink>> or
 <<snapshots-restore-snapshot,restore>>, can change a backing index's name.
 These name changes do not remove a backing index from its data stream.
+
+The generation of the data stream can change without a new index being added to
+the data stream (e.g. when an existing backing index is shrunk). This means the
+backing indices for some generations will never exist.
+You should not derive any intelligence from the backing indices names.
 
 [discrete]
 [[data-streams-append-only]]

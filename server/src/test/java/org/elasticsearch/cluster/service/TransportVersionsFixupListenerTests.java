@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.TransportVersionsFixupListener.NodeTran
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchMatchers;
+import org.elasticsearch.threadpool.Scheduler;
 import org.hamcrest.Matcher;
 
 import java.util.HashMap;
@@ -37,6 +38,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
@@ -119,6 +121,15 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         return task;
     }
 
+    private static Runnable[] captureRetry(Scheduler scheduler) {
+        Runnable[] retry = new Runnable[1];
+        doAnswer(i -> {
+            retry[0] = i.getArgument(0);
+            return null;
+        }).when(scheduler).schedule(any(), any(), any());
+        return retry;
+    }
+
     public void testNothingFixedWhenNothingToInfer() {
         MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue = newMockTaskQueue();
         ClusterAdminClient client = mock(ClusterAdminClient.class);
@@ -128,7 +139,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .transportVersions(versions(TransportVersion.V_8_8_0))
             .build();
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client);
+        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
         listeners.clusterChanged(new ClusterChangedEvent("test", testState, ClusterState.EMPTY_STATE));
 
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
@@ -143,7 +154,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .transportVersions(versions(NEXT_TRANSPORT_VERSION))
             .build();
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client);
+        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
         listeners.clusterChanged(new ClusterChangedEvent("test", testState, ClusterState.EMPTY_STATE));
 
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
@@ -158,7 +169,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .transportVersions(versions(TransportVersion.V_8_7_0, TransportVersion.V_8_8_0))
             .build();
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client);
+        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
         listeners.clusterChanged(new ClusterChangedEvent("test", testState, ClusterState.EMPTY_STATE));
 
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
@@ -183,7 +194,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         );
         NodeTransportVersionTask[] task = captureTask(taskQueue);
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client);
+        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
         listeners.clusterChanged(new ClusterChangedEvent("test", testState, ClusterState.EMPTY_STATE));
         action[0].onResponse(getResponse(Map.of("node1", NEXT_TRANSPORT_VERSION, "node2", NEXT_TRANSPORT_VERSION)));
 
@@ -199,7 +210,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .transportVersions(versions(NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0, TransportVersion.V_8_8_0))
             .build();
 
-        var action1 = captureListener(
+        captureListener(
             client,
             ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(
                 NodesInfoRequest::nodesIds,
@@ -207,7 +218,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             )
         );
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client);
+        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, null);
         listeners.clusterChanged(new ClusterChangedEvent("test", testState1, ClusterState.EMPTY_STATE));
         verify(client).nodesInfo(any(), any());
         // don't send back the response yet
@@ -219,5 +230,38 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         // should not send any requests
         listeners.clusterChanged(new ClusterChangedEvent("test", testState2, testState1));
         verifyNoMoreInteractions(client);
+    }
+
+    public void testFailedRequestsAreRetried() {
+        MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue = newMockTaskQueue();
+        ClusterAdminClient client = mock(ClusterAdminClient.class);
+        Scheduler scheduler = mock(Scheduler.class);
+
+        ClusterState testState1 = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
+            .transportVersions(versions(NEXT_TRANSPORT_VERSION, TransportVersion.V_8_8_0, TransportVersion.V_8_8_0))
+            .build();
+
+        // do response immediately
+        doAnswer(i -> {
+            i.getArgument(1, ActionListener.class).onFailure(new RuntimeException("failure"));
+            return null;
+        }).when(client).nodesInfo(any(), any());
+        Runnable[] retry = captureRetry(scheduler);
+
+        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(taskQueue, client, scheduler);
+        listeners.clusterChanged(new ClusterChangedEvent("test", testState1, ClusterState.EMPTY_STATE));
+        verify(client, times(1)).nodesInfo(any(), any());
+
+        // running retry should cause another check
+        captureListener(
+            client,
+            ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(
+                NodesInfoRequest::nodesIds,
+                arrayContainingInAnyOrder("node1", "node2")
+            )
+        );
+        retry[0].run();
+        verify(client, times(2)).nodesInfo(any(), any());
     }
 }

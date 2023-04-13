@@ -22,8 +22,12 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -43,23 +47,45 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
 
     private static final TransportVersion INFERRED_VERSION = TransportVersion.V_8_8_0;
 
+    private static final TimeValue RETRY_TIME = TimeValue.timeValueSeconds(30);
+    private static final int MAX_RETRIES = 120; // try for 1 hour
+
     private final MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue;
     private final ClusterAdminClient client;
+    private final Scheduler scheduler;
     private final Set<String> pendingNodes = Collections.synchronizedSet(new HashSet<>());
 
-    public TransportVersionsFixupListener(ClusterService service, ClusterAdminClient client) {
-        this(service.createTaskQueue("fixup-transport-versions", Priority.LOW, new TransportVersionUpdater()), client);
+    public TransportVersionsFixupListener(ClusterService service, ClusterAdminClient client, Scheduler scheduler) {
+        this(service.createTaskQueue("fixup-transport-versions", Priority.LOW, new TransportVersionUpdater()), client, scheduler);
     }
 
-    TransportVersionsFixupListener(MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue, ClusterAdminClient client) {
+    TransportVersionsFixupListener(
+        MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue,
+        ClusterAdminClient client,
+        Scheduler scheduler
+    ) {
         this.taskQueue = taskQueue;
         this.client = client;
+        this.scheduler = scheduler;
     }
 
-    record NodeTransportVersionTask(Map<String, TransportVersion> results) implements ClusterStateTaskListener {
+    class NodeTransportVersionTask implements ClusterStateTaskListener {
+        private final Map<String, TransportVersion> results;
+        private final int retryNum;
+
+        NodeTransportVersionTask(Map<String, TransportVersion> results, int retryNum) {
+            this.results = results;
+            this.retryNum = retryNum;
+        }
+
         @Override
         public void onFailure(Exception e) {
             Log.error("Could not apply transport version for nodes {} to cluster state", results.keySet(), e);
+            scheduleRetry(results.keySet(), retryNum);
+        }
+
+        public Map<String, TransportVersion> results() {
+            return results;
         }
     }
 
@@ -90,40 +116,69 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             && event.state().getMinTransportVersion().equals(INFERRED_VERSION)) {
 
             // find all the relevant nodes
-            Set<String> nodes = new HashSet<>();
-            synchronized (pendingNodes) {
-                for (var e : event.state().transportVersions().entrySet()) {
-                    if (e.getValue().equals(INFERRED_VERSION) && pendingNodes.add(e.getKey())) {
-                        nodes.add(e.getKey());
-                    }
-                }
-            }
-            if (nodes.isEmpty()) {
-                // all nodes already have in-progress requests
-                return;
-            }
+            Set<String> nodes = event.state()
+                .transportVersions()
+                .entrySet()
+                .stream()
+                .filter(e -> e.getValue().equals(INFERRED_VERSION))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
 
-            NodesInfoRequest request = new NodesInfoRequest(nodes.toArray(String[]::new));
-            request.clear();    // only requesting base data
-            client.nodesInfo(request, new ActionListener<>() {
-                @Override
-                public void onResponse(NodesInfoResponse response) {
-                    pendingNodes.removeAll(nodes);
-                    handleResponse(response);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    pendingNodes.removeAll(nodes);
-                    Log.warn("Could not read transport versions from nodes", e);
-                }
-            });
+            updateTransportVersions(nodes, 0);
         }
     }
 
-    private void handleResponse(NodesInfoResponse response) {
-        for (FailedNodeException fne : response.failures()) {
-            Log.warn("Failed to read transport version info from node {}", fne.nodeId(), fne);
+    private void scheduleRetry(Set<String> nodes, int thisRetryNum) {
+        if (thisRetryNum >= MAX_RETRIES) {
+            Log.error("Maximum retries reached ({}) for updating nodes {}, giving up", thisRetryNum, nodes);
+            return; // just bail, it's obviously not working
+        }
+
+        Log.debug("Scheduling retry {} for nodes {}", thisRetryNum + 1, nodes);
+        scheduler.schedule(() -> updateTransportVersions(nodes, thisRetryNum + 1), RETRY_TIME, ThreadPool.Names.CLUSTER_COORDINATION);
+    }
+
+    private void updateTransportVersions(Set<String> nodes, int retryNum) {
+        // some might already be in-progress
+        Set<String> outstandingNodes = Sets.newHashSetWithExpectedSize(nodes.size());
+        synchronized (pendingNodes) {
+            for (String n : nodes) {
+                if (pendingNodes.add(n)) {
+                    outstandingNodes.add(n);
+                }
+            }
+        }
+        if (outstandingNodes.isEmpty()) {
+            // all nodes already have in-progress requests
+            return;
+        }
+
+        NodesInfoRequest request = new NodesInfoRequest(outstandingNodes.toArray(String[]::new));
+        request.clear();    // only requesting base data
+        client.nodesInfo(request, new ActionListener<>() {
+            @Override
+            public void onResponse(NodesInfoResponse response) {
+                pendingNodes.removeAll(outstandingNodes);
+                handleResponse(response, retryNum);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                pendingNodes.removeAll(outstandingNodes);
+                Log.warn("Could not read transport versions for nodes {}", outstandingNodes, e);
+                scheduleRetry(outstandingNodes, retryNum);
+            }
+        });
+    }
+
+    private void handleResponse(NodesInfoResponse response, int retryNum) {
+        if (response.hasFailures()) {
+            Set<String> failedNodes = new HashSet<>();
+            for (FailedNodeException fne : response.failures()) {
+                Log.warn("Failed to read transport version info from node {}", fne.nodeId(), fne);
+                failedNodes.add(fne.nodeId());
+            }
+            scheduleRetry(failedNodes, retryNum);
         }
         // carry on and read what we can
 
@@ -132,7 +187,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             .collect(Collectors.toUnmodifiableMap(n -> n.getNode().getId(), NodeInfo::getTransportVersion));
 
         if (results.isEmpty() == false) {
-            taskQueue.submitTask("update-transport-version", new NodeTransportVersionTask(results), null);
+            taskQueue.submitTask("update-transport-version", new NodeTransportVersionTask(results, retryNum), null);
         }
     }
 }

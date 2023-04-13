@@ -651,7 +651,7 @@ public class Node implements Closeable {
 
             if (DiscoveryNode.isMasterNode(settings)) {
                 clusterService.addListener(new SystemIndexManager(systemIndices, client));
-                clusterService.addListener(new TransportVersionsFixupListener(clusterService, client.admin().cluster()));
+                clusterService.addListener(new TransportVersionsFixupListener(clusterService, client.admin().cluster(), threadPool));
             }
 
             final RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);

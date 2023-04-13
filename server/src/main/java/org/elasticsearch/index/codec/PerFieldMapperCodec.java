@@ -107,18 +107,18 @@ public class PerFieldMapperCodec extends Lucene95Codec {
         return docValuesFormat;
     }
 
-    private boolean useTSDBDocValuesFormat(final String field) {
-        return IndexSettings.isTimeSeriesModeEnabled()
+    boolean useTSDBDocValuesFormat(final String field) {
+        return mapperService.getIndexSettings().isES87TSDBCodecEnabled()
             && isTimeSeriesModeIndex()
             && isNotSpecialField(field)
-            && (isCounterMetricType(field) || isTimestampField(field));
+            && (isCounterOrGaugeMetricType(field) || isTimestampField(field));
     }
 
     private boolean isTimeSeriesModeIndex() {
         return IndexMode.TIME_SERIES.equals(mapperService.getIndexSettings().getMode());
     }
 
-    private boolean isCounterMetricType(String field) {
+    private boolean isCounterOrGaugeMetricType(String field) {
         if (mapperService != null) {
             final MappingLookup mappingLookup = mapperService.mappingLookup();
             if (mappingLookup.getMapper(field) instanceof NumberFieldMapper) {

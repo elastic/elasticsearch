@@ -21,6 +21,7 @@
             "Aggregations",
             "Allocation",
             "Analysis",
+            "Application",
             "Audit",
             "Authentication",
             "Authorization",
@@ -85,8 +86,7 @@
             "Transform",
             "TSDB",
             "Vector Search",
-            "Watcher",
-            "Application"
+            "Watcher"
           ]
         },
         "type": {

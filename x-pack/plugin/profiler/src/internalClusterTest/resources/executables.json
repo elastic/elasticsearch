@@ -1,7 +1,8 @@
 {
   "settings": {
     "index": {
-      "refresh_interval": "10s"
+      "refresh_interval": "10s",
+      "max_result_window": 100000
     }
   },
   "mappings": {

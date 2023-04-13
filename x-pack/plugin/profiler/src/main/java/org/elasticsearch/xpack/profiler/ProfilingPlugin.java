@@ -116,8 +116,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         return List.of(
             PROFILING_ENABLED,
             TransportGetProfilingAction.PROFILING_MAX_STACKTRACE_QUERY_SLICES,
-            TransportGetProfilingAction.PROFILING_MAX_DETAIL_QUERY_SLICES,
-            TransportGetProfilingAction.PROFILING_QUERY_REALTIME
+            TransportGetProfilingAction.PROFILING_MAX_DETAIL_QUERY_SLICES
         );
     }
 

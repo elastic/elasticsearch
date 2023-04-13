@@ -3,6 +3,7 @@
     "index": {
       "number_of_shards": "16",
       "refresh_interval": "10s",
+      "max_result_window": 100000,
       "sort": {
         "field": [
           "Stacktrace.frame.ids"

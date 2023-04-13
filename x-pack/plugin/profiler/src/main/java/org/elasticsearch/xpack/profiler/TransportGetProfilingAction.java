@@ -9,8 +9,7 @@ package org.elasticsearch.xpack.profiler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.MultiGetItemResponse;
-import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -21,6 +20,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
@@ -59,18 +60,11 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Boolean> PROFILING_QUERY_REALTIME = Setting.boolSetting(
-        "xpack.profiling.query.realtime",
-        true,
-        Setting.Property.NodeScope
-    );
-
     private final NodeClient nodeClient;
     private final TransportService transportService;
     private final Executor responseExecutor;
     private final int desiredSlices;
     private final int desiredDetailSlices;
-    private final boolean realtime;
 
     @Inject
     public TransportGetProfilingAction(
@@ -86,7 +80,6 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         this.responseExecutor = threadPool.executor(ProfilingPlugin.PROFILING_THREAD_POOL_NAME);
         this.desiredSlices = PROFILING_MAX_STACKTRACE_QUERY_SLICES.get(settings);
         this.desiredDetailSlices = PROFILING_MAX_DETAIL_QUERY_SLICES.get(settings);
-        this.realtime = PROFILING_QUERY_REALTIME.get(settings);
     }
 
     @Override
@@ -175,9 +168,11 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         List<List<String>> slicedEventIds = sliced(eventIds, desiredSlices);
         StackTraceHandler handler = new StackTraceHandler(client, responseBuilder, submitListener, eventIds.size(), slicedEventIds.size());
         for (List<String> slice : slicedEventIds) {
-            client.prepareMultiGet()
-                .setRealtime(realtime)
-                .addIds("profiling-stacktraces", slice)
+            client.prepareSearch("profiling-stacktraces")
+                .setQuery(new TermsQueryBuilder("_id", slice))
+                // documents might be contained in multiple indices and we need to collect all hits
+                .setSize(3 * slice.size())
+                .setTrackTotalHits(false)
                 .execute(
                     new ThreadedActionListener<>(responseExecutor, ActionListener.wrap(handler::onResponse, submitListener::onFailure))
                 );
@@ -227,16 +222,14 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             this.submitListener = submitListener;
         }
 
-        public void onResponse(MultiGetResponse multiGetItemResponses) {
-            for (MultiGetItemResponse trace : multiGetItemResponses) {
-                if (trace.isFailed() == false && trace.getResponse().isExists()) {
-                    String id = trace.getId();
-                    StackTrace stacktrace = StackTrace.fromSource(trace.getResponse().getSource());
-                    stackTracePerId.put(id, stacktrace);
-                    totalFrames.addAndGet(stacktrace.frameIds.size());
-                    stackFrameIds.addAll(stacktrace.frameIds);
-                    executableIds.addAll(stacktrace.fileIds);
-                }
+        public void onResponse(SearchResponse response) {
+            for (SearchHit hit : response.getHits().getHits()) {
+                String id = hit.getId();
+                StackTrace stacktrace = StackTrace.fromSource(hit.getSourceAsMap());
+                stackTracePerId.put(id, stacktrace);
+                totalFrames.addAndGet(stacktrace.frameIds.size());
+                stackFrameIds.addAll(stacktrace.frameIds);
+                executableIds.addAll(stacktrace.fileIds);
             }
             if (this.remainingSlices.decrementAndGet() == 0) {
                 responseBuilder.setStackTraces(stackTracePerId);
@@ -272,12 +265,14 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         );
 
         if (stackFrameIds.isEmpty()) {
-            handler.onStackFramesResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
+            handler.onStackFramesResponse(null);
         } else {
             for (List<String> slice : slicedStackFrameIds) {
-                client.prepareMultiGet()
-                    .addIds("profiling-stackframes", slice)
-                    .setRealtime(realtime)
+                client.prepareSearch("profiling-stackframes")
+                    .setQuery(new TermsQueryBuilder("_id", slice))
+                    // documents might be duplicated across indices and we need to collect all hits
+                    .setSize(3 * slice.size())
+                    .setTrackTotalHits(false)
                     .execute(
                         new ThreadedActionListener<>(
                             responseExecutor,
@@ -288,12 +283,14 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         }
         // no data dependency - we can do this concurrently
         if (executableIds.isEmpty()) {
-            handler.onExecutableDetailsResponse(new MultiGetResponse(new MultiGetItemResponse[0]));
+            handler.onExecutableDetailsResponse(null);
         } else {
             for (List<String> slice : slicedExecutableIds) {
-                client.prepareMultiGet()
-                    .addIds("profiling-executables", slice)
-                    .setRealtime(realtime)
+                client.prepareSearch("profiling-executables")
+                    .setQuery(new TermsQueryBuilder("_id", slice))
+                    // documents might be duplicated across indices and we need to collect all hits
+                    .setSize(3 * slice.size())
+                    .setTrackTotalHits(false)
                     .execute(
                         new ThreadedActionListener<>(
                             responseExecutor,
@@ -379,19 +376,19 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             this.expectedSlices = new AtomicInteger(expectedExecutableSlices + expectedStackFrameSlices);
         }
 
-        public void onStackFramesResponse(MultiGetResponse multiGetItemResponses) {
-            for (MultiGetItemResponse frame : multiGetItemResponses) {
-                if (frame.isFailed() == false && frame.getResponse().isExists()) {
-                    stackFrames.put(frame.getId(), StackFrame.fromSource(frame.getResponse().getSource()));
+        public void onStackFramesResponse(SearchResponse response) {
+            if (response != null) {
+                for (SearchHit hit : response.getHits().getHits()) {
+                    stackFrames.put(hit.getId(), StackFrame.fromSource(hit.getSourceAsMap()));
                 }
             }
             mayFinish();
         }
 
-        public void onExecutableDetailsResponse(MultiGetResponse multiGetItemResponses) {
-            for (MultiGetItemResponse executable : multiGetItemResponses) {
-                if (executable.isFailed() == false && executable.getResponse().isExists()) {
-                    executables.put(executable.getId(), ObjectPath.eval("Executable.file.name", executable.getResponse().getSource()));
+        public void onExecutableDetailsResponse(SearchResponse response) {
+            if (response != null) {
+                for (SearchHit hit : response.getHits().getHits()) {
+                    executables.put(hit.getId(), ObjectPath.eval("Executable.file.name", hit.getSourceAsMap()));
                 }
             }
             mayFinish();

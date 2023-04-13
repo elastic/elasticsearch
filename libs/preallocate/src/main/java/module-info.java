@@ -11,7 +11,7 @@ module org.elasticsearch.preallocate {
     requires org.elasticsearch.logging;
     requires com.sun.jna;
 
-    exports org.elasticsearch.preallocate to org.elasticsearch.blobcache;
+    exports org.elasticsearch.preallocate to org.elasticsearch.blobcache, com.sun.jna;
 
     provides org.elasticsearch.jdk.ModuleQualifiedExportsService with org.elasticsearch.preallocate.PreallocateModuleExportsService;
 }

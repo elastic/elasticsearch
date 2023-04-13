@@ -48,8 +48,7 @@ setup:
       indices.put_data_lifecycle:
         name: "my-data-stream-1,does-not-exist"
         body:
-          lifecycle:
-            data_retention: '30d'
+          data_retention: '30d'
   - match: { error.reason: "no such index [does-not-exist]" }
 
   - do:

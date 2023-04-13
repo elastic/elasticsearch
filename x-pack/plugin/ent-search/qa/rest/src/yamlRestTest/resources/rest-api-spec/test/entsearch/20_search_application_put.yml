@@ -97,7 +97,7 @@ teardown:
       }
     }
 ---
-"Update Search Application":
+"Update Search Application with null template, results in default template being applied":
   - do:
       search_application.put:
         name: test-updated-search-application
@@ -121,7 +121,18 @@ teardown:
   - do:
      search_application.get:
        name: test-updated-search-application
-  - match: { template: null }
+  - match: {
+    template: {
+      script: {
+        source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"{{default_field}}\" } } }",
+        params: {
+          query_string: "*",
+          default_field: "*"
+        },
+        lang: "mustache"
+      }
+    }
+  }
   - match: { indices: [ "test-index3", "test-index4" ] }
 
 ---

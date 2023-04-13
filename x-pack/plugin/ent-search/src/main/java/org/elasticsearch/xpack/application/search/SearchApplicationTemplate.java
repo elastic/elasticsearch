@@ -102,16 +102,7 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
 
     private static SearchApplicationTemplate buildDefaultTemplate() {
         Map<String, Object> params = Map.of("query_string", "*", "default_field", "*");
-        String query = """
-            {
-                "query": {
-                  "query_string":{
-                    "query": "{{query_string}}",
-                    "default_field": "{{default_field}}"
-                  }
-                }
-              }
-            """;
+        String query = "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"{{default_field}}\" } } }";
         final Script script = new Script(ScriptType.INLINE, "mustache", query, params);
         return new SearchApplicationTemplate(script);
     }

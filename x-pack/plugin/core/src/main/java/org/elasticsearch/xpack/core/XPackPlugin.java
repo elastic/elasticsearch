@@ -46,6 +46,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
@@ -459,6 +460,14 @@ public class XPackPlugin extends XPackClientPlugin
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = super.getSettings();
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
+
+        // Don't register the license setting if there is an alternate implementation loaded as an extension.
+        // this relies on the order in which methods are called - loadExtensions, (this method) getSettings, then createComponents
+        if (getSharedLicenseService() == null) {
+            settings.add(LicenseSettings.SELF_GENERATED_LICENSE_TYPE);
+            settings.add(LicenseSettings.ALLOWED_LICENSE_TYPES_SETTING);
+        }
+
         return settings;
     }
 

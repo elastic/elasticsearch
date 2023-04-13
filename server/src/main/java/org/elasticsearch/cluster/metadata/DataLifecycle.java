@@ -46,7 +46,7 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     public static final DataLifecycle EMPTY = new DataLifecycle();
     public static final String DLM_ORIGIN = "data_lifecycle";
 
-    private static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
+    public static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
     private static final ParseField ROLLOVER_FIELD = new ParseField("rollover");
 
     public static final ConstructingObjectParser<DataLifecycle, Void> PARSER = new ConstructingObjectParser<>(

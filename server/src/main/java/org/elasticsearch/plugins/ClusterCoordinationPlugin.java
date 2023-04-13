@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -24,7 +25,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiConsumer;
-import java.util.function.LongSupplier;
 
 public interface ClusterCoordinationPlugin {
 
@@ -65,7 +65,7 @@ public interface ClusterCoordinationPlugin {
             NodeEnvironment nodeEnvironment,
             NamedXContentRegistry xContentRegistry,
             ClusterSettings clusterSettings,
-            LongSupplier relativeTimeMillisSupplier
+            ThreadPool threadPool
         );
     }
 }

@@ -17,10 +17,11 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicatorReader;
 
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -28,6 +29,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
@@ -46,7 +49,6 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -93,50 +95,6 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         assertObjectStoreConsistentWithIndexShards();
 
         indexDocuments(indexName);
-    }
-
-    public void testUploadToObjectStoreWillAlwaysEnsureCompleteCommitFileSetIsUploaded() throws IOException {
-        startMasterOnlyNode();
-        final int numberOfShards = randomIntBetween(1, 5);
-        startIndexNodes(numberOfShards);
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
-                .build()
-        );
-        ensureGreen(indexName);
-
-        assertObjectStoreConsistentWithIndexShards();
-
-        indexDocuments(indexName);
-
-        final Map<Index, Integer> indices = resolveIndices();
-        assertThat(indices.isEmpty(), is(false));
-
-        for (Map.Entry<Index, Integer> entry : indices.entrySet()) {
-            assertThat(entry.getValue(), greaterThan(0));
-            for (int shardId = 0; shardId < entry.getValue(); shardId++) {
-                IndexShard indexShard = findIndexShard(entry.getKey(), shardId);
-                var blobContainer = internalCluster().getDataNodeInstance(ObjectStoreService.class)
-                    .getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
-                // Delete about 25% of the files
-                List<String> toDelete = blobContainer.listBlobs()
-                    .keySet()
-                    .stream()
-                    .filter(s -> s.startsWith(IndexFileNames.SEGMENTS) == false)
-                    .filter(i -> randomIntBetween(0, 3) == 0)
-                    .collect(Collectors.toList());
-                blobContainer.deleteBlobsIgnoringIfNotExists(toDelete.listIterator());
-            }
-        }
-
-        indexDocs(indexName, randomIntBetween(1, 100));
-        client().admin().indices().prepareFlush(indexName).setForce(true).get();
-        assertObjectStoreConsistentWithIndexShards();
     }
 
     public void testTranslogIsSyncedToObjectStoreDuringIndexing() throws Exception {
@@ -469,7 +427,8 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    private static void assertThatObjectStoreIsConsistentWithLastCommit(final IndexShard indexShard) {
+    // TODO: Remove This method once we stop uploading the old segments file style
+    private static void assertThatObjectStoreIsConsistentWithLastCommitOld(final IndexShard indexShard) {
         final Store store = indexShard.store();
         store.incRef();
         try {
@@ -505,30 +464,95 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    private static void assertThatObjectStoreIsConsistentWithLastCommit(final IndexShard indexShard) {
+        // TODO: Remove This call once we stop uploading the old segments file style
+        assertThatObjectStoreIsConsistentWithLastCommitOld(indexShard);
+
+        final Store store = indexShard.store();
+        store.incRef();
+        try {
+            ObjectStoreService objectStoreService = internalCluster().getDataNodeInstance(ObjectStoreService.class);
+            var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+
+            final SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+
+            // can take some time for files to be uploaded to the object store
+            assertBusy(() -> {
+                String commitFile = StatelessCompoundCommit.NAME + segmentInfos.getGeneration();
+                assertThat("" + commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
+                StatelessCompoundCommit commit = StatelessCompoundCommit.read(
+                    commitFile,
+                    new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile))
+                );
+                var localFiles = segmentInfos.files(true);
+                var expectedBlobFile = localFiles.stream().map(s -> commit.commitFiles().get(s).blobName()).collect(Collectors.toSet());
+                var remoteFiles = blobContainerForCommit.listBlobs().keySet();
+                assertThat(
+                    "Expected that all local files " + localFiles + " exist in remote " + remoteFiles,
+                    remoteFiles,
+                    hasItems(expectedBlobFile.toArray(String[]::new))
+                );
+                for (String localFile : segmentInfos.files(true)) {
+                    BlobLocation blobLocation = commit.commitFiles().get(localFile);
+                    final BlobContainer blobContainerForFile = objectStoreService.getBlobContainer(
+                        indexShard.shardId(),
+                        blobLocation.primaryTerm()
+                    );
+                    assertThat("" + localFile, blobContainerForFile.blobExists(blobLocation.blobName()), is(true));
+                    try (
+                        IndexInput input = store.directory().openInput(localFile, IOContext.READONCE);
+                        InputStream local = new InputStreamIndexInput(input, input.length());
+                        InputStream remote = blobContainerForFile.readBlob(
+                            blobLocation.blobName(),
+                            blobLocation.offset(),
+                            blobLocation.length()
+                        );
+                    ) {
+                        assertEquals("File [" + blobLocation + "] in object store has a different content than local file ", local, remote);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        } finally {
+            store.decRef();
+        }
+    }
+
     private static void assertThatSearchShardIsConsistentWithLastCommit(final IndexShard indexShard, final IndexShard searchShard) {
         final Store indexStore = indexShard.store();
         final Store searchStore = searchShard.store();
         indexStore.incRef();
         searchStore.incRef();
         try {
-            var blobContainer = internalCluster().getDataNodeInstance(ObjectStoreService.class)
-                .getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+            ObjectStoreService objectStoreService = internalCluster().getDataNodeInstance(ObjectStoreService.class);
+            var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
 
             final SegmentInfos segmentInfos = Lucene.readSegmentInfos(indexStore.directory());
 
-            for (String file : segmentInfos.files(true)) {
+            String commitFile = StatelessCompoundCommit.NAME + segmentInfos.getGeneration();
+            assertBusy(() -> assertThat("" + commitFile, blobContainerForCommit.blobExists(commitFile), is(true)));
+            StatelessCompoundCommit commit = StatelessCompoundCommit.read(
+                commitFile,
+                new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile))
+            );
+
+            for (String localFile : segmentInfos.files(false)) {
+                var blobPath = commit.commitFiles().get(localFile);
+                BlobContainer blobContainer = objectStoreService.getBlobContainer(indexShard.shardId(), blobPath.primaryTerm());
+                var blobFile = blobPath.blobName();
                 // can take some time for files to be uploaded to the object store
                 assertBusy(() -> {
-                    assertThat("" + file, blobContainer.blobExists(file), is(true));
+                    assertThat("" + blobFile, blobContainer.blobExists(blobFile), is(true));
 
                     try (
-                        IndexInput input = indexStore.directory().openInput(file, IOContext.READONCE);
+                        IndexInput input = indexStore.directory().openInput(localFile, IOContext.READONCE);
                         InputStream local = new InputStreamIndexInput(input, input.length());
-                        IndexInput searchInput = searchStore.directory().openInput(file, IOContext.READONCE);
+                        IndexInput searchInput = searchStore.directory().openInput(localFile, IOContext.READONCE);
                         InputStream searchInputStream = new InputStreamIndexInput(searchInput, searchInput.length());
                     ) {
                         assertEquals(
-                            "File [" + file + "] on search shard has a different content than local file ",
+                            "File [" + blobFile + "] on search shard has a different content than local file ",
                             local,
                             searchInputStream
                         );

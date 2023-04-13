@@ -463,7 +463,8 @@ public class SearchApplicationIndexService {
         return new SearchApplication(in);
     }
 
-    static void writeSearchApplicationBinaryWithVersion(SearchApplication app, OutputStream os, TransportVersion minTransportVersion) throws IOException {
+    static void writeSearchApplicationBinaryWithVersion(SearchApplication app, OutputStream os, TransportVersion minTransportVersion)
+        throws IOException {
         // do not close the output
         os = Streams.noCloseStream(os);
         TransportVersion.writeVersion(minTransportVersion, new OutputStreamStreamOutput(os));

@@ -36,6 +36,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.ClusterState.INFERRED_TRANSPORT_VERSION;
+
 /**
  * This fixes up the transport version from pre-8.8.0 cluster state that was inferred as the minimum possible,
  * due to the master node not understanding cluster state with transport versions added in 8.8.0.
@@ -44,8 +46,6 @@ import java.util.stream.Collectors;
 public class TransportVersionsFixupListener implements ClusterStateListener {
 
     private static final Logger Log = LogManager.getLogger(TransportVersionsFixupListener.class);
-
-    private static final TransportVersion INFERRED_VERSION = TransportVersion.V_8_8_0;
 
     private static final TimeValue RETRY_TIME = TimeValue.timeValueSeconds(30);
     private static final int MAX_RETRIES = 120; // try for 1 hour
@@ -96,7 +96,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             for (var c : context.taskContexts()) {
                 for (var e : c.getTask().results().entrySet()) {
                     // this node's transport version might have been updated already/node has gone away
-                    if (Objects.equals(builder.transportVersions().get(e.getKey()), INFERRED_VERSION)) {
+                    if (Objects.equals(builder.transportVersions().get(e.getKey()), INFERRED_TRANSPORT_VERSION)) {
                         builder.putTransportVersion(e.getKey(), e.getValue());
                     }
                 }
@@ -113,14 +113,14 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         // then refresh all inferred transport versions to their real versions
         // now that everything should understand cluster state with transport versions
         if (event.state().nodes().getMinNodeVersion().after(Version.V_8_8_0)
-            && event.state().getMinTransportVersion().equals(INFERRED_VERSION)) {
+            && event.state().getMinTransportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
 
             // find all the relevant nodes
             Set<String> nodes = event.state()
                 .transportVersions()
                 .entrySet()
                 .stream()
-                .filter(e -> e.getValue().equals(INFERRED_VERSION))
+                .filter(e -> e.getValue().equals(INFERRED_TRANSPORT_VERSION))
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
 

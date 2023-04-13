@@ -1647,16 +1647,6 @@ public class Security extends Plugin
             }
             final AuthenticationService authenticationService = this.authcService.get();
             final ThreadContext threadContext = this.threadContext.get();
-            final BiConsumer<HttpPreRequest, ActionListener<Void>> authenticate = (httpRequest, listener) -> {
-                authenticationService.authenticate(httpRequest, listener.map(authentication -> {
-                    if (authentication == null) {
-                        logger.trace("No authentication available for HTTP request [{}]", httpRequest.uri());
-                    } else {
-                        logger.trace("Authenticated HTTP request [{}] as {}", httpRequest.uri(), authentication);
-                    }
-                    return null;
-                }));
-            };
             final TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationContext>> authenticateMessage = (
                 httpRequest,
                 channel,
@@ -1669,13 +1659,15 @@ public class Security extends Plugin
                     perRequestThreadContext.accept(httpRequest, threadContext);
                     populateClientCertificate.accept(channel, threadContext);
                     RemoteHostHeader.process(channel, threadContext);
-                    authenticate.accept(
-                        httpRequest,
-                        ActionListener.wrap(
-                            ignored -> contextPreservingListener.onResponse(threadContext.newStoredContext()::restore),
-                            contextPreservingListener::onFailure
-                        )
-                    );
+                    authenticationService.authenticate(httpRequest, ActionListener.wrap(authentication -> {
+                        if (authentication == null) {
+                            logger.trace("No authentication available for HTTP request [{}]", httpRequest.uri());
+                        } else {
+                            logger.trace("Authenticated HTTP request [{}] as {}", httpRequest.uri(), authentication);
+                        }
+                        ThreadContext.StoredContext authenticatedContext = threadContext.newStoredContext();
+                        contextPreservingListener.onResponse(authenticatedContext::restore);
+                    }, contextPreservingListener::onFailure));
                 }
             };
             return new Netty4HttpServerTransport(

@@ -82,11 +82,7 @@ public class GrokEvaluatorExtracter implements ColumnExtractOperator.Evaluator, 
         }
         this.blocks = blocks;
         Arrays.fill(valuesSet, false);
-        byte[] bytes = Arrays.copyOfRange(input.bytes, input.offset, input.offset + input.length);
-        boolean matched = parser.match(bytes, 0, bytes.length, this);
-        // this should be
-        // boolean matched = parser.match(input.bytes, input.offset, input.length, this);
-        // but *sometimes* it doesn't work. It could be a bug in the library
+        boolean matched = parser.match(input.bytes, input.offset, input.length, this);
         if (matched) {
             for (int i = 0; i < valuesSet.length; i++) {
                 // set null all the optionals not set

@@ -19,6 +19,9 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
@@ -51,8 +54,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -74,9 +77,7 @@ import java.util.Objects;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -179,6 +180,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
     private final Settings settings;
+    private final StatelessCommitService commitService = new StatelessCommitService();
     private final Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final ThreadPool threadPool;
     private final PrioritizedThrottledTaskRunner<TranslogFileUploadTask> uploadTranslogTaskRunner;
@@ -465,27 +467,28 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 // this listener releases the reference on the index commit and a permit once all commit files are uploaded
                 final AtomicLong successCount = new AtomicLong();
                 final AtomicLong successSize = new AtomicLong();
-                final ActionListener<Object> releaseCommitListener = ActionListener.runBefore(ActionListener.wrap(ignored -> {
-                    final long end = threadPool.relativeTimeInNanos();
-                    logger.debug(
-                        () -> format(
-                            "%s commit [%s] uploaded in [%s] ms (%s files, %s total bytes)",
-                            shardId,
-                            generation,
-                            TimeValue.nsecToMSec(end - timeInNanos),
-                            successCount.get(),
-                            successSize.get()
-                        )
-                    );
+                final ActionListener<StatelessCompoundCommit> releaseCommitListener = ActionListener.runBefore(
+                    ActionListener.wrap(ignored -> {
+                        final long end = threadPool.relativeTimeInNanos();
+                        logger.debug(
+                            () -> format(
+                                "%s commit [%s] uploaded in [%s] ms (%s files, %s total bytes)",
+                                shardId,
+                                generation,
+                                TimeValue.nsecToMSec(end - timeInNanos),
+                                successCount.get(),
+                                successSize.get()
+                            )
+                        );
 
-                    NewCommitNotificationRequest request = new NewCommitNotificationRequest(
-                        clusterService.state().routingTable().shardRoutingTable(shardId),
-                        reference.getPrimaryTerm(),
-                        generation,
-                        reference.getCommitFiles()
-                    );
-                    client.execute(TransportNewCommitNotificationAction.TYPE, request);
-                }, e -> logger.error(() -> format("%s failed to upload files of commit [%s] to object store", shardId, generation), e)),
+                        NewCommitNotificationRequest request = new NewCommitNotificationRequest(
+                            clusterService.state().routingTable().shardRoutingTable(shardId),
+                            reference.getPrimaryTerm(),
+                            generation,
+                            reference.getCommitFiles()
+                        );
+                        client.execute(TransportNewCommitNotificationAction.TYPE, request);
+                    }, e -> logger.error(() -> format("%s failed to upload files of commit [%s] to object store", shardId, generation), e)),
                     () -> IOUtils.close(reference, releasable)
                 );
 
@@ -495,13 +498,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     successSize.addAndGet(r.length());
                 };
 
-                final ActionListener<Void> allCommitFilesListener = releaseCommitListener.delegateFailure((l, v) ->
-                // Note that the segments_N file is uploaded last after all other files of the commit have been successfully uploaded, and
-                // only if none of the other files failed to upload, so that a process listing the content of the bucket in the object store
-                // will be able to access a consistent set of commit files (assuming read after write consistency).
+                // TODO: Once we have modified the consumer side (search directory and recovery), only upload the stateless commit file.
+                // This step and listener can be removed.
+                final ActionListener<StatelessCompoundCommit> statelessCommitFileListener = releaseCommitListener.delegateFailure((l, v) ->
+                // Note that the segments_N is uploaded last after all other files of the commit have been successfully uploaded,
+                // and only if none of the other files failed to upload, so that a process listing the content of the bucket in the object
+                // store will be able to access a consistent set of commit files (assuming read after write consistency).
                 uploadTaskRunner.enqueueTask(
                     new FileUploadTask(
                         shardId,
+                        reference.getPrimaryTerm(),
                         generation,
                         timeInNanos,
                         reference.getSegmentsFileName(),
@@ -515,25 +521,41 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     )
                 ));
 
+                final ActionListener<Void> allCommitFilesListener = statelessCommitFileListener.delegateFailure((l, v) -> {
+                    // Note that the stateless commit file is uploaded last after all other files of the commit have been successfully
+                    // uploaded, and only if none of the other files failed to upload, so that a process listing the content of the bucket
+                    // in the object store will be able to access a consistent set of commit files (assuming read after write consistency).
+                    String commitFileName = StatelessCompoundCommit.NAME + generation;
+                    StatelessCompoundCommit.Writer commitWriter = commitService.returnPendingCompoundCommit(
+                        shardId,
+                        generation,
+                        reference.getPrimaryTerm(),
+                        reference.getCommitFiles().values()
+                    );
+
+                    uploadTaskRunner.enqueueTask(
+                        new CommitFileUploadTask(
+                            shardId,
+                            generation,
+                            timeInNanos,
+                            commitFileName,
+                            reference.getDirectory(),
+                            commitWriter,
+                            blobContainer,
+                            l.map(r -> {
+                                addResult.accept(r.v2());
+                                return r.v1();
+                            })
+                        )
+                    );
+                });
+
                 final ActionListener<Void> additionalFilesListener = allCommitFilesListener.delegateFailure((l, v) -> {
-                    try {
-                        // TODO: A list call is as expensive as a put. We should hold a cache here locally of
-                        // the currently uploaded files to prevent unnecessary list calls. This will require
-                        // a listener on shard close to clean-up necessary cached data. ES-5739 tracks this.
-                        Map<String, BlobMetadata> blobMetadataMap = blobContainer.listBlobs();
-                        List<String> missingFiles = reference.getCommitFiles()
-                            .keySet()
-                            .stream()
-                            .filter(s -> s.startsWith(IndexFileNames.SEGMENTS) == false)
-                            .filter(Predicate.not(blobMetadataMap::containsKey))
-                            .collect(Collectors.toList());
-                        if (missingFiles.isEmpty()) {
-                            l.onResponse(null);
-                        } else {
-                            enqueueFileUploads(missingFiles, blobContainer, addResult, l);
-                        }
-                    } catch (IOException e) {
-                        l.onFailure(e);
+                    List<String> missingFiles = commitService.resolveMissingFiles(shardId, reference.getCommitFiles().keySet());
+                    if (missingFiles.isEmpty()) {
+                        l.onResponse(null);
+                    } else {
+                        enqueueFileUploads(missingFiles, blobContainer, addResult, l);
                     }
 
                 });
@@ -567,6 +589,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                         file -> uploadTaskRunner.enqueueTask(
                             new FileUploadTask(
                                 shardId,
+                                reference.getPrimaryTerm(),
                                 generation,
                                 timeInNanos,
                                 file,
@@ -590,27 +613,30 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
      */
     private class FileUploadTask extends ObjectStoreTask {
 
+        private final long primaryTerm;
         private final String name;
         private final Directory directory;
         private final BlobContainer blobContainer;
-        private final boolean writeAtomic;
+        private final boolean isSegmentFile;
         private final ActionListener<Result> listener;
 
         FileUploadTask(
             ShardId shardId,
+            long primaryTerm,
             long generation,
             long timeInNanos,
             String name,
             Directory directory,
             BlobContainer blobContainer,
-            boolean writeAtomic,
+            boolean isSegmentFile,
             ActionListener<Result> listener
         ) {
             super(shardId, generation, timeInNanos);
+            this.primaryTerm = primaryTerm;
             this.name = Objects.requireNonNull(name);
             this.directory = Objects.requireNonNull(directory);
             this.blobContainer = Objects.requireNonNull(blobContainer);
-            this.writeAtomic = writeAtomic;
+            this.isSegmentFile = isSegmentFile;
             this.listener = Objects.requireNonNull(listener);
         }
 
@@ -630,10 +656,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 final long length = input.length();
                 var before = threadPool.relativeTimeInMillis();
                 final InputStream inputStream = new InputStreamIndexInput(input, length);
-                if (writeAtomic) {
+                if (isSegmentFile) {
                     blobContainer.writeMetadataBlob(name, false, true, out -> Streams.copy(inputStream, out, false));
                 } else {
                     blobContainer.writeBlob(name, inputStream, length, false);
+                    commitService.markFileUploaded(shardId, name, new BlobLocation(primaryTerm, name, 0, length));
                 }
                 var after = threadPool.relativeTimeInMillis();
                 logger.debug(
@@ -646,7 +673,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                         TimeValue.timeValueNanos(after - before).millis()
                     )
                 );
-                result = new Result(name, length, Store.digestToString(input.getChecksum()), after - before);
+                result = new Result(name, length, after - before);
             } catch (IOException e) {
                 // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
                 onFailure(e);
@@ -658,7 +685,80 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
         }
 
-        record Result(String name, long length, String checksum, long elapsedInMillis) {}
+        record Result(String name, long length, long elapsedInMillis) {}
     }
 
+    /**
+     * {@link FileUploadTask} uploads a blob to the object store
+     */
+    private class CommitFileUploadTask extends ObjectStoreTask {
+
+        private final String commitFileName;
+        private final Directory directory;
+        private final StatelessCompoundCommit.Writer pendingCommit;
+        private final BlobContainer blobContainer;
+        private final ActionListener<Tuple<StatelessCompoundCommit, FileUploadTask.Result>> listener;
+
+        CommitFileUploadTask(
+            ShardId shardId,
+            long generation,
+            long timeInNanos,
+            String commitFileName,
+            Directory directory,
+            StatelessCompoundCommit.Writer pendingCommit,
+            BlobContainer blobContainer,
+            ActionListener<Tuple<StatelessCompoundCommit, FileUploadTask.Result>> listener
+        ) {
+            super(shardId, generation, timeInNanos);
+            this.commitFileName = Objects.requireNonNull(commitFileName);
+            this.directory = Objects.requireNonNull(directory);
+            this.pendingCommit = Objects.requireNonNull(pendingCommit);
+            this.blobContainer = Objects.requireNonNull(blobContainer);
+            this.listener = Objects.requireNonNull(listener);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        protected void doRun() {
+            FileUploadTask.Result result = null;
+            try {
+                var before = threadPool.relativeTimeInMillis();
+                AtomicLong bytesWritten = new AtomicLong();
+                // TODO: Ensure that out usage of this method for writing files is appropriate. The javadoc is a bit concerning. "This
+                // method is only used for streaming serialization of repository metadata that is known to be of limited size at any point
+                // in time and across all concurrent invocations of this method."
+                blobContainer.writeMetadataBlob(commitFileName, false, true, out -> {
+                    long written = pendingCommit.write(out, directory);
+                    bytesWritten.set(written);
+                });
+                var after = threadPool.relativeTimeInMillis();
+                logger.debug(
+                    () -> format(
+                        "%s file %s of size [%s] bytes from commit [%s] uploaded in [%s] ms",
+                        shardId,
+                        blobContainer.path().add(commitFileName),
+                        bytesWritten.get(),
+                        generation,
+                        TimeValue.timeValueNanos(after - before).millis()
+                    )
+                );
+                result = new FileUploadTask.Result(commitFileName, bytesWritten.get(), after - before);
+            } catch (IOException e) {
+                // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
+                onFailure(e);
+            } finally {
+                if (result != null) {
+                    StatelessCompoundCommit compoundCommit = pendingCommit.finish(commitFileName);
+                    for (String internalFile : pendingCommit.getInternalFiles()) {
+                        commitService.markFileUploaded(shardId, internalFile, compoundCommit.commitFiles().get(internalFile));
+                    }
+                    listener.onResponse(new Tuple<>(compoundCommit, result));
+                }
+            }
+        }
+    }
 }

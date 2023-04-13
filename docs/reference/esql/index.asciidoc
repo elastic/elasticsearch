@@ -1,6 +1,9 @@
 [[esql]]
 = ESQL
 
+:keywords: {es}, ESQL, {es} query language
+:description: ESQL is a query language that enables the iterative exploration of data.
+
 :esql-tests: {xes-repo-dir}/../../plugin/esql/qa
 :esql-specs: {esql-tests}/testFixtures/src/main/resources
 
@@ -114,9 +117,13 @@ ESQL currently supports only the following field types:
 --
 
 include::esql-get-started.asciidoc[]
+
 include::esql-syntax.asciidoc[]
+
 include::esql-source-commands.asciidoc[]
+
 include::esql-processing-commands.asciidoc[]
+
 include::esql-functions.asciidoc[]
 
 :esql-tests!:

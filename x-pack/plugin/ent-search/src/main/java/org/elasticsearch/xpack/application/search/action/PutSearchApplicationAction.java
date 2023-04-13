@@ -64,6 +64,10 @@ public class PutSearchApplicationAction extends ActionType<PutSearchApplicationA
                 validationException = addValidationError("indices are missing", validationException);
             }
 
+            if (searchApp.searchApplicationTemplate() != null && searchApp.searchApplicationTemplate().script() == null) {
+                validationException = addValidationError("script required for template", validationException);
+            }
+
             return validationException;
         }
 

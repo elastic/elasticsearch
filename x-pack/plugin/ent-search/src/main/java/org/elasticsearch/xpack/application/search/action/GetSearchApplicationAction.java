@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.application.search.SearchApplication;
+import org.elasticsearch.xpack.application.search.SearchApplicationTemplate;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -91,8 +92,14 @@ public class GetSearchApplicationAction extends ActionType<GetSearchApplicationA
             this.searchApp = app;
         }
 
-        public Response(String name, String[] indices, String analyticsCollectionName, long updatedAtMillis) {
-            this.searchApp = new SearchApplication(name, indices, analyticsCollectionName, updatedAtMillis);
+        public Response(
+            String name,
+            String[] indices,
+            String analyticsCollectionName,
+            long updatedAtMillis,
+            SearchApplicationTemplate template
+        ) {
+            this.searchApp = new SearchApplication(name, indices, analyticsCollectionName, updatedAtMillis, template);
         }
 
         @Override

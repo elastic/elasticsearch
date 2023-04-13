@@ -647,8 +647,13 @@ public class NodeTests extends ESTestCase {
         @Override
         public Optional<PersistedClusterStateServiceFactory> getPersistedClusterStateServiceFactory() {
             return Optional.of(
-                (nodeEnvironment, namedXContentRegistry, clusterSettings, relativeTimeMillisSupplier) -> persistedClusterStateService =
-                    new PersistedClusterStateService(nodeEnvironment, namedXContentRegistry, clusterSettings, relativeTimeMillisSupplier)
+                (nodeEnvironment, namedXContentRegistry, clusterSettings, threadPool) -> persistedClusterStateService =
+                    new PersistedClusterStateService(
+                        nodeEnvironment,
+                        namedXContentRegistry,
+                        clusterSettings,
+                        threadPool::relativeTimeInMillis
+                    )
             );
         }
     }

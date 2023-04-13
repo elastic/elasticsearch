@@ -103,7 +103,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             GetTrainedModelsAction.INSTANCE,
             request,
-            new RestToXContentListenerWithDefaultValues<>(channel, DEFAULT_TO_XCONTENT_VALUES)
+            new RestToXContentListenerWithDefaultValues<>(channel, DEFAULT_TO_XCONTENT_VALUES, includes)
         );
     }
 
@@ -114,10 +114,16 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     private static class RestToXContentListenerWithDefaultValues<T extends ToXContentObject> extends RestToXContentListener<T> {
         private final Map<String, String> defaultToXContentParamValues;
+        private final Set<String> includes;
 
-        private RestToXContentListenerWithDefaultValues(RestChannel channel, Map<String, String> defaultToXContentParamValues) {
+        private RestToXContentListenerWithDefaultValues(
+            RestChannel channel,
+            Map<String, String> defaultToXContentParamValues,
+            Set<String> includes
+        ) {
             super(channel);
             this.defaultToXContentParamValues = defaultToXContentParamValues;
+            this.includes = includes;
         }
 
         @Override
@@ -125,6 +131,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
             assert response.isFragment() == false; // would be nice if we could make default methods final
             Map<String, String> params = new HashMap<>(channel.request().params());
             defaultToXContentParamValues.forEach((k, v) -> params.computeIfAbsent(k, defaultToXContentParamValues::get));
+            includes.forEach(include -> params.put(include, "true"));
             response.toXContent(builder, new ToXContent.MapParams(params));
             return new RestResponse(getStatus(response), builder);
         }

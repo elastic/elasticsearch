@@ -315,7 +315,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 String indexName = index.getName();
                 Map<String, String> customMetadata = backingIndex.getCustomData("dlm");
                 boolean alreadyForceMerged = customMetadata != null && customMetadata.containsKey("forcemerge");
-                logger.info("Already force merged {}: {}", indexName, alreadyForceMerged);
+                logger.trace("Already force merged {}: {}", indexName, alreadyForceMerged);
                 if (alreadyForceMerged == false) {
                     ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
                     // time to force merge the index
@@ -425,7 +425,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                             new ForceMergeClusterStateUpdateTask(listener) {
                                 @Override
                                 public ClusterState execute(ClusterState currentState) {
-                                    logger.info("Updating cluster state with forcemerge complete result for {}", targetIndex);
+                                    logger.trace("Updating cluster state with forcemerge complete result for {}", targetIndex);
                                     IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
                                     Map<String, String> customMetadata = indexMetadata.getCustomData("dlm");
                                     Map<String, String> newCustomMetadata = new HashMap<>();
@@ -449,7 +449,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                     public void onFailure(Exception e) {
                         if (e instanceof SnapshotInProgressException) {
                             logger.info(
-                                "DLM was unable to force merge index [{}] because it's currently being snapshotted. Retrying on the next DLM run",
+                                "DLM was unable to force merge index [{}] because it's currently being snapshotted. "
+                                    + "Retrying on the next DLM run",
                                 targetIndex
                             );
                         } else {
@@ -471,7 +472,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             new ForceMergeClusterStateUpdateTask(forceMergeRunningListener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    logger.info("Updating cluster state with forcemerge began result for {}", targetIndex);
+                    logger.trace("Updating cluster state with forcemerge began result for {}", targetIndex);
                     IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
                     Map<String, String> customMetadata = indexMetadata.getCustomData("dlm");
                     Map<String, String> newCustomMetadata = new HashMap<>();

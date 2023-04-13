@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -65,7 +66,8 @@ public interface ClusterCoordinationPlugin {
             NodeEnvironment nodeEnvironment,
             NamedXContentRegistry xContentRegistry,
             ClusterSettings clusterSettings,
-            LongSupplier relativeTimeMillisSupplier
+            LongSupplier relativeTimeMillisSupplier,
+            ThreadPool threadPool
         );
     }
 }

@@ -2248,7 +2248,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     void recoverFromLocalShards(
-        Consumer<MappingMetadata> mappingUpdateConsumer,
+        BiConsumer<MappingMetadata, ActionListener<Void>> mappingUpdateConsumer,
         List<IndexShard> localShards,
         ActionListener<Boolean> listener
     ) throws IOException {
@@ -3026,7 +3026,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         PeerRecoveryTargetService recoveryTargetService,
         PeerRecoveryTargetService.RecoveryListener recoveryListener,
         RepositoriesService repositoriesService,
-        Consumer<MappingMetadata> mappingUpdateConsumer,
+        BiConsumer<MappingMetadata, ActionListener<Void>> mappingUpdateConsumer,
         IndicesService indicesService
     ) {
         // TODO: Create a proper object to encapsulate the recovery context

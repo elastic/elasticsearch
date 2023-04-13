@@ -3083,7 +3083,10 @@ public class IndexShardTests extends IndexShardTestCase {
             targetShard = newShard(targetRouting);
             targetShard.markAsRecovering("store", new RecoveryState(targetShard.routingEntry(), localNode, null));
 
-            Consumer<MappingMetadata> mappingConsumer = mapping -> { assertNull(requestedMappingUpdates.put("_doc", mapping)); };
+            BiConsumer<MappingMetadata, ActionListener<Void>> mappingConsumer = (mapping, listener) -> {
+                assertNull(requestedMappingUpdates.put("_doc", mapping));
+                listener.onResponse(null);
+            };
 
             final IndexShard differentIndex = newShard(new ShardId("index_2", "index_2", 0), true);
             recoverShardFromStore(differentIndex);

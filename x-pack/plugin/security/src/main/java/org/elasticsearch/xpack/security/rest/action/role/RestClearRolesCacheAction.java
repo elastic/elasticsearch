@@ -11,6 +11,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
@@ -19,7 +21,7 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-
+@ServerlessScope(Scope.PUBLIC)
 public final class RestClearRolesCacheAction extends SecurityBaseRestHandler {
 
     public RestClearRolesCacheAction(Settings settings, XPackLicenseState licenseState) {

@@ -124,3 +124,5 @@ include::transform/troubleshooting.asciidoc[leveloffset=+1]
 include::../../x-pack/docs/en/watcher/troubleshooting.asciidoc[]
 
 include::troubleshooting/troubleshooting-searches.asciidoc[]
+
+include::troubleshooting/troubleshooting-shards-capacity.asciidoc[]

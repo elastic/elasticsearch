@@ -650,7 +650,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 // so let's ignore deleted indices
                 continue;
             }
-            TimeValue indexLifecycleDate = getCreationOrRolloverDate(name, indexMetadata, index.equals(getWriteIndex()));
+            TimeValue indexLifecycleDate = getGenerationLifecycleDate(name, indexMetadata, index.equals(getWriteIndex()));
             long nowMillis = nowSupplier.getAsLong();
             if (nowMillis >= indexLifecycleDate.getMillis() + age.getMillis()) {
                 if (indicesPredicate == null || indicesPredicate.test(indexMetadata)) {
@@ -694,17 +694,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * rollover target. If the index has not been rolled over for the provided
      * data stream name we return the index creation date.
      */
-    static TimeValue getCreationOrRolloverDate(String dataStreamName, IndexMetadata index, boolean isWriteIndex) {
+    static TimeValue getGenerationLifecycleDate(String dataStreamName, IndexMetadata index, boolean isWriteIndex) {
         /*
          * If it exists, the origination date is used in place of the creation date and the rollover date. The only exception is for a
          * write index -- if the write index has not been rolled over yet then we use the creation date so that it is properly rolled over.
          */
+        if (isWriteIndex) {
+            return TimeValue.timeValueMillis(index.getCreationDate());
+        }
         Long originationDate = index.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, null);
         RolloverInfo rolloverInfo = index.getRolloverInfos().get(dataStreamName);
-        if (rolloverInfo == null && isWriteIndex) {
-            // The write index has not been rolled over yet, so we always use creation date
-            return TimeValue.timeValueMillis(index.getCreationDate());
-        } else if (rolloverInfo != null) {
+        if (rolloverInfo != null) {
             return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, rolloverInfo::getTime));
         } else {
             return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, index::getCreationDate));

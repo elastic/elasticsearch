@@ -821,7 +821,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
     }
 
-    public void testGetCreationOrRolloverDate() {
+    public void testGetGenerationLifecycleDate() {
         String dataStreamName = "metrics-foo";
         long now = System.currentTimeMillis();
         long creationTimeMillis = now - 3000L;
@@ -836,7 +836,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 .creationDate(creationTimeMillis);
 
             assertThat(
-                DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build(), true).millis(),
+                DataStream.getGenerationLifecycleDate(dataStreamName, indexMetaBuilder.build(), true).millis(),
                 is(creationTimeMillis)
             );
         }
@@ -853,7 +853,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
 
             assertThat(
-                DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build(), false).millis(),
+                DataStream.getGenerationLifecycleDate(dataStreamName, indexMetaBuilder.build(), false).millis(),
                 is(rolloverTimeMills)
             );
         }
@@ -870,7 +870,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             indexMetaBuilder.putRolloverInfo(new RolloverInfo("some-alias-name", List.of(rolloverCondition), now - 2000L));
 
             assertThat(
-                DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build(), false).millis(),
+                DataStream.getGenerationLifecycleDate(dataStreamName, indexMetaBuilder.build(), false).millis(),
                 is(creationTimeMillis)
             );
         }
@@ -884,7 +884,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 .creationDate(creationTimeMillis);
 
             assertThat(
-                DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build(), true).millis(),
+                DataStream.getGenerationLifecycleDate(dataStreamName, indexMetaBuilder.build(), true).millis(),
                 is(creationTimeMillis)
             );
         }
@@ -899,7 +899,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 .creationDate(creationTimeMillis);
 
             assertThat(
-                DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build(), false).millis(),
+                DataStream.getGenerationLifecycleDate(dataStreamName, indexMetaBuilder.build(), false).millis(),
                 is(originTimeMillis)
             );
         }
@@ -916,7 +916,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
 
             assertThat(
-                DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build(), randomBoolean()).millis(),
+                DataStream.getGenerationLifecycleDate(dataStreamName, indexMetaBuilder.build(), randomBoolean()).millis(),
                 is(originTimeMillis)
             );
         }
@@ -933,7 +933,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             indexMetaBuilder.putRolloverInfo(new RolloverInfo("some-alias-name", List.of(rolloverCondition), now - 2000L));
 
             assertThat(
-                DataStream.getCreationOrRolloverDate(dataStreamName, indexMetaBuilder.build(), false).millis(),
+                DataStream.getGenerationLifecycleDate(dataStreamName, indexMetaBuilder.build(), false).millis(),
                 is(originTimeMillis)
             );
         }

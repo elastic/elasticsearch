@@ -50,7 +50,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -328,9 +327,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
     private void randomAllocate(RoutingAllocation allocation) {
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
-        Set<ShardRouting> primaries = StreamSupport.stream(unassigned.spliterator(), false)
-            .filter(ShardRouting::primary)
-            .collect(Collectors.toSet());
+        Set<ShardRouting> primaries = unassigned.stream().filter(ShardRouting::primary).collect(Collectors.toSet());
         List<ShardRouting> primariesToAllocate = randomSubsetOf(between(1, primaries.size()), primaries);
         for (RoutingNodes.UnassignedShards.UnassignedIterator iterator = unassigned.iterator(); iterator.hasNext();) {
             if (primariesToAllocate.contains(iterator.next())) {

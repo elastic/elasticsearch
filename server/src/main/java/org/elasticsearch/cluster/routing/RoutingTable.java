@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Streamable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -42,7 +43,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isInd
  *
  * @see IndexRoutingTable
  */
-public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<RoutingTable> {
+public class RoutingTable implements Streamable<IndexRoutingTable>, Diffable<RoutingTable> {
 
     public static final RoutingTable EMPTY_ROUTING_TABLE = new RoutingTable(0, ImmutableOpenMap.of());
 
@@ -88,6 +89,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     @Override
     public Iterator<IndexRoutingTable> iterator() {
         return indicesRouting.values().iterator();
+    }
+
+    @Override
+    public int size() {
+        return indicesRouting.size();
     }
 
     public boolean hasIndex(String index) {

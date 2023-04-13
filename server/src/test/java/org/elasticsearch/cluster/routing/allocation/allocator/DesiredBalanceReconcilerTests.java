@@ -73,7 +73,6 @@ import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.ESAllocationTestCase.startInitializingShardsAndReroute;
@@ -1143,7 +1142,8 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     private static DesiredBalance desiredBalance(ClusterState clusterState, BiPredicate<ShardId, String> isDesiredPredicate) {
         return new DesiredBalance(
             1,
-            StreamSupport.stream(clusterState.routingTable().spliterator(), false)
+            clusterState.routingTable()
+                .stream()
                 .flatMap(indexRoutingTable -> IntStream.range(0, indexRoutingTable.size()).mapToObj(indexRoutingTable::shard))
                 .collect(
                     Collectors.toMap(

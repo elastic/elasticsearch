@@ -38,7 +38,7 @@ public class Iterables {
 
         @Override
         public Iterator<T> iterator() {
-            return StreamSupport.stream(inputs.spliterator(), false).flatMap(s -> StreamSupport.stream(s.spliterator(), false)).iterator();
+            return stream(inputs).flatMap(Iterables::stream).iterator();
         }
     }
 

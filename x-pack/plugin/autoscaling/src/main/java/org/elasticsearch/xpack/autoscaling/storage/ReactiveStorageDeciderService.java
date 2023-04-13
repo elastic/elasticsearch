@@ -72,7 +72,6 @@ import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 public class ReactiveStorageDeciderService implements AutoscalingDeciderService {
     public static final String NAME = "reactive_storage";
@@ -473,10 +472,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public long maxShardSize() {
-            return nodesInTier(state.getRoutingNodes()).flatMap(rn -> StreamSupport.stream(rn.spliterator(), false))
-                .mapToLong(this::sizeOf)
-                .max()
-                .orElse(0L);
+            return nodesInTier(state.getRoutingNodes()).flatMap(rn -> rn.stream()).mapToLong(this::sizeOf).max().orElse(0L);
         }
 
         public long maxNodeLockedSize() {

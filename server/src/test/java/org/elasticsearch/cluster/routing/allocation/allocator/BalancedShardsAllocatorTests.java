@@ -52,7 +52,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.summingDouble;
@@ -276,9 +275,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     private static <T> Map<String, T> getPerNode(ClusterState clusterState, Collector<ShardRouting, ?, T> collector) {
-        return clusterState.getRoutingNodes()
-            .stream()
-            .collect(Collectors.toMap(RoutingNode::nodeId, it -> StreamSupport.stream(it.spliterator(), false).collect(collector)));
+        return clusterState.getRoutingNodes().stream().collect(Collectors.toMap(RoutingNode::nodeId, it -> it.stream().collect(collector)));
     }
 
     /**

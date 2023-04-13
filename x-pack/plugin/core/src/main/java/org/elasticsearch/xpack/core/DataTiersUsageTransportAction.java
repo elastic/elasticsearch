@@ -41,7 +41,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.StreamSupport;
 
 public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -168,7 +167,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     ) {
         final RoutingNode node = routingNodes.node(nodeStats.getNode().getId());
         if (node != null) {
-            StreamSupport.stream(node.spliterator(), false)
+            node.stream()
                 .map(ShardRouting::index)
                 .distinct()
                 .forEach(index -> classifyIndexAndCollectStats(index, nodeStats, indexByTier, node, accumulators));

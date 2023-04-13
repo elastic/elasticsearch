@@ -35,7 +35,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.stream.StreamSupport;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.anyOf;
@@ -325,7 +324,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
     }
 
     private static List<String> getShardNodeIds(ShardsIterator iterator) {
-        return StreamSupport.stream(iterator.spliterator(), false).map(ShardRouting::currentNodeId).toList();
+        return iterator.stream().map(ShardRouting::currentNodeId).toList();
     }
 
     public void testShardsAndPreferNodeRouting() {

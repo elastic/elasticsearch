@@ -27,7 +27,6 @@ import java.nio.file.Files
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
-
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'

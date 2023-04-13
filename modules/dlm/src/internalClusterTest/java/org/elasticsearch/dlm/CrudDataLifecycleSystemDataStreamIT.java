@@ -143,7 +143,6 @@ public class CrudDataLifecycleSystemDataStreamIT extends ESIntegTestCase {
                 Request putRequest = new Request("PUT", "/_data_stream/" + systemDataStream + "/_lifecycle");
                 putRequest.setJsonEntity("""
                     {
-                      "lifecycle": {}
                     }""");
                 // No header
                 ResponseException re = expectThrows(ResponseException.class, () -> restClient.performRequest(putRequest));

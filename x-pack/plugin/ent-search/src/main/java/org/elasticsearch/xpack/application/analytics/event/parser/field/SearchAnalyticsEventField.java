@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.PaginationAnalyticsEventField.PAGINATION_FIELD;
+import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchFiltersAnalyticsEventField.SEARCH_FILTERS_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SortOrderAnalyticsEventField.SORT_FIELD;
 
 public class SearchAnalyticsEventField {
@@ -37,6 +38,11 @@ public class SearchAnalyticsEventField {
         PARSER.declareString((b, v) -> b.put(SEARCH_QUERY_FIELD.getPreferredName(), v), SEARCH_QUERY_FIELD);
         PARSER.declareString((b, v) -> b.put(SEARCH_APPLICATION_FIELD.getPreferredName(), v), SEARCH_APPLICATION_FIELD);
         PARSER.declareObject((b, v) -> b.put(SORT_FIELD.getPreferredName(), v), SortOrderAnalyticsEventField::fromXContent, SORT_FIELD);
+        PARSER.declareObject(
+            (b, v) -> b.put(SEARCH_FILTERS_FIELD.getPreferredName(), v),
+            SearchFiltersAnalyticsEventField::fromXContent,
+            SEARCH_FILTERS_FIELD
+        );
         PARSER.declareObject(
             (b, v) -> b.put(PAGINATION_FIELD.getPreferredName(), v),
             PaginationAnalyticsEventField::fromXContent,

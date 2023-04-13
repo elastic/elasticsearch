@@ -102,9 +102,9 @@ public class ExchangeServiceTests extends ESTestCase {
         assertBusy(() -> assertTrue(source.waitForReading().isDone()));
         assertEquals(pages[1], source.pollPage());
         // sink can write again
-        assertTrue(randomFrom(sink1, sink2).waitForWriting().isDone());
+        assertBusy(() -> assertTrue(randomFrom(sink1, sink2).waitForWriting().isDone()));
         randomFrom(sink1, sink2).addPage(pages[5]);
-        assertTrue(randomFrom(sink1, sink2).waitForWriting().isDone());
+        assertBusy(() -> assertTrue(randomFrom(sink1, sink2).waitForWriting().isDone()));
         randomFrom(sink1, sink2).addPage(pages[6]);
         // sink buffer is full
         assertFalse(randomFrom(sink1, sink2).waitForWriting().isDone());
@@ -116,7 +116,7 @@ public class ExchangeServiceTests extends ESTestCase {
         }
         // source buffer is empty
         assertFalse(source.waitForReading().isDone());
-        assertTrue(sink2.waitForWriting().isDone());
+        assertBusy(() -> assertTrue(sink2.waitForWriting().isDone()));
         sink2.finish();
         assertTrue(sink2.isFinished());
         assertTrue(source.isFinished());

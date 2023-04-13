@@ -8,6 +8,7 @@ org/elasticsearch/action/DocWriteResponse$Result
 org/elasticsearch/action/NoSuchNodeException
 org/elasticsearch/action/OriginalIndices
 org/elasticsearch/action/PrimaryMissingActionException
+org/elasticsearch/action/RoutingMissingException
 org/elasticsearch/action/UnavailableShardsException
 org/elasticsearch/action/admin/cluster/allocation/ClusterAllocationExplainResponse
 org/elasticsearch/action/admin/cluster/allocation/DesiredBalanceRequest
@@ -156,6 +157,8 @@ org/elasticsearch/action/admin/indices/validate/query/ValidateQueryRequest
 org/elasticsearch/action/admin/indices/validate/query/ValidateQueryResponse
 org/elasticsearch/action/bulk/BulkItemRequest
 org/elasticsearch/action/bulk/BulkItemResponse
+org/elasticsearch/action/bulk/BulkRequest
+org/elasticsearch/action/bulk/BulkResponse
 org/elasticsearch/action/datastreams/DataStreamsStatsAction$DataStreamShardStats
 org/elasticsearch/action/datastreams/DataStreamsStatsAction$Request
 org/elasticsearch/action/datastreams/MigrateToDataStreamAction$Request
@@ -171,6 +174,7 @@ org/elasticsearch/action/get/MultiGetRequest
 org/elasticsearch/action/get/MultiGetResponse
 org/elasticsearch/action/get/MultiGetResponse$Failure
 org/elasticsearch/action/get/MultiGetShardResponse
+org/elasticsearch/action/index/IndexResponse
 org/elasticsearch/action/ingest/DeletePipelineRequest
 org/elasticsearch/action/ingest/GetPipelineRequest
 org/elasticsearch/action/ingest/SimulateDocumentVerboseResult
@@ -396,6 +400,7 @@ org/elasticsearch/index/seqno/RetentionLeaseSyncAction
 org/elasticsearch/index/seqno/RetentionLeaseSyncAction$1
 org/elasticsearch/index/seqno/RetentionLeaseSyncAction$Request
 org/elasticsearch/index/seqno/RetentionLeaseSyncAction$Response
+org/elasticsearch/index/shard/IndexLongFieldRange
 org/elasticsearch/index/shard/IndexShardClosedException
 org/elasticsearch/index/shard/IndexShardNotRecoveringException
 org/elasticsearch/index/shard/IndexShardNotStartedException
@@ -445,6 +450,8 @@ org/elasticsearch/indices/store/TransportNodesListShardStoreMetadata$NodeStoreFi
 org/elasticsearch/indices/store/TransportNodesListShardStoreMetadata$NodesStoreFilesMetadata
 org/elasticsearch/indices/store/TransportNodesListShardStoreMetadata$Request
 org/elasticsearch/indices/store/TransportNodesListShardStoreMetadata$StoreFilesMetadata
+org/elasticsearch/ingest/IngestMetadata
+org/elasticsearch/ingest/IngestMetadata$IngestMetadataDiff
 org/elasticsearch/ingest/IngestProcessorException
 org/elasticsearch/ingest/PipelineConfiguration
 org/elasticsearch/ingest/geoip/GeoIpTaskParams
@@ -453,6 +460,8 @@ org/elasticsearch/ingest/geoip/stats/GeoIpDownloaderStatsAction$Request
 org/elasticsearch/ingest/geoip/stats/GeoIpDownloaderStatsTransportAction
 org/elasticsearch/legacygeo/builders/PolygonBuilder
 org/elasticsearch/legacygeo/builders/ShapeBuilder
+org/elasticsearch/license/GetBasicStatusRequest
+org/elasticsearch/license/GetBasicStatusResponse
 org/elasticsearch/license/GetFeatureUsageRequest
 org/elasticsearch/license/GetLicenseResponse
 org/elasticsearch/license/GetTrialStatusRequest
@@ -462,6 +471,8 @@ org/elasticsearch/license/LicensesMetadata
 org/elasticsearch/license/PostStartBasicResponse
 org/elasticsearch/license/PostStartTrialRequest
 org/elasticsearch/license/PostStartTrialResponse
+org/elasticsearch/monitor/fs/FsInfo$DeviceStats
+org/elasticsearch/monitor/fs/FsInfo$IoStats
 org/elasticsearch/monitor/os/OsInfo
 org/elasticsearch/monitor/os/OsStats$Cpu
 org/elasticsearch/monitor/os/OsStats$Mem
@@ -543,6 +554,7 @@ org/elasticsearch/search/aggregations/support/MultiValuesSourceFieldConfig
 org/elasticsearch/search/aggregations/support/ValueType
 org/elasticsearch/search/aggregations/support/ValuesSourceAggregationBuilder
 org/elasticsearch/search/builder/SearchSourceBuilderException
+org/elasticsearch/search/dfs/AggregatedDfs
 org/elasticsearch/search/dfs/DfsKnnResults
 org/elasticsearch/search/dfs/DfsPhaseExecutionException
 org/elasticsearch/search/dfs/DfsSearchResult
@@ -588,6 +600,7 @@ org/elasticsearch/transport/NoSeedNodeLeftException
 org/elasticsearch/transport/NoSuchRemoteClusterException
 org/elasticsearch/transport/NotSerializableTransportException
 org/elasticsearch/transport/OutboundMessage
+org/elasticsearch/transport/ProxyConnectionStrategy$ProxyModeInfo
 org/elasticsearch/transport/ReceiveTimeoutTransportException
 org/elasticsearch/transport/RemoteClusterServerInfo
 org/elasticsearch/transport/RemoteConnectionInfo
@@ -778,6 +791,7 @@ org/elasticsearch/xpack/core/security/action/saml/SamlSpMetadataResponse
 org/elasticsearch/xpack/core/security/action/service/GetServiceAccountCredentialsNodesRequest
 org/elasticsearch/xpack/core/security/action/service/GetServiceAccountCredentialsNodesRequest$Node
 org/elasticsearch/xpack/core/security/action/service/GetServiceAccountCredentialsNodesResponse$Node
+org/elasticsearch/xpack/core/security/action/service/TokenInfo
 org/elasticsearch/xpack/core/security/action/token/InvalidateTokenRequest
 org/elasticsearch/xpack/core/security/action/user/AuthenticateRequest
 org/elasticsearch/xpack/core/security/action/user/AuthenticateResponse
@@ -785,6 +799,7 @@ org/elasticsearch/xpack/core/security/action/user/ChangePasswordAction
 org/elasticsearch/xpack/core/security/action/user/ChangePasswordRequest
 org/elasticsearch/xpack/core/security/action/user/DeleteUserRequest
 org/elasticsearch/xpack/core/security/action/user/DeleteUserResponse
+org/elasticsearch/xpack/core/security/action/user/GetUserPrivilegesResponse$Indices
 org/elasticsearch/xpack/core/security/action/user/GetUserPrivilegesResponse$RemoteIndices
 org/elasticsearch/xpack/core/security/action/user/GetUsersRequest
 org/elasticsearch/xpack/core/security/action/user/GetUsersResponse

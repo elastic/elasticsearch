@@ -109,6 +109,11 @@ public class DownsampleActionIT extends ESRestTestCase {
         );
     }
 
+    @Before
+    public void updatePollInterval() throws IOException {
+        updateClusterSettings(client(), Settings.builder().put("indices.lifecycle.poll_interval", "5s").build());
+    }
+
     private void createIndex(String index, String alias, boolean isTimeSeries) throws IOException {
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)

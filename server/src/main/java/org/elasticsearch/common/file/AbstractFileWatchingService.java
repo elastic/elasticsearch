@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.reservedstate.service.FileChangedListener;
-import org.elasticsearch.reservedstate.service.FileSettingsService;
 
 import java.io.IOException;
 import java.nio.file.ClosedWatchServiceException;
@@ -173,14 +172,10 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
             return false;
         }
 
-        FileSettingsService.FileUpdateState previousUpdateState = fileUpdateState;
+        FileUpdateState previousUpdateState = fileUpdateState;
 
         BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
-        fileUpdateState = new FileSettingsService.FileUpdateState(
-            attr.lastModifiedTime().toMillis(),
-            path.toRealPath().toString(),
-            attr.fileKey()
-        );
+        fileUpdateState = new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
 
         return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
     }
@@ -393,5 +388,5 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
      * Holds information about the last known state of the file we watched. We use this
      * class to determine if a file has been changed.
      */
-    public record FileUpdateState(long timestamp, String path, Object fileKey) {}
+    private record FileUpdateState(long timestamp, String path, Object fileKey) {}
 }

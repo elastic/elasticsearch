@@ -48,9 +48,9 @@ PUT _cluster/settings
         "clusterB": {
           "mode": "proxy",
           "skip_unavailable": true,
-          "server_name": "clusterb.es.australia-southeast1.gcp.elastic-cloud.com",
+          "server_name": "clusterb.es.region-b.gcp.elastic-cloud.com",
           "proxy_socket_connections": 18,
-          "proxy_address": "clusterb.es.australia-southeast1.gcp.elastic-cloud.com:9400"
+          "proxy_address": "clusterb.es.region-b.gcp.elastic-cloud.com:9400"
         }
       }
     }
@@ -65,9 +65,9 @@ PUT _cluster/settings
         "clusterA": {
           "mode": "proxy",
           "skip_unavailable": true,
-          "server_name": "clustera.es.australia-southeast1.gcp.elastic-cloud.com",
+          "server_name": "clustera.es.region-a.gcp.elastic-cloud.com",
           "proxy_socket_connections": 18,
-          "proxy_address": "clustera.es.australia-southeast1.gcp.elastic-cloud.com:9400"
+          "proxy_address": "clustera.es.region-a.gcp.elastic-cloud.com:9400"
         }
       }
     }
@@ -75,11 +75,11 @@ PUT _cluster/settings
 }
 ----
 // TEST[setup:host]
-// TEST[s/"server_name": "clustera.es.australia-southeast1.gcp.elastic-cloud.com",//]
-// TEST[s/"server_name": "clusterb.es.australia-southeast1.gcp.elastic-cloud.com",//]
+// TEST[s/"server_name": "clustera.es.region-a.gcp.elastic-cloud.com",//]
+// TEST[s/"server_name": "clusterb.es.region-b.gcp.elastic-cloud.com",//]
 // TEST[s/"proxy_socket_connections": 18,//]
-// TEST[s/clustera.es.australia-southeast1.gcp.elastic-cloud.com:9400/\${transport_host}/]
-// TEST[s/clusterb.es.australia-southeast1.gcp.elastic-cloud.com:9400/\${transport_host}/]
+// TEST[s/clustera.es.region-a.gcp.elastic-cloud.com:9400/\${transport_host}/]
+// TEST[s/clusterb.es.region-b.gcp.elastic-cloud.com:9400/\${transport_host}/]
 
 . Set up bi-directional cross-cluster replication.
 +
@@ -140,7 +140,7 @@ input {
 }
 output {
   elasticsearch {
-    hosts => ["https://clustera.es.australia-southeast1.gcp.elastic-cloud.com:9243","https://clusterb.es.australia-southeast1.gcp.elastic-cloud.com:9243"]
+    hosts => ["https://clustera.es.region-a.gcp.elastic-cloud.com:9243","https://clusterb.es.region-b.gcp.elastic-cloud.com:9243"]
     user => "logstash-user"
     password => "same_password_for_both_clusters"
   }
@@ -271,3 +271,4 @@ POST logs-generic-default/_update_by_query
   }
 }
 ----
++ TIP: If a soft delete is merged away before it can be replicated to a follower the following process will fail due to incomplete history on the leader, see <<ccr-index-soft-deletes-retention-period, index.soft_deletes.retention_lease.period>> for more details.

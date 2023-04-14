@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -301,38 +302,43 @@ public class RecoverySourceHandler {
                  * make sure to do this before sampling the max sequence number in the next step, to ensure that we send
                  * all documents up to maxSeqNo in phase2.
                  */
-                runUnderPrimaryPermit(() -> shard.initiateTracking(request.targetAllocationId()), shard, cancellableThreads);
+                runUnderPrimaryPermit(
+                    () -> shard.initiateTracking(request.targetAllocationId()),
+                    shard,
+                    cancellableThreads,
+                    ActionListener.wrap(ignored -> {
 
-                final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
-                logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
-                final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(
-                    "peer-recovery",
-                    startingSeqNo,
-                    Long.MAX_VALUE,
-                    false,
-                    false,
-                    true
+                        final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
+                        logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
+                        final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(
+                            "peer-recovery",
+                            startingSeqNo,
+                            Long.MAX_VALUE,
+                            false,
+                            false,
+                            true
+                        );
+                        resources.add(phase2Snapshot);
+                        retentionLock.close();
+
+                        // we have to capture the max_seen_auto_id_timestamp and the max_seq_no_of_updates to make sure that these values
+                        // are at least as high as the corresponding values on the primary when any of these operations were executed on it.
+                        final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
+                        final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
+                        final RetentionLeases retentionLeases = shard.getRetentionLeases();
+                        final long mappingVersionOnPrimary = shard.indexSettings().getIndexMetadata().getMappingVersion();
+                        phase2(
+                            startingSeqNo,
+                            endingSeqNo,
+                            phase2Snapshot,
+                            maxSeenAutoIdTimestamp,
+                            maxSeqNoOfUpdatesOrDeletes,
+                            retentionLeases,
+                            mappingVersionOnPrimary,
+                            sendSnapshotStep
+                        );
+                    }, onFailure)
                 );
-                resources.add(phase2Snapshot);
-                retentionLock.close();
-
-                // we have to capture the max_seen_auto_id_timestamp and the max_seq_no_of_updates to make sure that these values
-                // are at least as high as the corresponding values on the primary when any of these operations were executed on it.
-                final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
-                final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
-                final RetentionLeases retentionLeases = shard.getRetentionLeases();
-                final long mappingVersionOnPrimary = shard.indexSettings().getIndexMetadata().getMappingVersion();
-                phase2(
-                    startingSeqNo,
-                    endingSeqNo,
-                    phase2Snapshot,
-                    maxSeenAutoIdTimestamp,
-                    maxSeqNoOfUpdatesOrDeletes,
-                    retentionLeases,
-                    mappingVersionOnPrimary,
-                    sendSnapshotStep
-                );
-
             }, onFailure);
 
             // Recovery target can trim all operations >= startingSeqNo as we have sent all these operations in the phase 2
@@ -432,6 +438,18 @@ public class RecoverySourceHandler {
             ensureNotRelocatedPrimary(primary);
             action.accept(l2);
         })), ThreadPool.Names.GENERIC);
+    }
+
+    static void runUnderPrimaryPermit(
+        CheckedRunnable<Exception> action,
+        IndexShard primary,
+        CancellableThreads cancellableThreads,
+        ActionListener<Void> listener
+    ) {
+        runUnderPrimaryPermit(l -> ActionListener.completeWith(l, () -> {
+            action.run();
+            return null;
+        }), primary, cancellableThreads, listener);
     }
 
     private static void ensureNotRelocatedPrimary(IndexShard indexShard) {

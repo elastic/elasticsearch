@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -33,7 +34,7 @@ import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.query.InternalProfileCollector;
+import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
@@ -43,11 +44,13 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.concurrent.ExecutorService;
 
-import static org.elasticsearch.search.query.QueryCollectorContext.createAggsCollectorContext;
-import static org.elasticsearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
-import static org.elasticsearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
-import static org.elasticsearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
-import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
+import static org.elasticsearch.search.query.QueryCollectorManagerContext.createAggsCollectorManagerContext;
+import static org.elasticsearch.search.query.QueryCollectorManagerContext.createEarlyTerminationCollectorManagerContext;
+import static org.elasticsearch.search.query.QueryCollectorManagerContext.createFilteredCollectorManagerContext;
+import static org.elasticsearch.search.query.QueryCollectorManagerContext.createMinScoreCollectorManagerContext;
+import static org.elasticsearch.search.query.QueryCollectorManagerContext.createQueryCollectorManager;
+import static org.elasticsearch.search.query.QueryCollectorManagerContext.createQueryCollectorManagerWithProfiler;
+import static org.elasticsearch.search.query.TopDocsCollectorManagerContext.createTopDocsCollectorContext;
 
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
@@ -81,7 +84,6 @@ public class QueryPhase {
 
         RescorePhase.execute(searchContext);
         SuggestPhase.execute(searchContext);
-        AggregationPhase.execute(searchContext);
 
         if (searchContext.getProfilers() != null) {
             searchContext.queryResult().profileResults(searchContext.getProfilers().buildQueryPhaseResults());
@@ -125,28 +127,28 @@ public class QueryPhase {
                 }
             }
 
-            final LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
+            final LinkedList<QueryCollectorManagerContext> collectors = new LinkedList<>();
             // whether the chain contains a collector that filters documents
             boolean hasFilterCollector = false;
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 // add terminate_after before the filter collectors
                 // it will only be applied on documents accepted by these filter collectors
-                collectors.add(createEarlyTerminationCollectorContext(searchContext.terminateAfter()));
+                collectors.add(createEarlyTerminationCollectorManagerContext(searchContext.terminateAfter()));
             }
             if (searchContext.parsedPostFilter() != null) {
                 // add post filters before aggregations
                 // it will only be applied to top hits
-                collectors.add(createFilteredCollectorContext(searcher, searchContext.parsedPostFilter().query()));
+                collectors.add(createFilteredCollectorManagerContext(searcher, searchContext.parsedPostFilter().query()));
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
             }
-            if (searchContext.getAggsCollector() != null) {
+            if (searchContext.getAggsCollectorManager() != null) {
                 // plug in additional collectors, like aggregations
-                collectors.add(createAggsCollectorContext(searchContext.getAggsCollector()));
+                collectors.add(createAggsCollectorManagerContext(searchContext.getAggsCollectorManager()));
             }
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well
-                collectors.add(createMinScoreCollectorContext(searchContext.minimumScore()));
+                collectors.add(createMinScoreCollectorManagerContext(searchContext.minimumScore()));
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
             }
@@ -171,7 +173,7 @@ public class QueryPhase {
             }
 
             try {
-                searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
+                searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
                 assert executor instanceof EWMATrackingEsThreadPoolExecutor
                     || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
@@ -192,30 +194,30 @@ public class QueryPhase {
         }
     }
 
-    private static void searchWithCollector(
+    private static void searchWithCollectorManager(
         SearchContext searchContext,
         ContextIndexSearcher searcher,
         Query query,
-        LinkedList<QueryCollectorContext> collectors,
+        LinkedList<QueryCollectorManagerContext> collectors,
         boolean hasFilterCollector,
         boolean timeoutSet
     ) throws IOException {
         // create the top docs collector last when the other collectors are known
-        final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
+        final TopDocsCollectorManagerContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
         // add the top docs collector, the first collector context in the chain
         collectors.addFirst(topDocsFactory);
 
-        final Collector queryCollector;
+        final CollectorManager<? extends Collector, Void> manager;
         if (searchContext.getProfilers() != null) {
-            InternalProfileCollector profileCollector = QueryCollectorContext.createQueryCollectorWithProfiler(collectors);
-            searchContext.getProfilers().getCurrentQueryProfiler().setCollector(profileCollector);
-            queryCollector = profileCollector;
+            final InternalProfileCollectorManager profileManager = createQueryCollectorManagerWithProfiler(collectors);
+            searchContext.getProfilers().getCurrentQueryProfiler().setCollectorManager(profileManager);
+            manager = profileManager;
         } else {
-            queryCollector = QueryCollectorContext.createQueryCollector(collectors);
+            manager = createQueryCollectorManager(collectors);
         }
         QuerySearchResult queryResult = searchContext.queryResult();
         try {
-            searcher.search(query, queryCollector);
+            searcher.search(query, manager);
         } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
             queryResult.terminatedEarly(true);
         } catch (TimeExceededException e) {
@@ -229,7 +231,7 @@ public class QueryPhase {
         if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER && queryResult.terminatedEarly() == null) {
             queryResult.terminatedEarly(false);
         }
-        for (QueryCollectorContext ctx : collectors) {
+        for (QueryCollectorManagerContext ctx : collectors) {
             ctx.postProcess(queryResult);
         }
     }

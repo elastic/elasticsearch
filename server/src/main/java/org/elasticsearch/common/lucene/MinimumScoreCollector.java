@@ -37,6 +37,11 @@ public class MinimumScoreCollector extends SimpleCollector {
         this.minimumScore = minimumScore;
     }
 
+    /** Return the internal collector. */
+    public Collector getDelegate() {
+        return collector;
+    }
+
     @Override
     public final void setWeight(Weight weight) {
         // no-op: this collector filters documents out hence it must not propagate the weight to its inner collector,

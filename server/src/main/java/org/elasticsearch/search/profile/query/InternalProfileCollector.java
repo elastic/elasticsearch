@@ -26,7 +26,7 @@ import java.util.List;
  *
  * InternalProfiler facilitates the linking of the Collector graph
  */
-public class InternalProfileCollector implements Collector {
+class InternalProfileCollector implements Collector {
 
     /**
      * A more friendly representation of the Collector's class name
@@ -46,11 +46,16 @@ public class InternalProfileCollector implements Collector {
      */
     private final List<InternalProfileCollector> children;
 
-    public InternalProfileCollector(Collector collector, String reason, List<InternalProfileCollector> children) {
+    InternalProfileCollector(Collector collector, String reason, List<InternalProfileCollector> children) {
         this.collector = new ProfileCollector(collector);
         this.reason = reason;
         this.collectorName = deriveCollectorName(collector);
         this.children = children;
+    }
+
+    /** Return the wrapped collector. */
+    public Collector getDelegate() {
+        return collector.getDelegate();
     }
 
     /**

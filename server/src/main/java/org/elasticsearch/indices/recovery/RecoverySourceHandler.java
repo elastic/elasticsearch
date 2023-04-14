@@ -17,7 +17,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -184,9 +183,7 @@ public class RecoverySourceHandler {
                 IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
             };
 
-            final SetOnce<RetentionLease> retentionLeaseRef = new SetOnce<>();
-
-            runUnderPrimaryPermit(() -> {
+            runUnderPrimaryPermit(retentionLeaseListener -> {
                 final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
                 ShardRouting targetShardRouting = routingTable.getByAllocationId(request.targetAllocationId());
                 if (targetShardRouting == null) {
@@ -198,12 +195,15 @@ public class RecoverySourceHandler {
                     throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
                 }
                 assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
-                retentionLeaseRef.set(
+                retentionLeaseListener.onResponse(
                     shard.getRetentionLeases().get(ReplicationTracker.getPeerRecoveryRetentionLeaseId(targetShardRouting))
                 );
-            }, shardId + " validating recovery target [" + request.targetAllocationId() + "] registered ", shard, cancellableThreads);
-
-            recoverToTarget(retentionLeaseRef.get(), onFailure);
+            },
+                shardId + " validating recovery target [" + request.targetAllocationId() + "] registered ",
+                shard,
+                cancellableThreads,
+                ActionListener.wrap((RetentionLease retentionLease) -> recoverToTarget(retentionLease, onFailure), onFailure)
+            );
         } catch (Exception e) {
             IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
         }

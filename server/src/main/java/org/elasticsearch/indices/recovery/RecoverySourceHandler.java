@@ -442,7 +442,7 @@ public class RecoverySourceHandler {
             @Override
             public void onFailure(Exception e) {
                 try {
-                    permit.close();
+                    Releasables.closeExpectNoException(permit);
                 } finally {
                     l1.onFailure(e);
                 }

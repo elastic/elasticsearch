@@ -263,12 +263,18 @@ teardown:
                   "lowercase" : {
                     "field" : "foo.bar.0.item"
                   }
+                },
+                {
+                  "set" : {
+                    "field" : "_index",
+                    "value" : "index-2"
+                  }
                 }
               ]
             },
             "docs": [
               {
-                "_index": "index",
+                "_index": "index-1",
                 "_id": "id",
                 "_source": {
                   "foo": {
@@ -279,8 +285,10 @@ teardown:
             ]
           }
   - length: { docs: 1 }
-  - length: { docs.0.processor_results: 4 }
+  - length: { docs.0.processor_results: 5 }
   - match: { docs.0.processor_results.0.tag: "processor[set]-0" }
+  - match: { docs.0.processor_results.0.doc._index: "index-1" }
+  - match: { docs.0.processor_results.0.doc._id: "id" }
   - length: { docs.0.processor_results.0.doc._source: 2 }
   - match: { docs.0.processor_results.0.doc._source.foo.bar.0.item: "HELLO" }
   - match: { docs.0.processor_results.0.doc._source.field2.value: "_value" }
@@ -308,6 +316,12 @@ teardown:
   - length: { docs.0.processor_results.3.doc._ingest: 2 }
   - is_true: docs.0.processor_results.3.doc._ingest.timestamp
   - is_true: docs.0.processor_results.3.doc._ingest.pipeline
+  - length: { docs.0.processor_results.4.doc._source: 3 }
+  - match: { docs.0.processor_results.4.doc._index: "index-2" }
+  - match: { docs.0.processor_results.4.doc._id: "id" }
+  - length: { docs.0.processor_results.4.doc._ingest: 2 }
+  - is_true: docs.0.processor_results.4.doc._ingest.timestamp
+  - is_true: docs.0.processor_results.4.doc._ingest.pipeline
 
 ---
 "Test simulate with exception thrown":

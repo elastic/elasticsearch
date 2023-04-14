@@ -1250,40 +1250,54 @@ public class RecoverySourceHandler {
          * marking the shard as in-sync. If the relocation handoff holds all the permits then after the handoff completes and we acquire
          * the permit then the state of the shard will be relocated and this recovery will fail.
          */
+        final StepListener<Void> markInSyncStep = new StepListener<>();
         runUnderPrimaryPermit(
             () -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint),
             shardId + " marking " + request.targetAllocationId() + " as in sync",
             shard,
-            cancellableThreads
+            cancellableThreads,
+            markInSyncStep
         );
-        final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint(); // this global checkpoint is persisted in finalizeRecovery
-        final StepListener<Void> finalizeListener = new StepListener<>();
-        cancellableThreads.checkForCancel();
-        recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener);
-        finalizeListener.whenComplete(r -> {
+
+        final StepListener<Long> finalizeListener = new StepListener<>();
+        markInSyncStep.whenComplete(ignored -> {
+            final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint(); // this global checkpoint is persisted in finalizeRecovery
+            cancellableThreads.checkForCancel();
+            recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener.map(ignored2 -> globalCheckpoint));
+        }, listener::onFailure);
+
+        final StepListener<Void> updateGlobalCheckpointStep = new StepListener<>();
+        finalizeListener.whenComplete(globalCheckpoint -> {
             runUnderPrimaryPermit(
                 () -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
                 shardId + " updating " + request.targetAllocationId() + "'s global checkpoint",
                 shard,
-                cancellableThreads
+                cancellableThreads,
+                updateGlobalCheckpointStep
             );
+        }, listener::onFailure);
 
-            if (request.isPrimaryRelocation()) {
+        final StepListener<Void> finalStep;
+        if (request.isPrimaryRelocation()) {
+            finalStep = new StepListener<>();
+            updateGlobalCheckpointStep.whenComplete(ignored -> {
                 logger.trace("performing relocation hand-off");
-                // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
                 cancellableThreads.execute(
-                    () -> shard.relocated(request.targetAllocationId(), recoveryTarget::handoffPrimaryContext, ActionListener.wrap(v -> {
-                        cancellableThreads.checkForCancel();
-                        completeFinalizationListener(listener, stopWatch);
-                    }, listener::onFailure))
+                    // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
+                    () -> shard.relocated(request.targetAllocationId(), recoveryTarget::handoffPrimaryContext, finalStep)
                 );
                 /*
                  * if the recovery process fails after disabling primary mode on the source shard, both relocation source and
                  * target are failed (see {@link IndexShard#updateRoutingEntry}).
                  */
-            } else {
-                completeFinalizationListener(listener, stopWatch);
-            }
+            }, listener::onFailure);
+        } else {
+            finalStep = updateGlobalCheckpointStep;
+        }
+
+        finalStep.whenComplete(ignored -> {
+            cancellableThreads.checkForCancel();
+            completeFinalizationListener(listener, stopWatch);
         }, listener::onFailure);
     }
 

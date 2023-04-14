@@ -22,7 +22,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -35,7 +34,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedRunnable;
@@ -401,28 +399,6 @@ public class RecoverySourceHandler {
 
     private int estimateNumberOfHistoryOperations(long startingSeqNo) throws IOException {
         return shard.countChanges("peer-recovery", startingSeqNo, Long.MAX_VALUE);
-    }
-
-    static void runUnderPrimaryPermit(
-        CancellableThreads.Interruptible runnable,
-        String reason,
-        IndexShard primary,
-        CancellableThreads cancellableThreads
-    ) {
-        cancellableThreads.execute(() -> {
-            final var listener = new ListenableFuture<Releasable>();
-            final var future = new PlainActionFuture<Releasable>();
-            listener.addListener(future);
-
-            primary.acquirePrimaryOperationPermit(listener, ThreadPool.Names.SAME, reason);
-            try (var ignored = FutureUtils.get(future)) {
-                ensureNotRelocatedPrimary(primary);
-                runnable.run();
-            } finally {
-                // add a listener to release the permit because we might have been interrupted while waiting (double-releasing is ok)
-                listener.addListener(ActionListener.wrap(Releasable::close, e -> {}));
-            }
-        });
     }
 
     /**

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
@@ -288,7 +289,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
             Version.CURRENT
         );
 
-        final ClusterState updatedState = setLocalNode(initialState, localNode);
+        final ClusterState updatedState = setLocalNode(initialState, localNode, TransportVersion.CURRENT);
 
         assertMetadataEquals(initialState, updatedState);
         assertThat(updatedState.nodes().getLocalNode(), equalTo(localNode));
@@ -338,7 +339,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
             Version.CURRENT
         );
         final ClusterState updatedState = Function.<ClusterState>identity()
-            .andThen(state -> setLocalNode(state, localNode))
+            .andThen(state -> setLocalNode(state, localNode, TransportVersion.CURRENT))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .apply(initialState);
 

@@ -68,7 +68,7 @@ gradlePlugin {
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
-    outputFile = "${buildDir}/version.properties"
+    destinationFile = new File(buildDir, "version.properties");
     comment = 'Generated version properties'
     properties(versions)
 }

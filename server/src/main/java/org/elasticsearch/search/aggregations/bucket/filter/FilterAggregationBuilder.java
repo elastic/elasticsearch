@@ -180,6 +180,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
                 List.of(filter),
                 false,
                 null,
+                true,
                 context,
                 parent,
                 cardinality,

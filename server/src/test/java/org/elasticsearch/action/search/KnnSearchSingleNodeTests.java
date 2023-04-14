@@ -409,8 +409,48 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(2, response.getHits().getHits().length);
     }
 
+    public void testKnnVectorsWith2048Dims() throws IOException {
+        int numShards = 1 + randomInt(3);
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
+
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("vector")
+            .field("type", "dense_vector")
+            .field("dims", 2048)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("index", indexSettings, builder);
+
+        for (int doc = 0; doc < 10; doc++) {
+            client().prepareIndex("index").setSource("vector", randomVector(2048)).get();
+        }
+
+        client().admin().indices().prepareRefresh("index").get();
+
+        float[] queryVector = randomVector(2048);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 50, null).boost(5.0f);
+        SearchResponse response = client().prepareSearch("index").setKnnSearch(List.of(knnSearch)).addFetchField("*").setSize(10).get();
+
+        assertHitCount(response, 3);
+        assertEquals(3, response.getHits().getHits().length);
+        assertEquals(2048, response.getHits().getAt(0).field("vector").getValues().size());
+    }
+
     private float[] randomVector() {
         float[] vector = new float[VECTOR_DIMENSION];
+        for (int i = 0; i < vector.length; i++) {
+            vector[i] = randomFloat();
+        }
+        return vector;
+    }
+
+    private float[] randomVector(int dims) {
+        float[] vector = new float[dims];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomFloat();
         }

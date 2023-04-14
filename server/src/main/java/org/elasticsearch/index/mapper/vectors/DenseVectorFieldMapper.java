@@ -189,7 +189,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             KnnByteVectorField createKnnVectorField(String name, byte[] vector, VectorSimilarityFunction function) {
-                return new KnnByteVectorField(name, vector, function);
+                return new XKnnByteVectorField(name, vector, function);
             }
 
             @Override
@@ -374,7 +374,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             @Override
             KnnFloatVectorField createKnnVectorField(String name, float[] vector, VectorSimilarityFunction function) {
-                return new KnnFloatVectorField(name, vector, function);
+                return new XKnnFloatVectorField(name, vector, function);
             }
 
             @Override

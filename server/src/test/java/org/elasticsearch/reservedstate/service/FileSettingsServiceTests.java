@@ -9,6 +9,7 @@
 package org.elasticsearch.reservedstate.service;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeConnectionsService;
@@ -150,7 +151,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         writeTestFile(service.watchedFile(), "{}");
 
         service.start();
-        service.startWatcher(clusterService.state());
+        service.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
 
         // wait until the watcher thread has started, and it has discovered the file
         assertTrue(latch.await(20, TimeUnit.SECONDS));
@@ -191,7 +192,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         writeTestFile(service.watchedFile(), "{}");
 
         service.start();
-        service.startWatcher(clusterService.state());
+        service.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
 
         // wait until the watcher thread has started, and it has discovered the file
         assertTrue(latch.await(20, TimeUnit.SECONDS));
@@ -228,7 +229,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         }).when(spiedController).parse(any(String.class), any());
 
         service.start();
-        service.startWatcher(clusterService.state());
+        service.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
         assertTrue(service.watching());
 
         Files.createDirectories(service.watchedFileDir());
@@ -277,7 +278,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         }).when(spiedController).parse(any(String.class), any());
 
         service.start();
-        service.startWatcher(clusterService.state());
+        service.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
         assertTrue(service.watching());
 
         Files.createDirectories(service.watchedFileDir());

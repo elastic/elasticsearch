@@ -9,6 +9,7 @@
 package org.elasticsearch.common.file;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeConnectionsService;
@@ -129,7 +130,7 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
 
     public void testStartStop() {
         fileWatchingService.start();
-        fileWatchingService.startWatcher(clusterService.state());
+        fileWatchingService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
         assertTrue(fileWatchingService.watching());
         fileWatchingService.stop();
         assertFalse(fileWatchingService.watching());
@@ -169,7 +170,7 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
         }).when(service).processFileChanges();
 
         service.start();
-        service.startWatcher(clusterService.state());
+        service.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
         assertTrue(service.watching());
 
         Files.createDirectories(service.watchedFileDir());

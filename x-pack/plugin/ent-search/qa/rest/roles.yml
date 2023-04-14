@@ -22,5 +22,11 @@ entsearch:
         "test-re-creating-search-application",
         "test-search-application-to-delete",
         "test-nonexistent-search-application",
-      ]
+    ]
       privileges: [ "manage" ]
+    - names: [
+      # indices used for indexing and searching
+      "test-search-index1",
+      "test-search-index2",
+    ]
+      privileges: [ "manage", "read", "write" ]

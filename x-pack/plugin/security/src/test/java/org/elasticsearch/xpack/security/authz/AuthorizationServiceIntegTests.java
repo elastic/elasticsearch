@@ -170,24 +170,38 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
             // A request ID is set during authentication and is required for authorization; since we are not authenticating, set it
             // explicitly
             AuditUtil.generateRequestId(threadContext);
-            // Authorize to populate thread context with authz info
-            // Note that if the outer listener throws, we will not count down on the latch, however, we also won't get to the await call
-            // since the exception will be thrown before -- so no deadlock
-            authzService.authorize(
-                authentication,
-                AuthenticateAction.INSTANCE.name(),
-                AuthenticateRequest.INSTANCE,
-                ActionTestUtils.assertNoFailureListener(nothing -> {
-                    authzService.getRoleDescriptorsIntersectionForRemoteCluster(
-                        concreteClusterAlias,
-                        authentication.getEffectiveSubject(),
-                        new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
-                            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), not(nullValue()));
-                            actual.set(newValue);
-                        }), latch)
-                    );
-                })
-            );
+
+            // Get Role Descriptors for remote cluster should work regardless whether threadContext has existing authz info
+            if (randomBoolean()) {
+                // Authorize to populate thread context with authz info
+                // Note that if the outer listener throws, we will not count down on the latch, however, we also won't get to the await call
+                // since the exception will be thrown before -- so no deadlock
+                authzService.authorize(
+                    authentication,
+                    AuthenticateAction.INSTANCE.name(),
+                    AuthenticateRequest.INSTANCE,
+                    ActionTestUtils.assertNoFailureListener(nothing -> {
+                        authzService.getRoleDescriptorsIntersectionForRemoteCluster(
+                            concreteClusterAlias,
+                            authentication.getEffectiveSubject(),
+                            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
+                                assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), not(nullValue()));
+                                actual.set(newValue);
+                            }), latch)
+                        );
+                    })
+                );
+            } else {
+                authzService.getRoleDescriptorsIntersectionForRemoteCluster(
+                    concreteClusterAlias,
+                    authentication.getEffectiveSubject(),
+                    new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
+                        assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
+                        actual.set(newValue);
+                    }), latch)
+                );
+            }
+
             latch.await();
             // Validate original authz info is restored after call complete
             assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());

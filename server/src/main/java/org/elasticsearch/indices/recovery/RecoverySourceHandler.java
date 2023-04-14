@@ -273,8 +273,7 @@ public class RecoverySourceHandler {
                         }
                     });
 
-                    final StepListener<ReplicationResponse> deleteRetentionLeaseStep = new StepListener<>();
-                    runUnderPrimaryPermit(() -> {
+                    runUnderPrimaryPermit(deleteRetentionLeaseStep -> {
                         try {
                             // If the target previously had a copy of this shard then a file-based recovery might move its global
                             // checkpoint backwards. We must therefore remove any existing retention lease so that we can create a
@@ -287,12 +286,15 @@ public class RecoverySourceHandler {
                             logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
                             deleteRetentionLeaseStep.onResponse(null);
                         }
-                    }, shardId + " removing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads);
-
-                    deleteRetentionLeaseStep.whenComplete(ignored -> {
-                        assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
-                        phase1(safeCommitRef.getIndexCommit(), startingSeqNo, () -> estimateNumOps, sendFileStep);
-                    }, onFailure);
+                    },
+                        shardId + " removing retention lease for [" + request.targetAllocationId() + "]",
+                        shard,
+                        cancellableThreads,
+                        ActionListener.wrap((ReplicationResponse ignored) -> {
+                            assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
+                            phase1(safeCommitRef.getIndexCommit(), startingSeqNo, () -> estimateNumOps, sendFileStep);
+                        }, onFailure)
+                    );
 
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "sendFileStep failed", e);

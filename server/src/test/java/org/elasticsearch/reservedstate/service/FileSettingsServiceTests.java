@@ -137,10 +137,13 @@ public class FileSettingsServiceTests extends ESTestCase {
         service.addFileChangedListener(() -> settingsChanged.set(true));
 
         doAnswer((Answer<Void>) invocation -> {
-            invocation.callRealMethod();
-            latch.countDown();
+            try {
+                invocation.callRealMethod();
+            } finally {
+                latch.countDown();
+            }
             return null;
-        }).when(service).processSettingsAndNotifyListeners();
+        }).when(service).processFileChanges();
 
         Files.createDirectories(service.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
@@ -181,7 +184,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             invocation.callRealMethod();
             latch.countDown();
             return null;
-        }).when(service).processSettingsAndNotifyListeners();
+        }).when(service).processFileChanges();
 
         Files.createDirectories(service.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist

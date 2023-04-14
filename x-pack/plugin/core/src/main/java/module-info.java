@@ -212,6 +212,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.trigger;
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
-    
+
     provides org.elasticsearch.jdk.ModuleQualifiedExportsService with org.elasticsearch.xpack.core.XPackCoreModuleExportsService;
 }

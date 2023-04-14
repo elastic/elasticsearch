@@ -62,7 +62,6 @@ import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -147,7 +146,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                     acquiredPermits.incrementAndGet();
                     callback.onResponse(acquiredPermits::decrementAndGet);
                     return null;
-                }).when(indexShard).acquirePrimaryOperationPermit(anyActionListener(), anyString(), any(), eq(true));
+                }).when(indexShard).acquirePrimaryOperationPermit(anyActionListener(), anyString(), eq(true));
                 when(indexShard.getReplicationGroup()).thenReturn(
                     new ReplicationGroup(
                         shardRoutingTable,

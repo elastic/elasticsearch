@@ -133,7 +133,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
                     onFailure(e);
                 }
             }
-        }, ThreadPool.Names.SAME, request);
+        }, ThreadPool.Names.SAME);
     }
 
     @Override

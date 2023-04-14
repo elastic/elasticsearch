@@ -788,7 +788,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
     public void testCancellationsDoesNotLeakPrimaryPermits() throws Exception {
         runPrimaryPermitsLeakTest((shard, cancellableThreads) -> {
-            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads);
+            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, shard, cancellableThreads);
         });
     }
 
@@ -797,7 +797,6 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             PlainActionFuture.<Void, RuntimeException>get(
                 future -> RecoverySourceHandler.runUnderPrimaryPermit(
                     listener -> listener.onResponse(null),
-                    "test",
                     shard,
                     cancellableThreads,
                     future

@@ -353,8 +353,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             followingPrimary.getLastKnownGlobalCheckpoint(),
                             followingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                             permitFuture,
-                            ThreadPool.Names.SAME,
-                            primaryResult
+                            ThreadPool.Names.SAME
                         );
                         try (Releasable ignored = permitFuture.get()) {
                             TransportBulkShardOperationsAction.shardOperationOnReplica(primaryResult.replicaRequest(), replica, logger);
@@ -797,7 +796,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         @Override
         protected void performOnPrimary(IndexShard primary, BulkShardOperationsRequest request, ActionListener<PrimaryResult> listener) {
             final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
-            primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, request);
+            primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME);
             final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
             try (Releasable ignored = permitFuture.get()) {
                 ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(
@@ -830,8 +829,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         getPrimaryShard().getLastKnownGlobalCheckpoint(),
                         getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes(),
                         f,
-                        ThreadPool.Names.SAME,
-                        request
+                        ThreadPool.Names.SAME
                     )
                 )
             ) {

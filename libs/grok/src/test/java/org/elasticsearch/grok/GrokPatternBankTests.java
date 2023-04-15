@@ -10,27 +10,61 @@ package org.elasticsearch.grok;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
 public class GrokPatternBankTests extends ESTestCase {
 
-    public void testCircularReference() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = Map.of("NAME", "!!!%{NAME}!!!");
-            GrokPatternBank.forbidCircularReferences(bank);
+    public void testInternalBankIsUnmodifiableAndACopy() {
+        Map<String, String> bank = new HashMap<>();
+        bank.put("ONE", "1");
+        var grokPatternBank = new GrokPatternBank(bank);
+        assertNotSame(grokPatternBank.bank(), bank);
+        assertEquals(grokPatternBank.bank(), bank);
+    }
+
+    public void testBankCannotBeNull() {
+        var e = expectThrows(AssertionError.class, () -> new GrokPatternBank(null));
+        assertEquals("pattern bank must not be null", e.getMessage());
+    }
+
+    public void testConstructorValidatesCircularReferences() {
+        var e = expectThrows(IllegalArgumentException.class, () -> {
+            var bank = Map.of("NAME", "!!!%{NAME}!!!");
+            var patternBank = new GrokPatternBank(bank);
+            assertNotSame(bank, patternBank.bank());
+            assertEquals(bank, patternBank.bank());
         });
         assertEquals("circular reference in pattern [NAME][!!!%{NAME}!!!]", e.getMessage());
+    }
 
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            var bank = Map.of("NAME", "!!!%{NAME:name}!!!");
-            GrokPatternBank.forbidCircularReferences(bank);
-        });
+    public void testExtendWith() {
+        var baseBank = new GrokPatternBank(Map.of("ONE", "1", "TWO", "2"));
+
+        assertSame(baseBank.extendWith(null), baseBank);
+        assertSame(baseBank.extendWith(Map.of()), baseBank);
+
+        var extended = baseBank.extendWith(Map.of("THREE", "3", "FOUR", "4"));
+        assertNotSame(extended, baseBank);
+        assertEquals(extended.bank(), Map.of("ONE", "1", "TWO", "2", "THREE", "3", "FOUR", "4"));
+    }
+
+    public void testCircularReference() {
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GrokPatternBank.forbidCircularReferences(Map.of("NAME", "!!!%{NAME}!!!"))
+        );
+        assertEquals("circular reference in pattern [NAME][!!!%{NAME}!!!]", e.getMessage());
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GrokPatternBank.forbidCircularReferences(Map.of("NAME", "!!!%{NAME:name}!!!"))
+        );
         assertEquals("circular reference in pattern [NAME][!!!%{NAME:name}!!!]", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> {
-            var bank = Map.of("NAME", "!!!%{NAME:name:int}!!!");
-            GrokPatternBank.forbidCircularReferences(bank);
+            GrokPatternBank.forbidCircularReferences(Map.of("NAME", "!!!%{NAME:name:int}!!!"));
         });
         assertEquals("circular reference in pattern [NAME][!!!%{NAME:name:int}!!!]", e.getMessage());
 
@@ -67,10 +101,10 @@ public class GrokPatternBankTests extends ESTestCase {
     }
 
     public void testCircularSelfReference() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> {
-            var bank = Map.of("ANOTHER", "%{INT}", "INT", "%{INT}");
-            GrokPatternBank.forbidCircularReferences(bank);
-        });
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GrokPatternBank.forbidCircularReferences(Map.of("ANOTHER", "%{INT}", "INT", "%{INT}"))
+        );
         assertEquals("circular reference in pattern [INT][%{INT}]", e.getMessage());
     }
 }

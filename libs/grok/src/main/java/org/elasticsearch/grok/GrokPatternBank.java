@@ -12,14 +12,13 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 public record GrokPatternBank(Map<String, String> bank) {
 
     public static GrokPatternBank EMPTY = new GrokPatternBank(Map.of());
 
     public GrokPatternBank {
-        Objects.requireNonNull(bank, "pattern bank must not be null");
+        assert bank != null : "pattern bank must not be null";
         bank = Map.copyOf(bank);
         forbidCircularReferences(bank);
     }

@@ -50,7 +50,7 @@ public class AggregationPhase {
             }
             context.registerAggsCollectorManager(SingleThreadCollectorManager.wrap(BucketCollector.NO_OP_COLLECTOR));
         } else {
-            if (context.getProfilers() != null) {fi
+            if (context.getProfilers() != null) {
                 context.registerAggsCollectorManager(
                     new InternalProfileCollectorManager(collectorManager, CollectorResult.REASON_AGGREGATION)
                 );

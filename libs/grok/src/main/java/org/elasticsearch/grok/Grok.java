@@ -98,7 +98,6 @@ public final class Grok {
         this.captureConfig = List.copyOf(grokCaptureConfigs);
     }
 
-
     private String groupMatch(String name, Region region, String pattern) {
         int number = GROK_PATTERN_REGEX.nameToBackrefNumber(
             name.getBytes(StandardCharsets.UTF_8),

@@ -923,19 +923,11 @@ public final class GrokPatternCreator {
         private final Grok grok;
 
         static FullMatchGrokPatternCandidate fromGrokPatternNameLegacy(String grokPatternName, String timeField) {
-            return new FullMatchGrokPatternCandidate(
-                "%{" + grokPatternName + "}",
-                timeField,
-                GrokBuiltinPatterns.legacyPatterns()
-            );
+            return new FullMatchGrokPatternCandidate("%{" + grokPatternName + "}", timeField, GrokBuiltinPatterns.legacyPatterns());
         }
 
         static FullMatchGrokPatternCandidate fromGrokPatternNameEcs(String grokPatternName, String timeField) {
-            return new FullMatchGrokPatternCandidate(
-                "%{" + grokPatternName + "}",
-                timeField,
-                GrokBuiltinPatterns.ecsV1Patterns()
-            );
+            return new FullMatchGrokPatternCandidate("%{" + grokPatternName + "}", timeField, GrokBuiltinPatterns.ecsV1Patterns());
         }
 
         static FullMatchGrokPatternCandidate fromGrokPatternName(
@@ -954,11 +946,7 @@ public final class GrokPatternCreator {
             return new FullMatchGrokPatternCandidate(grokPattern, timeField, GrokBuiltinPatterns.get(ECS_COMPATIBILITY_ENABLED));
         }
 
-        static FullMatchGrokPatternCandidate fromGrokPattern(
-            String grokPattern,
-            String timeField,
-            GrokPatternBank grokPatternBank
-        ) {
+        static FullMatchGrokPatternCandidate fromGrokPattern(String grokPattern, String timeField, GrokPatternBank grokPatternBank) {
             return new FullMatchGrokPatternCandidate(grokPattern, timeField, grokPatternBank);
         }
 

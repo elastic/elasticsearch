@@ -408,11 +408,7 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testNoNamedCaptures() {
-        var bank = new GrokPatternBank(Map.of(
-            "NAME", "Tal",
-            "EXCITED_NAME", "!!!%{NAME:name}!!!",
-            "TEST", "hello world"
-        )) ;
+        var bank = new GrokPatternBank(Map.of("NAME", "Tal", "EXCITED_NAME", "!!!%{NAME:name}!!!", "TEST", "hello world"));
 
         String text = "wowza !!!Tal!!! - Tal";
         String pattern = "%{EXCITED_NAME} - %{NAME}";

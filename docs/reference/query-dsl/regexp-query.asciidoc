@@ -26,7 +26,7 @@ GET /_search
   "query": {
     "regexp": {
       "user.id": {
-        "value": "k.*y",
+        "value": "a.*y",
         "flags": "ALL",
         "case_insensitive": true,
         "max_determinized_states": 10000,
@@ -73,7 +73,7 @@ expression syntax>>.
 value with the indexed field values when set to true. Default is false which means
 the case sensitivity of matching depends on the underlying field's mapping.
 
-`max_determinized_states`::
+`a determinized_states`::
 +
 --
 (Optional, integer) Maximum number of
@@ -89,7 +89,7 @@ consuming too many resources. You may need to increase this limit to run complex
 regular expressions.
 --
 
-`rewrite`::
+`write`::
 (Optional, string) Method used to rewrite the query. For valid values and more
 information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 

@@ -9,14 +9,33 @@
 package org.elasticsearch.grok;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public record GrokPatternBank(Map<String, String> bank) {
 
+    public static GrokPatternBank EMPTY = new GrokPatternBank(Map.of());
+
     public GrokPatternBank {
+        Objects.requireNonNull(bank, "pattern bank must not be null");
         bank = Map.copyOf(bank);
-        forbidCircularReferences();
+        forbidCircularReferences(bank);
+    }
+
+    public String get(String patternName) {
+        return bank.get(patternName);
+    }
+
+    public GrokPatternBank extendWith(Map<String, String> extraPatterns) {
+        if (extraPatterns == null || extraPatterns.isEmpty()) {
+            return this;
+        }
+
+        var extendedBank = new LinkedHashMap<>(bank);
+        extendedBank.putAll(extraPatterns);
+        return new GrokPatternBank(extendedBank);
     }
 
     /**
@@ -26,7 +45,7 @@ public record GrokPatternBank(Map<String, String> bank) {
      * a reference to another named pattern. This method will navigate to all these named patterns and
      * check for a circular reference.
      */
-    private void forbidCircularReferences() {
+    static void forbidCircularReferences(Map<String, String> bank) {
         // first ensure that the pattern bank contains no simple circular references (i.e., any pattern
         // containing an immediate reference to itself) as those can cause the remainder of this algorithm
         // to recurse infinitely
@@ -40,11 +59,11 @@ public record GrokPatternBank(Map<String, String> bank) {
         for (Map.Entry<String, String> entry : bank.entrySet()) {
             String name = entry.getKey();
             String pattern = entry.getValue();
-            innerForbidCircularReferences(name, new ArrayList<>(), pattern);
+            innerForbidCircularReferences(bank, name, new ArrayList<>(), pattern);
         }
     }
 
-    private void innerForbidCircularReferences(String patternName, List<String> path, String pattern) {
+    private static void innerForbidCircularReferences(Map<String, String> bank, String patternName, List<String> path, String pattern) {
         if (patternReferencesItself(pattern, patternName)) {
             String message;
             if (path.isEmpty()) {
@@ -82,15 +101,11 @@ public record GrokPatternBank(Map<String, String> bank) {
             }
             String otherPatternName = pattern.substring(begin, end);
             path.add(otherPatternName);
-            innerForbidCircularReferences(patternName, path, bank.get(otherPatternName));
+            innerForbidCircularReferences(bank, patternName, path, bank.get(otherPatternName));
         }
     }
 
     private static boolean patternReferencesItself(String pattern, String patternName) {
         return pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":");
-    }
-
-    public String get(String patternName) {
-        return bank.get(patternName);
     }
 }

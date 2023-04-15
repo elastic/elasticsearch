@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
+import org.elasticsearch.grok.GrokPatternBank;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 
 import java.util.ArrayList;
@@ -203,7 +204,7 @@ public final class GrokPatternCreator {
      */
     private final Map<String, Object> mappings;
     private final Map<String, FieldStats> fieldStats;
-    private final Map<String, String> grokPatternDefinitions;
+    private final GrokPatternBank grokPatternBank;
     private final Map<String, Integer> fieldNameCountStore = new HashMap<>();
     private final StringBuilder overallGrokPatternBuilder = new StringBuilder();
     private final TimeoutChecker timeoutChecker;
@@ -233,12 +234,7 @@ public final class GrokPatternCreator {
         this.sampleMessages = Collections.unmodifiableCollection(sampleMessages);
         this.mappings = mappings;
         this.fieldStats = fieldStats;
-        if (customGrokPatternDefinitions.isEmpty()) {
-            grokPatternDefinitions = GrokBuiltinPatterns.get(ecsCompatibility);
-        } else {
-            grokPatternDefinitions = new HashMap<>(GrokBuiltinPatterns.get(ecsCompatibility));
-            grokPatternDefinitions.putAll(customGrokPatternDefinitions);
-        }
+        this.grokPatternBank = GrokBuiltinPatterns.get(ecsCompatibility).extendWith(customGrokPatternDefinitions);
         this.timeoutChecker = Objects.requireNonNull(timeoutChecker);
         this.ecsCompatibility = ecsCompatibility;
     }
@@ -274,7 +270,7 @@ public final class GrokPatternCreator {
         FullMatchGrokPatternCandidate candidate = FullMatchGrokPatternCandidate.fromGrokPattern(
             grokPattern,
             timestampField,
-            grokPatternDefinitions
+            grokPatternBank
         );
         if (candidate.matchesAll(sampleMessages, timeoutChecker)) {
             candidate.processMatch(explanation, sampleMessages, mappings, fieldStats, timeoutChecker, ecsCompatibility);
@@ -301,7 +297,7 @@ public final class GrokPatternCreator {
                 seedPatternName,
                 seedMapping,
                 seedFieldName,
-                grokPatternDefinitions
+                grokPatternBank
             );
 
             processCandidateAndSplit(seedCandidate, true, sampleMessages, false, 0, false, 0);
@@ -655,7 +651,7 @@ public final class GrokPatternCreator {
             String grokPatternName,
             String mappingType,
             String fieldName,
-            Map<String, String> grokPatternDefinitions
+            GrokPatternBank grokPatternDefinitions
         ) {
             this(
                 grokPatternName,
@@ -707,7 +703,7 @@ public final class GrokPatternCreator {
             String fieldName,
             String preBreak,
             String postBreak,
-            Map<String, String> grokPatternDefinitions
+            GrokPatternBank grokPatternDefinitions
         ) {
             this.grokPatternName = Objects.requireNonNull(grokPatternName);
             this.mapping = Collections.unmodifiableMap(mapping);
@@ -886,7 +882,7 @@ public final class GrokPatternCreator {
             String grokPatternName,
             Map<String, String> mapping,
             String fieldName,
-            Map<String, String> grokPatternDefinitions
+            GrokPatternBank grokPatternDefinitions
         ) {
             super(grokPatternName, mapping, fieldName, "\\b", "\\b", grokPatternDefinitions);
         }
@@ -930,7 +926,7 @@ public final class GrokPatternCreator {
             return new FullMatchGrokPatternCandidate(
                 "%{" + grokPatternName + "}",
                 timeField,
-                GrokBuiltinPatterns.get(ECS_COMPATIBILITY_DISABLED)
+                GrokBuiltinPatterns.legacyPatterns()
             );
         }
 
@@ -938,14 +934,14 @@ public final class GrokPatternCreator {
             return new FullMatchGrokPatternCandidate(
                 "%{" + grokPatternName + "}",
                 timeField,
-                GrokBuiltinPatterns.get(ECS_COMPATIBILITY_ENABLED)
+                GrokBuiltinPatterns.ecsV1Patterns()
             );
         }
 
         static FullMatchGrokPatternCandidate fromGrokPatternName(
             String grokPatternName,
             String timeField,
-            Map<String, String> grokPatternDefinitions
+            GrokPatternBank grokPatternDefinitions
         ) {
             return new FullMatchGrokPatternCandidate("%{" + grokPatternName + "}", timeField, grokPatternDefinitions);
         }
@@ -961,12 +957,12 @@ public final class GrokPatternCreator {
         static FullMatchGrokPatternCandidate fromGrokPattern(
             String grokPattern,
             String timeField,
-            Map<String, String> grokPatternDefinitions
+            GrokPatternBank grokPatternBank
         ) {
-            return new FullMatchGrokPatternCandidate(grokPattern, timeField, grokPatternDefinitions);
+            return new FullMatchGrokPatternCandidate(grokPattern, timeField, grokPatternBank);
         }
 
-        private FullMatchGrokPatternCandidate(String grokPattern, String timeField, Map<String, String> grokPatternDefinitions) {
+        private FullMatchGrokPatternCandidate(String grokPattern, String timeField, GrokPatternBank grokPatternDefinitions) {
             this.grokPattern = grokPattern;
             this.timeField = timeField;
             grok = new Grok(grokPatternDefinitions, grokPattern, TimeoutChecker.watchdog, logger::warn);

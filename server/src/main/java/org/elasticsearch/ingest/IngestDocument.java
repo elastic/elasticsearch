@@ -460,7 +460,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(String path, Object value) {
-        setFieldValue(path, value, false);
+        setFieldValue(path, value, false, true);
     }
 
     /**
@@ -473,7 +473,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel), false);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel), false, true);
     }
 
     /**
@@ -498,7 +498,7 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value, false);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value, false, true);
     }
 
     /**
@@ -523,11 +523,7 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value, false);
-    }
-
-    private void setFieldValue(String path, Object value, boolean append) {
-        setFieldValue(path, value, append, true);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value, false, true);
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {

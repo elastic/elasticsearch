@@ -19,7 +19,6 @@ public record GrokPatternBank(Map<String, String> bank) {
         forbidCircularReferences();
     }
 
-
     /**
      * Checks whether patterns reference each other in a circular manner and if so fail with an exception
      *
@@ -28,7 +27,6 @@ public record GrokPatternBank(Map<String, String> bank) {
      * check for a circular reference.
      */
     private void forbidCircularReferences() {
-
         // first ensure that the pattern bank contains no simple circular references (i.e., any pattern
         // containing an immediate reference to itself) as those can cause the remainder of this algorithm
         // to recurse infinitely
@@ -90,5 +88,9 @@ public record GrokPatternBank(Map<String, String> bank) {
 
     private static boolean patternReferencesItself(String pattern, String patternName) {
         return pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":");
+    }
+
+    public String get(String patternName) {
+        return bank.get(patternName);
     }
 }

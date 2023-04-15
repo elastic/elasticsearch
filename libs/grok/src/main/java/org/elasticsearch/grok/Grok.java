@@ -51,26 +51,26 @@ public final class Grok {
 
     private static final int MAX_TO_REGEX_ITERATIONS = 100_000; // sanity limit
 
-    private final Map<String, String> patternBank;
+    private final GrokPatternBank patternBank;
     private final boolean namedCaptures;
     private final Regex compiledExpression;
     private final MatcherWatchdog matcherWatchdog;
     private final List<GrokCaptureConfig> captureConfig;
 
-    public Grok(Map<String, String> patternBank, String grokPattern, Consumer<String> logCallBack) {
+    public Grok(GrokPatternBank patternBank, String grokPattern, Consumer<String> logCallBack) {
         this(patternBank, grokPattern, true, MatcherWatchdog.noop(), logCallBack);
     }
 
-    public Grok(Map<String, String> patternBank, String grokPattern, MatcherWatchdog matcherWatchdog, Consumer<String> logCallBack) {
+    public Grok(GrokPatternBank patternBank, String grokPattern, MatcherWatchdog matcherWatchdog, Consumer<String> logCallBack) {
         this(patternBank, grokPattern, true, matcherWatchdog, logCallBack);
     }
 
-    Grok(Map<String, String> patternBank, String grokPattern, boolean namedCaptures, Consumer<String> logCallBack) {
+    Grok(GrokPatternBank patternBank, String grokPattern, boolean namedCaptures, Consumer<String> logCallBack) {
         this(patternBank, grokPattern, namedCaptures, MatcherWatchdog.noop(), logCallBack);
     }
 
     private Grok(
-        Map<String, String> patternBank,
+        GrokPatternBank patternBank,
         String grokPattern,
         boolean namedCaptures,
         MatcherWatchdog matcherWatchdog,

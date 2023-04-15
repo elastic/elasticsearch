@@ -29,9 +29,6 @@ import java.util.List;
  * Aggregation phase of a search request, used to collect aggregations
  */
 public class AggregationPhase {
-
-    private static final SingleThreadCollectorManager NOOP = SingleThreadCollectorManager.wrap(BucketCollector.NO_OP_COLLECTOR);
-
     @Inject
     public AggregationPhase() {}
 
@@ -44,13 +41,16 @@ public class AggregationPhase {
             && context.aggregations().factories().context().isInSortOrderExecutionRequired()) {
             TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), getCancellationChecks(context));
             try {
-                searcher.search(context.rewrittenQuery(), (BucketCollector) collectorManager.newCollector());
+                // TODO: we are executing here the time series aggregation and let we will execute the query?
+                AggregatorCollector aggregatorCollector = (AggregatorCollector) collectorManager.newCollector();
+                searcher.search(context.rewrittenQuery(), aggregatorCollector.bucketCollector);
+                collectorManager.reduce(List.of(aggregatorCollector));
             } catch (IOException e) {
                 throw new AggregationExecutionException("Could not perform time series aggregation", e);
             }
-            context.registerAggsCollectorManager(NOOP);
+            context.registerAggsCollectorManager(SingleThreadCollectorManager.wrap(BucketCollector.NO_OP_COLLECTOR));
         } else {
-            if (context.getProfilers() != null) {
+            if (context.getProfilers() != null) {fi
                 context.registerAggsCollectorManager(
                     new InternalProfileCollectorManager(collectorManager, CollectorResult.REASON_AGGREGATION)
                 );
@@ -139,10 +139,11 @@ public class AggregationPhase {
 
         final Aggregator[] aggregators;
         final Collector collector;
+        final BucketCollector bucketCollector;
 
         AggregatorCollector(Aggregator[] aggregators) throws IOException {
             this.aggregators = aggregators;
-            BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregators));
+            bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregators));
             bucketCollector.preCollection();
             collector = bucketCollector.asCollector();
         }

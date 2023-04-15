@@ -211,7 +211,8 @@ public class QueryPhase {
             manager = createQueryCollectorManager(collectors);
         }
         final List<Collector> collectedCollectors;
-        if (timeoutRunnable != null && searchContext.request().allowPartialSearchResults()) {
+        if ((timeoutRunnable != null && searchContext.request().allowPartialSearchResults())
+            || searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
             // We need to handle the case when we allow partial results. Because we are not using
             // lucene in-built timout, we need to run the reduce phase ourseleves. Hence, we collect
             // here the top level collectors.
@@ -237,6 +238,7 @@ public class QueryPhase {
         try {
             searcher.search(query, manager);
         } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
+            executeReductionAfterExceptionDrivenExecution(searcher, timeoutRunnable, manager, collectedCollectors);
             queryResult.terminatedEarly(true);
         } catch (TimeExceededException e) {
             assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
@@ -244,11 +246,7 @@ public class QueryPhase {
                 // Can't rethrow TimeExceededException because not serializable
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
-            // Search phase has finished, no longer need to check for timeout
-            // otherwise reduction phase might get cancelled.
-            searcher.removeQueryCancellation(timeoutRunnable);
-            // reduce our collectors to collect partial results
-            manager.reduce(collectedCollectors);
+            executeReductionAfterExceptionDrivenExecution(searcher, timeoutRunnable, manager, collectedCollectors);
             queryResult.searchTimedOut(true);
         }
         if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER && queryResult.terminatedEarly() == null) {
@@ -257,6 +255,19 @@ public class QueryPhase {
         for (QueryCollectorManagerContext ctx : collectors) {
             ctx.postProcess(queryResult);
         }
+    }
+
+    private static void executeReductionAfterExceptionDrivenExecution(
+        ContextIndexSearcher searcher,
+        Runnable timeoutRunnable,
+        CollectorManager<Collector, Void> manager,
+        List<Collector> collectedCollectors
+    ) throws IOException {
+        // Search phase has finished, no longer need to check for timeout
+        // otherwise reduction phase might get cancelled.
+        searcher.removeQueryCancellation(timeoutRunnable);
+        // reduce our collectors to collect partial results
+        manager.reduce(collectedCollectors);
     }
 
     /**

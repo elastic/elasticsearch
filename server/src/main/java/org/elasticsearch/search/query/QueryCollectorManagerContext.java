@@ -21,6 +21,7 @@ import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;
@@ -55,7 +56,7 @@ abstract class QueryCollectorManagerContext {
      * Wraps this collector manager with a profiler
      */
     InternalProfileCollectorManager createCollectorManagerWithProfile(InternalProfileCollectorManager in) {
-        return new InternalProfileCollectorManager(createManager(in), profilerName);
+        return new InternalProfileCollectorManager(createManager(in), profilerName, in != null ? List.of(in) : List.of());
     }
 
     public static CollectorManager<Collector, Void> createQueryCollectorManager(List<QueryCollectorManagerContext> collectors) {
@@ -139,6 +140,17 @@ abstract class QueryCollectorManagerContext {
             CollectorManager<Collector, Void> createManager(CollectorManager<Collector, Void> in) {
                 assert in != null;
                 return new SingleThreadMultiCollectorManager(List.of(in, collectorManager));
+            }
+
+            @Override
+            InternalProfileCollectorManager createCollectorManagerWithProfile(InternalProfileCollectorManager in) {
+                final List<InternalProfileCollectorManager> subCollectors = new ArrayList<>();
+                subCollectors.add(in);
+                if (collectorManager instanceof InternalProfileCollectorManager == false) {
+                    throw new IllegalArgumentException("non-profiling collector manger");
+                }
+                subCollectors.add((InternalProfileCollectorManager) collectorManager);
+                return new InternalProfileCollectorManager(createManager(in), REASON_SEARCH_MULTI, subCollectors);
             }
         };
     }

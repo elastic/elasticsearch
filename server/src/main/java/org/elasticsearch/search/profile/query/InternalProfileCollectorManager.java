@@ -23,17 +23,23 @@ public class InternalProfileCollectorManager extends SingleThreadCollectorManage
 
     private final CollectorManager<Collector, Void> in;
     private final String profilerName;
+    private final List<InternalProfileCollectorManager> children;
     private InternalProfileCollector rootCollector;
 
-    public InternalProfileCollectorManager(CollectorManager<Collector, Void> in, String profilerName) {
+    public InternalProfileCollectorManager(
+        CollectorManager<Collector, Void> in,
+        String profilerName,
+        List<InternalProfileCollectorManager> children
+    ) {
         this.in = in;
         this.profilerName = profilerName;
+        this.children = children;
     }
 
     @Override
     protected Collector getNewCollector() throws IOException {
         assert rootCollector == null;
-        rootCollector = new InternalProfileCollector(in.newCollector(), profilerName, List.of());
+        rootCollector = new InternalProfileCollector(in.newCollector(), profilerName, children);
         return rootCollector;
     }
 

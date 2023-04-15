@@ -44,9 +44,9 @@ class InternalProfileCollector implements Collector {
     /**
      * A list of "embedded" children collectors
      */
-    private final List<InternalProfileCollector> children;
+    private final List<InternalProfileCollectorManager> children;
 
-    InternalProfileCollector(Collector collector, String reason, List<InternalProfileCollector> children) {
+    InternalProfileCollector(Collector collector, String reason, List<InternalProfileCollectorManager> children) {
         this.collector = new ProfileCollector(collector);
         this.reason = reason;
         this.collectorName = deriveCollectorName(collector);
@@ -121,8 +121,8 @@ class InternalProfileCollector implements Collector {
 
     private static CollectorResult doGetCollectorTree(InternalProfileCollector collector) {
         List<CollectorResult> childResults = new ArrayList<>(collector.children.size());
-        for (InternalProfileCollector child : collector.children) {
-            CollectorResult result = doGetCollectorTree(child);
+        for (InternalProfileCollectorManager child : collector.children) {
+            CollectorResult result = child.getCollectorTree();
             childResults.add(result);
         }
         return new CollectorResult(collector.getName(), collector.getReason(), collector.getTime(), childResults);

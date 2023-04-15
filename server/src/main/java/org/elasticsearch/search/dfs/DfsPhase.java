@@ -182,7 +182,8 @@ public class DfsPhase {
             if (context.getProfilers() != null) {
                 InternalProfileCollectorManager ipcm = new InternalProfileCollectorManager(
                     collectorManager,
-                    CollectorResult.REASON_SEARCH_TOP_HITS
+                    CollectorResult.REASON_SEARCH_TOP_HITS,
+                    List.of()
                 );
                 QueryProfiler knnProfiler = context.getProfilers().getDfsProfiler().addQueryProfiler(ipcm);
                 collectorManager = ipcm;

@@ -7,10 +7,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.SearchService;
@@ -42,9 +39,9 @@ public class AggregationPhase {
             TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), getCancellationChecks(context));
             try {
                 // TODO: we are executing here the time series aggregation and let we will execute the query?
-                AggregatorCollector aggregatorCollector = (AggregatorCollector) collectorManager.newCollector();
-                searcher.search(context.rewrittenQuery(), aggregatorCollector.bucketCollector);
-                collectorManager.reduce(List.of(aggregatorCollector));
+                Collector collector = collectorManager.newCollector();
+                searcher.search(context.rewrittenQuery(), collectorManager.bucketCollector);
+                collectorManager.reduce(List.of(collector));
             } catch (IOException e) {
                 throw new AggregationExecutionException("Could not perform time series aggregation", e);
             }
@@ -52,7 +49,7 @@ public class AggregationPhase {
         } else {
             if (context.getProfilers() != null) {
                 context.registerAggsCollectorManager(
-                    new InternalProfileCollectorManager(collectorManager, CollectorResult.REASON_AGGREGATION)
+                    new InternalProfileCollectorManager(collectorManager, CollectorResult.REASON_AGGREGATION, List.of())
                 );
             } else {
                 context.registerAggsCollectorManager(collectorManager);
@@ -92,6 +89,8 @@ public class AggregationPhase {
 
     private static class AggregationCollectorManager extends SingleThreadCollectorManager {
         private final SearchContext context;
+        Aggregator[] aggregators;
+        BucketCollector bucketCollector;
 
         AggregationCollectorManager(SearchContext context) {
             this.context = context;
@@ -100,7 +99,10 @@ public class AggregationPhase {
         @Override
         protected Collector getNewCollector() {
             try {
-                return new AggregatorCollector(context.aggregations().factories().createTopLevelAggregators());
+                aggregators = context.aggregations().factories().createTopLevelAggregators();
+                bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregators));
+                bucketCollector.preCollection();
+                return bucketCollector.asCollector();
             } catch (IOException e) {
                 throw new AggregationInitializationException("Could not initialize aggregators", e);
             }
@@ -108,12 +110,10 @@ public class AggregationPhase {
 
         @Override
         protected void reduce(Collector collector) throws IOException {
-            assert collector instanceof AggregatorCollector;
             if (context.queryResult().hasAggs()) { // TODO: why would this happen?
                 // no need to compute the aggs twice, they should be computed on a per context basis
                 return;
             }
-            Aggregator[] aggregators = ((AggregatorCollector) collector).aggregators;
             List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
             if (context.aggregations().factories().context() != null) { // TODO: not sure why we need this
                 // Rollup can end up here with a null context but not null factories.....
@@ -132,30 +132,6 @@ public class AggregationPhase {
             // disable aggregations so that they don't run on next pages in case of scrolling
             context.aggregations(null);
             context.registerAggsCollectorManager(null);
-        }
-    }
-
-    private static class AggregatorCollector implements Collector {
-
-        final Aggregator[] aggregators;
-        final Collector collector;
-        final BucketCollector bucketCollector;
-
-        AggregatorCollector(Aggregator[] aggregators) throws IOException {
-            this.aggregators = aggregators;
-            bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregators));
-            bucketCollector.preCollection();
-            collector = bucketCollector.asCollector();
-        }
-
-        @Override
-        public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-            return collector.getLeafCollector(context);
-        }
-
-        @Override
-        public ScoreMode scoreMode() {
-            return collector.scoreMode();
         }
     }
 }

@@ -79,7 +79,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
-            randomFrom(HttpHeadersValidator.NOOP_VALIDATOR, null)
+            randomFrom(HttpHeadersValidator.VALIDATE_EVERYTHING_VALIDATOR, null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -106,7 +106,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
-            randomFrom(HttpHeadersValidator.NOOP_VALIDATOR, null)
+            randomFrom(HttpHeadersValidator.VALIDATE_EVERYTHING_VALIDATOR, null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -133,7 +133,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
-            randomFrom(HttpHeadersValidator.NOOP_VALIDATOR, null)
+            randomFrom(HttpHeadersValidator.VALIDATE_EVERYTHING_VALIDATOR, null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -160,7 +160,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
-            randomFrom(HttpHeadersValidator.NOOP_VALIDATOR, null)
+            randomFrom(HttpHeadersValidator.VALIDATE_EVERYTHING_VALIDATOR, null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -182,7 +182,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
-            randomFrom(HttpHeadersValidator.NOOP_VALIDATOR, null)
+            randomFrom(HttpHeadersValidator.VALIDATE_EVERYTHING_VALIDATOR, null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -205,7 +205,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
-            randomFrom(HttpHeadersValidator.NOOP_VALIDATOR, null)
+            randomFrom(HttpHeadersValidator.VALIDATE_EVERYTHING_VALIDATOR, null)
         );
         handler = transport.configureServerChannelHandler();
         ch = new EmbeddedChannel(handler);
@@ -237,7 +237,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
-            randomFrom(HttpHeadersValidator.NOOP_VALIDATOR, null)
+            randomFrom(HttpHeadersValidator.VALIDATE_EVERYTHING_VALIDATOR, null)
         );
         assertNotNull(transport.configureServerChannelHandler());
     }

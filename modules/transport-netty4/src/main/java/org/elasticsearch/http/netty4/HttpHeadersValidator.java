@@ -28,7 +28,7 @@ import java.util.Map;
 
 public final class HttpHeadersValidator {
 
-    public static HttpHeadersValidator NOOP_VALIDATOR = new HttpHeadersValidator(
+    public static HttpHeadersValidator VALIDATE_EVERYTHING_VALIDATOR = new HttpHeadersValidator(
         (httpPreRequest, channel, listener) -> listener.onResponse(null)
     );
 

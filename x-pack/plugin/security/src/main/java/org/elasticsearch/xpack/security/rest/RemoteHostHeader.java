@@ -19,8 +19,8 @@ public class RemoteHostHeader {
     static final String KEY = "_rest_remote_address";
 
     /**
-     * Extracts the remote address from the given rest request and puts in the request context. This will
-     * then be copied to the subsequent action requests.
+     * Extracts the remote address from the given netty channel and puts it in the request context. This will
+     * then be copied to the subsequent action handler contexts.
      */
     public static void process(Channel channel, ThreadContext threadContext) {
         threadContext.putTransient(KEY, channel.remoteAddress());

@@ -333,7 +333,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 e = new ElasticsearchException(cause);
             }
             // unless it's a http headers validation error, we consider any exceptions encountered so far during request processing
-            // to be a problem of invalid/malformed request
+            // to be a problem of invalid/malformed request (hence the RestStatus#BAD_REQEST (400) HTTP response code)
             if (e instanceof HttpHeadersValidationException) {
                 channel.sendResponse(new RestResponse(channel, (Exception) e.getCause()));
             } else {

@@ -1651,21 +1651,30 @@ public class Security extends Plugin
                 httpRequest,
                 channel,
                 listener) -> {
+                // step 1: stash the current thread's context and wrap the authentication result listener for context-preserving because
+                // authentication modifies the thread context and the modifications must NOT be visible for this thread's yet
+                // (authentication is a very thread-context dependent, as it looks into it for the credentials, and outputs to it
+                // the resulting principal - such an authenticated context must be instated only while executing the request handler)
                 var contextPreservingListener = new ContextPreservingActionListener<>(
                     threadContext.wrapRestorable(threadContext.newStoredContext()),
                     listener
                 );
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                    // step 2: populate the thread context with credentials and any other HTTP request header values
                     perRequestThreadContext.accept(httpRequest, threadContext);
                     populateClientCertificate.accept(channel, threadContext);
                     RemoteHostHeader.process(channel, threadContext);
+                    // step 3: run authentication on the properly prepared thread-context
                     authenticationService.authenticate(httpRequest, ActionListener.wrap(authentication -> {
                         if (authentication == null) {
                             logger.trace("No authentication available for HTTP request [{}]", httpRequest.uri());
                         } else {
                             logger.trace("Authenticated HTTP request [{}] as {}", httpRequest.uri(), authentication);
                         }
+                        // step 4: "capture" the *authenticated* thread context
                         ThreadContext.StoredContext authenticatedContext = threadContext.newStoredContext();
+                        // step 5: restore the original thread-context for the listener and pass in the captured and authenticated context
+                        // the passed-in authenticated context will be instated for the request handler
                         contextPreservingListener.onResponse(authenticatedContext::restore);
                     }, contextPreservingListener::onFailure));
                 }

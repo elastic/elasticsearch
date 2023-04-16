@@ -20,29 +20,46 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpPreRequest;
-import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationContext;
+import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationResultContext;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.http.netty4.Netty4HttpRequest.getHttpHeadersAsMap;
+import static org.elasticsearch.http.netty4.Netty4HttpRequest.translateRequestMethod;
 
 public final class HttpHeadersValidator {
 
-    public static HttpHeadersValidator VALIDATE_EVERYTHING_VALIDATOR = new HttpHeadersValidator(
-        (httpPreRequest, channel, listener) -> listener.onResponse(null)
+    /**
+     * Trivial {@link HttpHeadersValidator} implementation, to be used in tests, that successfully validates
+     * any and all HTTP request headers.
+     */
+    public final static HttpHeadersValidator VALIDATE_EVERYTHING_VALIDATOR = new HttpHeadersValidator(
+        (httpPreRequest, channel, listener) -> listener.onResponse(ValidatableHttpHeaders.OK)
     );
 
-    private final TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationContext>> validator;
+    /**
+     * An async HTTP headers validator function that receives as arguments part of the incoming HTTP request
+     * (except the body contents, see {@link HttpPreRequest}), as well as the netty channel that the request is
+     * being received over, and must then call the {@code ActionListener#onResponse} method on the listener parameter
+     * in case the validation is to be considered successful, or otherwise call {@code ActionListener#onFailure}.
+     */
+    private final TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationResultContext>> validator;
 
-    public HttpHeadersValidator(TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationContext>> validator) {
+    public HttpHeadersValidator(TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationResultContext>> validator) {
         this.validator = validator;
     }
 
     public Netty4HttpHeaderValidator getValidatorInboundHandler() {
         return new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
             if (httpRequest.headers() instanceof ValidatableHttpHeaders validatableHttpHeaders) {
-                validator.apply(asHttpPreRequest(httpRequest), channel, ActionListener.wrap(validationContext -> {
-                    validatableHttpHeaders.markAsValidated(validationContext);
+                // make sure validation only runs on properly wrapped "validatable" headers implementation
+                validator.apply(asHttpPreRequest(httpRequest), channel, ActionListener.wrap(validationResultContext -> {
+                    validatableHttpHeaders.markAsSuccessfullyValidated(validationResultContext);
+                    // a successful validation needs to signal to the {@link Netty4HttpHeaderValidator} to resume
+                    // forwarding the request beyond the headers part
                     listener.onResponse(null);
                 }, e -> listener.onFailure(new HttpHeadersValidationException(e))));
             } else {
@@ -57,9 +74,9 @@ public final class HttpHeadersValidator {
         return new DefaultHttpRequest(httpRequest.protocolVersion(), httpRequest.method(), httpRequest.uri(), validatableHttpHeaders);
     }
 
-    public static ValidationContext extractValidationContext(org.elasticsearch.http.HttpRequest request) {
+    public static ValidationResultContext extractValidationContext(org.elasticsearch.http.HttpRequest request) {
         ValidatableHttpHeaders authenticatedHeaders = unwrapValidatableHeaders(request);
-        return authenticatedHeaders != null ? authenticatedHeaders.validationContextSetOnce.get() : null;
+        return authenticatedHeaders != null ? authenticatedHeaders.validationResultContextSetOnce.get() : null;
     }
 
     private static ValidatableHttpHeaders unwrapValidatableHeaders(org.elasticsearch.http.HttpRequest request) {
@@ -72,12 +89,59 @@ public final class HttpHeadersValidator {
         return (ValidatableHttpHeaders) (((Netty4HttpRequest) request).getNettyRequest().headers());
     }
 
+    /**
+     * {@link HttpHeaders} implementation that carries along the {@link ValidationResultContext} iff
+     * the HTTP headers have been validated successfully.
+     */
+    public static final class ValidatableHttpHeaders extends DefaultHttpHeaders {
+
+        static final ValidationResultContext OK = () -> {};
+
+        @FunctionalInterface
+        public interface ValidationResultContext {
+            void assertValid();
+        }
+
+        public final SetOnce<ValidationResultContext> validationResultContextSetOnce;
+
+        public ValidatableHttpHeaders(HttpHeaders httpHeaders) {
+            this(httpHeaders, new SetOnce<>());
+        }
+
+        private ValidatableHttpHeaders(HttpHeaders httpHeaders, SetOnce<ValidationResultContext> validationResultContextSetOnce) {
+            // the constructor implements the same logic as HttpHeaders#copy
+            super();
+            set(httpHeaders);
+            this.validationResultContextSetOnce = validationResultContextSetOnce;
+        }
+
+        private ValidatableHttpHeaders(HttpHeaders httpHeaders, ValidationResultContext validationResultContext) {
+            this(httpHeaders);
+            if (validationResultContext != null) {
+                markAsSuccessfullyValidated(validationResultContext);
+            }
+        }
+
+        public void markAsSuccessfullyValidated(ValidationResultContext validationResultContext) {
+            this.validationResultContextSetOnce.set(Objects.requireNonNull(validationResultContext));
+        }
+
+        @Override
+        public HttpHeaders copy() {
+            // copy but STILL CARRY the same validation result
+            return new ValidatableHttpHeaders(super.copy(), validationResultContextSetOnce.get());
+        }
+    }
+
+    /**
+     * Translates the netty request internal type to a {@link HttpPreRequest} instance that code outside the network plugin has access to.
+     */
     private static HttpPreRequest asHttpPreRequest(HttpRequest request) {
         return new HttpPreRequest() {
 
             @Override
             public RestRequest.Method method() {
-                return Netty4HttpRequest.translateRequestMethod(request.method());
+                return translateRequestMethod(request.method());
             }
 
             @Override
@@ -87,28 +151,8 @@ public final class HttpHeadersValidator {
 
             @Override
             public Map<String, List<String>> getHeaders() {
-                return Netty4HttpRequest.getHttpHeadersAsMap(request.headers());
+                return getHttpHeadersAsMap(request.headers());
             }
         };
-    }
-
-    public static final class ValidatableHttpHeaders extends DefaultHttpHeaders {
-
-        @FunctionalInterface
-        public interface ValidationContext {
-            void assertValid();
-        }
-
-        public final SetOnce<ValidationContext> validationContextSetOnce = new SetOnce<>();
-
-        public ValidatableHttpHeaders(HttpHeaders httpHeaders) {
-            // the constructor implements the same logic as HttpHeaders#copy
-            super();
-            set(httpHeaders);
-        }
-
-        public void markAsValidated(ValidationContext validationContext) {
-            this.validationContextSetOnce.set(validationContext);
-        }
     }
 }

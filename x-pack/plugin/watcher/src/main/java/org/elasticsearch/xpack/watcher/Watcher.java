@@ -354,11 +354,11 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
         TextTemplateEngine templateEngine = new TextTemplateEngine(scriptService);
         Map<String, EmailAttachmentParser<?>> emailAttachmentParsers = new HashMap<>();
-        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, templateEngine));
+        emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(webhookService, templateEngine));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
         emailAttachmentParsers.put(
             ReportingAttachmentParser.TYPE,
-            new ReportingAttachmentParser(settings, httpClient, templateEngine, clusterService.getClusterSettings())
+            new ReportingAttachmentParser(settings, webhookService, templateEngine, clusterService.getClusterSettings())
         );
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(emailAttachmentParsers);
 
@@ -808,14 +808,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         if (manuallyStopped == false) {
             WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
             serviceRequest.stop();
-            originClient.execute(
-                WatcherServiceAction.INSTANCE,
-                serviceRequest,
-                ActionListener.wrap(
-                    (response) -> { listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped)); },
-                    listener::onFailure
-                )
-            );
+            originClient.execute(WatcherServiceAction.INSTANCE, serviceRequest, ActionListener.wrap((response) -> {
+                listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped));
+            }, listener::onFailure));
         } else {
             // If Watcher is manually stopped, we don't want to stop it AGAIN, so just call the listener.
             listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped));
@@ -834,11 +829,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         if (manuallyStopped == false) {
             WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
             serviceRequest.start();
-            originClient.execute(
-                WatcherServiceAction.INSTANCE,
-                serviceRequest,
-                ActionListener.wrap((response) -> { listener.onResponse(response.isAcknowledged()); }, listener::onFailure)
-            );
+            originClient.execute(WatcherServiceAction.INSTANCE, serviceRequest, ActionListener.wrap((response) -> {
+                listener.onResponse(response.isAcknowledged());
+            }, listener::onFailure));
         } else {
             // Watcher was manually stopped before we got there, don't start it.
             listener.onResponse(true);

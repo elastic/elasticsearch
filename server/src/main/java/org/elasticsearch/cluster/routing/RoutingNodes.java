@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -43,6 +42,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
@@ -546,12 +547,10 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         Logger logger,
         ShardRouting failedShard,
         UnassignedInfo unassignedInfo,
-        IndexMetadata indexMetadata,
         RoutingChangesObserver routingChangesObserver
     ) {
         ensureMutable();
         assert failedShard.assignedToNode() : "only assigned shards can be failed";
-        assert indexMetadata.getIndex().equals(failedShard.index()) : "shard failed for unknown index (shard entry: " + failedShard + ")";
         assert getByAllocationId(failedShard.shardId(), failedShard.allocationId().getId()) == failedShard
             : "shard routing to fail does not exist in routing table, expected: "
                 + failedShard
@@ -582,7 +581,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                             Collections.emptySet(),
                             routing.currentNodeId()
                         );
-                        failShard(logger, replicaShard, primaryFailedUnassignedInfo, indexMetadata, routingChangesObserver);
+                        failShard(logger, replicaShard, primaryFailedUnassignedInfo, routingChangesObserver);
                     }
                 }
             }
@@ -967,6 +966,10 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         @Override
         public UnassignedIterator iterator() {
             return new UnassignedIterator();
+        }
+
+        public Stream<ShardRouting> stream() {
+            return StreamSupport.stream(spliterator(), false);
         }
 
         /**

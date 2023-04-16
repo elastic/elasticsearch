@@ -75,14 +75,16 @@ public class JoinHelperTests extends ESTestCase {
             new NoOpClusterApplier(),
             transportService,
             () -> 0L,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
+            (joinRequest, joinCallback) -> {
+                throw new AssertionError();
+            },
             startJoinRequest -> { throw new AssertionError(); },
             (s, p, r) -> {},
             () -> new StatusInfo(HEALTHY, "info"),
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener) -> listener.onResponse(null)
+            (listener, term) -> listener.onResponse(null)
         );
         transportService.start();
 
@@ -239,14 +241,16 @@ public class JoinHelperTests extends ESTestCase {
             new NoOpClusterApplier(),
             transportService,
             () -> 0L,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
+            (joinRequest, joinCallback) -> {
+                throw new AssertionError();
+            },
             startJoinRequest -> { throw new AssertionError(); },
             (s, p, r) -> {},
             nodeHealthServiceStatus::get,
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener) -> listener.onResponse(null)
+            (listener, term) -> listener.onResponse(null)
         );
         transportService.start();
 

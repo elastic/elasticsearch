@@ -37,10 +37,10 @@ import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
+import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 
 public class TransportExplainLifecycleAction extends TransportClusterInfoAction<ExplainLifecycleRequest, ExplainLifecycleResponse> {
 
@@ -79,7 +79,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         ClusterState state,
         ActionListener<ExplainLifecycleResponse> listener
     ) {
-        Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
+        Map<String, IndexLifecycleExplainResponse> indexResponses = new TreeMap<>();
         for (String index : concreteIndices) {
             IndexMetadata idxMetadata = state.metadata().index(index);
             final IndexLifecycleExplainResponse indexResponse;

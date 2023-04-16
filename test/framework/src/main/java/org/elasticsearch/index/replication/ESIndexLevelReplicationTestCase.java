@@ -195,7 +195,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             (_shardId, primaryAllocationId, primaryTerm, retentionLeases) -> syncRetentionLeases(
                 _shardId,
                 retentionLeases,
-                ActionListener.wrap(r -> {}, e -> { throw new AssertionError("failed to background sync retention lease", e); })
+                ActionListener.wrap(r -> {}, e -> {
+                    throw new AssertionError("failed to background sync retention lease", e);
+                })
             )
         );
 

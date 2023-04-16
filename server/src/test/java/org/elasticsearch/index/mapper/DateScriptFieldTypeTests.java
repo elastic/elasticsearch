@@ -448,7 +448,9 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         // Check that we don't allow the use of camel case date formats on 8.x indices
         assertEquals(
             "Failed to parse mapping: Invalid format: [strictDateOptionalTime]: Unknown pattern letter: t",
-            expectThrows(MapperParsingException.class, () -> { createMapperService(mapping.get()); }).getMessage()
+            expectThrows(MapperParsingException.class, () -> {
+                createMapperService(mapping.get());
+            }).getMessage()
         );
     }
 

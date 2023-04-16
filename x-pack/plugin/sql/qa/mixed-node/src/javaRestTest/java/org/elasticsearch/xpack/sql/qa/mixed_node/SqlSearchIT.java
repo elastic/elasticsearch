@@ -57,7 +57,7 @@ public class SqlSearchIT extends ESRestTestCase {
         numDocs = randomIntBetween(numShards, 15);
         newNodes = new ArrayList<>(nodes.getNewNodes());
         bwcNodes = new ArrayList<>(nodes.getBWCNodes());
-        bwcVersion = nodes.getBWCNodes().get(0).getVersion();
+        bwcVersion = nodes.getBWCNodes().get(0).version();
 
         String mappings = readResource(SqlSearchIT.class.getResourceAsStream("/all_field_types.json"));
         createIndex(
@@ -229,10 +229,7 @@ public class SqlSearchIT extends ESRestTestCase {
 
     private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList) throws Exception {
         try (
-            RestClient client = buildClient(
-                restClientSettings(),
-                nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
-            )
+            RestClient client = buildClient(restClientSettings(), nodesList.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
         ) {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> columns = (List<Map<String, Object>>) expectedResponse.get("columns");
@@ -250,7 +247,7 @@ public class SqlSearchIT extends ESRestTestCase {
             String query = "SELECT " + intervalYearMonth + intervalDayTime + fieldsList + " FROM " + index + " ORDER BY id";
 
             Request request = new Request("POST", "_sql");
-            request.setJsonEntity(SqlCompatIT.sqlQueryEntityWithOptionalMode(query, bwcVersion));
+            request.setJsonEntity(SqlCompatIT.sqlQueryEntityWithOptionalMode(query));
             assertBusy(() -> { assertResponse(expectedResponse, dropDisplaySizes(runSql(client, request))); });
         }
     }

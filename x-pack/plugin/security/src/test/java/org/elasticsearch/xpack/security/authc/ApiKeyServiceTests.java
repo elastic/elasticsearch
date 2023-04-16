@@ -616,7 +616,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final AuthenticationResult<User> auth = tryAuthenticate(service, id, wrongKey);
         assertThat(auth.getStatus(), is(AuthenticationResult.Status.CONTINUE));
         assertThat(auth.getValue(), nullValue());
-        assertThat(auth.getMessage(), containsString("invalid credentials"));
+        assertThat(auth.getMessage(), containsString("invalid credentials for API key [" + id + "]"));
     }
 
     public void testAuthenticationFailureWithExpiredKey() throws Exception {
@@ -659,7 +659,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             AuthenticationResult<User> auth = tryAuthenticate(service, id, wrongKey);
             assertThat(auth.getStatus(), is(AuthenticationResult.Status.CONTINUE));
             assertThat(auth.getValue(), nullValue());
-            assertThat(auth.getMessage(), containsString("invalid credentials"));
+            assertThat(auth.getMessage(), containsString("invalid credentials for API key [" + id + "]"));
 
             auth = tryAuthenticate(service, id, realKey);
             assertThat(auth.getStatus(), is(AuthenticationResult.Status.SUCCESS));

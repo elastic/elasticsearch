@@ -369,8 +369,15 @@ public abstract class SearchContext implements Releasable {
      */
     public abstract long getRelativeTimeInMillis();
 
-    /** Return a view of the additional query collectors that should be run for this context. */
-    public abstract Map<Class<?>, Collector> queryCollectors();
+    /**
+     * Registers the collector to be run for the aggregations phase
+     */
+    public abstract void registerAggsCollector(Collector collector);
+
+    /**
+     * Returns the collector to be run for the aggregations phase
+     */
+    public abstract Collector getAggsCollector();
 
     public abstract SearchExecutionContext getSearchExecutionContext();
 

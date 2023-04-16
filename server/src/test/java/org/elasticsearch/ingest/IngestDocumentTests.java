@@ -1033,10 +1033,41 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testCopyConstructor() {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        IngestDocument copy = new IngestDocument(ingestDocument);
-        assertThat(ingestDocument.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
-        assertIngestDocument(ingestDocument, copy);
+        {
+            // generic test with a random document and copy
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            IngestDocument copy = new IngestDocument(ingestDocument);
+
+            // these fields should not be the same instance
+            assertThat(ingestDocument.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
+            assertThat(ingestDocument.getCtxMap(), not(sameInstance(copy.getCtxMap())));
+            assertThat(ingestDocument.getCtxMap().getMetadata(), not(sameInstance(copy.getCtxMap().getMetadata())));
+
+            // but the two objects should be very much equal to each other
+            assertIngestDocument(ingestDocument, copy);
+        }
+
+        {
+            // manually punch in a few values
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            ingestDocument.setFieldValue("_index", "foo1");
+            ingestDocument.setFieldValue("_id", "bar1");
+            ingestDocument.setFieldValue("hello", "world1");
+            IngestDocument copy = new IngestDocument(ingestDocument);
+
+            // make sure the copy matches
+            assertIngestDocument(ingestDocument, copy);
+
+            // change the copy
+            copy.setFieldValue("_index", "foo2");
+            copy.setFieldValue("_id", "bar2");
+            copy.setFieldValue("hello", "world2");
+
+            // the original shouldn't have changed
+            assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("foo1"));
+            assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("bar1"));
+            assertThat(ingestDocument.getFieldValue("hello", String.class), equalTo("world1"));
+        }
     }
 
     public void testCopyConstructorWithZonedDateTime() {

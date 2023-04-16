@@ -1,0 +1,23 @@
+[[behavioral-analytics-apis]]
+== Behavioral Analytics APIs
+
+++++
+<titleabbrev>Behavioral Analytics APIs</titleabbrev>
+++++
+
+---
+
+Use the following APIs to manage tasks and resources related to Behavioral Analytics:
+
+* <<put-analytics-collection>>
+* <<delete-analytics-collection>>
+* <<list-analytics-collection>>
+
+Use the following API to ingest events into an Analytics collection:
+
+* <<post-analytics-collection-event>>
+
+include::put-analytics-collection.asciidoc[]
+include::delete-analytics-collection.asciidoc[]
+include::list-analytics-collection.asciidoc[]
+include::post-analytics-collection-event.asciidoc[]

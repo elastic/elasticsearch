@@ -196,6 +196,7 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -213,6 +214,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class InternalEngineTests extends EngineTestCase {
+
+    /**
+     * When this value is non-null, {@link #relativeTimeInNanos()} reads from it instead of calling System#nanoTime().
+     */
+    private AtomicLong relativeTimeInNanosOverride;
+
+    @Override
+    protected long relativeTimeInNanos() {
+        if (relativeTimeInNanosOverride != null) {
+            return relativeTimeInNanosOverride.get();
+        }
+        return super.relativeTimeInNanos();
+    }
 
     public void testVersionMapAfterAutoIDDocument() throws IOException {
         engine.refresh("warm_up");
@@ -2528,7 +2542,7 @@ public class InternalEngineTests extends EngineTestCase {
         private final List<String> messages = Collections.synchronizedList(new ArrayList<>());
 
         List<String> messages() {
-            return messages;
+            return List.copyOf(messages);
         }
 
         MockMTAppender(final String name) throws IllegalAccessException {
@@ -5783,7 +5797,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testShouldPeriodicallyFlush() throws Exception {
+    public void testShouldPeriodicallyFlushOnSize() throws Exception {
         assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
         // A new engine may have more than one empty translog files - the test should account this extra.
         final Translog translog = engine.getTranslog();
@@ -5844,6 +5858,21 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
                 assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
             }
+        }
+    }
+
+    public void testShouldPeriodicallyFlushOnAge() throws Exception {
+        try {
+            relativeTimeInNanosOverride = new AtomicLong(relativeTimeInNanos());
+            assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
+            relativeTimeInNanosOverride.addAndGet(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING.get(Settings.EMPTY).nanos() + 1);
+            assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
+            engine.flush();
+            assertThat("An engine that just flushed on age doesn't need flushing again", engine.shouldPeriodicallyFlush(), equalTo(false));
+            relativeTimeInNanosOverride.addAndGet(1);
+            assertThat("An engine that just flushed on age doesn't need flushing again", engine.shouldPeriodicallyFlush(), equalTo(false));
+        } finally {
+            relativeTimeInNanosOverride = null;
         }
     }
 
@@ -7371,6 +7400,25 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(userData.get(ES_VERSION), is(equalTo(Version.CURRENT.toString())));
             }
         }
+    }
+
+    public void testExtraUserDataIsCommitted() throws IOException {
+        engine.close();
+        engine = new InternalEngine(engine.config()) {
+            @Override
+            protected Map<String, String> getCommitExtraUserData() {
+                return Map.of("userkey", "userdata", ES_VERSION, Version.V_EMPTY.toString());
+            }
+        };
+        engine.skipTranslogRecovery();
+
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+        engine.index(indexForDoc(doc));
+        engine.flush();
+
+        Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+        assertThat(userData, hasEntry("userkey", "userdata"));
+        assertThat(userData, hasEntry(ES_VERSION, Version.CURRENT.toString()));
     }
 
     public void testTrimUnsafeCommitHasESVersionInUserData() throws IOException {

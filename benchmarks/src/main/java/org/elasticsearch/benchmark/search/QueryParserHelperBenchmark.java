@@ -9,7 +9,6 @@
 package org.elasticsearch.benchmark.search;
 
 import org.apache.logging.log4j.util.Strings;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -17,19 +16,18 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -172,17 +170,16 @@ public class QueryParserHelperBenchmark {
 
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         MapperService mapperService = new MapperService(
+            () -> TransportVersion.CURRENT,
             indexSettings,
-            new IndexAnalyzers(
-                Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-                Map.of(),
-                Map.of()
-            ),
+            (type, name) -> Lucene.STANDARD_ANALYZER,
             XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(ClusterModule.getNamedXWriteables()))
                 .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
             similarityService,
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             new ProvidedIdFieldMapper(() -> true),
             new ScriptCompiler() {
                 @Override

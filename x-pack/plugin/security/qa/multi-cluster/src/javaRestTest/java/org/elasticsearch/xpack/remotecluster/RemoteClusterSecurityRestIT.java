@@ -7,16 +7,19 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
+import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -27,6 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -41,6 +45,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
+    private static final AtomicBoolean SSL_ENABLED_REF = new AtomicBoolean();
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
@@ -49,26 +54,33 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             .apply(commonClusterConfig)
             .setting("remote_cluster_server.enabled", "true")
             .setting("remote_cluster.port", "0")
-            .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
+            .setting("xpack.security.remote_cluster_server.ssl.enabled", String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
+            .setting("xpack.security.authc.token.enabled", "true")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
             .build();
 
         queryCluster = ElasticsearchCluster.local()
             .name("query-cluster")
             .apply(commonClusterConfig)
-            .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
+            .setting("xpack.security.remote_cluster_client.ssl.enabled", String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
+            .setting("xpack.security.authc.token.enabled", "true")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
-                        [
-                          {
-                             "names": ["index*", "not_found_index", "shared-metrics"],
-                             "privileges": ["read", "read_cross_cluster"]
+                        {
+                          "role": {
+                            "cluster": ["cross_cluster_access"],
+                            "index": [
+                                {
+                                    "names": ["index*", "not_found_index", "shared-metrics"],
+                                    "privileges": ["read", "read_cross_cluster"]
+                                }
+                            ]
                           }
-                        ]""");
+                        }""");
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
                 return (String) API_KEY_MAP_REF.get().get("encoded");
@@ -82,10 +94,14 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
 
     @ClassRule
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
-    public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
+    // `SSL_ENABLED_REF` is used to control the SSL-enabled setting on the test clusters
+    // We set it here, since randomization methods are not available in the static initialize context above
+    public static TestRule clusterRule = RuleChain.outerRule(new RunnableTestRuleAdapter(() -> SSL_ENABLED_REF.set(usually())))
+        .around(fulfillingCluster)
+        .around(queryCluster);
 
     public void testCrossClusterSearch() throws Exception {
-        configureRemoteClusters();
+        configureRemoteCluster();
         final String crossClusterAccessApiKeyId = (String) API_KEY_MAP_REF.get().get("id");
 
         // Fulfilling cluster
@@ -309,18 +325,41 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(REMOTE_SEARCH_USER, PASS)));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_SEARCH_USER, PASS))
+        );
         return client().performRequest(request);
     }
 
     private Response performRequestWithRemoteMetricUser(final Request request) throws IOException {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(REMOTE_METRIC_USER, PASS)));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_METRIC_USER, PASS))
+        );
         return client().performRequest(request);
     }
 
     private Response performRequestWithLocalSearchUser(final Request request) throws IOException {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue("local_search_user", PASS)));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod("local_search_user", PASS))
+        );
         return client().performRequest(request);
     }
 
+    private String headerFromRandomAuthMethod(final String username, final SecureString password) throws IOException {
+        final boolean useBearerTokenAuth = randomBoolean();
+        if (useBearerTokenAuth) {
+            final Request request = new Request(HttpPost.METHOD_NAME, "/_security/oauth2/token");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {
+                  "grant_type":"password",
+                  "username":"%s",
+                  "password":"%s"
+                }
+                """, username, password));
+            final Map<String, Object> responseBody = entityAsMap(adminClient().performRequest(request));
+            return "Bearer " + responseBody.get("access_token");
+        } else {
+            return basicAuthHeaderValue(username, password);
+        }
+    }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -111,6 +112,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
+        Map<String, TransportVersion> transportVersions = new HashMap<>(newState.transportVersions());
 
         assert nodesBuilder.isLocalNodeElectedMaster();
 
@@ -129,14 +131,17 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     logger.debug("received a join request for an existing node [{}]", node);
                 } else {
                     try {
+                        TransportVersion transportVersion = nodeJoinTask.transportVersion();
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
+                            ensureTransportVersionBarrier(transportVersion, transportVersions.values());
                         }
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
                         ensureIndexCompatibility(node.getVersion(), initialState.getMetadata());
                         nodesBuilder.add(node);
+                        transportVersions.put(node.getId(), transportVersion);
                         nodesChanged = true;
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
@@ -207,7 +212,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             }
 
             final ClusterState clusterStateWithNewNodesAndDesiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(
-                newState.nodes(nodesBuilder).build()
+                newState.nodes(nodesBuilder).transportVersions(transportVersions).build()
             );
             final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(clusterStateWithNewNodesAndDesiredNodes);
             assert enforceVersionBarrier == false
@@ -246,6 +251,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         assert currentState.term() < term : term + " vs " + currentState;
         DiscoveryNodes currentNodes = currentState.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
+        Map<String, TransportVersion> transportVersions = new HashMap<>(currentState.transportVersions());
         nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
 
         for (final var taskContext : taskContexts) {
@@ -254,6 +260,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
                     logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
                     nodesBuilder.remove(nodeWithSameId.getId());
+                    transportVersions.remove(nodeWithSameId.getId());
                 }
                 final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());
                 if (nodeWithSameAddress != null && nodeWithSameAddress.equals(joiningNode) == false) {
@@ -263,6 +270,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         joiningNode
                     );
                     nodesBuilder.remove(nodeWithSameAddress.getId());
+                    transportVersions.remove(nodeWithSameAddress.getId());
                 }
             }
         }
@@ -271,6 +279,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         // or removed by us above
         ClusterState tmpState = ClusterState.builder(currentState)
             .nodes(nodesBuilder)
+            .transportVersions(transportVersions)
             .blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
             .metadata(
                 Metadata.builder(currentState.metadata())
@@ -354,6 +363,28 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     + "The cluster contains nodes with version ["
                     + minClusterNodeVersion
                     + "], which is incompatible."
+            );
+        }
+    }
+
+    /**
+     * ensures that the joining node's transport version is equal or higher to the minClusterTransportVersion. This is needed
+     * to ensure that the minimum transport version of the cluster doesn't go backwards.
+     **/
+    static void ensureTransportVersionBarrier(
+        TransportVersion joiningTransportVersion,
+        Collection<TransportVersion> existingTransportVersions
+    ) {
+        TransportVersion minClusterTransportVersion = existingTransportVersions.stream()
+            .min(Comparator.naturalOrder())
+            .orElse(TransportVersion.CURRENT);
+        if (joiningTransportVersion.before(minClusterTransportVersion)) {
+            throw new IllegalStateException(
+                "node with transport version ["
+                    + joiningTransportVersion
+                    + "] may not join a cluster with minimum transport version ["
+                    + minClusterTransportVersion
+                    + "]"
             );
         }
     }

@@ -38,7 +38,7 @@ patterns. Legacy Grok patterns are not supported.
 | `pattern_definitions`  | no        | -                   | A map of pattern-name and pattern tuples defining custom patterns to be used by the processor. Patterns matching existing names will override the pre-existing definition
 | `prefix`               | no        | <                   | Start a redacted section with this token
 | `suffix`               | no        | >                   | End a redacted section with this token
-| `ignore_missing`       | no        | false               | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+| `ignore_missing`       | no        | `true`              | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 include::common-options.asciidoc[]
 |======
 

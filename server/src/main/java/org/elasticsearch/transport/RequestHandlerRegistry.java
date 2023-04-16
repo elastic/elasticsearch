@@ -21,7 +21,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.core.Releasables.assertOnce;
 
-public class RequestHandlerRegistry<Request extends TransportRequest> {
+public class RequestHandlerRegistry<Request extends TransportRequest> implements ResponseStatsConsumer {
 
     private final String action;
     private final TransportRequestHandler<Request> handler;
@@ -31,6 +31,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     private final TaskManager taskManager;
     private final Tracer tracer;
     private final Writeable.Reader<Request> requestReader;
+    private final TransportActionStatsTracker statsTracker = new TransportActionStatsTracker();
 
     public RequestHandlerRegistry(
         String action,
@@ -64,9 +65,9 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         final Task task = taskManager.register(channel.getChannelType(), action, request);
         Releasable unregisterTask = () -> taskManager.unregister(task);
         try {
-            if (channel instanceof TcpTransportChannel && task instanceof CancellableTask) {
-                final TcpChannel tcpChannel = ((TcpTransportChannel) channel).getChannel();
-                final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (CancellableTask) task);
+            if (channel instanceof TcpTransportChannel tcpTransportChannel && task instanceof CancellableTask cancellableTask) {
+                final TcpChannel tcpChannel = tcpTransportChannel.getChannel();
+                final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, cancellableTask);
                 unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
             final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(task.getId(), channel, assertOnce(unregisterTask));
@@ -112,5 +113,18 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
             registry.canTripCircuitBreaker,
             registry.tracer
         );
+    }
+
+    public void addRequestStats(int messageSize) {
+        statsTracker.addRequestStats(messageSize);
+    }
+
+    @Override
+    public void addResponseStats(int messageSize) {
+        statsTracker.addResponseStats(messageSize);
+    }
+
+    public TransportActionStats getStats() {
+        return statsTracker.getStats();
     }
 }

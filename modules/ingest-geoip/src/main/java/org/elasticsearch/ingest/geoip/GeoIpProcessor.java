@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -388,7 +387,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
-        static final Set<Property> DEFAULT_CITY_PROPERTIES = Collections.unmodifiableSet(
+        static final Set<Property> DEFAULT_CITY_PROPERTIES = Set.copyOf(
             EnumSet.of(
                 Property.CONTINENT_NAME,
                 Property.COUNTRY_NAME,
@@ -399,10 +398,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 Property.LOCATION
             )
         );
-        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = Collections.unmodifiableSet(
+        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = Set.copyOf(
             EnumSet.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
         );
-        static final Set<Property> DEFAULT_ASN_PROPERTIES = Collections.unmodifiableSet(
+        static final Set<Property> DEFAULT_ASN_PROPERTIES = Set.copyOf(
             EnumSet.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
         );
 
@@ -455,7 +454,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                         throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
                     }
                 }
-                properties = Collections.unmodifiableSet(modifiableProperties);
+                properties = Set.copyOf(modifiableProperties);
             } else {
                 if (databaseType.endsWith(CITY_DB_SUFFIX)) {
                     properties = DEFAULT_CITY_PROPERTIES;

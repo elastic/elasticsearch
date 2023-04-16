@@ -949,11 +949,11 @@ public final class IngestDocument {
             String newPath;
             if (path.startsWith(INGEST_KEY_PREFIX)) {
                 initialContext = ingestMetadata;
-                newPath = path.substring(INGEST_KEY_PREFIX.length(), path.length());
+                newPath = path.substring(INGEST_KEY_PREFIX.length());
             } else {
                 initialContext = ctxMap;
                 if (path.startsWith(SOURCE_PREFIX)) {
-                    newPath = path.substring(SOURCE_PREFIX.length(), path.length());
+                    newPath = path.substring(SOURCE_PREFIX.length());
                 } else {
                     newPath = path;
                 }

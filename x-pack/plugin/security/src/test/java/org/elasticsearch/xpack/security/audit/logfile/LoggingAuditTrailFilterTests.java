@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
+import io.netty.channel.Channel;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
@@ -3009,7 +3011,9 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                 remoteAddress(buildNewFakeTransportAddress().address());
             }
             if (randomBoolean()) {
-                RemoteHostHeader.putRestRemoteAddress(threadContext, new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));
+                Channel mockChannel = mock(Channel.class);
+                when(mockChannel.remoteAddress()).thenReturn(new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));
+                RemoteHostHeader.process(mockChannel, threadContext);
             }
         }
 

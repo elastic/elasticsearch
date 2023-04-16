@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.rest;
 import io.netty.channel.Channel;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.HttpChannel;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -26,14 +25,9 @@ public class RemoteHostHeader {
         threadContext.putTransient(KEY, channel.remoteAddress());
     }
 
-    // for tests only
-    public static void process(HttpChannel channel, ThreadContext threadContext) {
-        threadContext.putTransient(KEY, channel.getRemoteAddress());
-    }
-
     /**
-     * Extracts the rest remote address from the message context. If not found, returns {@code null}. transport
-     * messages that were created by rest handlers, should have this in their context.
+     * Extracts the rest remote address from the message context. If not found, returns {@code null}.
+     * Transport messages that were created by rest handlers should have this in their context.
      */
     public static InetSocketAddress restRemoteAddress(ThreadContext threadContext) {
         SocketAddress address = threadContext.getTransient(KEY);
@@ -41,9 +35,5 @@ public class RemoteHostHeader {
             return (InetSocketAddress) address;
         }
         return null;
-    }
-
-    public static void putRestRemoteAddress(ThreadContext threadContext, SocketAddress address) {
-        threadContext.putTransient(KEY, address);
     }
 }

@@ -40,8 +40,8 @@ public final class RemoveProcessor extends AbstractProcessor {
         boolean ignoreMissing
     ) {
         super(tag, description);
-        this.fieldsToRemove = new ArrayList<>(fieldsToRemove);
-        this.fieldsToKeep = new ArrayList<>(fieldsToKeep);
+        this.fieldsToRemove = List.copyOf(fieldsToRemove);
+        this.fieldsToKeep = List.copyOf(fieldsToKeep);
         this.ignoreMissing = ignoreMissing;
     }
 

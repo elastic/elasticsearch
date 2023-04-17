@@ -463,8 +463,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         Exception ex = expectThrows(IllegalArgumentException.class, () -> mapper.documentMapper().validate(settings, false));
         assertEquals(
             "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                + " or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                + " without the [script] parameter. [field.key3] was [flattened].",
+                + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                + "without the [script] parameter. [field.key3] was [flattened].",
             ex.getMessage()
         );
     }

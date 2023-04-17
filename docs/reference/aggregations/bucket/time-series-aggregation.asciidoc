@@ -1,11 +1,10 @@
 [[search-aggregations-bucket-time-series-aggregation]]
-=== Time Series Aggregation
+=== Time series aggregation
+++++
+<titleabbrev>Time series</titleabbrev>
+++++
 
 preview::[]
-
-++++
-<titleabbrev>Time Series</titleabbrev>
-++++
 
 The time series aggregation queries data created using a time series index. This is typically data such as metrics
 or other data streams with a time component, and requires creating an index using the time series mode.
@@ -101,3 +100,4 @@ further. Alternatively, using sub aggregations can limit the amount of values re
 The `keyed` parameter determines if buckets are returned as a map with unique keys per bucket. By default with `keyed`
 set to false, buckets are returned as an array.
 
+//////////////////////////

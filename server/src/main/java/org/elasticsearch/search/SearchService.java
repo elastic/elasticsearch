@@ -622,6 +622,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         executor.execute(ActionRunnable.supply(listener, executable::get));
     }
 
+    /**
+     * The returned {@link SearchPhaseResult} will have had its ref count incremented by this method.
+     * It is the responsibility of the caller to ensure that the ref count is correctly decremented
+     * when the object is no longer needed.
+     */
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchShardTask task) throws Exception {
         final ReaderContext readerContext = createOrGetReaderContext(request);
         try (
@@ -643,7 +648,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.numberOfShards() == 1) {
                 // we already have query results, but we can run fetch at the same time
                 context.addFetchResult();
-                // This will return a QueryFetchSearchResult, which incRef's the QuerySearchResult it holds
                 return executeFetchPhase(readerContext, context, afterQueryTime);
             } else {
                 // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
@@ -651,8 +655,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
-                // Since we are returning the raw QuerySearchResult here, there's no opportunity for the object that will be holding that
-                // reference to incRef it before our try block closes and decRef's it when it closes the search context
                 context.queryResult().incRef();
                 return context.queryResult();
             }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
@@ -50,7 +49,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -63,9 +61,6 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests that we expose a reasonable task status.
  */
-// TODO: make sure cancellation work across multiple nodes
-@ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false) // ESQL is single node
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-internal/issues/974")
 public class EsqlActionTaskIT extends ESIntegTestCase {
     private static final int COUNT = LuceneSourceOperator.PAGE_SIZE * 5;
 
@@ -160,24 +155,25 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
 
     public void testCancelRead() throws Exception {
         ActionFuture<EsqlQueryResponse> response = startEsql();
+        start.await();
         List<TaskInfo> infos = getTasksStarting();
         TaskInfo running = infos.stream().filter(t -> t.description().equals(READ_DESCRIPTION)).findFirst().get();
         cancelTask(running.taskId());
-        start.await();
         assertCancelled(response);
     }
 
     public void testCancelMerge() throws Exception {
         ActionFuture<EsqlQueryResponse> response = startEsql();
+        start.await();
         List<TaskInfo> infos = getTasksStarting();
         TaskInfo running = infos.stream().filter(t -> t.description().equals(MERGE_DESCRIPTION)).findFirst().get();
         cancelTask(running.taskId());
-        start.await();
         assertCancelled(response);
     }
 
     public void testCancelEsqlTask() throws Exception {
         ActionFuture<EsqlQueryResponse> response = startEsql();
+        start.await();
         getTasksStarting();
         List<TaskInfo> tasks = client().admin()
             .cluster()
@@ -187,7 +183,6 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
             .get()
             .getTasks();
         cancelTask(tasks.get(0).taskId());
-        start.await();
         assertCancelled(response);
     }
 

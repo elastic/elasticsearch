@@ -17,6 +17,7 @@ import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Holds the pragmas for an ESQL query. Just a wrapper of settings for now.
@@ -70,5 +71,18 @@ public final class QueryPragmas implements Writeable {
 
     public boolean isEmpty() {
         return settings.isEmpty();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        QueryPragmas pragmas = (QueryPragmas) o;
+        return settings.equals(pragmas.settings);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(settings);
     }
 }

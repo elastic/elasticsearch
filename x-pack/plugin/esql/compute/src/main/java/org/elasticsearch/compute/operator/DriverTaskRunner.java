@@ -98,6 +98,10 @@ public class DriverTaskRunner {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            if (parentTaskId.isSet() == false) {
+                assert false : "DriverRequest must have a parent task";
+                throw new IllegalStateException("DriverRequest must have a parent task");
+            }
             return new CancellableTask(id, type, action, "", parentTaskId, headers) {
                 @Override
                 protected void onCancelled() {

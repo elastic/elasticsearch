@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -41,18 +39,13 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -69,6 +62,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Computes the result of a {@link PhysicalPlan}.
@@ -133,9 +127,17 @@ public class ComputeService {
             outListener.map(unused -> collectedPages),
             () -> exchangeService.completeSourceHandler(sessionId)
         );
+        final AtomicBoolean cancelled = new AtomicBoolean();
         try (RefCountingListener refs = new RefCountingListener(listener)) {
             // run compute on the coordinator
-            runCompute(sessionId, rootTask, planForCoordinator, List.of(), queryPragmas, cancelOnFailure(rootTask, refs.acquire()));
+            runCompute(
+                sessionId,
+                rootTask,
+                planForCoordinator,
+                List.of(),
+                queryPragmas,
+                cancelOnFailure(rootTask, cancelled, refs.acquire())
+            );
             // link with exchange sinks
             for (String targetNode : targetNodes.keySet()) {
                 final var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, clusterState.nodes().get(targetNode));
@@ -151,7 +153,7 @@ public class ComputeService {
                     rootTask,
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<TransportResponse>(
-                        cancelOnFailure(rootTask, refs.acquire()).map(unused -> null),
+                        cancelOnFailure(rootTask, cancelled, refs.acquire()).map(unused -> null),
                         DataNodeResponse::new
                     )
                 );
@@ -159,10 +161,13 @@ public class ComputeService {
         }
     }
 
-    private ActionListener<Void> cancelOnFailure(CancellableTask task, ActionListener<Void> listener) {
+    private ActionListener<Void> cancelOnFailure(CancellableTask task, AtomicBoolean cancelled, ActionListener<Void> listener) {
         return listener.delegateResponse((l, e) -> {
             l.onFailure(e);
-            transportService.getTaskManager().cancelTaskAndDescendants(task, "cancelled", false, ActionListener.noop());
+            if (cancelled.compareAndSet(false, true)) {
+                LOGGER.debug("cancelling ESQL task {} on failure", task);
+                transportService.getTaskManager().cancelTaskAndDescendants(task, "cancelled", false, ActionListener.noop());
+            }
         });
     }
 
@@ -271,61 +276,6 @@ public class ComputeService {
         return exchange.get();
     }
 
-    private static class DataNodeRequest extends TransportRequest implements IndicesRequest {
-        private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
-        private final String sessionId;
-        private final QueryPragmas pragmas;
-        private final List<ShardId> shardIds;
-        private final PhysicalPlan plan;
-
-        private String[] indices; // lazily computed
-
-        DataNodeRequest(String sessionId, QueryPragmas pragmas, List<ShardId> shardIds, PhysicalPlan plan) {
-            this.sessionId = sessionId;
-            this.pragmas = pragmas;
-            this.shardIds = shardIds;
-            this.plan = plan;
-        }
-
-        DataNodeRequest(StreamInput in) throws IOException {
-            this.sessionId = in.readString();
-            this.pragmas = new QueryPragmas(in);
-            this.shardIds = in.readList(ShardId::new);
-            this.plan = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry()).readPhysicalPlanNode();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(sessionId);
-            pragmas.writeTo(out);
-            out.writeList(shardIds);
-            new PlanStreamOutput(out, planNameRegistry).writePhysicalPlanNode(plan);
-        }
-
-        @Override
-        public String[] indices() {
-            if (indices == null) {
-                indices = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
-            }
-            return indices;
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
-        }
-
-        @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "", parentTaskId, headers) {
-                @Override
-                public String getDescription() {
-                    return "shards=" + shardIds + " plan=" + plan;
-                }
-            };
-        }
-    }
-
     // TODO: To include stats/profiles
     private static class DataNodeResponse extends TransportResponse {
         DataNodeResponse() {}
@@ -346,20 +296,20 @@ public class ComputeService {
     private class DataNodeRequestHandler implements TransportRequestHandler<DataNodeRequest> {
         @Override
         public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
-            final var sessionId = request.sessionId;
+            final var sessionId = request.sessionId();
             var listener = new ChannelActionListener<DataNodeResponse>(channel);
-            acquireSearchContexts(request.shardIds, ActionListener.wrap(searchContexts -> {
+            acquireSearchContexts(request.shardIds(), ActionListener.wrap(searchContexts -> {
                 Releasable releasable = () -> Releasables.close(
                     () -> Releasables.close(searchContexts),
                     () -> exchangeService.completeSinkHandler(sessionId)
                 );
-                exchangeService.createSinkHandler(sessionId, request.pragmas.exchangeBufferSize());
+                exchangeService.createSinkHandler(sessionId, request.pragmas().exchangeBufferSize());
                 runCompute(
                     sessionId,
                     task,
-                    request.plan,
+                    request.plan(),
                     searchContexts,
-                    request.pragmas,
+                    request.pragmas(),
                     ActionListener.releaseAfter(listener.map(unused -> new DataNodeResponse()), releasable)
                 );
             }, listener::onFailure));

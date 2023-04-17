@@ -70,6 +70,10 @@ public final class ExchangeRequest extends TransportRequest {
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        if (parentTaskId.isSet() == false) {
+            assert false : "ExchangeRequest must have a parent task";
+            throw new IllegalStateException("ExchangeRequest must have a parent task");
+        }
         return new CancellableTask(id, type, action, "", parentTaskId, headers) {
             @Override
             public String getDescription() {

@@ -338,7 +338,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
     ) {
         client.execute(
             LoadTrainedModelPackageAction.INSTANCE,
-            new LoadTrainedModelPackageAction.Request(modelId, modelPackageConfig, false),
+            new LoadTrainedModelPackageAction.Request(modelId, modelPackageConfig, waitForCompletion),
             ActionListener.wrap(ack -> {
                 if (waitForCompletion) {
                     listener.onResponse(null);

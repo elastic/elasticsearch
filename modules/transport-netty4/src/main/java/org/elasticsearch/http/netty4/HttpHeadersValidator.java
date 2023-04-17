@@ -14,7 +14,6 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpRequest;
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.TriConsumer;
@@ -30,6 +29,10 @@ import java.util.Objects;
 import static org.elasticsearch.http.netty4.Netty4HttpRequest.getHttpHeadersAsMap;
 import static org.elasticsearch.http.netty4.Netty4HttpRequest.translateRequestMethod;
 
+/**
+ * Provides utilities used to hook into the netty pipeline and run a validation check on each HTTP request's headers.
+ * See also {@link Netty4HttpHeaderValidator}.
+ */
 public class HttpHeadersValidator {
 
     /**
@@ -52,6 +55,11 @@ public class HttpHeadersValidator {
         this.validator = validator;
     }
 
+    /**
+     * Supplies a netty {@code ChannelInboundHandler} that runs the {@link #validator} on the HTTP request headers.
+     * The HTTP headers of the to be validated {@link HttpRequest} must be wrapped by the special {@link ValidatableHttpHeaders},
+     * see {@link #wrapAsValidatableMessage(HttpMessage)}.
+     */
     public Netty4HttpHeaderValidator getValidatorInboundHandler() {
         return new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
             if (httpRequest.headers() instanceof ValidatableHttpHeaders validatableHttpHeaders) {
@@ -68,6 +76,11 @@ public class HttpHeadersValidator {
         });
     }
 
+    /**
+     * Given a {@link DefaultHttpRequest} argument, this returns a new {@link DefaultHttpRequest} instance that's identical to the
+     * passed-in one, but the headers of the latter are "validatable", in the sense that the channel handlers returned by
+     * {@link #getValidatorInboundHandler()} can use to convey the validation result.
+     */
     public static HttpMessage wrapAsValidatableMessage(HttpMessage newlyDecodedMessage) {
         assert newlyDecodedMessage instanceof HttpRequest;
         DefaultHttpRequest httpRequest = (DefaultHttpRequest) newlyDecodedMessage;

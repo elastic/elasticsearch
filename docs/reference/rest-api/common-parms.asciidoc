@@ -195,6 +195,8 @@ end::dest-index[]
 
 tag::dest-aliases[]
 The aliases that the destination index for the {transform} should have.
+Aliases are manipulated using the stored credentials of the transform, which means the secondary credentials supplied
+at creation time (if both primary and secondary credentials are specified).
 
 The destination index is added to the aliases regardless whether the destination
 index was created by the transform or pre-created by the user.

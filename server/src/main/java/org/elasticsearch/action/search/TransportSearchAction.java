@@ -51,7 +51,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -1105,8 +1104,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     shardIterators.size(),
                     exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
                 );
-                AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction = switch (searchRequest.searchType()) {
-                    case DFS_QUERY_THEN_FETCH -> new SearchDfsQueryThenFetchAsyncAction(
+                if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
+                    return new SearchDfsQueryThenFetchAsyncAction(
                         logger,
                         searchTransportService,
                         connectionLookup,
@@ -1122,7 +1121,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         task,
                         clusters
                     );
-                    case QUERY_THEN_FETCH -> new SearchQueryThenFetchAsyncAction(
+                } else {
+                    assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
+                    return new SearchQueryThenFetchAsyncAction(
                         logger,
                         searchTransportService,
                         connectionLookup,
@@ -1138,8 +1139,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         task,
                         clusters
                     );
-                };
-                return searchAsyncAction;
+                }
             }
         }
     }

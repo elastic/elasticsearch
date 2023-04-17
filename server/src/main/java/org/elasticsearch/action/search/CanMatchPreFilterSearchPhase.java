@@ -136,11 +136,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
                 );
             }
         }
-        if (getNumShards() == 0) {
-            finishPhase();
-        } else {
-            runCoordinatorRewritePhase();
-        }
+        runCoordinatorRewritePhase();
     }
 
     // tries to pre-filter shards based on information that's available to the coordinator
@@ -177,11 +173,10 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
                 results.consumeResult(result, () -> {});
             }
         }
-
-        if (matchedShardLevelRequests.isEmpty() == false) {
-            new Round(new GroupShardsIterator<>(matchedShardLevelRequests)).run();
-        } else {
+        if (matchedShardLevelRequests.isEmpty()) {
             finishPhase();
+        } else {
+            new Round(new GroupShardsIterator<>(matchedShardLevelRequests)).run();
         }
     }
 
@@ -405,6 +400,10 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
 
     @Override
     public void start() {
+        if (getNumShards() == 0) {
+            finishPhase();
+            return;
+        }
         // Note that the search is failed when this task is rejected by the executor
         executor.execute(new AbstractRunnable() {
             @Override

@@ -125,7 +125,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
                 return;
             }
 
-            Optional<TrainedModelAssignment> maybeAssignment = TrainedModelAssignmentMetadata.assignmentForModelId(
+            Optional<TrainedModelAssignment> maybeAssignment = TrainedModelAssignmentMetadata.assignmentForDeploymentId(
                 clusterService.state(),
                 models.get(0).getModelId()
             );

@@ -1054,10 +1054,28 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 2, 3, 100, null, Priority.NORMAL)
+                        new StartTrainedModelDeploymentAction.TaskParams(
+                            "model1",
+                            "deployment_1",
+                            TEST_JOB_SIZE,
+                            2,
+                            3,
+                            100,
+                            null,
+                            Priority.NORMAL
+                        )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null, Priority.NORMAL)
+                        new StartTrainedModelDeploymentAction.TaskParams(
+                            "model1",
+                            "deployment_1",
+                            TEST_JOB_SIZE,
+                            1,
+                            1,
+                            100,
+                            null,
+                            Priority.NORMAL
+                        )
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2")
@@ -1067,10 +1085,28 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 3, 100, null, Priority.NORMAL)
+                        new StartTrainedModelDeploymentAction.TaskParams(
+                            "model1",
+                            "deployment_1",
+                            TEST_JOB_SIZE,
+                            1,
+                            3,
+                            100,
+                            null,
+                            Priority.NORMAL
+                        )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null, Priority.NORMAL)
+                        new StartTrainedModelDeploymentAction.TaskParams(
+                            "model1",
+                            "deployment_1",
+                            TEST_JOB_SIZE,
+                            1,
+                            1,
+                            100,
+                            null,
+                            Priority.NORMAL
+                        )
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2")
@@ -1080,10 +1116,28 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             MlMemoryAutoscalingDecider.modelAssignmentsRequireMoreThanHalfCpu(
                 List.of(
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 3, 100, null, Priority.NORMAL)
+                        new StartTrainedModelDeploymentAction.TaskParams(
+                            "model1",
+                            "deployment_1",
+                            TEST_JOB_SIZE,
+                            1,
+                            3,
+                            100,
+                            null,
+                            Priority.NORMAL
+                        )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
-                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null, Priority.NORMAL)
+                        new StartTrainedModelDeploymentAction.TaskParams(
+                            "model1",
+                            "deployment_1",
+                            TEST_JOB_SIZE,
+                            1,
+                            1,
+                            100,
+                            null,
+                            Priority.NORMAL
+                        )
                     ).build()
                 ),
                 withMlNodes("ml_node_1", "ml_node_2", "ml_node_3", "ml_node_4")

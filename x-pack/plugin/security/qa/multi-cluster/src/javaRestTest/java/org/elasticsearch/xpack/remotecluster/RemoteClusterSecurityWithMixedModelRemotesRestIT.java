@@ -43,12 +43,17 @@ public class RemoteClusterSecurityWithMixedModelRemotesRestIT extends AbstractRe
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
-                        [
-                          {
-                             "names": ["cluster1_index*"],
-                             "privileges": ["read", "read_cross_cluster"]
+                        {
+                          "role": {
+                            "cluster": ["cross_cluster_access"],
+                            "index": [
+                              {
+                                 "names": ["cluster1_index*"],
+                                 "privileges": ["read", "read_cross_cluster"]
+                              }
+                            ]
                           }
-                        ]""");
+                        }""");
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
                 return (String) API_KEY_MAP_REF.get().get("encoded");
@@ -110,8 +115,8 @@ public class RemoteClusterSecurityWithMixedModelRemotesRestIT extends AbstractRe
     }
 
     @Override
-    protected void configureRemoteClusters() throws Exception {
-        super.configureRemoteClusters();
+    protected void configureRemoteCluster() throws Exception {
+        super.configureRemoteCluster();
         configureRemoteCluster("my_remote_cluster_2", otherFulfillingCluster, true, randomBoolean(), randomBoolean());
     }
 }

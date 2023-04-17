@@ -166,6 +166,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP,
         DataTier.TIER_PREFERENCE_SETTING,
         IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
+        IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
+        IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

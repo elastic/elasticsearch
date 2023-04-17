@@ -69,9 +69,9 @@ public class TransportClearDeploymentCacheAction extends TransportTasksAction<Tr
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         final TrainedModelAssignmentMetadata assignment = TrainedModelAssignmentMetadata.fromState(clusterState);
-        TrainedModelAssignment trainedModelAssignment = assignment.getModelAssignment(request.getModelId());
+        TrainedModelAssignment trainedModelAssignment = assignment.getDeploymentAssignment(request.getDeploymentId());
         if (trainedModelAssignment == null) {
-            listener.onFailure(new ResourceNotFoundException("assignment for model with id [{}] not found", request.getModelId()));
+            listener.onFailure(new ResourceNotFoundException("assignment for model with id [{}] not found", request.getDeploymentId()));
             return;
         }
         String[] nodes = trainedModelAssignment.getNodeRoutingTable()

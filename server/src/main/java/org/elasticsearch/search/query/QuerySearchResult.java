@@ -67,7 +67,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     private final RefCounted refCounted;
 
-    private List<Releasable> toRelease;
+    private final List<Releasable> toRelease;
 
     public QuerySearchResult() {
         this(false);
@@ -94,6 +94,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             readFromWithId(id, in, delayedAggregations);
         }
         refCounted = null;
+        toRelease = null;
     }
 
     public QuerySearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -101,13 +102,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
         setSearchShardTarget(shardTarget);
         isNull = false;
         setShardSearchRequest(shardSearchRequest);
-        this.refCounted = AbstractRefCounted.of(this::releaseAggregationContext);
+        this.refCounted = AbstractRefCounted.of(this::close);
         this.toRelease = new ArrayList<>();
     }
 
     private QuerySearchResult(boolean isNull) {
         this.isNull = isNull;
         this.refCounted = null;
+        toRelease = null;
     }
 
     /**
@@ -233,7 +235,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
     }
 
-    public void releaseAggregationContext() {
+    private void close() {
         Releasables.close(toRelease);
     }
 

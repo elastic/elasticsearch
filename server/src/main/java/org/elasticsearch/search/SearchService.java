@@ -722,6 +722,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
+    /**
+     * The returned {@link SearchPhaseResult} will have had its ref count incremented by this method.
+     * It is the responsibility of the caller to ensure that the ref count is correctly decremented
+     * when the object is no longer needed.
+     */
     public void executeQueryPhase(QuerySearchRequest request, SearchShardTask task, ActionListener<QuerySearchResult> listener) {
         final ReaderContext readerContext = findReaderContext(request.contextId(), request.shardSearchRequest());
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
@@ -744,8 +749,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = searchContext.rescoreDocIds();
                 searchContext.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
-                // Since we are returning the raw QuerySearchResult here, there's no opportunity for the object that will be holding that
-                // reference to incRef it before our try block closes and decRef's it when it closes the search context
                 searchContext.queryResult().incRef();
                 return searchContext.queryResult();
             } catch (Exception e) {

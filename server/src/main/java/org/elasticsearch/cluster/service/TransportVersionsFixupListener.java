@@ -45,10 +45,9 @@ import static org.elasticsearch.cluster.ClusterState.INFERRED_TRANSPORT_VERSION;
  */
 public class TransportVersionsFixupListener implements ClusterStateListener {
 
-    private static final Logger Log = LogManager.getLogger(TransportVersionsFixupListener.class);
+    private static final Logger logger = LogManager.getLogger(TransportVersionsFixupListener.class);
 
     private static final TimeValue RETRY_TIME = TimeValue.timeValueSeconds(30);
-    private static final int MAX_RETRIES = 120; // try for 1 hour
 
     private final MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue;
     private final ClusterAdminClient client;
@@ -56,6 +55,8 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
     private final Set<String> pendingNodes = Collections.synchronizedSet(new HashSet<>());
 
     public TransportVersionsFixupListener(ClusterService service, ClusterAdminClient client, Scheduler scheduler) {
+        // there tends to be a lot of state operations on an upgrade - this one is not time-critical,
+        // so use LOW priority. It just needs to be run at some point after upgrade.
         this(service.createTaskQueue("fixup-transport-versions", Priority.LOW, new TransportVersionUpdater()), client, scheduler);
     }
 
@@ -80,7 +81,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
 
         @Override
         public void onFailure(Exception e) {
-            Log.error("Could not apply transport version for nodes {} to cluster state", results.keySet(), e);
+            logger.error("Could not apply transport version for nodes {} to cluster state", results.keySet(), e);
             scheduleRetry(results.keySet(), retryNum);
         }
 
@@ -93,15 +94,17 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         @Override
         public ClusterState execute(BatchExecutionContext<NodeTransportVersionTask> context) throws Exception {
             ClusterState.Builder builder = ClusterState.builder(context.initialState());
+            boolean modified = false;
             for (var c : context.taskContexts()) {
                 for (var e : c.getTask().results().entrySet()) {
                     // this node's transport version might have been updated already/node has gone away
                     if (Objects.equals(builder.transportVersions().get(e.getKey()), INFERRED_TRANSPORT_VERSION)) {
                         builder.putTransportVersion(e.getKey(), e.getValue());
+                        modified = true;
                     }
                 }
             }
-            return builder.build();
+            return modified ? builder.build() : context.initialState();
         }
     }
 
@@ -129,12 +132,8 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
     }
 
     private void scheduleRetry(Set<String> nodes, int thisRetryNum) {
-        if (thisRetryNum >= MAX_RETRIES) {
-            Log.error("Maximum retries reached ({}) for updating nodes {}, giving up", thisRetryNum, nodes);
-            return; // just bail, it's obviously not working
-        }
-
-        Log.debug("Scheduling retry {} for nodes {}", thisRetryNum + 1, nodes);
+        // just keep retrying until this succeeds
+        logger.debug("Scheduling retry {} for nodes {}", thisRetryNum + 1, nodes);
         scheduler.schedule(() -> updateTransportVersions(nodes, thisRetryNum + 1), RETRY_TIME, ThreadPool.Names.CLUSTER_COORDINATION);
     }
 
@@ -165,7 +164,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             @Override
             public void onFailure(Exception e) {
                 pendingNodes.removeAll(outstandingNodes);
-                Log.warn("Could not read transport versions for nodes {}", outstandingNodes, e);
+                logger.warn("Could not read transport versions for nodes {}", outstandingNodes, e);
                 scheduleRetry(outstandingNodes, retryNum);
             }
         });
@@ -175,7 +174,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         if (response.hasFailures()) {
             Set<String> failedNodes = new HashSet<>();
             for (FailedNodeException fne : response.failures()) {
-                Log.warn("Failed to read transport version info from node {}", fne.nodeId(), fne);
+                logger.warn("Failed to read transport version info from node {}", fne.nodeId(), fne);
                 failedNodes.add(fne.nodeId());
             }
             scheduleRetry(failedNodes, retryNum);

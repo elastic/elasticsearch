@@ -92,13 +92,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest]
 (Required, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
 
+//Begin aliases
 `aliases`:::
 (Optional, array of objects)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-aliases]
 +
 .Properties of `aliases`
 [%collapsible%open]
-====
+=====
 
 `alias`::::
 (Required, string)
@@ -108,7 +109,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-aliases-alias]
 (Optional, boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-aliases-move-on-creation]
 
-====
+=====
+//End aliases
 
 `pipeline`:::
 (Optional, string)

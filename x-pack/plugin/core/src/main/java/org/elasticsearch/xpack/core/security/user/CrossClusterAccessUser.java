@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
-import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -28,9 +27,8 @@ public class CrossClusterAccessUser extends User {
         UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
         new String[] {
             "cross_cluster_access",
-            // TODO: add a named cluster privilege to cover following CCR actions
-            ClusterStateAction.NAME,
-            XPackInfoAction.NAME },
+            // TODO: add a named cluster privilege to cover the CCR cluster actions
+            ClusterStateAction.NAME },
         // Needed for CCR background jobs (with system user)
         new RoleDescriptor.IndicesPrivileges[] {
             RoleDescriptor.IndicesPrivileges.builder()

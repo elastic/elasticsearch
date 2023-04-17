@@ -24,11 +24,11 @@ import java.util.Arrays;
  *     all subsequent values. Delta values normally require much less bits than the original 32 or 64 bits.
  * </li>
  *
- * <il>
+ * <li>
  *     offset encoding: encodes numeric fields in such a way to store values in range [0, max - min] instead of [min, max]. Reducing the
  *     range makes delta encoding much more effective since numbers in range [0, max - min] require less bits than values in range
  *     [min, max].
- * </il>
+ * </li>
  *
  * <li>
  *     gcd encoding: encodes numeric fields in such a way to store values divided by their Greatest Common Divisor. Diving values by their

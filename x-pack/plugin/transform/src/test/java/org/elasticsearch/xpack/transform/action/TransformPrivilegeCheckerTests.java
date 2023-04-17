@@ -127,6 +127,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
                 RoleDescriptor.IndicesPrivileges sourceIndicesPrivileges = request.indexPrivileges()[0];
                 assertThat(sourceIndicesPrivileges.getIndices(), is(arrayContaining(SOURCE_INDEX_NAME)));
                 assertThat(sourceIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "view_index_metadata")));
+                assertThat(sourceIndicesPrivileges.allowRestrictedIndices(), is(true));
             }, e -> fail(e.getMessage()))
         );
     }
@@ -169,9 +170,11 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
                 RoleDescriptor.IndicesPrivileges sourceIndicesPrivileges = request.indexPrivileges()[0];
                 assertThat(sourceIndicesPrivileges.getIndices(), is(arrayContaining(SOURCE_INDEX_NAME)));
                 assertThat(sourceIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "view_index_metadata")));
+                assertThat(sourceIndicesPrivileges.allowRestrictedIndices(), is(true));
                 RoleDescriptor.IndicesPrivileges destIndicesPrivileges = request.indexPrivileges()[1];
                 assertThat(destIndicesPrivileges.getIndices(), is(arrayContaining(DEST_INDEX_NAME)));
                 assertThat(destIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "index", "create_index")));
+                assertThat(destIndicesPrivileges.allowRestrictedIndices(), is(true));
             }, e -> fail(e.getMessage()))
         );
     }
@@ -201,9 +204,11 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
                 RoleDescriptor.IndicesPrivileges sourceIndicesPrivileges = request.indexPrivileges()[0];
                 assertThat(sourceIndicesPrivileges.getIndices(), is(arrayContaining(SOURCE_INDEX_NAME)));
                 assertThat(sourceIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "view_index_metadata")));
+                assertThat(sourceIndicesPrivileges.allowRestrictedIndices(), is(true));
                 RoleDescriptor.IndicesPrivileges destIndicesPrivileges = request.indexPrivileges()[1];
                 assertThat(destIndicesPrivileges.getIndices(), is(arrayContaining(DEST_INDEX_NAME)));
                 assertThat(destIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "index")));
+                assertThat(destIndicesPrivileges.allowRestrictedIndices(), is(true));
             }, e -> fail(e.getMessage()))
         );
     }
@@ -235,6 +240,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
                 RoleDescriptor.IndicesPrivileges destIndicesPrivileges = request.indexPrivileges()[0];
                 assertThat(destIndicesPrivileges.getIndices(), is(arrayContaining(DEST_INDEX_NAME)));
                 assertThat(destIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "index")));
+                assertThat(destIndicesPrivileges.allowRestrictedIndices(), is(true));
             }, e -> fail(e.getMessage()))
         );
     }
@@ -267,9 +273,11 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
                 RoleDescriptor.IndicesPrivileges sourceIndicesPrivileges = request.indexPrivileges()[0];
                 assertThat(sourceIndicesPrivileges.getIndices(), is(arrayContaining(SOURCE_INDEX_NAME)));
                 assertThat(sourceIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "view_index_metadata")));
+                assertThat(sourceIndicesPrivileges.allowRestrictedIndices(), is(true));
                 RoleDescriptor.IndicesPrivileges destIndicesPrivileges = request.indexPrivileges()[1];
                 assertThat(destIndicesPrivileges.getIndices(), is(arrayContaining(DEST_INDEX_NAME)));
                 assertThat(destIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "index", "delete")));
+                assertThat(destIndicesPrivileges.allowRestrictedIndices(), is(true));
             }, e -> fail(e.getMessage()))
         );
     }

@@ -7,8 +7,6 @@
 
 apply plugin: 'elasticsearch.build'
 
-archivesBaseName = 'preallocate'
-
 dependencies {
   implementation project(':libs:elasticsearch-core')
   implementation project(':libs:elasticsearch-logging')

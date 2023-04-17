@@ -23,7 +23,7 @@ module org.elasticsearch.xcore {
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
-    exports org.elasticsearch.license.internal to org.elasticsearch.serverless.license;
+    exports org.elasticsearch.license.internal to org.elasticsearch.internal.license;
     exports org.elasticsearch.protocol.xpack.common;
     exports org.elasticsearch.protocol.xpack.frozen;
     exports org.elasticsearch.protocol.xpack.graph;
@@ -107,6 +107,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.job.results;
     exports org.elasticsearch.xpack.core.ml.job.snapshot.upgrade;
     exports org.elasticsearch.xpack.core.ml.notifications;
+    exports org.elasticsearch.xpack.core.ml.packageloader.action;
     exports org.elasticsearch.xpack.core.ml.process.writer;
     exports org.elasticsearch.xpack.core.ml.stats;
     exports org.elasticsearch.xpack.core.ml.utils.time;

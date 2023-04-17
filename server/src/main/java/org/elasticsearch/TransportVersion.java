@@ -137,9 +137,9 @@ public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_8_0 = new TransportVersion(8_08_00_99, "f64fe576-0767-4ec3-984e-3e30b33b6c46");
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS
-     * Detached transport versions added below here. Starts at ES major version 10 equivalent.
+     * Detached transport versions added below here.
      */
-    public static final TransportVersion V_10_000_000 = new TransportVersion(10_000_000, "dc3cbf06-3ed5-4e1b-9978-ee1d04d235bc");
+    public static final TransportVersion V_10_000_000 = new TransportVersion(8_50_00_00, "dc3cbf06-3ed5-4e1b-9978-ee1d04d235bc");
     /*
      * When adding a new transport version, ensure there is a gap (say, 100) between versions
      * This is to make it possible to add intermediate versions for any bug fixes that may be required.

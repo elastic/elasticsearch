@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.application.search;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -49,7 +49,7 @@ public class SearchApplicationTests extends ESTestCase {
             SearchApplication testInstance = SearchApplicationTestUtils.randomSearchApplication();
             assertTransportSerialization(testInstance);
             assertXContent(testInstance, randomBoolean());
-            assertIndexSerialization(testInstance, Version.CURRENT);
+            assertIndexSerialization(testInstance);
         }
     }
 
@@ -128,24 +128,19 @@ public class SearchApplicationTests extends ESTestCase {
     }
 
     private SearchApplication assertTransportSerialization(SearchApplication testInstance) throws IOException {
-        return assertTransportSerialization(testInstance, Version.CURRENT);
-    }
-
-    private SearchApplication assertTransportSerialization(SearchApplication testInstance, Version version) throws IOException {
-        SearchApplication deserializedInstance = copyInstance(testInstance, version);
+        SearchApplication deserializedInstance = copyInstance(testInstance);
         assertNotSame(testInstance, deserializedInstance);
         assertThat(testInstance, equalTo(deserializedInstance));
         return deserializedInstance;
     }
 
-    private SearchApplication assertIndexSerialization(SearchApplication testInstance, Version version) throws IOException {
+    private SearchApplication assertIndexSerialization(SearchApplication testInstance) throws IOException {
         final SearchApplication deserializedInstance;
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(version.transportVersion);
             SearchApplicationIndexService.writeSearchApplicationBinaryWithVersion(
                 testInstance,
                 output,
-                version.minimumCompatibilityVersion()
+                TransportVersion.MINIMUM_COMPATIBLE
             );
             try (
                 StreamInput in = new NamedWriteableAwareStreamInput(
@@ -161,7 +156,7 @@ public class SearchApplicationTests extends ESTestCase {
         return deserializedInstance;
     }
 
-    private SearchApplication copyInstance(SearchApplication instance, Version version) throws IOException {
-        return copyWriteable(instance, namedWriteableRegistry, SearchApplication::new, version.transportVersion);
+    private SearchApplication copyInstance(SearchApplication instance) throws IOException {
+        return copyWriteable(instance, namedWriteableRegistry, SearchApplication::new);
     }
 }

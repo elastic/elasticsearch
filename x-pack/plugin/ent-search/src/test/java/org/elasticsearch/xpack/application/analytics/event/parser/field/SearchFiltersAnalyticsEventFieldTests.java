@@ -31,6 +31,7 @@ public class SearchFiltersAnalyticsEventFieldTests extends AnalyticsEventFieldPa
         // No invalid field since we are parsing a map.
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95230")
     public void testParsingInvalidFiltersValues() throws IOException {
 
         List<Object> invalidValues = List.of(

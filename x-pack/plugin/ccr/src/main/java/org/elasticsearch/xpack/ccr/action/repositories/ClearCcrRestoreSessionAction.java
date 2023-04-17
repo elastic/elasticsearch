@@ -55,6 +55,7 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
         @Override
         protected void doExecute(Task task, ClearCcrRestoreSessionRequest request, ActionListener<ActionResponse.Empty> listener) {
             final ShardId shardId = request.getShardId();
+            // It can be null if the request is sent from an old node with the internal action
             if (shardId != null) {
                 ccrRestoreService.ensureSessionShardIdConsistency(request.getSessionUUID(), shardId);
             }

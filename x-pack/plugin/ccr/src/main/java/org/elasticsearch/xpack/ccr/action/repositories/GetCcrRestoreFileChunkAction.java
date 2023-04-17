@@ -72,12 +72,14 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             ActionListener<GetCcrRestoreFileChunkResponse> listener
         ) {
             final ShardId shardId = request.getShardId();
+            // It can be null if the request is sent from an old node with the internal action
             if (shardId != null) {
                 restoreSourceService.ensureSessionShardIdConsistency(request.getSessionUUID(), shardId);
             }
             int bytesRequested = request.getSize();
             ByteArray array = bigArrays.newByteArray(bytesRequested, false);
             String fileName = request.getFileName();
+            // Ensure no file system traversal is possible
             final Path normalizedFilePath = Paths.get(fileName).normalize();
             if (normalizedFilePath.startsWith(".") || normalizedFilePath.startsWith("..")) {
                 throw new IllegalArgumentException("invalid file name [" + fileName + "]");

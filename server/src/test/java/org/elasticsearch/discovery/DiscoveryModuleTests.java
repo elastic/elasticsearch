@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
@@ -281,9 +282,48 @@ public class DiscoveryModuleTests extends ESTestCase {
         );
     }
 
+    public void testRejectsMultipleLeaderHeartbeatServices() {
+        assertThat(
+            expectThrows(
+                IllegalStateException.class,
+                () -> DiscoveryModule.getLeaderHeartbeatService(
+                    Settings.EMPTY,
+                    List.of(new BaseTestClusterCoordinationPlugin(), new TestClusterCoordinationPlugin1() {
+                        @Override
+                        public Optional<ReconfiguratorFactory> getReconfiguratorFactory() {
+                            return Optional.empty();
+                        }
+
+                        @Override
+                        public Optional<PreVoteCollector.Factory> getPreVoteCollectorFactory() {
+                            return Optional.empty();
+                        }
+                    }, new TestClusterCoordinationPlugin2() {
+                        @Override
+                        public Optional<ReconfiguratorFactory> getReconfiguratorFactory() {
+                            return Optional.empty();
+                        }
+
+                        @Override
+                        public Optional<PreVoteCollector.Factory> getPreVoteCollectorFactory() {
+                            return Optional.empty();
+                        }
+                    })
+                )
+            ).getMessage(),
+            containsString("multiple leader heart beat service factories found")
+        );
+
+        assertThat(
+            DiscoveryModule.getLeaderHeartbeatService(Settings.EMPTY, List.of(new BaseTestClusterCoordinationPlugin())),
+            is(BaseTestClusterCoordinationPlugin.leaderHeartbeatServiceInstance)
+        );
+    }
+
     private static class BaseTestClusterCoordinationPlugin extends Plugin implements ClusterCoordinationPlugin {
         static Reconfigurator reconfiguratorInstance;
         static PreVoteCollector.Factory preVoteCollectorFactory = StatefulPreVoteCollector::new;
+        static LeaderHeartbeatService leaderHeartbeatServiceInstance = LeaderHeartbeatService.NO_OP;
 
         @Override
         public Optional<ReconfiguratorFactory> getReconfiguratorFactory() {
@@ -293,6 +333,11 @@ public class DiscoveryModuleTests extends ESTestCase {
         @Override
         public Optional<PreVoteCollector.Factory> getPreVoteCollectorFactory() {
             return Optional.of(preVoteCollectorFactory);
+        }
+
+        @Override
+        public Optional<LeaderHeartbeatService> getLeaderHeartbeatService(Settings settings) {
+            return Optional.of(leaderHeartbeatServiceInstance);
         }
     }
 

@@ -35,7 +35,7 @@
       },
       "deployment_id":{
         "type":"string",
-        "description": "The Id of the new deployment.",
+        "description": "The Id of the new deployment. Defaults to the model_id if not set.",
         "required": false
       },
       "number_of_allocations":{

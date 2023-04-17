@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
-import org.elasticsearch.grok.GrokPatternBank;
+import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 
 import java.util.ArrayList;
@@ -204,7 +204,7 @@ public final class GrokPatternCreator {
      */
     private final Map<String, Object> mappings;
     private final Map<String, FieldStats> fieldStats;
-    private final GrokPatternBank grokPatternBank;
+    private final PatternBank grokPatternBank;
     private final Map<String, Integer> fieldNameCountStore = new HashMap<>();
     private final StringBuilder overallGrokPatternBuilder = new StringBuilder();
     private final TimeoutChecker timeoutChecker;
@@ -647,12 +647,7 @@ public final class GrokPatternCreator {
          * @param fieldName              Name of the field to extract from the match.
          * @param grokPatternDefinitions Definitions of Grok patterns to be used.
          */
-        ValueOnlyGrokPatternCandidate(
-            String grokPatternName,
-            String mappingType,
-            String fieldName,
-            GrokPatternBank grokPatternDefinitions
-        ) {
+        ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName, PatternBank grokPatternDefinitions) {
             this(
                 grokPatternName,
                 Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, mappingType),
@@ -703,7 +698,7 @@ public final class GrokPatternCreator {
             String fieldName,
             String preBreak,
             String postBreak,
-            GrokPatternBank grokPatternDefinitions
+            PatternBank grokPatternDefinitions
         ) {
             this.grokPatternName = Objects.requireNonNull(grokPatternName);
             this.mapping = Collections.unmodifiableMap(mapping);
@@ -882,7 +877,7 @@ public final class GrokPatternCreator {
             String grokPatternName,
             Map<String, String> mapping,
             String fieldName,
-            GrokPatternBank grokPatternDefinitions
+            PatternBank grokPatternDefinitions
         ) {
             super(grokPatternName, mapping, fieldName, "\\b", "\\b", grokPatternDefinitions);
         }
@@ -933,7 +928,7 @@ public final class GrokPatternCreator {
         static FullMatchGrokPatternCandidate fromGrokPatternName(
             String grokPatternName,
             String timeField,
-            GrokPatternBank grokPatternDefinitions
+            PatternBank grokPatternDefinitions
         ) {
             return new FullMatchGrokPatternCandidate("%{" + grokPatternName + "}", timeField, grokPatternDefinitions);
         }
@@ -946,11 +941,11 @@ public final class GrokPatternCreator {
             return new FullMatchGrokPatternCandidate(grokPattern, timeField, GrokBuiltinPatterns.get(ECS_COMPATIBILITY_ENABLED));
         }
 
-        static FullMatchGrokPatternCandidate fromGrokPattern(String grokPattern, String timeField, GrokPatternBank grokPatternBank) {
+        static FullMatchGrokPatternCandidate fromGrokPattern(String grokPattern, String timeField, PatternBank grokPatternBank) {
             return new FullMatchGrokPatternCandidate(grokPattern, timeField, grokPatternBank);
         }
 
-        private FullMatchGrokPatternCandidate(String grokPattern, String timeField, GrokPatternBank grokPatternDefinitions) {
+        private FullMatchGrokPatternCandidate(String grokPattern, String timeField, PatternBank grokPatternDefinitions) {
             this.grokPattern = grokPattern;
             this.timeField = timeField;
             grok = new Grok(grokPatternDefinitions, grokPattern, TimeoutChecker.watchdog, logger::warn);

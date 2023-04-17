@@ -13,11 +13,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public record GrokPatternBank(Map<String, String> bank) {
+public record PatternBank(Map<String, String> bank) {
 
-    public static GrokPatternBank EMPTY = new GrokPatternBank(Map.of());
+    public static PatternBank EMPTY = new PatternBank(Map.of());
 
-    public GrokPatternBank {
+    public PatternBank {
         assert bank != null : "pattern bank must not be null";
         bank = Map.copyOf(bank);
         forbidCircularReferences(bank);
@@ -27,14 +27,14 @@ public record GrokPatternBank(Map<String, String> bank) {
         return bank.get(patternName);
     }
 
-    public GrokPatternBank extendWith(Map<String, String> extraPatterns) {
+    public PatternBank extendWith(Map<String, String> extraPatterns) {
         if (extraPatterns == null || extraPatterns.isEmpty()) {
             return this;
         }
 
         var extendedBank = new LinkedHashMap<>(bank);
         extendedBank.putAll(extraPatterns);
-        return new GrokPatternBank(extendedBank);
+        return new PatternBank(extendedBank);
     }
 
     /**

@@ -14,7 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.grok.GrokPatternBank;
+import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -35,8 +35,8 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class GrokProcessorGetActionTests extends ESTestCase {
-    private static final GrokPatternBank LEGACY_TEST_PATTERNS = new GrokPatternBank(Map.of("PATTERN2", "foo2", "PATTERN1", "foo1"));
-    private static final GrokPatternBank ECS_TEST_PATTERNS = new GrokPatternBank(Map.of("ECS_PATTERN2", "foo2", "ECS_PATTERN1", "foo1"));
+    private static final PatternBank LEGACY_TEST_PATTERNS = new PatternBank(Map.of("PATTERN2", "foo2", "PATTERN1", "foo1"));
+    private static final PatternBank ECS_TEST_PATTERNS = new PatternBank(Map.of("ECS_PATTERN2", "foo2", "ECS_PATTERN1", "foo1"));
 
     public void testRequest() throws Exception {
         GrokProcessorGetAction.Request request = new GrokProcessorGetAction.Request(false, GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE);

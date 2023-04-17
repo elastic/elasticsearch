@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
-import org.elasticsearch.grok.GrokPatternBank;
+import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 
@@ -48,7 +48,7 @@ public final class TextStructureUtils {
 
     public static final String NULL_TIMESTAMP_FORMAT = "null";
 
-    private static final GrokPatternBank EXTENDED_PATTERNS;
+    private static final PatternBank EXTENDED_PATTERNS;
     static {
         Map<String, String> patterns = new HashMap<>();
         patterns.put("GEO_POINT", "%{NUMBER} %{NUMBER}");

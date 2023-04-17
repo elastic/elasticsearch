@@ -241,7 +241,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             String key,
             boolean splitQueriesOnWhitespace,
             Map<String, String> meta,
-            boolean isDimensions
+            boolean isDimension
         ) {
             super(
                 rootName + KEYED_FIELD_SUFFIX,
@@ -253,7 +253,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             );
             this.key = key;
             this.rootName = rootName;
-            this.isDimension = isDimensions;
+            this.isDimension = isDimension;
         }
 
         private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref) {

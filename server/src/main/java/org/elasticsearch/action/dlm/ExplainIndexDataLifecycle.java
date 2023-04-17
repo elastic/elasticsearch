@@ -119,8 +119,6 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
             if (rolloverDate != null) {
                 builder.timeField(ROLLOVER_DATE_MILLIS_FIELD.getPreferredName(), ROLLOVER_DATE_FIELD.getPreferredName(), rolloverDate);
                 builder.field(TIME_SINCE_ROLLOVER_FIELD.getPreferredName(), getTimeSinceRollover(nowSupplier).toHumanReadableString(2));
-                // if the index has been rolled over we'll start reporting the generation time
-                builder.timeField(GENERATION_TIME.getPreferredName(), ROLLOVER_DATE_FIELD.getPreferredName(), rolloverDate);
             }
             if (generationDate != null) {
                 builder.field(GENERATION_TIME.getPreferredName(), getGenerationTime(nowSupplier).toHumanReadableString(2));

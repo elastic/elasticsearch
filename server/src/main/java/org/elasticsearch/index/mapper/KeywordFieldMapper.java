@@ -785,9 +785,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                     "All fields that match routing_path "
                         + "must be keywords with [time_series_dimension: true] "
                         + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                        + "without the [script] parameter. [ "
+                        + "without the [script] parameter. ["
                         + name()
-                        + "] was not [time_series_dimension: true]."
+                        + "] was not a dimension."
                 );
             }
             if (scriptValues != null) {

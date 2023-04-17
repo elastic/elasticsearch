@@ -596,7 +596,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
             + "without the [script] parameter. ["
             + mapper.name()
-            + "] was not [time_series_dimension: true].";
+            + "] was not a dimension.";
     }
 
     public void testDimensionInRoutingPath() throws IOException {

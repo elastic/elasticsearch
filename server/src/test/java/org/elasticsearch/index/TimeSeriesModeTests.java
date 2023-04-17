@@ -194,7 +194,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             equalTo(
                 "All fields that match routing_path must be keywords with [time_series_dimension: true] "
                     + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                    + "without the [script] parameter. [dim.non_dim] was not [time_series_dimension: true]."
+                    + "without the [script] parameter. [dim.non_dim] was not a dimension."
             )
         );
     }

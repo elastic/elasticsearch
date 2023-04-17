@@ -133,6 +133,11 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
     }
 
     @Override
+    protected DatafeedConfig.Builder mutateInstance(DatafeedConfig.Builder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());

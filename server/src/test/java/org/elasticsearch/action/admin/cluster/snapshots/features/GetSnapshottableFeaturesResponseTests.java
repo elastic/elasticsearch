@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.features;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -36,7 +35,7 @@ public class GetSnapshottableFeaturesResponseTests extends AbstractWireSerializi
     }
 
     @Override
-    protected GetSnapshottableFeaturesResponse mutateInstance(GetSnapshottableFeaturesResponse instance) throws IOException {
+    protected GetSnapshottableFeaturesResponse mutateInstance(GetSnapshottableFeaturesResponse instance) {
         int minSize = 0;
         if (instance.getSnapshottableFeatures().size() == 0) {
             minSize = 1;

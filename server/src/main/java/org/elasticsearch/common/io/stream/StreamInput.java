@@ -8,16 +8,11 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,27 +22,17 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.EOFException;
-import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.file.AccessDeniedException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.DirectoryNotEmptyException;
-import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.FileSystemException;
-import java.nio.file.FileSystemLoopException;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.NotDirectoryException;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.OffsetTime;
@@ -68,8 +53,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
-import static org.elasticsearch.ElasticsearchException.readStackTrace;
-
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
  *
@@ -83,19 +66,19 @@ import static org.elasticsearch.ElasticsearchException.readStackTrace;
  */
 public abstract class StreamInput extends InputStream {
 
-    private Version version = Version.CURRENT;
+    private TransportVersion version = TransportVersion.CURRENT;
 
     /**
-     * The version of the node on the other side of this stream.
+     * The transport version the data is serialized as.
      */
-    public Version getVersion() {
+    public TransportVersion getTransportVersion() {
         return this.version;
     }
 
     /**
-     * Set the version of the node on the other side of this stream.
+     * Set the transport version of the data in this stream.
      */
-    public void setVersion(Version version) {
+    public void setTransportVersion(TransportVersion version) {
         this.version = version;
     }
 
@@ -129,6 +112,26 @@ public abstract class StreamInput extends InputStream {
      */
     public ReleasableBytesReference readReleasableBytesReference() throws IOException {
         return ReleasableBytesReference.wrap(readBytesReference());
+    }
+
+    /**
+     * Checks if this {@link InputStream} supports {@link #readAllToReleasableBytesReference()}.
+     */
+    public boolean supportReadAllToReleasableBytesReference() {
+        return false;
+    }
+
+    /**
+     * Reads all remaining bytes in the stream as a releasable bytes reference.
+     * Similarly to {@link #readReleasableBytesReference} the returned bytes reference may reference bytes in a
+     * pooled buffer and must be explicitly released via {@link ReleasableBytesReference#close()} once no longer used.
+     * However, unlike {@link #readReleasableBytesReference()}, this method doesn't have the prefix size.
+     * <p>
+     * NOTE: Always check {@link #supportReadAllToReleasableBytesReference()} before calling this method.
+     */
+    public ReleasableBytesReference readAllToReleasableBytesReference() throws IOException {
+        assert false : "This InputStream doesn't support readAllToReleasableBytesReference";
+        throw new UnsupportedOperationException("This InputStream doesn't support readAllToReleasableBytesReference");
     }
 
     /**
@@ -600,6 +603,20 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional byte array. It's effectively the same as readByteArray, except
+     * it supports null.
+     * @return a byte array or null
+     * @throws IOException
+     */
+    @Nullable
+    public byte[] readOptionalByteArray() throws IOException {
+        if (readBoolean()) {
+            return readByteArray();
+        }
+        return null;
+    }
+
+    /**
      * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
      */
     public <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
@@ -738,8 +755,12 @@ public abstract class StreamInput extends InputStream {
             case 6 -> readByteArray();
             case 7 -> readArrayList();
             case 8 -> readArray();
-            case 9 -> readLinkedHashMap();
-            case 10 -> readHashMap();
+            case 9 -> getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)
+                ? readOrderedMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
+                : readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
+            case 10 -> getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)
+                ? readMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
+                : readMap(StreamInput::readString, StreamInput::readGenericValue);
             case 11 -> readByte();
             case 12 -> readDate();
             case 13 ->
@@ -815,30 +836,6 @@ public abstract class StreamInput extends InputStream {
             list8[i] = readGenericValue();
         }
         return list8;
-    }
-
-    private Map<String, Object> readLinkedHashMap() throws IOException {
-        int size9 = readArraySize();
-        if (size9 == 0) {
-            return Collections.emptyMap();
-        }
-        Map<String, Object> map9 = Maps.newLinkedHashMapWithExpectedSize(size9);
-        for (int i = 0; i < size9; i++) {
-            map9.put(readString(), readGenericValue());
-        }
-        return map9;
-    }
-
-    private Map<String, Object> readHashMap() throws IOException {
-        int size10 = readArraySize();
-        if (size10 == 0) {
-            return Collections.emptyMap();
-        }
-        Map<String, Object> map10 = Maps.newMapWithExpectedSize(size10);
-        for (int i = 0; i < size10; i++) {
-            map10.put(readString(), readGenericValue());
-        }
-        return map10;
     }
 
     private Date readDate() throws IOException {
@@ -1006,87 +1003,8 @@ public abstract class StreamInput extends InputStream {
     }
 
     @Nullable
-    @SuppressWarnings("unchecked")
     public <T extends Exception> T readException() throws IOException {
-        if (readBoolean()) {
-            int key = readVInt();
-            switch (key) {
-                case 0:
-                    final int ord = readVInt();
-                    return (T) ElasticsearchException.readException(this, ord);
-                case 1:
-                    String msg1 = readOptionalString();
-                    String resource1 = readOptionalString();
-                    return (T) readStackTrace(new CorruptIndexException(msg1, resource1, readException()), this);
-                case 2:
-                    String resource2 = readOptionalString();
-                    int version2 = readInt();
-                    int minVersion2 = readInt();
-                    int maxVersion2 = readInt();
-                    return (T) readStackTrace(new IndexFormatTooNewException(resource2, version2, minVersion2, maxVersion2), this);
-                case 3:
-                    String resource3 = readOptionalString();
-                    if (readBoolean()) {
-                        int version3 = readInt();
-                        int minVersion3 = readInt();
-                        int maxVersion3 = readInt();
-                        return (T) readStackTrace(new IndexFormatTooOldException(resource3, version3, minVersion3, maxVersion3), this);
-                    } else {
-                        String version3 = readOptionalString();
-                        return (T) readStackTrace(new IndexFormatTooOldException(resource3, version3), this);
-                    }
-                case 4:
-                    return (T) readStackTrace(new NullPointerException(readOptionalString()), this);
-                case 5:
-                    return (T) readStackTrace(new NumberFormatException(readOptionalString()), this);
-                case 6:
-                    return (T) readStackTrace(new IllegalArgumentException(readOptionalString(), readException()), this);
-                case 7:
-                    return (T) readStackTrace(new AlreadyClosedException(readOptionalString(), readException()), this);
-                case 8:
-                    return (T) readStackTrace(new EOFException(readOptionalString()), this);
-                case 9:
-                    return (T) readStackTrace(new SecurityException(readOptionalString(), readException()), this);
-                case 10:
-                    return (T) readStackTrace(new StringIndexOutOfBoundsException(readOptionalString()), this);
-                case 11:
-                    return (T) readStackTrace(new ArrayIndexOutOfBoundsException(readOptionalString()), this);
-                case 12:
-                    return (T) readStackTrace(new FileNotFoundException(readOptionalString()), this);
-                case 13:
-                    final int subclass = readVInt();
-                    final String file = readOptionalString();
-                    final String other = readOptionalString();
-                    final String reason = readOptionalString();
-                    readOptionalString(); // skip the msg - it's composed from file, other and reason
-                    final Exception exception = switch (subclass) {
-                        case 0 -> new NoSuchFileException(file, other, reason);
-                        case 1 -> new NotDirectoryException(file);
-                        case 2 -> new DirectoryNotEmptyException(file);
-                        case 3 -> new AtomicMoveNotSupportedException(file, other, reason);
-                        case 4 -> new FileAlreadyExistsException(file, other, reason);
-                        case 5 -> new AccessDeniedException(file, other, reason);
-                        case 6 -> new FileSystemLoopException(file);
-                        case 7 -> new FileSystemException(file, other, reason);
-                        default -> throw new IllegalStateException("unknown FileSystemException with index " + subclass);
-                    };
-                    return (T) readStackTrace(exception, this);
-                case 14:
-                    return (T) readStackTrace(new IllegalStateException(readOptionalString(), readException()), this);
-                case 15:
-                    return (T) readStackTrace(new LockObtainFailedException(readOptionalString(), readException()), this);
-                case 16:
-                    return (T) readStackTrace(new InterruptedException(readOptionalString()), this);
-                case 17:
-                    return (T) readStackTrace(new IOException(readOptionalString(), readException()), this);
-                case 18:
-                    final boolean isExecutorShutdown = readBoolean();
-                    return (T) readStackTrace(new EsRejectedExecutionException(readOptionalString(), isExecutorShutdown), this);
-                default:
-                    throw new IOException("no such exception for id: " + key);
-            }
-        }
-        return null;
+        return ElasticsearchException.readException(this);
     }
 
     /**

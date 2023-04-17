@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -118,7 +117,10 @@ public class UpdateHelper {
             );
             Tuple<UpdateOpType, Map<String, Object>> upsertResult = executeScriptedUpsert(request.script, ctxMap);
             switch (upsertResult.v1()) {
-                case CREATE -> indexRequest = Requests.indexRequest(request.index()).source(upsertResult.v2());
+                case CREATE -> {
+                    String index = request.index();
+                    indexRequest = new IndexRequest(index).source(upsertResult.v2());
+                }
                 case NONE -> {
                     UpdateResponse update = new UpdateResponse(
                         shardId,
@@ -206,8 +208,8 @@ public class UpdateHelper {
             );
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
-            final IndexRequest finalIndexRequest = Requests.indexRequest(request.index())
-                .id(request.id())
+            String index = request.index();
+            final IndexRequest finalIndexRequest = new IndexRequest(index).id(request.id())
                 .routing(routing)
                 .source(updatedSourceAsMap, updateSourceContentType)
                 .setIfSeqNo(getResult.getSeqNo())
@@ -248,8 +250,8 @@ public class UpdateHelper {
 
         switch (operation) {
             case INDEX -> {
-                final IndexRequest indexRequest = Requests.indexRequest(request.index())
-                    .id(request.id())
+                String index = request.index();
+                final IndexRequest indexRequest = new IndexRequest(index).id(request.id())
                     .routing(routing)
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .setIfSeqNo(getResult.getSeqNo())
@@ -260,8 +262,8 @@ public class UpdateHelper {
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             }
             case DELETE -> {
-                DeleteRequest deleteRequest = Requests.deleteRequest(request.index())
-                    .id(request.id())
+                String index = request.index();
+                DeleteRequest deleteRequest = new DeleteRequest(index).id(request.id())
                     .routing(routing)
                     .setIfSeqNo(getResult.getSeqNo())
                     .setIfPrimaryTerm(getResult.getPrimaryTerm())

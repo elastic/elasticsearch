@@ -65,6 +65,11 @@ public class ResolveIndexResponseTests extends AbstractXContentSerializingTestCa
         return new Response(indices, aliases, dataStreams);
     }
 
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private static ResolvedIndex createTestResolvedIndexInstance() {
         String name = randomAlphaOfLength(6);
         String[] aliases = randomStringArray(0, 5);

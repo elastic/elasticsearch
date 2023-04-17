@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -20,7 +21,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -96,7 +97,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     private static final String SCRIPT_4 = scriptAsJSON("params._source.field");
 
     public void testToXContent() {
-        String mapping = formatted(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1);
+        String mapping = Strings.format(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1);
         IndexMetadata meta = IndexMetadata.builder("index").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).build();
@@ -204,10 +205,19 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testToXContentWithSomeSharedMappings() {
         IndexMetadata meta = IndexMetadata.builder("index")
             .settings(SINGLE_SHARD_NO_REPLICAS)
-            .putMapping(formatted(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1))
+            .putMapping(Strings.format(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1))
             .build();
         // make mappings that are slightly different because we shuffled 2 scripts between fields
-        final String mappingString2 = formatted(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_4, SCRIPT_3, SCRIPT_1);
+        final String mappingString2 = Strings.format(
+            MAPPING_TEMPLATE,
+            SCRIPT_1,
+            SCRIPT_2,
+            SCRIPT_3,
+            SCRIPT_4,
+            SCRIPT_4,
+            SCRIPT_3,
+            SCRIPT_1
+        );
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
         IndexMetadata meta3 = IndexMetadata.builder("index3").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).put(meta3, false).build();
@@ -379,7 +389,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
 
     @SuppressWarnings("OptionalGetWithoutIsPresent")
     @Override
-    protected MappingStats mutateInstance(MappingStats instance) throws IOException {
+    protected MappingStats mutateInstance(MappingStats instance) {
         List<FieldStats> fieldTypes = new ArrayList<>(instance.getFieldTypeStats());
         List<RuntimeFieldStats> runtimeFieldTypes = new ArrayList<>(instance.getRuntimeFieldStats());
         long totalFieldCount = instance.getTotalFieldCount().getAsLong();
@@ -504,11 +514,11 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testWriteTo() throws IOException {
         MappingStats instance = createTestInstance();
         BytesStreamOutput out = new BytesStreamOutput();
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        out.setVersion(version);
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        out.setTransportVersion(version);
         instance.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-        in.setVersion(version);
+        in.setTransportVersion(version);
         MappingStats deserialized = new MappingStats(in);
         assertEquals(instance.getFieldTypeStats(), deserialized.getFieldTypeStats());
         assertEquals(instance.getRuntimeFieldStats(), deserialized.getRuntimeFieldStats());

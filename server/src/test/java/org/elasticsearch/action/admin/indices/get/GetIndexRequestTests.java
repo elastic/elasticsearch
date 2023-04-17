@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestTests;
 import org.elasticsearch.test.ESTestCase;
@@ -68,6 +69,6 @@ public class GetIndexRequestTests extends ESTestCase {
 
         RestRequest request = RestRequestTests.contentRestRequest("", Map.of("features", String.join(",", invalidFeatures)));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GetIndexRequest.Feature.fromRequest(request));
-        assertThat(e.getMessage(), containsString(formatted("Invalid features specified [%s]", String.join(",", invalidFeatures))));
+        assertThat(e.getMessage(), containsString(Strings.format("Invalid features specified [%s]", String.join(",", invalidFeatures))));
     }
 }

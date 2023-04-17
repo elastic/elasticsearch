@@ -133,7 +133,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         final String kerberosTicket = callbackHandler.getBase64EncodedTokenForSpnegoHeader(host);
 
         final Request request = new Request("POST", "/_security/oauth2/token");
-        String json = formatted("""
+        String json = Strings.format("""
             { "grant_type" : "_kerberos", "kerberos_ticket" : "%s"}
             """, kerberosTicket);
         request.setJsonEntity(json);
@@ -189,7 +189,9 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
             final LoginContext lc = callbackHandler.login();
             Response response = SpnegoHttpClientConfigCallbackHandler.doAsPrivilegedWrapper(
                 lc.getSubject(),
-                (PrivilegedExceptionAction<Response>) () -> { return restClient.performRequest(request); },
+                (PrivilegedExceptionAction<Response>) () -> {
+                    return restClient.performRequest(request);
+                },
                 accessControlContext
             );
 

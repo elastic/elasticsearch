@@ -42,6 +42,11 @@ public class AutoFollowStatsTests extends AbstractXContentSerializingTestCase<Au
         );
     }
 
+    @Override
+    protected AutoFollowStats mutateInstance(AutoFollowStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     static NavigableMap<String, Tuple<Long, ElasticsearchException>> randomReadExceptions() {
         final int count = randomIntBetween(0, 16);
         final NavigableMap<String, Tuple<Long, ElasticsearchException>> readExceptions = new TreeMap<>();

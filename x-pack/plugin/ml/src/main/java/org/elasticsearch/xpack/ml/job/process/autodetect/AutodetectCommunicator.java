@@ -180,6 +180,7 @@ public class AutodetectCommunicator implements Closeable {
         try {
             future.get();
             autodetectWorkerExecutor.shutdown();
+            dataCountsReporter.writeUnreportedCounts();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
@@ -256,6 +257,11 @@ public class AutodetectCommunicator implements Closeable {
     public void flushJob(FlushJobParams params, BiConsumer<FlushAcknowledgement, Exception> handler) {
         submitOperation(() -> {
             String flushId = autodetectProcess.flushJob(params);
+            try {
+                dataCountsReporter.writeUnreportedCounts();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
             return waitFlushToCompletion(flushId, params.isWaitForNormalization());
         }, handler);
     }

@@ -333,7 +333,7 @@ public class GrokProcessorTests extends ESTestCase {
         assertThat(doc.getFieldValue("second", String.class), equalTo("3"));
     }
 
-    public void testFirstWinNamedCapture() throws Exception {
+    public void testShouldCaptureAllSameNameGroupsAsList() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         doc.setFieldValue(fieldName, "12");
@@ -350,7 +350,7 @@ public class GrokProcessorTests extends ESTestCase {
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
-        assertThat(doc.getFieldValue("first", String.class), equalTo("1"));
+        assertEquals(doc.getFieldValue("first", List.class), List.of("1", "2"));
     }
 
     public void testUnmatchedNamesNotIncludedInDocument() throws Exception {

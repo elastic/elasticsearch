@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -38,7 +39,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase {
@@ -49,14 +50,15 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         new ShardId("myindex", "myindex", 0),
         true,
         RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created")
+        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
+        ShardRouting.Role.DEFAULT
     );
-    private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-    private NodeReplacementAllocationDecider decider = new NodeReplacementAllocationDecider();
+    private final ClusterSettings clusterSettings = createBuiltInClusterSettings();
+    private final NodeReplacementAllocationDecider decider = new NodeReplacementAllocationDecider();
     private final AllocationDeciders allocationDeciders = new AllocationDeciders(
         Arrays.asList(
             decider,
-            new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider(),
             new NodeShutdownAllocationDecider()
         )
@@ -66,7 +68,8 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         new TestGatewayAllocator(),
         new BalancedShardsAllocator(Settings.EMPTY),
         EmptyClusterInfoService.INSTANCE,
-        EmptySnapshotsInfoService.INSTANCE
+        EmptySnapshotsInfoService.INSTANCE,
+        TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
     );
 
     private final String idxName = "test-idx";
@@ -94,11 +97,11 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
         Decision decision = decider.canAllocate(shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), equalTo(NodeReplacementAllocationDecider.NO_REPLACEMENTS.getExplanation()));
+        assertThat(decision.getExplanation(), equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS.getExplanation()));
 
         decision = decider.canRemain(null, shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), equalTo(NodeReplacementAllocationDecider.NO_REPLACEMENTS.getExplanation()));
+        assertThat(decision.getExplanation(), equalTo(NodeReplacementAllocationDecider.YES__NO_REPLACEMENTS.getExplanation()));
     }
 
     public void testCanForceAllocate() {
@@ -115,7 +118,8 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             new ShardId("myindex", "myindex", 0),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
+            ShardRouting.Role.DEFAULT
         );
         assignedShard = assignedShard.initialize(NODE_A.getId(), null, 1);
         assignedShard = assignedShard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -169,13 +173,13 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
         decision = decider.canRemain(indexMetadata, shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), equalTo("node [" + NODE_B.getId() + "] is not being replaced"));
+        assertEquals(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS, decision);
 
         routingNode = RoutingNodesHelper.routingNode(NODE_C.getId(), NODE_C, shard);
 
         decision = decider.canRemain(indexMetadata, shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), equalTo("node [" + NODE_C.getId() + "] is not being replaced"));
+        assertEquals(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS, decision);
     }
 
     public void testCanAllocateToNeitherSourceNorTarget() {
@@ -220,7 +224,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
         decision = decider.canAllocate(testShard, routingNode, allocation);
         assertThat(decision.getExplanation(), decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(), containsString("neither the source nor target node are part of an ongoing node replacement"));
+        assertEquals(NodeReplacementAllocationDecider.YES__NO_APPLICABLE_REPLACEMENTS, decision);
     }
 
     private ClusterState prepareState(ClusterState initialState, String sourceNodeId, String targetNodeName) {

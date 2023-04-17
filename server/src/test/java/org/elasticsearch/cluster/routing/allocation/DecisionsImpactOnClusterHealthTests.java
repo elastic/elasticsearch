@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -27,14 +28,14 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Set;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -52,7 +53,7 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
             .build();
         AllocationDecider decider = new TestAllocateDecision(Decision.NO);
         // if deciders say NO to allocating a primary shard, then the cluster health should be RED
-        runAllocationTest(settings, indexName, Collections.singleton(decider), ClusterHealthStatus.RED);
+        runAllocationTest(settings, indexName, decider, ClusterHealthStatus.RED);
     }
 
     public void testPrimaryShardThrottleDecisionOnIndexCreation() throws IOException {
@@ -62,7 +63,7 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
             .build();
         AllocationDecider decider = new TestAllocateDecision(Decision.THROTTLE);
         // if deciders THROTTLE allocating a primary shard, stay in YELLOW state
-        runAllocationTest(settings, indexName, Collections.singleton(decider), ClusterHealthStatus.YELLOW);
+        runAllocationTest(settings, indexName, decider, ClusterHealthStatus.YELLOW);
     }
 
     public void testPrimaryShardYesDecisionOnIndexCreation() throws IOException {
@@ -81,7 +82,7 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
             }
         };
         // if deciders say YES to allocating primary shards, stay in YELLOW state
-        ClusterState clusterState = runAllocationTest(settings, indexName, Collections.singleton(decider), ClusterHealthStatus.YELLOW);
+        ClusterState clusterState = runAllocationTest(settings, indexName, decider, ClusterHealthStatus.YELLOW);
         // make sure primaries are initialized
         final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);
         for (int i = 0; i < indexRoutingTable.size(); i++) {
@@ -92,12 +93,12 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
     private ClusterState runAllocationTest(
         final Settings settings,
         final String indexName,
-        final Set<AllocationDecider> allocationDeciders,
+        final AllocationDecider allocationDecider,
         final ClusterHealthStatus expectedStatus
     ) throws IOException {
 
         final String clusterName = "test-cluster";
-        final AllocationService allocationService = newAllocationService(settings, allocationDeciders);
+        final AllocationService allocationService = newAllocationService(settings, allocationDecider);
 
         logger.info("Building initial routing table");
         final int numShards = randomIntBetween(1, 5);
@@ -105,7 +106,9 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(1))
             .build();
 
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index(indexName)).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index(indexName))
+            .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(clusterName))
             .metadata(metadata)
@@ -133,13 +136,14 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
         return clusterState;
     }
 
-    private static AllocationService newAllocationService(Settings settings, Set<AllocationDecider> deciders) {
+    private static AllocationService newAllocationService(Settings settings, AllocationDecider decider) {
         return new AllocationService(
-            new AllocationDeciders(deciders),
+            new AllocationDeciders(List.of(decider, new ReplicaAfterPrimaryActiveAllocationDecider())),
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
     }
 

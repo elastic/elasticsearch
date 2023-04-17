@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.ml.rest.inference;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -25,6 +30,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
 
     static final String PATH = BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/deployment/_infer";
@@ -60,23 +66,36 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
         if (restRequest.hasContent() == false) {
             throw ExceptionsHelper.badRequestException("requires body");
         }
-        InferTrainedModelDeploymentAction.Request.Builder request = InferTrainedModelDeploymentAction.Request.parseRequest(
-            modelId,
-            restRequest.contentParser()
-        );
+        InferModelAction.Request.Builder requestBuilder = InferModelAction.Request.parseRequest(modelId, restRequest.contentParser());
 
-        if (restRequest.hasParam(InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName())) {
+        if (restRequest.hasParam(InferModelAction.Request.TIMEOUT.getPreferredName())) {
             TimeValue inferTimeout = restRequest.paramAsTime(
-                InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName(),
-                InferTrainedModelDeploymentAction.Request.DEFAULT_TIMEOUT
+                InferModelAction.Request.TIMEOUT.getPreferredName(),
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
             );
-            request.setInferenceTimeout(inferTimeout);
+            requestBuilder.setInferenceTimeout(inferTimeout);
+        }
+
+        // Unlike the _infer API, deployment/_infer only accepts a single document
+        var request = requestBuilder.build();
+        if (request.getObjectsToInfer() != null && request.getObjectsToInfer().size() > 1) {
+            ValidationException ex = new ValidationException();
+            ex.addValidationError("multiple documents are not supported");
+            throw ex;
         }
 
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
-            InferTrainedModelDeploymentAction.INSTANCE,
-            request.build(),
-            new RestToXContentListener<>(channel)
+            InferModelAction.EXTERNAL_INSTANCE,
+            request,
+            // This API is deprecated but refactoring makes it simpler to call
+            // the new replacement API and swap in the old response.
+            ActionListener.wrap(response -> {
+                InferTrainedModelDeploymentAction.Response oldResponse = new InferTrainedModelDeploymentAction.Response(
+                    response.getInferenceResults()
+                );
+                new RestToXContentListener<>(channel).onResponse(oldResponse);
+            }, e -> new RestToXContentListener<>(channel).onFailure(e))
+
         );
     }
 }

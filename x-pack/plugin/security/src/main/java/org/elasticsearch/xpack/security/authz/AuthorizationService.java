@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -75,6 +77,7 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authz.accesscontrol.wrapper.DlsFlsFeatureTrackingIndicesAccessControlWrapper;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
@@ -130,6 +133,7 @@ public class AuthorizationService {
     private final XPackLicenseState licenseState;
     private final OperatorPrivilegesService operatorPrivilegesService;
     private final RestrictedIndices restrictedIndices;
+    private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -137,6 +141,7 @@ public class AuthorizationService {
     public AuthorizationService(
         Settings settings,
         CompositeRolesStore rolesStore,
+        FieldPermissionsCache fieldPermissionsCache,
         ClusterService clusterService,
         AuditTrailService auditTrailService,
         AuthenticationFailureHandler authcFailureHandler,
@@ -162,6 +167,7 @@ public class AuthorizationService {
         this.rbacEngine = new RBACEngine(
             settings,
             rolesStore,
+            fieldPermissionsCache,
             new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings())
         );
         this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
@@ -169,6 +175,7 @@ public class AuthorizationService {
         this.settings = settings;
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
+        this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
     }
 
     public void checkPrivileges(
@@ -204,45 +211,39 @@ public class AuthorizationService {
         authorizationEngine.getUserPrivileges(authorizationInfo, wrapPreservingContext(listener, threadContext));
     }
 
-    public void retrieveRemoteAccessRoleDescriptorsIntersection(
+    public void getRoleDescriptorsIntersectionForRemoteCluster(
         final String remoteClusterAlias,
         final Subject subject,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
-        if (SystemUser.is(subject.getUser())) {
+        if (isInternal(subject.getUser())) {
             final String message = "the user ["
                 + subject.getUser().principal()
-                + "] is the system user and we should never try to retrieve its remote access roles descriptors";
+                + "] is an internal user and we should never try to retrieve its roles descriptors towards a remote cluster";
             assert false : message;
+            logger.warn(message);
             listener.onFailure(new IllegalArgumentException(message));
             return;
         }
 
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
-        final AuthorizationInfo authorizationInfo = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
-        if (authorizationInfo != null) {
-            authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
-                remoteClusterAlias,
-                authorizationInfo,
-                wrapPreservingContext(listener, threadContext)
-            );
-        } else {
-            assert isInternal(subject.getUser())
-                : "authorization info must be available in thread context for all users other than internal users";
-            authorizationEngine.resolveAuthorizationInfo(
-                subject,
-                wrapPreservingContext(
-                    listener.delegateFailure(
-                        (delegatedLister, resolvedAuthzInfo) -> authorizationEngine.getRemoteAccessRoleDescriptorsIntersection(
-                            remoteClusterAlias,
-                            resolvedAuthzInfo,
-                            wrapPreservingContext(delegatedLister, threadContext)
-                        )
-                    ),
-                    threadContext
-                )
-            );
+        // AuthZ info can be null for persistent tasks
+        if (threadContext.<AuthorizationInfo>getTransient(AUTHORIZATION_INFO_KEY) == null) {
+            logger.debug("authorization info not available in thread context, resolving it for subject [{}]", subject);
         }
+        authorizationEngine.resolveAuthorizationInfo(
+            subject,
+            wrapPreservingContext(
+                listener.delegateFailure(
+                    (delegatedLister, resolvedAuthzInfo) -> authorizationEngine.getRoleDescriptorsIntersectionForRemoteCluster(
+                        remoteClusterAlias,
+                        resolvedAuthzInfo,
+                        wrapPreservingContext(delegatedLister, threadContext)
+                    )
+                ),
+                threadContext
+            )
+        );
     }
 
     /**
@@ -521,7 +522,7 @@ public class AuthorizationService {
         final Metadata metadata,
         final ActionListener<Void> listener
     ) {
-        final IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
+        final IndicesAccessControl indicesAccessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
         final Authentication authentication = requestInfo.getAuthentication();
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();
@@ -600,7 +601,7 @@ public class AuthorizationService {
         } else {
             final Iterator<RequestInterceptor> requestInterceptorIterator = requestInterceptors.iterator();
             requestInterceptorIterator.next()
-                .intercept(requestInfo, authorizationEngine, authorizationInfo, new ActionListener.Delegating<>(listener) {
+                .intercept(requestInfo, authorizationEngine, authorizationInfo, new DelegatingActionListener<>(listener) {
                     @Override
                     public void onResponse(Void unused) {
                         if (requestInterceptorIterator.hasNext()) {
@@ -902,7 +903,17 @@ public class AuthorizationService {
         );
     }
 
-    private ElasticsearchSecurityException actionDenied(
+    public ElasticsearchSecurityException remoteActionDenied(Authentication authentication, String action, String clusterAlias) {
+        final AuthorizationInfo authorizationInfo = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
+        return denialException(
+            authentication,
+            action,
+            () -> AuthorizationDenialMessages.remoteActionDenied(authentication, authorizationInfo, action, clusterAlias),
+            null
+        );
+    }
+
+    ElasticsearchSecurityException actionDenied(
         Authentication authentication,
         @Nullable AuthorizationInfo authorizationInfo,
         String action,

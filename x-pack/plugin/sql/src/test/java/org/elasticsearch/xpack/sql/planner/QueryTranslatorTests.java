@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -769,7 +770,7 @@ public class QueryTranslatorTests extends ESTestCase {
                 + randomFunction.name()
                 + "(date + INTERVAL 1 YEAR)"
         );
-        assertESQuery(p, containsString(formatted("""
+        assertESQuery(p, containsString(Strings.format("""
             {
               "terms": {
                 "script": {
@@ -802,7 +803,7 @@ public class QueryTranslatorTests extends ESTestCase {
         );
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
-        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(formatted("""
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(Strings.format("""
             {
               "terms": {
                 "script": {
@@ -1130,7 +1131,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(
             ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith(
-                formatted(
+                Strings.format(
                     """
                         {
                           "buckets_path": {
@@ -1203,7 +1204,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(((MetricAggRef) fe).property(), metricToAgg.get(funcName));
 
             String aggName = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations().iterator().next().getName();
-            assertESQuery(p, endsWith(formatted("""
+            assertESQuery(p, endsWith(Strings.format("""
                 "aggregations":{"%s":{"extended_stats":{"field":"int","sigma":2.0}}}}}}\
                 """, aggName)));
         }
@@ -1229,14 +1230,14 @@ public class QueryTranslatorTests extends ESTestCase {
             final int fieldCount = 5;
             final String sql = ("SELECT " +
             // 0-3: these all should fold into the same aggregation
-            "   PERCENTILE(int, 50, 'tdigest', 79.8 + 20.2), "
+                "   PERCENTILE(int, 50, 'tdigest', 79.8 + 20.2), "
                 + "   PERCENTILE(int, 40 + 10, 'tdigest', null), "
                 + "   PERCENTILE(int, 50, 'tdigest'), "
                 + "   PERCENTILE(int, 50), "
                 +
             // 4: this has a different method parameter
             // just to make sure we don't fold everything to default
-            "   PERCENTILE(int, 50, 'tdigest', 22) "
+                "   PERCENTILE(int, 50, 'tdigest', 22) "
                 + "FROM test").replaceAll("PERCENTILE", fnName);
 
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
@@ -1263,13 +1264,13 @@ public class QueryTranslatorTests extends ESTestCase {
             final int fieldCount = 5;
             final String sql = ("SELECT " +
             // 0-1: fold into the same aggregation
-            "   PERCENTILE(int, 50, 'tdigest'), " + "   PERCENTILE(int, 60, 'tdigest'), " +
+                "   PERCENTILE(int, 50, 'tdigest'), " + "   PERCENTILE(int, 60, 'tdigest'), " +
 
             // 2-3: fold into one aggregation
-            "   PERCENTILE(int, 50, 'hdr'), " + "   PERCENTILE(int, 60, 'hdr', 3), " +
+                "   PERCENTILE(int, 50, 'hdr'), " + "   PERCENTILE(int, 60, 'hdr', 3), " +
 
             // 4: folds into a separate aggregation
-            "   PERCENTILE(int, 60, 'hdr', 4)" + "FROM test").replaceAll("PERCENTILE", fnName);
+                "   PERCENTILE(int, 60, 'hdr', 4)" + "FROM test").replaceAll("PERCENTILE", fnName);
 
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
 

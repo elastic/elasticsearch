@@ -106,7 +106,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         String geo = """
             "geo" : {"type":"polygon", "coordinates":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}""";
 
-        client().prepareIndex("shapes").setId("1").setSource(formatted("""
+        client().prepareIndex("shapes").setId("1").setSource(Strings.format("""
             { %s, "1" : { %s, "2" : { %s, "3" : { %s } }} }
             """, geo, geo, geo, geo), XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex(defaultIndexName)

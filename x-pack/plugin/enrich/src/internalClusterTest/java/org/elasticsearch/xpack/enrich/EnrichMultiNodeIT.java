@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -313,7 +314,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
     }
 
     private static void createPipeline() {
-        String pipelineBody = formatted("""
+        String pipelineBody = Strings.format("""
             {
               "processors": [ { "enrich": { "policy_name": "%s", "field": "%s", "target_field": "user" } } ]
             }""", POLICY_NAME, MATCH_FIELD);

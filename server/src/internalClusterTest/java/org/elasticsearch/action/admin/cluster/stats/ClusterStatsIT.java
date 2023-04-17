@@ -9,12 +9,12 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Priority;
@@ -60,7 +60,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
     private void waitForNodes(int numNodes) {
         ClusterHealthResponse actionGet = client().admin()
             .cluster()
-            .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes)))
+            .health(new ClusterHealthRequest(new String[] {}).waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes)))
             .actionGet();
         assertThat(actionGet.isTimedOut(), is(false));
     }

@@ -85,7 +85,7 @@ public class JwkSetLoader implements Releasable {
      * as the existing one or true if they are different.
      */
     void reload(final ActionListener<Tuple<Boolean, JwksAlgs>> listener) {
-        final ListenableFuture<Tuple<Boolean, JwksAlgs>> future = this.getFuture();
+        final ListenableFuture<Tuple<Boolean, JwksAlgs>> future = getFuture();
         future.addListener(listener);
     }
 
@@ -93,17 +93,18 @@ public class JwkSetLoader implements Releasable {
         return contentAndJwksAlgs;
     }
 
-    private ListenableFuture<Tuple<Boolean, JwksAlgs>> getFuture() {
+    // Package private for testing
+    ListenableFuture<Tuple<Boolean, JwksAlgs>> getFuture() {
         for (;;) {
-            final ListenableFuture<Tuple<Boolean, JwksAlgs>> existingFuture = this.reloadFutureRef.get();
+            final ListenableFuture<Tuple<Boolean, JwksAlgs>> existingFuture = reloadFutureRef.get();
             if (existingFuture != null) {
                 return existingFuture;
             }
 
             final ListenableFuture<Tuple<Boolean, JwksAlgs>> newFuture = new ListenableFuture<>();
-            if (this.reloadFutureRef.compareAndSet(null, newFuture)) {
+            if (reloadFutureRef.compareAndSet(null, newFuture)) {
                 loadInternal(ActionListener.runBefore(newFuture, () -> {
-                    final ListenableFuture<Tuple<Boolean, JwksAlgs>> oldValue = this.reloadFutureRef.getAndSet(null);
+                    final ListenableFuture<Tuple<Boolean, JwksAlgs>> oldValue = reloadFutureRef.getAndSet(null);
                     assert oldValue == newFuture : "future reference changed unexpectedly";
                 }));
                 return newFuture;
@@ -112,7 +113,8 @@ public class JwkSetLoader implements Releasable {
         }
     }
 
-    private void loadInternal(final ActionListener<Tuple<Boolean, JwksAlgs>> listener) {
+    // Package private for testing
+    void loadInternal(final ActionListener<Tuple<Boolean, JwksAlgs>> listener) {
         // PKC JWKSet get contents from local file or remote HTTPS URL
         if (httpClient == null) {
             logger.trace("Loading PKC JWKs from path [{}]", jwkSetPath);
@@ -189,7 +191,7 @@ public class JwkSetLoader implements Releasable {
         }
 
         boolean isEmpty() {
-            return this.jwks.isEmpty() && this.algs.isEmpty();
+            return jwks.isEmpty() && algs.isEmpty();
         }
     }
 

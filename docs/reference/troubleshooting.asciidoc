@@ -16,6 +16,7 @@ fix problems that an {es} deployment might encounter.
 [discrete]
 [[troubleshooting-data]]
 === Data
+* <<fix-watermark-errors,Fix watermark errors caused by low disk space>>
 * <<add-tier,Add a missing tier to the system>>
 * <<allow-all-cluster-allocation,Allow Elasticsearch to allocate the data in the system>>
 * <<allow-all-index-allocation,Allow Elasticsearch to allocate the index>>

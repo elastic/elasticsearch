@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -86,7 +85,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     }
 
     private RestChannelConsumer prepareLegacyRequest(final RestRequest request, final NodeClient client, final boolean renderDefaults) {
-        ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest().routingTable(false).nodes(false);
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest().routingTable(false).nodes(false);
         setUpRequestParams(clusterStateRequest, request);
         return channel -> client.admin()
             .cluster()

@@ -51,6 +51,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregationBuilder.EXECUTION_HINT_ALLOWED_MODES;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
@@ -87,7 +88,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             FrequentItemSetsAggregationBuilder.DEFAULT_MINIMUM_SUPPORT,
             FrequentItemSetsAggregationBuilder.DEFAULT_MINIMUM_SET_SIZE,
             FrequentItemSetsAggregationBuilder.DEFAULT_SIZE,
-            null
+            null,
+            randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         );
     }
 
@@ -134,7 +136,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             minimumSupport,
             minimumSetSize,
             size,
-            null
+            null,
+            randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         );
 
         testCase(iw -> {
@@ -325,9 +328,9 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                 0.2
             ),
             new FrequentItemSet(Map.of(IP_FIELD, List.of("192.168.0.1"), FLOAT_FIELD, List.of(4.1f), INT_FIELD, List.of(2)), 2, 0.2),
-            new FrequentItemSet(Map.of(FLOAT_FIELD, List.of(5), KEYWORD_FIELD1, List.of("host-2")), 2, 0.2),
+            new FrequentItemSet(Map.of(FLOAT_FIELD, List.of(5.0f), KEYWORD_FIELD1, List.of("host-2")), 2, 0.2),
             new FrequentItemSet(Map.of(INT_FIELD, List.of(5), KEYWORD_FIELD1, List.of("host-2")), 2, 0.2),
-            new FrequentItemSet(Map.of(FLOAT_FIELD, List.of(5), KEYWORD_FIELD2, List.of("client-2")), 2, 0.2),
+            new FrequentItemSet(Map.of(FLOAT_FIELD, List.of(5.0f), KEYWORD_FIELD2, List.of("client-2")), 2, 0.2),
             new FrequentItemSet(Map.of(IP_FIELD, List.of("192.168.0.5"), KEYWORD_FIELD2, List.of("client-2")), 2, 0.2)
         );
 
@@ -337,7 +340,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             minimumSupport,
             minimumSetSize,
             size,
-            null
+            null,
+            randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         );
 
         testCase(iw -> {
@@ -552,7 +556,8 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             minimumSupport,
             minimumSetSize,
             size,
-            null
+            null,
+            randomFrom(EXECUTION_HINT_ALLOWED_MODES)
         );
 
         testCase(iw -> {
@@ -719,16 +724,9 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                 )
             )
             .filter(fi -> fi.getSupport() >= minSupport)
-            .filter(
-                fi -> {
-                    return fi.getFields()
-                        .values()
-                        .stream()
-                        .map(v -> v.stream().count())
-                        .mapToLong(e -> e.longValue())
-                        .sum() >= minimumSetSize;
-                }
-            )
+            .filter(fi -> {
+                return fi.getFields().values().stream().map(v -> v.stream().count()).mapToLong(e -> e.longValue()).sum() >= minimumSetSize;
+            })
             .sorted((a, b) -> {
                 if (a.getDocCount() == b.getDocCount()) {
                     if (b.getFields().size() == a.getFields().size()) {
@@ -791,7 +789,12 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
             + " minimum_set_size: "
             + minimumSetSize
             + " size: "
-            + size;
+            + size
+            + " string exclude: ["
+            + stringExclude
+            + "] int exclude: ["
+            + intExclude
+            + "]";
 
         assertEquals(
             "number of results do not match, " + setsAssertMessage,

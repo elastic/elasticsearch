@@ -68,6 +68,11 @@ public class RegressionTests extends AbstractXContentSerializingTestCase<Regress
     }
 
     @Override
+    protected Regression mutateInstance(Regression instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Regression> instanceReader() {
         return Regression::new;
     }

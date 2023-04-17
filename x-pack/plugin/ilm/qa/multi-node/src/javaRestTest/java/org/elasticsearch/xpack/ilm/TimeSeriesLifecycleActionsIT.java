@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -552,7 +553,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testNonexistentPolicy() throws Exception {
         String indexPrefix = randomAlphaOfLengthBetween(5, 15).toLowerCase(Locale.ROOT);
-        final StringEntity template = new StringEntity(formatted("""
+        final StringEntity template = new StringEntity(Strings.format("""
             {
               "index_patterns": "%s*",
               "settings": {
@@ -719,7 +720,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         // Add the policy again
         Request addPolicyRequest = new Request("PUT", "/" + originalIndex + "/_settings");
-        addPolicyRequest.setJsonEntity(formatted("""
+        addPolicyRequest.setJsonEntity(Strings.format("""
             {
               "settings": {
                 "index.lifecycle.name": "%s",
@@ -780,7 +781,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // update policy on index
         updatePolicy(client(), originalIndex, policy);
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity(formatted("""
+        createIndexTemplate.setJsonEntity(Strings.format("""
             {"index_patterns": ["%s-*"],
               "settings": {
                 "number_of_shards": 1,
@@ -806,7 +807,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testHistoryIsWrittenWithSuccess() throws Exception {
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity(formatted("""
+        createIndexTemplate.setJsonEntity(Strings.format("""
             {
               "index_patterns": [ "%s-*" ],
               "settings": {
@@ -887,10 +888,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false)
+                .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false)
         );
 
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true));
+        updateIndexSettings(index, Settings.builder().put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true));
 
         assertOK(client().performRequest(startReq));
 
@@ -901,7 +902,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         );
 
         // Turn origination date parsing back off
-        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false));
+        updateIndexSettings(index, Settings.builder().put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false));
 
         assertBusy(() -> {
             Map<String, Object> explainResp = explainIndex(client(), index);
@@ -915,7 +916,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 100L, null, null, null, null, null, null));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity(formatted("""
+        createIndexTemplate.setJsonEntity(Strings.format("""
             {
               "index_patterns": ["%s-*"],
               "settings": {
@@ -1063,7 +1064,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                         Map<String, Object> snapshotInfoMap = (Map<String, Object>) snapshot;
                         if (snapshotInfoMap.get("snapshot").equals(snapshotName[0]) &&
                         // wait for the snapshot to be completed (successfully or not) otherwise the teardown might fail
-                        SnapshotState.valueOf((String) snapshotInfoMap.get("state")).completed()) {
+                            SnapshotState.valueOf((String) snapshotInfoMap.get("state")).completed()) {
                             return true;
                         }
                     }
@@ -1134,47 +1135,44 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             stepName
         );
         final Request historySearchRequest = new Request("GET", "ilm-history*/_search?expand_wildcards=all");
-        historySearchRequest.setJsonEntity(
-            formatted(
-                """
+        Object[] args = new Object[] {
+            policyName,
+            success,
+            indexName,
+            stepName,
+            phase == null ? "" : Strings.format(",{\"term\": {\"state.phase\": \"%s\"}}", phase),
+            action == null ? "" : ",{\"term\": {\"state.action\": \"" + action + "\"}}" };
+        historySearchRequest.setJsonEntity(Strings.format("""
+            {
+              "query": {
+                "bool": {
+                  "must": [
                     {
-                      "query": {
-                        "bool": {
-                          "must": [
-                            {
-                              "term": {
-                                "policy": "%s"
-                              }
-                            },
-                            {
-                              "term": {
-                                "success": %s
-                              }
-                            },
-                            {
-                              "term": {
-                                "index": "%s"
-                              }
-                            },
-                            {
-                              "term": {
-                                "state.step": "%s"
-                              }
-                            }
-                            %s
-                            %s
-                          ]
-                        }
+                      "term": {
+                        "policy": "%s"
                       }
-                    }""",
-                policyName,
-                success,
-                indexName,
-                stepName,
-                phase == null ? "" : formatted(",{\"term\": {\"state.phase\": \"%s\"}}", phase),
-                action == null ? "" : ",{\"term\": {\"state.action\": \"" + action + "\"}}"
-            )
-        );
+                    },
+                    {
+                      "term": {
+                        "success": %s
+                      }
+                    },
+                    {
+                      "term": {
+                        "index": "%s"
+                      }
+                    },
+                    {
+                      "term": {
+                        "state.step": "%s"
+                      }
+                    }
+                    %s
+                    %s
+                  ]
+                }
+              }
+            }""", args));
         Response historyResponse;
         try {
             historyResponse = client().performRequest(historySearchRequest);
@@ -1188,7 +1186,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             // For a failure, print out whatever history we *do* have for the index
             if (hits == 0) {
                 final Request allResults = new Request("GET", "ilm-history*/_search");
-                allResults.setJsonEntity(formatted("""
+                allResults.setJsonEntity(Strings.format("""
                     {
                       "query": {
                         "bool": {

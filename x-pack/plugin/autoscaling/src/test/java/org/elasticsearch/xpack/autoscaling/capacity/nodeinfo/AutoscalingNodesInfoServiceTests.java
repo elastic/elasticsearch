@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.autoscaling.capacity.nodeinfo;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -449,10 +450,12 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         OsInfo osInfo = new OsInfo(randomLong(), processors, Processors.of((double) processors), null, null, null, null);
         return new org.elasticsearch.action.admin.cluster.node.info.NodeInfo(
             Version.CURRENT,
+            TransportVersion.CURRENT,
             Build.CURRENT,
             node,
             null,
             osInfo,
+            null,
             null,
             null,
             null,

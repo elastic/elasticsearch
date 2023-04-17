@@ -15,6 +15,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -141,6 +142,6 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
             node().injector().getInstance(HttpServerTransport.class).boundAddress().boundAddresses()
         );
         final InetSocketAddress inetSocketAddress = transportAddress.address();
-        return formatted("https://%s/", NetworkAddress.format(inetSocketAddress));
+        return Strings.format("https://%s/", NetworkAddress.format(inetSocketAddress));
     }
 }

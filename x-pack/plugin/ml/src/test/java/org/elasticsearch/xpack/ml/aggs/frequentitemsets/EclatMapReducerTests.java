@@ -485,7 +485,7 @@ public class EclatMapReducerTests extends ESTestCase {
         HashBasedTransactionStore transactionStoreForReduce = eclat.reduceInit(mockBigArrays());
 
         for (HashBasedTransactionStore transactionStore : transactionStores) {
-            ImmutableTransactionStore transactionStoreAfterFinalizing = eclat.mapFinalize(transactionStore);
+            ImmutableTransactionStore transactionStoreAfterFinalizing = eclat.mapFinalize(transactionStore, null);
             List<ImmutableTransactionStore> allPartitions = List.of(transactionStoreAfterFinalizing);
             eclat.reduce(allPartitions.stream(), transactionStoreForReduce, doNotCancelSupplier);
         }

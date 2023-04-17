@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -165,23 +166,31 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         this.configuredServerName = configuredServerName;
         assert Strings.isEmpty(configuredAddress) == false : "Cannot use proxy connection strategy with no configured addresses";
         this.address = address;
-        this.clusterNameValidator = (newConnection, actualProfile, listener) -> transportService.handshake(
-            newConnection,
-            actualProfile.getHandshakeTimeout(),
-            cn -> true,
-            listener.map(resp -> {
-                ClusterName remote = resp.getClusterName();
-                if (remoteClusterName.compareAndSet(null, remote)) {
-                    return null;
-                } else {
-                    if (remoteClusterName.get().equals(remote) == false) {
-                        DiscoveryNode node = newConnection.getNode();
-                        throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
+        this.clusterNameValidator = (newConnection, actualProfile, listener) -> {
+            assert actualProfile.getTransportProfile().equals(connectionManager.getConnectionProfile().getTransportProfile())
+                : "transport profile must be consistent between the connection manager and the actual profile";
+            transportService.handshake(
+                RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+                    newConnection,
+                    clusterAlias,
+                    actualProfile.getTransportProfile()
+                ),
+                actualProfile.getHandshakeTimeout(),
+                cn -> true,
+                listener.map(resp -> {
+                    ClusterName remote = resp.getClusterName();
+                    if (remoteClusterName.compareAndSet(null, remote)) {
+                        return null;
+                    } else {
+                        if (remoteClusterName.get().equals(remote) == false) {
+                            DiscoveryNode node = newConnection.getNode();
+                            throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
+                        }
+                        return null;
                     }
-                    return null;
-                }
-            })
-        );
+                })
+            );
+        };
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {
@@ -316,7 +325,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         private ProxyModeInfo(StreamInput input) throws IOException {
             address = input.readString();
-            if (input.getVersion().onOrAfter(Version.V_7_7_0)) {
+            if (input.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
                 serverName = input.readString();
             } else {
                 serverName = null;
@@ -337,7 +346,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(address);
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
                 out.writeString(serverName);
             }
             out.writeVInt(maxSocketConnections);

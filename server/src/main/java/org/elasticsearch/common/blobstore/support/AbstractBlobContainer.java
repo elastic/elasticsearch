@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.blobstore.support;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 
@@ -20,6 +21,17 @@ public abstract class AbstractBlobContainer implements BlobContainer {
 
     protected AbstractBlobContainer(BlobPath path) {
         this.path = path;
+    }
+
+    /**
+     * Temporary check that permits disabling CAS operations at runtime; TODO remove this when no longer needed
+     */
+    protected static boolean skipCas(ActionListener<?> listener) {
+        if ("true".equals(System.getProperty("test.repository_test_kit.skip_cas"))) {
+            listener.onFailure(new UnsupportedOperationException());
+            return true;
+        }
+        return false;
     }
 
     @Override

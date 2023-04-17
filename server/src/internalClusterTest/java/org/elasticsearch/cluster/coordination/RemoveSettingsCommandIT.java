@@ -31,15 +31,9 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
     public void testRemoveSettingsAbortedByUser() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         String node = internalCluster().startNode();
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
-                    .build()
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+        );
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
@@ -60,15 +54,9 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
     public void testRemoveSettingsSuccessful() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         String node = internalCluster().startNode();
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
-                    .build()
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+        );
         assertThat(
             client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().keySet(),
             contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey())
@@ -104,15 +92,9 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
     public void testSettingDoesNotMatch() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         String node = internalCluster().startNode();
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
-                    .build()
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+        );
         assertThat(
             client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().keySet(),
             contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey())

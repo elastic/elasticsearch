@@ -1,6 +1,0 @@
-pr: 90282
-summary: Increase snaphot pool max size to 10
-area: Snapshot/Restore
-type: enhancement
-issues:
- - 89608

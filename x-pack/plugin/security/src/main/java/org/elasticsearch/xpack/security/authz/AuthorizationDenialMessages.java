@@ -58,15 +58,9 @@ class AuthorizationDenialMessages {
         TransportRequest request,
         @Nullable String context
     ) {
-        String userText = authenticatedUserDescription(authentication);
-
-        if (authentication.isRunAs()) {
-            userText = userText + " run as [" + authentication.getEffectiveSubject().getUser().principal() + "]";
-        }
-
-        userText += rolesDescription(authentication.getEffectiveSubject(), authorizationInfo);
-
-        String message = actionIsUnauthorizedMessage(action, userText);
+        String userText = successfulAuthenticationDescription(authentication, authorizationInfo);
+        String remoteClusterText = authentication.isCrossClusterAccess() ? remoteClusterText(null) : "";
+        String message = actionIsUnauthorizedMessage(action, remoteClusterText, userText);
         if (context != null) {
             message = message + " " + context;
         }
@@ -92,17 +86,41 @@ class AuthorizationDenialMessages {
         return message;
     }
 
+    static String remoteActionDenied(
+        Authentication authentication,
+        @Nullable AuthorizationInfo authorizationInfo,
+        String action,
+        String clusterAlias
+    ) {
+        assert isIndexAction(action);
+        String userText = successfulAuthenticationDescription(authentication, authorizationInfo);
+        String remoteClusterText = remoteClusterText(clusterAlias);
+        return actionIsUnauthorizedMessage(action, remoteClusterText, userText)
+            + " because no remote indices privileges apply for the target cluster";
+    }
+
+    private static String remoteClusterText(@Nullable String clusterAlias) {
+        return Strings.format("towards remote cluster%s ", clusterAlias == null ? "" : " [" + clusterAlias + "]");
+    }
+
     private static String authenticatedUserDescription(Authentication authentication) {
-        String userText = (authentication.isAuthenticatedWithServiceAccount() ? "service account" : "user")
+        String userText = (authentication.isServiceAccount() ? "service account" : "user")
             + " ["
             + authentication.getAuthenticatingSubject().getUser().principal()
             + "]";
-        if (authentication.isAuthenticatedAsApiKey()) {
+        if (authentication.isAuthenticatedAsApiKey() || authentication.isCrossClusterAccess()) {
             final String apiKeyId = (String) authentication.getAuthenticatingSubject()
                 .getMetadata()
                 .get(AuthenticationField.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
+            if (authentication.isCrossClusterAccess()) {
+                final Authentication crossClusterAccessAuthentication = (Authentication) authentication.getAuthenticatingSubject()
+                    .getMetadata()
+                    .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
+                assert crossClusterAccessAuthentication != null : "cross cluster access authentication must be present in the metadata";
+                userText = successfulAuthenticationDescription(crossClusterAccessAuthentication, null) + " authenticated by " + userText;
+            }
         }
         return userText;
     }
@@ -131,6 +149,17 @@ class AuthorizationDenialMessages {
         return sb.toString();
     }
 
+    static String successfulAuthenticationDescription(Authentication authentication, @Nullable AuthorizationInfo authorizationInfo) {
+        String userText = authenticatedUserDescription(authentication);
+
+        if (authentication.isRunAs()) {
+            userText = userText + " run as [" + authentication.getEffectiveSubject().getUser().principal() + "]";
+        }
+
+        userText += rolesDescription(authentication.getEffectiveSubject(), authorizationInfo);
+        return userText;
+    }
+
     private static List<String> extractEffectiveRoleNames(@Nullable AuthorizationInfo authorizationInfo) {
         if (authorizationInfo == null) {
             return null;
@@ -148,6 +177,10 @@ class AuthorizationDenialMessages {
     }
 
     private static String actionIsUnauthorizedMessage(String action, String userText) {
-        return "action [" + action + "] is unauthorized for " + userText;
+        return actionIsUnauthorizedMessage(action, "", userText);
+    }
+
+    private static String actionIsUnauthorizedMessage(String action, String remoteClusterText, String userText) {
+        return "action [" + action + "] " + remoteClusterText + "is unauthorized for " + userText;
     }
 }

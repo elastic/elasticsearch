@@ -535,7 +535,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
                     service1,
                     node2,
                     new CleanableResponseHandler<>(
-                        ActionListener.wrap(() -> assertFalse(responseHandlerCalled.getAndSet(true))),
+                        ActionListener.running(() -> assertFalse(responseHandlerCalled.getAndSet(true))),
                         TestResponse::new,
                         ThreadPool.Names.SAME,
                         () -> assertFalse(responseHandlerReleased.getAndSet(true))

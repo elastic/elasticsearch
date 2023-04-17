@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShar
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -90,9 +89,10 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
 
-        final List<SnapshotStatus> snapshotStatus = clusterAdmin().snapshotsStatus(
-            new SnapshotsStatusRequest("test-repo", new String[] { "test-snap" })
-        ).get().getSnapshots();
+        final List<SnapshotStatus> snapshotStatus = clusterAdmin().prepareSnapshotStatus("test-repo")
+            .setSnapshots("test-snap")
+            .get()
+            .getSnapshots();
         assertThat(snapshotStatus.size(), equalTo(1));
         final SnapshotStatus snStatus = snapshotStatus.get(0);
         assertEquals(snStatus.getStats().getStartTime(), snapshotInfo.startTime());

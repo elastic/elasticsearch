@@ -162,10 +162,9 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 false
             );
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> { assertEquals("the_pit_id+", response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals("the_pit_id+", response.pointInTimeId());
+            });
 
             assertEquals(1L, client.getPitContextCounter());
 
@@ -176,40 +175,34 @@ public class ClientTransformIndexerTests extends ESTestCase {
             indexer.onStop();
             assertEquals(0L, client.getPitContextCounter());
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> { assertEquals("the_pit_id+", response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals("the_pit_id+", response.pointInTimeId());
+            });
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> { assertEquals("the_pit_id++", response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals("the_pit_id++", response.pointInTimeId());
+            });
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> { assertEquals("the_pit_id+++", response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals("the_pit_id+++", response.pointInTimeId());
+            });
 
             assertEquals(1L, client.getPitContextCounter());
 
             indexer.onStop();
             assertEquals(0L, client.getPitContextCounter());
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> { assertEquals("the_pit_id+", response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals("the_pit_id+", response.pointInTimeId());
+            });
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> { assertEquals("the_pit_id++", response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals("the_pit_id++", response.pointInTimeId());
+            });
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> { assertEquals("the_pit_id+++", response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertEquals("the_pit_id+++", response.pointInTimeId());
+            });
 
             assertEquals(1L, client.getPitContextCounter());
 

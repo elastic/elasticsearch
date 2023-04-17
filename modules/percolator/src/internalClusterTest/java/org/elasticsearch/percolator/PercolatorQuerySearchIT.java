@@ -9,7 +9,6 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -18,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
@@ -410,10 +409,9 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh().get();
 
         logger.info("percolating empty doc with source disabled");
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { client().prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null)).get(); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            client().prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null)).get();
+        });
         assertThat(e.getMessage(), containsString("source disabled"));
     }
 
@@ -888,7 +886,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getIndex(), equalTo("test2"));
 
         // Unacceptable:
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> {
             client().prepareIndex("test2")
                 .setId("1")
                 .setSource(
@@ -1228,9 +1226,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
 
             // Set search.allow_expensive_queries to "false" => assert failure
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", false));
 
             ElasticsearchException e = expectThrows(
                 ElasticsearchException.class,
@@ -1242,18 +1238,14 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             );
 
             // Set search.allow_expensive_queries setting to "true" ==> success
-            updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", true));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", true));
 
             response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
             assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
         } finally {
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().putNull("search.allow_expensive_queries"));
         }
     }
 

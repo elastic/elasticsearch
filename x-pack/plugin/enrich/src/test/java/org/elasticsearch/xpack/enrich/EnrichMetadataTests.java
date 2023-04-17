@@ -32,6 +32,11 @@ public class EnrichMetadataTests extends AbstractChunkedSerializingTestCase<Enri
     }
 
     @Override
+    protected EnrichMetadata mutateInstance(EnrichMetadata instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected EnrichMetadata createXContextTestInstance(XContentType xContentType) {
         return randomEnrichMetadata(xContentType);
     }
@@ -60,10 +65,5 @@ public class EnrichMetadataTests extends AbstractChunkedSerializingTestCase<Enri
             EnrichPolicy expected = expectedInstance.getPolicies().get(entry.getKey());
             EnrichPolicyTests.assertEqualPolicies(expected, actual);
         }
-    }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
     }
 }

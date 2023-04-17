@@ -82,7 +82,8 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                 ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
                 // is specified in the builder.
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
-                GeoTileCellIdSource cellIdSource = new GeoTileCellIdSource(geoPoint, precision, boundingBox);
+                // TODO: support adding circuit breaker in composite
+                GeoTileCellIdSource cellIdSource = new GeoTileCellIdSource(geoPoint, precision, boundingBox, cb -> {});
                 return new CompositeValuesSourceConfig(
                     name,
                     fieldType,

@@ -289,7 +289,11 @@ public class JobResultsPersisterTests extends ESTestCase {
             666.0,
             new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0)
         );
-        persister.persistDatafeedTimingStats(timingStats, WriteRequest.RefreshPolicy.IMMEDIATE);
+        persister.persistDatafeedTimingStats(
+            timingStats,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            ActionListener.wrap(r -> {}, e -> fail("unexpected exception " + e.getMessage()))
+        );
 
         InOrder inOrder = inOrder(client);
         inOrder.verify(client).settings();

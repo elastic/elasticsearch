@@ -10,6 +10,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -40,7 +42,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -65,7 +66,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -154,7 +154,7 @@ public class RefreshListenersTests extends ESTestCase {
             null,
             System::nanoTime,
             null,
-            false
+            true
         );
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
@@ -403,11 +403,11 @@ public class RefreshListenersTests extends ESTestCase {
         // These threads add and block until the refresh makes the change visible and then do a non-realtime get.
         Thread[] indexers = new Thread[threadCount];
         for (int thread = 0; thread < threadCount; thread++) {
-            final String threadId = formatted("%04d", thread);
+            final String threadId = Strings.format("%04d", thread);
             indexers[thread] = new Thread(() -> {
                 for (int iteration = 1; iteration <= 50; iteration++) {
                     try {
-                        String testFieldValue = String.format(Locale.ROOT, "%s%04d", threadId, iteration);
+                        String testFieldValue = Strings.format("%s%04d", threadId, iteration);
                         Engine.IndexResult index = index(threadId, testFieldValue);
                         assertEquals(iteration, index.getVersion());
 
@@ -541,7 +541,7 @@ public class RefreshListenersTests extends ESTestCase {
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
         LuceneDocument document = new LuceneDocument();
         document.add(new TextField("test", testFieldValue, Field.Store.YES));
-        Field idField = new Field(uid.field(), uid.bytes(), ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
+        Field idField = new StringField(uid.field(), uid.bytes(), Field.Store.YES);
         Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(idField);

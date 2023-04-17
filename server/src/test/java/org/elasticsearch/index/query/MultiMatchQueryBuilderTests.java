@@ -27,6 +27,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
@@ -329,7 +330,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             Type.PHRASE.parseField().getPreferredName(),
             Type.PHRASE_PREFIX.parseField().getPreferredName() };
         for (String type : notAllowedTypes) {
-            String json = formatted("""
+            String json = Strings.format("""
                 {
                   "multi_match": {
                     "query": "quick brown fox",

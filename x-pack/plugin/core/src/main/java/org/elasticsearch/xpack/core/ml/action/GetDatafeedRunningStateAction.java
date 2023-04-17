@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -101,7 +101,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
             public RunningState(StreamInput in) throws IOException {
                 this.realTimeConfigured = in.readBoolean();
                 this.realTimeRunning = in.readBoolean();
-                if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                     this.searchInterval = in.readOptionalWriteable(SearchInterval::new);
                 } else {
                     this.searchInterval = null;
@@ -127,7 +127,7 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeBoolean(realTimeConfigured);
                 out.writeBoolean(realTimeRunning);
-                if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                     out.writeOptionalWriteable(searchInterval);
                 }
             }

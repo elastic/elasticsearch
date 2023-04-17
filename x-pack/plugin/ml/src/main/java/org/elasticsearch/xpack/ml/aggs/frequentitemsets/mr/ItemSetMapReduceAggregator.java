@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
@@ -48,13 +50,14 @@ public abstract class ItemSetMapReduceAggregator<
     ReduceContext extends Closeable,
     Result extends ToXContent & Writeable> extends AggregatorBase {
 
-    private final List<ItemSetMapReduceValueSource> extractors;
+    private final List<ItemSetMapReduceValueSource> valueSources;
     private final Weight weightDocumentFilter;
     private final List<Field> fields;
     private final AbstractItemSetMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer;
     private final BigArrays bigArraysForMapReduce;
     private final LongObjectPagedHashMap<Object> mapReduceContextByBucketOrdinal;
     private final boolean profiling;
+    private final boolean rewriteBasedOnOrdinals;
     private final DelegatingCircuitBreakerService breakerService;
 
     protected ItemSetMapReduceAggregator(
@@ -65,30 +68,36 @@ public abstract class ItemSetMapReduceAggregator<
         Map<String, Object> metadata,
         AbstractItemSetMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer,
         List<Tuple<ValuesSourceConfig, IncludeExclude>> configsAndValueFilters,
-        QueryBuilder documentFilter
+        QueryBuilder documentFilter,
+        AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization
     ) throws IOException {
         super(name, AggregatorFactories.EMPTY, context, parent, CardinalityUpperBound.NONE, metadata);
 
-        List<ItemSetMapReduceValueSource> extractors = new ArrayList<>();
+        List<ItemSetMapReduceValueSource> valueSources = new ArrayList<>();
         List<Field> fields = new ArrayList<>();
         IndexSearcher contextSearcher = context.searcher();
+        LeafReaderContext ctx = getLeafReaderForOrdinals(context);
 
         int id = 0;
         this.weightDocumentFilter = documentFilter != null
             ? contextSearcher.createWeight(contextSearcher.rewrite(context.buildQuery(documentFilter)), ScoreMode.COMPLETE_NO_SCORES, 1f)
             : null;
 
+        boolean rewriteBasedOnOrdinals = false;
+
         for (var c : configsAndValueFilters) {
             ItemSetMapReduceValueSource e = context.getValuesSourceRegistry()
                 .getAggregator(registryKey, c.v1())
-                .build(c.v1(), id++, c.v2());
+                .build(c.v1(), id++, c.v2(), ordinalOptimization, ctx);
             if (e.getField().getName() != null) {
                 fields.add(e.getField());
-                extractors.add(e);
+                valueSources.add(e);
             }
+            rewriteBasedOnOrdinals |= e.usesOrdinals();
         }
 
-        this.extractors = Collections.unmodifiableList(extractors);
+        this.rewriteBasedOnOrdinals = rewriteBasedOnOrdinals;
+        this.valueSources = Collections.unmodifiableList(valueSources);
         this.fields = Collections.unmodifiableList(fields);
         this.mapReducer = mapReducer;
         this.profiling = context.profiling();
@@ -126,14 +135,19 @@ public abstract class ItemSetMapReduceAggregator<
             )
             : null;
 
+        List<ItemSetMapReduceValueSource.ValueCollector> valueCollectors = new ArrayList<>(valueSources.size());
+        for (ItemSetMapReduceValueSource valueSource : valueSources) {
+            valueCollectors.add(valueSource.getValueCollector(ctx.getLeafReaderContext()));
+        }
+
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 SetOnce<IOException> firstException = new SetOnce<>();
                 if (bits == null || bits.get(doc)) {
-                    mapReducer.map(extractors.stream().map(extractor -> {
+                    mapReducer.map(valueCollectors.stream().map(c -> {
                         try {
-                            return extractor.collect(ctx.getLeafReaderContext(), doc);
+                            return c.collect(doc);
                         } catch (IOException e) {
                             firstException.trySet(e);
                             // ignored in AbstractMapReducer
@@ -152,10 +166,20 @@ public abstract class ItemSetMapReduceAggregator<
     }
 
     @Override
-    public void doPostCollection() {
+    public void doPostCollection() throws IOException {
+        List<AbstractItemSetMapReducer.OrdinalLookupFunction> ordinalLookupFunctions = null;
+
+        // only rewrite ordinals back to real values when required
+        if (rewriteBasedOnOrdinals) {
+            ordinalLookupFunctions = new ArrayList<>(valueSources.size());
+            for (ItemSetMapReduceValueSource valueSource : valueSources) {
+                ordinalLookupFunctions.add(valueSource::mapOrdinal);
+            }
+        }
+
         for (long ordIdx = 0; ordIdx < mapReduceContextByBucketOrdinal.size(); ordIdx++) {
             MapContext context = getMapReduceContext(ordIdx);
-            mapReduceContextByBucketOrdinal.put(ordIdx, mapReducer.mapFinalize(context));
+            mapReduceContextByBucketOrdinal.put(ordIdx, mapReducer.mapFinalize(context, ordinalLookupFunctions));
         }
     }
 
@@ -196,4 +220,8 @@ public abstract class ItemSetMapReduceAggregator<
         return new InternalItemSetMapReduceAggregation<>(name, metadata(), mapReducer, context, null, fields, profiling);
     }
 
+    private static LeafReaderContext getLeafReaderForOrdinals(AggregationContext context) {
+        IndexReader reader = context.searcher().getIndexReader();
+        return reader.leaves().get(0);
+    }
 }

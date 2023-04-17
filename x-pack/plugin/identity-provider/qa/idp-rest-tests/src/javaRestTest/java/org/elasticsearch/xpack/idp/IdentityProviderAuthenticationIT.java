@@ -128,11 +128,11 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     private String generateSamlResponse(String entityId, String acs, @Nullable Map<String, Object> authnState) throws Exception {
         final Request request = new Request("POST", "/_idp/saml/init");
         if (authnState != null && authnState.isEmpty() == false) {
-            request.setJsonEntity(formatted("""
+            request.setJsonEntity(Strings.format("""
                 {"entity_id":"%s", "acs":"%s","authn_state":%s}
                 """, entityId, acs, Strings.toString(JsonXContent.contentBuilder().map(authnState))));
         } else {
-            request.setJsonEntity(formatted("""
+            request.setJsonEntity(Strings.format("""
                 {"entity_id":"%s", "acs":"%s"}
                 """, entityId, acs));
         }
@@ -153,11 +153,11 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         final String encodedResponse = Base64.getEncoder().encodeToString(samlResponse.getBytes(StandardCharsets.UTF_8));
         final Request request = new Request("POST", "/_security/saml/authenticate");
         if (Strings.hasText(id)) {
-            request.setJsonEntity(formatted("""
+            request.setJsonEntity(Strings.format("""
                 {"content":"%s", "realm":"%s", "ids":["%s"]}
                 """, encodedResponse, REALM_NAME, id));
         } else {
-            request.setJsonEntity(formatted("""
+            request.setJsonEntity(Strings.format("""
                 {"content":"%s", "realm":"%s"}
                 """, encodedResponse, REALM_NAME));
         }

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -85,7 +85,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             datafeedId = in.readString();
             datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
             jobConfig = in.readOptionalWriteable(Job.Builder::new);
-            if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                 this.startTime = in.readOptionalLong();
                 this.endTime = in.readOptionalLong();
             } else {
@@ -163,7 +163,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             out.writeString(datafeedId);
             out.writeOptionalWriteable(datafeedConfig);
             out.writeOptionalWriteable(jobConfig);
-            if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
                 out.writeOptionalLong(startTime);
                 out.writeOptionalLong(endTime);
             }

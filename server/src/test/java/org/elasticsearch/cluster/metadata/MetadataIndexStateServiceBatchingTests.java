@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
@@ -199,20 +198,14 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
 
     private static CheckedRunnable<Exception> blockMasterService(MasterService masterService) {
         final var executionBarrier = new CyclicBarrier(2);
-        masterService.submitStateUpdateTask(
-            "block",
-            new ExpectSuccessTask(),
-            ClusterStateTaskConfig.build(Priority.URGENT),
-            batchExecutionContext -> {
-                executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
-                executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
-                for (final var taskContext : batchExecutionContext.taskContexts()) {
-                    taskContext.success(() -> {});
-                }
-                return batchExecutionContext.initialState();
+        masterService.createTaskQueue("block", Priority.URGENT, batchExecutionContext -> {
+            executionBarrier.await(10, TimeUnit.SECONDS); // notify test thread that the master service is blocked
+            executionBarrier.await(10, TimeUnit.SECONDS); // wait for test thread to release us
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                taskContext.success(() -> {});
             }
-        );
-
+            return batchExecutionContext.initialState();
+        }).submitTask("block", new ExpectSuccessTask(), null);
         return () -> executionBarrier.await(10, TimeUnit.SECONDS);
     }
 

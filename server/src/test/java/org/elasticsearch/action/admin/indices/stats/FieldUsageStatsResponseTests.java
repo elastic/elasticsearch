@@ -14,18 +14,15 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.search.stats.FieldUsageStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 public class FieldUsageStatsResponseTests extends ESTestCase {
 
-    public void testToXContentChunkPerIndex() throws IOException {
+    public void testToXContentChunkPerIndex() {
         final int indices = randomIntBetween(0, 100);
         final Map<String, List<FieldUsageShardResponse>> perIndex = Maps.newMapWithExpectedSize(indices);
         for (int i = 0; i < indices; i++) {
@@ -46,15 +43,10 @@ public class FieldUsageStatsResponseTests extends ESTestCase {
                 )
             );
         }
-        final FieldUsageStatsResponse response = new FieldUsageStatsResponse(indices, indices, 0, List.of(), perIndex);
 
-        final XContentBuilder builder = JsonXContent.contentBuilder();
-        final var iterator = response.toXContentChunked(ToXContent.EMPTY_PARAMS);
-        int chunks = 0;
-        while (iterator.hasNext()) {
-            iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-            chunks++;
-        }
-        assertEquals(indices + 2, chunks);
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            new FieldUsageStatsResponse(indices, indices, 0, List.of(), perIndex),
+            ignored -> indices + 2
+        );
     }
 }

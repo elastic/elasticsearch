@@ -71,13 +71,9 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         });
 
         // Verify that we can adjust things like allocation filters even while blocked
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(
-                    Settings.builder().putNull(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
-                )
+        updateIndexSettings(
+            Settings.builder().putNull(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey()),
+            indexName
         );
 
         // Verify that we can still move shards around even while blocked

@@ -1,5 +1,0 @@
-pr: 91296
-summary: Allow `model_aliases` to be used with Pytorch trained models
-area: Machine Learning
-type: enhancement
-issues: []

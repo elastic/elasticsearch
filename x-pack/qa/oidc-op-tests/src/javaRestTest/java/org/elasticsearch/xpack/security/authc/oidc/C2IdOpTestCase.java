@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -125,7 +126,7 @@ public abstract class C2IdOpTestCase extends ESRestTestCase {
             final BasicHttpContext context = new BasicHttpContext();
             // Initiate the authentication process
             HttpPost httpPost = new HttpPost(C2ID_LOGIN_API + "initAuthRequest");
-            String initJson = formatted("""
+            String initJson = Strings.format("""
                 {"qs":"%s"}
                 """, opAuthUri.getRawQuery());
             configureJsonRequest(httpPost, initJson);

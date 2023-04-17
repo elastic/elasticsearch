@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -69,7 +70,7 @@ public class TransformNodesTests extends ESTestCase {
             }
 
             @Override
-            public Version getMinimalSupportedVersion() {
+            public TransportVersion getMinimalSupportedVersion() {
                 return null;
             }
 

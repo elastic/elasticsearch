@@ -1,5 +1,0 @@
-pr: 91328
-summary: Consolidate field name validation when parsing mappings and documents
-area: Mapping
-type: bug
-issues: []

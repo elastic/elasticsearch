@@ -39,18 +39,23 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         this.stackTraces = in.readBoolean()
             ? in.readMap(
                 StreamInput::readString,
-                i -> new StackTrace(i.readIntArray(), i.readStringArray(), i.readStringArray(), i.readIntArray())
+                i -> new StackTrace(
+                    i.readList(StreamInput::readInt),
+                    i.readList(StreamInput::readString),
+                    i.readList(StreamInput::readString),
+                    i.readList(StreamInput::readInt)
+                )
             )
             : null;
         this.stackFrames = in.readBoolean()
             ? in.readMap(
                 StreamInput::readString,
                 i -> new StackFrame(
-                    i.readOptionalString(),
-                    i.readOptionalString(),
-                    i.readOptionalInt(),
-                    i.readOptionalInt(),
-                    i.readOptionalInt()
+                    i.readList(StreamInput::readString),
+                    i.readList(StreamInput::readString),
+                    i.readList(StreamInput::readInt),
+                    i.readList(StreamInput::readInt),
+                    i.readList(StreamInput::readInt)
                 )
             )
             : null;
@@ -95,10 +100,10 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         if (stackTraces != null) {
             out.writeBoolean(true);
             out.writeMap(stackTraces, StreamOutput::writeString, (o, v) -> {
-                o.writeIntArray(v.addressOrLines);
-                o.writeStringArray(v.fileIds);
-                o.writeStringArray(v.frameIds);
-                o.writeIntArray(v.typeIds);
+                o.writeCollection(v.addressOrLines, StreamOutput::writeInt);
+                o.writeCollection(v.fileIds, StreamOutput::writeString);
+                o.writeCollection(v.frameIds, StreamOutput::writeString);
+                o.writeCollection(v.typeIds, StreamOutput::writeInt);
             });
         } else {
             out.writeBoolean(false);
@@ -106,11 +111,11 @@ public class GetProfilingResponse extends ActionResponse implements StatusToXCon
         if (stackFrames != null) {
             out.writeBoolean(true);
             out.writeMap(stackFrames, StreamOutput::writeString, (o, v) -> {
-                o.writeOptionalString(v.fileName);
-                o.writeOptionalString(v.functionName);
-                o.writeOptionalInt(v.functionOffset);
-                o.writeOptionalInt(v.lineNumber);
-                o.writeOptionalInt(v.sourceType);
+                o.writeCollection(v.fileName, StreamOutput::writeString);
+                o.writeCollection(v.functionName, StreamOutput::writeString);
+                o.writeCollection(v.functionOffset, StreamOutput::writeInt);
+                o.writeCollection(v.lineNumber, StreamOutput::writeInt);
+                o.writeCollection(v.sourceType, StreamOutput::writeInt);
             });
         } else {
             out.writeBoolean(false);

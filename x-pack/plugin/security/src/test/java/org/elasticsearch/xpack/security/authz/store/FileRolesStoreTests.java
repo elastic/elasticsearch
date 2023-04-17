@@ -99,7 +99,7 @@ public class FileRolesStoreTests extends ESTestCase {
             xContentRegistry()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(9));
+        assertThat(roles.size(), is(TcpTransport.isUntrustedRemoteClusterEnabled() ? 10 : 9));
 
         RoleDescriptor descriptor = roles.get("role1");
         assertNotNull(descriptor);
@@ -355,7 +355,7 @@ public class FileRolesStoreTests extends ESTestCase {
             xContentRegistry()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(6));
+        assertThat(roles.size(), is(TcpTransport.isUntrustedRemoteClusterEnabled() ? 7 : 6));
         assertThat(roles.get("role_fields"), nullValue());
         assertThat(roles.get("role_query"), nullValue());
         assertThat(roles.get("role_query_fields"), nullValue());
@@ -405,7 +405,7 @@ public class FileRolesStoreTests extends ESTestCase {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, licenseState, xContentRegistry());
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(9));
+        assertThat(roles.size(), is(TcpTransport.isUntrustedRemoteClusterEnabled() ? 10 : 9));
         assertNotNull(roles.get("role_fields"));
         assertNotNull(roles.get("role_query"));
         assertNotNull(roles.get("role_query_fields"));
@@ -693,7 +693,12 @@ public class FileRolesStoreTests extends ESTestCase {
 
         Map<String, Object> usageStats = store.usageStats();
 
-        assertThat(usageStats.get("size"), is(flsDlsEnabled ? 9 : 6));
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            assertThat(usageStats.get("size"), is(flsDlsEnabled ? 10 : 7));
+            assertThat(usageStats.get("remote_indices"), is(1L));
+        } else {
+            assertThat(usageStats.get("size"), is(flsDlsEnabled ? 9 : 6));
+        }
         assertThat(usageStats.get("fls"), is(flsDlsEnabled));
         assertThat(usageStats.get("dls"), is(flsDlsEnabled));
     }

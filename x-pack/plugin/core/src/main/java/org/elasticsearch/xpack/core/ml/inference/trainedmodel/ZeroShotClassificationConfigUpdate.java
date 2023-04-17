@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -243,7 +243,7 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_0_0;
     }
 }

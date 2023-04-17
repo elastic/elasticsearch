@@ -336,13 +336,9 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(
-                aggregationBuilder,
-                new MatchAllDocsQuery(),
-                iw -> { iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo")))); },
-                range -> fail("Should have thrown exception"),
-                fieldType
-            )
+            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
+            }, range -> fail("Should have thrown exception"), fieldType)
         );
         assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [date_range]", e.getMessage());
     }

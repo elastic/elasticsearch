@@ -9,6 +9,7 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -101,6 +102,7 @@ public class NodeService implements Closeable {
         boolean threadPool,
         boolean transport,
         boolean http,
+        boolean remoteClusterServer,
         boolean plugin,
         boolean ingest,
         boolean aggs,
@@ -108,6 +110,7 @@ public class NodeService implements Closeable {
     ) {
         return new NodeInfo(
             Version.CURRENT,
+            TransportVersion.CURRENT,
             Build.CURRENT,
             transportService.getLocalNode(),
             settings ? settingsFilter.filter(this.settings) : null,
@@ -117,6 +120,7 @@ public class NodeService implements Closeable {
             threadPool ? this.threadPool.info() : null,
             transport ? transportService.info() : null,
             http ? (httpServerTransport == null ? null : httpServerTransport.info()) : null,
+            remoteClusterServer ? transportService.getRemoteClusterService().info() : null,
             plugin ? (pluginService == null ? null : pluginService.info()) : null,
             ingest ? (ingestService == null ? null : ingestService.info()) : null,
             aggs ? (aggregationUsageService == null ? null : aggregationUsageService.info()) : null,

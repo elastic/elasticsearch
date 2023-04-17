@@ -231,15 +231,15 @@ configurations {
 }
 
 dependencies {
-  constraints {
-      integTestImplementation('org.ow2.asm:asm:9.3')
-      implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
-  }
   components.all(JacksonAlignmentRule)
   constraints {
     // ensuring brought asm version brought in by spock is up-to-date
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
+    integTestImplementation('org.ow2.asm:asm:9.4')
+    api("org.yaml:snakeyaml") {
+      version { strictly(versions.snakeyaml) }
+    }
   }
   // Forcefully downgrade the jackson platform as used in production
   api enforcedPlatform(buildLibs.jackson.platform)
@@ -334,6 +334,10 @@ tasks.register("bootstrapPerformanceTests", Copy) {
           testGitCommit:GitInfo.gitInfo(root).revision,
           mainWrapper:"${ -> resolveMainWrapperVersion()}".toString(),
           branchWrapper:"${-> gradle.gradleVersion}".toString()])
+}
+
+tasks.named("jar") {
+  exclude("classpath.index")
 }
 
 def resolveMainWrapperVersion() {

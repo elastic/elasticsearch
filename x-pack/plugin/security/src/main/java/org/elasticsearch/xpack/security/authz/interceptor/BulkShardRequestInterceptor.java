@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 
 /**
  * Similar to {@link UpdateRequestInterceptor}, but checks if there are update requests embedded in a bulk request.
@@ -47,7 +48,9 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
         AuthorizationInfo authorizationInfo,
         ActionListener<Void> listener
     ) {
-        if (requestInfo.getRequest()instanceof BulkShardRequest bulkShardRequest) {
+        final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+        final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+        if (requestInfo.getRequest() instanceof BulkShardRequest bulkShardRequest && (isDlsLicensed || isFlsLicensed)) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             // this uses the {@code BulkShardRequest#index()} because the {@code bulkItemRequest#index()}
             // can still be an unresolved date math expression
@@ -55,10 +58,7 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
             // TODO replace if condition with assertion
             if (indexAccessControl != null
                 && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
-                    || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())
-                && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) // the feature usage checker is a "last-ditch"
-                                                                                      // verification, it doesn't have practical importance
-            ) {
+                    || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())) {
                 for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
                     boolean found = false;
                     if (bulkItemRequest.request() instanceof UpdateRequest) {

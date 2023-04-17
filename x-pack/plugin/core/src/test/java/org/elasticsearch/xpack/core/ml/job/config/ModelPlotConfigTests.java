@@ -35,6 +35,11 @@ public class ModelPlotConfigTests extends AbstractXContentSerializingTestCase<Mo
         return createRandomized();
     }
 
+    @Override
+    protected ModelPlotConfig mutateInstance(ModelPlotConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static ModelPlotConfig createRandomized() {
         return new ModelPlotConfig(randomBoolean(), randomAlphaOfLengthBetween(1, 30), randomBoolean() ? randomBoolean() : null);
     }

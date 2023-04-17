@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
@@ -74,29 +75,21 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
 
     @Before
     public void setupLogging() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
-                    .put("logger.org.elasticsearch.xpack.core.ml.inference", "DEBUG")
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
+                .put("logger.org.elasticsearch.xpack.core.ml.inference", "DEBUG")
+        );
     }
 
     @After
     public void cleanup() {
         cleanUp();
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .putNull("logger.org.elasticsearch.xpack.ml.dataframe")
-                    .putNull("logger.org.elasticsearch.xpack.core.ml.inference")
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder()
+                .putNull("logger.org.elasticsearch.xpack.ml.dataframe")
+                .putNull("logger.org.elasticsearch.xpack.core.ml.inference")
+        );
     }
 
     @Override
@@ -199,7 +192,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
     }
 
     private static void createIndex(String index, boolean isDatastream) {
-        String mapping = formatted(
+        String mapping = Strings.format(
             """
                 {
                   "properties": {

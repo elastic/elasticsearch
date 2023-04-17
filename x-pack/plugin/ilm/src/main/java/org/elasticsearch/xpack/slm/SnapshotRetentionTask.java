@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -25,7 +26,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
@@ -183,7 +183,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     }
 
                     // Finally, delete the snapshots that need to be deleted
-                    deleteSnapshots(snapshotsToBeDeleted, slmStats, ActionListener.wrap(() -> {
+                    deleteSnapshots(snapshotsToBeDeleted, slmStats, ActionListener.running(() -> {
                         updateStateWithStats(slmStats);
                         logger.info("SLM retention snapshot cleanup task complete");
                     }));
@@ -295,9 +295,14 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                         snapshots.computeIfAbsent(info.repository(), repo -> new ArrayList<>()).add(info);
                     }
                 }
+                if (resp.isFailed()) {
+                    for (String repo : resp.getFailures().keySet()) {
+                        logger.debug(() -> "unable to retrieve snapshots for [" + repo + "] repositories: ", resp.getFailures().get(repo));
+                    }
+                }
                 listener.onResponse(snapshots);
             }, e -> {
-                logger.debug(() -> "unable to retrieve snapshots for [" + repositories + "] repositories", e);
+                logger.debug(() -> "unable to retrieve snapshots for [" + repositories + "] repositories: ", e);
                 listener.onFailure(e);
             }));
     }

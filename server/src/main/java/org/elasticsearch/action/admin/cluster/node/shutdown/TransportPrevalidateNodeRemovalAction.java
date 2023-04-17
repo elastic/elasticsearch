@@ -83,14 +83,12 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         Task task,
         PrevalidateNodeRemovalRequest request,
         ClusterState state,
-        ActionListener<PrevalidateNodeRemovalResponse> listener
+        ActionListener<PrevalidateNodeRemovalResponse> responseListener
     ) {
-        try {
+        ActionListener.run(responseListener, listener -> {
             Set<DiscoveryNode> requestNodes = resolveNodes(request, state.nodes());
             doPrevalidation(request, requestNodes, state, listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        });
     }
 
     public static Set<DiscoveryNode> resolveNodes(PrevalidateNodeRemovalRequest request, DiscoveryNodes discoveryNodes) {

@@ -35,4 +35,9 @@ public class RunOnce implements Runnable {
     public boolean hasRun() {
         return delegateRef.get() == null;
     }
+
+    @Override
+    public String toString() {
+        return "RunOnce[" + delegateRef.get() + "]";
+    }
 }

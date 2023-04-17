@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -19,17 +20,16 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentTaskPar
 import org.elasticsearch.xpack.core.ml.stats.CountAccumulator;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -61,6 +61,11 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
     @Override
     protected TrainedModelAssignment createTestInstance() {
         return randomInstance();
+    }
+
+    @Override
+    protected TrainedModelAssignment mutateInstance(TrainedModelAssignment instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testBuilderAddingExistingRoute() {
@@ -157,62 +162,62 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
         );
     }
 
-    public void testSelectRandomStartedNodeWeighedOnAllocations_GivenNoStartedAllocations() {
+    public void testselectRandomStartedNodeWeighedOnAllocationsForNRequests_GivenNoStartedAllocations() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(5));
         builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, RoutingState.STARTING, ""));
         builder.addRoutingEntry("node-2", new RoutingInfo(1, 1, RoutingState.STOPPED, ""));
         TrainedModelAssignment assignment = builder.build();
 
-        assertThat(assignment.selectRandomStartedNodeWeighedOnAllocations().isEmpty(), is(true));
+        assertThat(assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(1).isEmpty(), is(true));
     }
 
-    public void testSelectRandomStartedNodeWeighedOnAllocations_GivenSingleStartedNode() {
+    public void testselectRandomStartedNodeWeighedOnAllocationsForNRequests_GivenSingleStartedNode() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(5));
         builder.addRoutingEntry("node-1", new RoutingInfo(4, 4, RoutingState.STARTED, ""));
         TrainedModelAssignment assignment = builder.build();
 
-        Optional<String> node = assignment.selectRandomStartedNodeWeighedOnAllocations();
+        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(1);
 
-        assertThat(node.isPresent(), is(true));
-        assertThat(node.get(), equalTo("node-1"));
+        assertThat(nodes, hasSize(1));
+        assertThat(nodes.get(0), equalTo(new Tuple<>("node-1", 1)));
     }
 
-    public void testSelectRandomStartedNodeWeighedOnAllocations_GivenMultipleStartedNodes() {
+    public void testSelectRandomStartedNodeWeighedOnAllocationsForNRequests_GivenMultipleStartedNodes() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(6));
         builder.addRoutingEntry("node-1", new RoutingInfo(1, 1, RoutingState.STARTED, ""));
         builder.addRoutingEntry("node-2", new RoutingInfo(2, 2, RoutingState.STARTED, ""));
         builder.addRoutingEntry("node-3", new RoutingInfo(3, 3, RoutingState.STARTED, ""));
         TrainedModelAssignment assignment = builder.build();
 
-        final long selectionCount = 10000;
+        final int selectionCount = 10000;
         final CountAccumulator countsPerNodeAccumulator = new CountAccumulator();
-        for (int i = 0; i < selectionCount; i++) {
-            Optional<String> node = assignment.selectRandomStartedNodeWeighedOnAllocations();
-            assertThat(node.isPresent(), is(true));
-            countsPerNodeAccumulator.add(node.get(), 1L);
+        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(selectionCount);
+
+        assertThat(nodes, hasSize(3));
+        assertThat(nodes.stream().mapToInt(Tuple::v2).sum(), equalTo(selectionCount));
+        var asMap = new HashMap<String, Integer>();
+        for (var node : nodes) {
+            asMap.put(node.v1(), node.v2());
         }
 
-        Map<String, Long> countsPerNode = countsPerNodeAccumulator.asMap();
-        assertThat(countsPerNode.keySet(), contains("node-1", "node-2", "node-3"));
-        assertThat(countsPerNode.get("node-1") + countsPerNode.get("node-2") + countsPerNode.get("node-3"), equalTo(selectionCount));
-
-        assertValueWithinPercentageOfExpectedRatio(countsPerNode.get("node-1"), selectionCount, 1.0 / 6.0, 0.2);
-        assertValueWithinPercentageOfExpectedRatio(countsPerNode.get("node-2"), selectionCount, 2.0 / 6.0, 0.2);
-        assertValueWithinPercentageOfExpectedRatio(countsPerNode.get("node-3"), selectionCount, 3.0 / 6.0, 0.2);
+        assertValueWithinPercentageOfExpectedRatio(asMap.get("node-1"), selectionCount, 1.0 / 6.0, 0.2);
+        assertValueWithinPercentageOfExpectedRatio(asMap.get("node-2"), selectionCount, 2.0 / 6.0, 0.2);
+        assertValueWithinPercentageOfExpectedRatio(asMap.get("node-3"), selectionCount, 3.0 / 6.0, 0.2);
     }
 
-    public void testSelectRandomStartedNodeWeighedOnAllocations_GivenMultipleStartedNodesWithZeroAllocations() {
+    public void testselectRandomStartedNodeWeighedOnAllocationsForNRequests_GivenMultipleStartedNodesWithZeroAllocations() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomTaskParams(6));
         builder.addRoutingEntry("node-1", new RoutingInfo(0, 0, RoutingState.STARTED, ""));
         builder.addRoutingEntry("node-2", new RoutingInfo(0, 0, RoutingState.STARTED, ""));
         builder.addRoutingEntry("node-3", new RoutingInfo(0, 0, RoutingState.STARTED, ""));
         TrainedModelAssignment assignment = builder.build();
-        final long selectionCount = 1000;
-        Set<String> selectedNodes = new HashSet<>();
-        for (int i = 0; i < selectionCount; i++) {
-            Optional<String> selectedNode = assignment.selectRandomStartedNodeWeighedOnAllocations();
-            assertThat(selectedNode.isPresent(), is(true));
-            selectedNodes.add(selectedNode.get());
+        final int selectionCount = 1000;
+        var nodeCounts = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(selectionCount);
+        assertThat(nodeCounts, hasSize(3));
+
+        var selectedNodes = new HashSet<String>();
+        for (var node : nodeCounts) {
+            selectedNodes.add(node.v1());
         }
 
         assertThat(selectedNodes, contains("node-1", "node-2", "node-3"));
@@ -284,6 +289,7 @@ public class TrainedModelAssignmentTests extends AbstractXContentSerializingTest
     private static StartTrainedModelDeploymentAction.TaskParams randomTaskParams(int numberOfAllocations) {
         long modelSize = randomNonNegativeLong();
         return new StartTrainedModelDeploymentAction.TaskParams(
+            randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             modelSize,
             numberOfAllocations,

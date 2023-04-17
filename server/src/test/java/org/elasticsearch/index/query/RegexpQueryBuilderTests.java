@@ -11,6 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -51,7 +52,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
     protected Map<String, RegexpQueryBuilder> getAlternateVersions() {
         Map<String, RegexpQueryBuilder> alternateVersions = new HashMap<>();
         RegexpQueryBuilder regexpQuery = randomRegexpQuery();
-        String contentString = formatted("""
+        String contentString = Strings.format("""
             {
                 "regexp" : {
                     "%s" : "%s"

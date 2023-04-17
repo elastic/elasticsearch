@@ -9,7 +9,6 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
@@ -18,7 +17,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
@@ -31,6 +32,7 @@ import java.util.Set;
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestClusterRerouteAction extends BaseRestHandler {
 
     private static final Set<String> RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, "metric");
@@ -82,7 +84,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         if (metric == null) {
             request.params().put("metric", DEFAULT_METRICS);
         }
-        return channel -> client.admin().cluster().reroute(clusterRerouteRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().cluster().reroute(clusterRerouteRequest, new RestChunkedToXContentListener<>(channel));
     }
 
     @Override
@@ -91,7 +93,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     }
 
     public static ClusterRerouteRequest createRequest(RestRequest request) throws IOException {
-        ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
+        ClusterRerouteRequest clusterRerouteRequest = new ClusterRerouteRequest();
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
         clusterRerouteRequest.explain(request.paramAsBoolean("explain", clusterRerouteRequest.explain()));
         clusterRerouteRequest.timeout(request.paramAsTime("timeout", clusterRerouteRequest.timeout()));

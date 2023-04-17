@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -33,7 +34,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
@@ -58,6 +58,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -114,11 +115,11 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             .build();
 
         var settings = Settings.EMPTY;
-        var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        var clusterSettings = createBuiltInClusterSettings(settings);
         var clusterService = new ClusterService(
             settings,
-            clusterSettings,
-            new FakeThreadPoolMasterService(LOCAL_NODE_ID, "test", threadPool, deterministicTaskQueue::scheduleNow),
+            createBuiltInClusterSettings(settings),
+            new FakeThreadPoolMasterService(LOCAL_NODE_ID, threadPool, deterministicTaskQueue::scheduleNow),
             new ClusterApplierService(LOCAL_NODE_ID, Settings.EMPTY, clusterSettings, threadPool) {
                 @Override
                 protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
@@ -142,7 +143,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
         };
 
         final var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
-            settings,
             clusterSettings,
             createShardsAllocator(),
             threadPool,
@@ -159,16 +159,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                 var indexMetadata = createIndex("test-index");
                 var newState = ClusterState.builder(currentState)
                     .metadata(Metadata.builder(currentState.metadata()).put(indexMetadata, true))
-                    .routingTable(RoutingTable.builder(currentState.routingTable()).addAsNew(indexMetadata))
-                    .build();
-                return allocationService.reroute(
-                    newState,
-                    "test",
-                    ActionListener.wrap(
-                        response -> listenerCalled.set(true),
-                        exception -> { throw new AssertionError("should not happen in test", exception); }
+                    .routingTable(
+                        RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, currentState.routingTable())
+                            .addAsNew(indexMetadata)
                     )
-                );
+                    .build();
+                return allocationService.reroute(newState, "test", ActionListener.wrap(response -> listenerCalled.set(true), exception -> {
+                    throw new AssertionError("should not happen in test", exception);
+                }));
             }
 
             @Override
@@ -224,12 +222,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool,
-                shardsAllocator
-            ) {
+            new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -263,7 +256,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                 var indexMetadata = createIndex(indexName);
                 var newState = ClusterState.builder(currentState)
                     .metadata(Metadata.builder(currentState.metadata()).put(indexMetadata, true))
-                    .routingTable(RoutingTable.builder(currentState.routingTable()).addAsNew(indexMetadata))
+                    .routingTable(
+                        RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, currentState.routingTable())
+                            .addAsNew(indexMetadata)
+                    )
                     .build();
                 return allocationService.reroute(newState, "test", ActionListener.wrap(response -> {
                     assertThat(
@@ -327,12 +323,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool,
-                shardsAllocator
-            ) {
+            new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -361,16 +352,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
                 var indexMetadata = createIndex("index-1");
                 var newState = ClusterState.builder(currentState)
                     .metadata(Metadata.builder(currentState.metadata()).put(indexMetadata, true))
-                    .routingTable(RoutingTable.builder(currentState.routingTable()).addAsNew(indexMetadata))
-                    .build();
-                return allocationService.reroute(
-                    newState,
-                    "test",
-                    ActionListener.wrap(
-                        response -> { throw new AssertionError("Should not happen in test"); },
-                        exception -> listenersCalled.countDown()
+                    .routingTable(
+                        RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, currentState.routingTable())
+                            .addAsNew(indexMetadata)
                     )
-                );
+                    .build();
+                return allocationService.reroute(newState, "test", ActionListener.wrap(response -> {
+                    throw new AssertionError("Should not happen in test");
+                }, exception -> listenersCalled.countDown()));
             }
 
             @Override
@@ -433,7 +422,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             gatewayAllocator,
             desiredBalanceShardsAllocator,
             () -> ClusterInfo.EMPTY,
-            () -> SnapshotShardSizeInfo.EMPTY
+            () -> SnapshotShardSizeInfo.EMPTY,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
     }
 

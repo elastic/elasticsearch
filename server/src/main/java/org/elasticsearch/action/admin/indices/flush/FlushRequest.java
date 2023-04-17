@@ -21,10 +21,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A flush request to flush one or more indices. The flush process of an index basically frees memory from the index
  * by flushing data to the index storage and clearing the internal transaction log. By default, Elasticsearch uses
  * memory heuristics in order to automatically trigger flush operations as required in order to clear memory.
- * <p>
- * Best created with {@link org.elasticsearch.client.internal.Requests#flushRequest(String...)}.
  *
- * @see org.elasticsearch.client.internal.Requests#flushRequest(String...)
  * @see org.elasticsearch.client.internal.IndicesAdminClient#flush(FlushRequest)
  * @see FlushResponse
  */

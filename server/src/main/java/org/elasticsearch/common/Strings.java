@@ -756,7 +756,7 @@ public class Strings {
      */
     @Deprecated
     public static String toString(ChunkedToXContent chunkedToXContent) {
-        return toString(ChunkedToXContent.wrapAsXContentObject(chunkedToXContent));
+        return toString(chunkedToXContent, false, false);
     }
 
     /**
@@ -795,7 +795,7 @@ public class Strings {
      */
     @Deprecated
     public static String toString(ChunkedToXContent chunkedToXContent, boolean pretty, boolean human) {
-        return toString(ChunkedToXContent.wrapAsXContentObject(chunkedToXContent), pretty, human);
+        return toString(ChunkedToXContent.wrapAsToXContent(chunkedToXContent), pretty, human);
     }
 
     /**
@@ -916,5 +916,12 @@ public class Strings {
             .map(cp -> cp <= 128 ? Character.toLowerCase(cp) : cp)
             .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
             .toString();
+    }
+
+    /**
+     * Alias for {@link org.elasticsearch.core.Strings#format}
+     */
+    public static String format(String format, Object... args) {
+        return org.elasticsearch.core.Strings.format(format, args);
     }
 }

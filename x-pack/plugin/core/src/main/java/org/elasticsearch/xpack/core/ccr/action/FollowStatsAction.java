@@ -19,7 +19,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.ToXContent;
@@ -45,7 +45,7 @@ public class FollowStatsAction extends ActionType<FollowStatsAction.StatsRespons
         super(NAME, FollowStatsAction.StatsResponses::new);
     }
 
-    public static class StatsResponses extends BaseTasksResponse implements ChunkedToXContent {
+    public static class StatsResponses extends BaseTasksResponse implements ChunkedToXContentObject {
 
         private final List<StatsResponse> statsResponse;
 

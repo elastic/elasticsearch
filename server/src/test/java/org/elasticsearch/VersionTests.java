@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class VersionTests extends ESTestCase {
 
-    public void testVersionComparison() throws Exception {
+    public void testVersionComparison() {
         Version V_7_2_0 = Version.fromString("7.2.0");
         Version V_8_0_0 = Version.fromString("8.0.0");
         assertThat(V_7_2_0.before(V_8_0_0), is(true));
@@ -178,7 +178,7 @@ public class VersionTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion(random());
             if (random().nextBoolean()) {
-                version = new Version(version.id, version.luceneVersion);
+                version = new Version(version.id, version.transportVersion, version.luceneVersion);
             }
             Version parsedVersion = Version.fromString(version.toString());
             assertEquals(version, parsedVersion);

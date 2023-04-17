@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
 
@@ -41,16 +42,24 @@ public class TransformContext {
     private volatile Instant changesLastDetectedAt;
     private volatile Instant lastSearchTime;
     private volatile boolean shouldStopAtCheckpoint = false;
+    private volatile AuthorizationState authState;
     private volatile int pageSize = 0;
 
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
     private final AtomicLong currentCheckpoint;
 
+    private final Instant from;
+
     public TransformContext(TransformTaskState taskState, String stateReason, long currentCheckpoint, Listener taskListener) {
+        this(taskState, stateReason, currentCheckpoint, null, taskListener);
+    }
+
+    public TransformContext(TransformTaskState taskState, String stateReason, long currentCheckpoint, Instant from, Listener taskListener) {
         this.taskState = new AtomicReference<>(taskState);
         this.stateReason = new AtomicReference<>(stateReason);
         this.currentCheckpoint = new AtomicLong(currentCheckpoint);
+        this.from = from;
         this.taskListener = taskListener;
         this.failureCount = new AtomicInteger(0);
     }
@@ -97,6 +106,10 @@ public class TransformContext {
 
     long getCheckpoint() {
         return currentCheckpoint.get();
+    }
+
+    Instant from() {
+        return from;
     }
 
     long incrementAndGetCheckpoint() {
@@ -156,6 +169,14 @@ public class TransformContext {
 
     public void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint) {
         this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+    }
+
+    public AuthorizationState getAuthState() {
+        return authState;
+    }
+
+    public void setAuthState(AuthorizationState authState) {
+        this.authState = authState;
     }
 
     int getPageSize() {

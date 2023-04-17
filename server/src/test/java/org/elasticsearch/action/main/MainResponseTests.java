@@ -57,7 +57,7 @@ public class MainResponseTests extends AbstractXContentSerializingTestCase<MainR
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(
             XContentHelper.stripWhitespace(
-                formatted(
+                Strings.format(
                     """
                         {
                             "name": "nodeName",

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -56,7 +57,7 @@ public class TransformLatestRestIT extends TransformRestTestCase {
         String transformIndex = "aggregate_metric_double_latest_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -109,7 +110,7 @@ public class TransformLatestRestIT extends TransformRestTestCase {
         String statsField = "stars_stats";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"

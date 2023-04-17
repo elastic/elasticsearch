@@ -33,4 +33,9 @@ public class TopAnswerEntryTests extends AbstractXContentSerializingTestCase<Que
     protected QuestionAnsweringInferenceResults.TopAnswerEntry createTestInstance() {
         return createRandomTopAnswerEntry();
     }
+
+    @Override
+    protected QuestionAnsweringInferenceResults.TopAnswerEntry mutateInstance(QuestionAnsweringInferenceResults.TopAnswerEntry instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

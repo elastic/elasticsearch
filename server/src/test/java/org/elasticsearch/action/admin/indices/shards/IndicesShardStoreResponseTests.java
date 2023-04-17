@@ -16,6 +16,8 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.xcontent.ToXContent;
@@ -48,10 +50,10 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
         var failures = List.of(new Failure("node1", "test", 3, new NodeDisconnectedException(node1, "")));
         var storesResponse = new IndicesShardStoresResponse(indexStoreStatuses, failures);
 
+        AbstractChunkedSerializingTestCase.assertChunkCount(storesResponse, this::getExpectedChunkCount);
+
         XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
-        contentBuilder.startObject();
-        storesResponse.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
-        contentBuilder.endObject();
+        ChunkedToXContent.wrapAsToXContent(storesResponse).toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
         BytesReference bytes = BytesReference.bytes(contentBuilder);
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
@@ -95,6 +97,10 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    private int getExpectedChunkCount(IndicesShardStoresResponse response) {
+        return 6 + response.getFailures().size() + response.getStoreStatuses().values().stream().mapToInt(m -> 4 + m.size()).sum();
     }
 
     public void testStoreStatusOrdering() throws Exception {

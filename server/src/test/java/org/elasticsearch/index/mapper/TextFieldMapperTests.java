@@ -209,10 +209,9 @@ public class TextFieldMapperTests extends MapperTestCase {
                 } }
             )
         );
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop),
-            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
-            Map.of()
+            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
         );
     }
 
@@ -226,10 +225,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertEquals("1234", fields[0].stringValue());
-        IndexableFieldType fieldType = fields[0].fieldType();
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals("1234", fields.get(0).stringValue());
+        IndexableFieldType fieldType = fields.get(0).fieldType();
         assertThat(fieldType.omitNorms(), equalTo(false));
         assertTrue(fieldType.tokenized());
         assertFalse(fieldType.stored());
@@ -260,24 +259,24 @@ public class TextFieldMapperTests extends MapperTestCase {
     public void testEnableStore() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("store", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertTrue(fields[0].fieldType().stored());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertTrue(fields.get(0).fieldType().stored());
     }
 
     public void testDisableIndex() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("index", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.size());
     }
 
     public void testDisableNorms() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("norms", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertTrue(fields[0].fieldType().omitNorms());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertTrue(fields.get(0).fieldType().omitNorms());
     }
 
     public void testIndexOptions() throws IOException {
@@ -311,9 +310,9 @@ public class TextFieldMapperTests extends MapperTestCase {
         for (Map.Entry<String, IndexOptions> entry : supportedOptions.entrySet()) {
             String field = entry.getKey();
             IndexOptions options = entry.getValue();
-            IndexableField[] fields = doc.rootDoc().getFields(field);
-            assertEquals(1, fields.length);
-            assertEquals(options, fields[0].fieldType().indexOptions());
+            List<IndexableField> fields = doc.rootDoc().getFields(field);
+            assertEquals(1, fields.size());
+            assertEquals(options, fields.get(0).fieldType().indexOptions());
         }
     }
 
@@ -321,10 +320,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", new String[] { "a", "b" })));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals("a", fields[0].stringValue());
-        assertEquals("b", fields[1].stringValue());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals("a", fields.get(0).stringValue());
+        assertEquals("b", fields.get(1).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             TermsEnum terms = getOnlyLeafReader(reader).terms("field").iterator();
@@ -365,10 +364,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         );
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", new String[] { "a", "b" })));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        assertEquals("a", fields[0].stringValue());
-        assertEquals("b", fields[1].stringValue());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals("a", fields.get(0).stringValue());
+        assertEquals("b", fields.get(1).stringValue());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
             TermsEnum terms = getOnlyLeafReader(reader).terms("field").iterator();
@@ -797,10 +796,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapperService.documentMapper()
             .parse(source(b -> b.array("field", "Some English text that is going to be very useful", "bad", "Prio 1")));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field._index_phrase");
-        assertEquals(3, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field._index_phrase");
+        assertEquals(3, fields.size());
 
-        try (TokenStream ts = fields[0].tokenStream(mapperService.indexAnalyzer(fields[0].name(), f -> null), null)) {
+        try (TokenStream ts = fields.get(0).tokenStream(mapperService.indexAnalyzer(fields.get(0).name(), f -> null), null)) {
             CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             assertTrue(ts.incrementToken());
@@ -882,8 +881,8 @@ public class TextFieldMapperTests extends MapperTestCase {
 
             ParsedDocument doc = ms.documentMapper()
                 .parse(source(b -> b.field("field", "Some English text that is going to be very useful")));
-            IndexableField[] fields = doc.rootDoc().getFields("field._index_prefix");
-            assertEquals(1, fields.length);
+            List<IndexableField> fields = doc.rootDoc().getFields("field._index_prefix");
+            assertEquals(1, fields.size());
             withLuceneIndex(ms, iw -> iw.addDocument(doc.rootDoc()), ir -> {}); // check we can index
 
             assertAnalyzesTo(

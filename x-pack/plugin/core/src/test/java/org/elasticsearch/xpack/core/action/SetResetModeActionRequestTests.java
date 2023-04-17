@@ -19,6 +19,11 @@ public class SetResetModeActionRequestTests extends AbstractXContentSerializingT
     }
 
     @Override
+    protected SetResetModeActionRequest mutateInstance(SetResetModeActionRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected boolean supportsUnknownFields() {
         return false;
     }

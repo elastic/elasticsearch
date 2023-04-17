@@ -17,25 +17,25 @@ import java.util.List;
 
 public class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
 
-    private AggregateDoubleMetricFieldType aggMetricFieldType;
+    private final AggregateDoubleMetricFieldType aggMetricFieldType;
 
-    private final AbstractRollupFieldProducer rollupFieldProducer;
+    private final AbstractDownsampleFieldProducer rollupFieldProducer;
 
     protected AggregateMetricFieldValueFetcher(
         MappedFieldType fieldType,
         AggregateDoubleMetricFieldType aggMetricFieldType,
         IndexFieldData<?> fieldData
     ) {
-        super(fieldType, fieldData);
+        super(fieldType.name(), fieldType, fieldData);
         this.aggMetricFieldType = aggMetricFieldType;
         this.rollupFieldProducer = createRollupFieldProducer();
     }
 
-    public AbstractRollupFieldProducer rollupFieldProducer() {
+    public AbstractDownsampleFieldProducer rollupFieldProducer() {
         return rollupFieldProducer;
     }
 
-    private AbstractRollupFieldProducer createRollupFieldProducer() {
+    private AbstractDownsampleFieldProducer createRollupFieldProducer() {
         AggregateDoubleMetricFieldMapper.Metric metric = null;
         for (var e : aggMetricFieldType.getMetricFields().entrySet()) {
             NumberFieldMapper.NumberFieldType metricSubField = e.getValue();

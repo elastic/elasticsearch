@@ -13,14 +13,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -137,24 +135,16 @@ public class IndicesStatsResponseTests extends ESTestCase {
             ClusterState.EMPTY_STATE.getMetadata(),
             ClusterState.EMPTY_STATE.routingTable()
         );
-        final ToXContent.Params paramsClusterLevel = new ToXContent.MapParams(Map.of("level", "cluster"));
-        final var iteratorClusterLevel = indicesStatsResponse.toXContentChunked(paramsClusterLevel);
-        int chunksSeenClusterLevel = 0;
-        final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), Streams.NULL_OUTPUT_STREAM);
-        while (iteratorClusterLevel.hasNext()) {
-            iteratorClusterLevel.next().toXContent(builder, paramsClusterLevel);
-            chunksSeenClusterLevel++;
-        }
-        assertEquals(3, chunksSeenClusterLevel);
-
-        final ToXContent.Params paramsIndexLevel = new ToXContent.MapParams(Map.of("level", "indices"));
-        final var iteratorIndexLevel = indicesStatsResponse.toXContentChunked(paramsIndexLevel);
-        int chunksSeenIndexLevel = 0;
-        while (iteratorIndexLevel.hasNext()) {
-            iteratorIndexLevel.next().toXContent(builder, paramsIndexLevel);
-            chunksSeenIndexLevel++;
-        }
-        assertEquals(4 + shards, chunksSeenIndexLevel);
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            indicesStatsResponse,
+            new ToXContent.MapParams(Map.of("level", "cluster")),
+            ignored1 -> 3
+        );
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            indicesStatsResponse,
+            new ToXContent.MapParams(Map.of("level", "indices")),
+            ignored -> 4 + shards
+        );
     }
 
     private ShardRouting createShardRouting(ShardId shardId, boolean isPrimary) {

@@ -91,11 +91,9 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
     }
 
     public void testEmptyField() throws IOException {
-        testCase(
-            new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(singleton(getDocValue("number", new double[0]))); },
-            hdr -> { assertFalse(AggregationInspectionHelper.hasValue(hdr)); }
-        );
+        testCase(new MatchAllDocsQuery(), iw -> { iw.addDocument(singleton(getDocValue("number", new double[0]))); }, hdr -> {
+            assertFalse(AggregationInspectionHelper.hasValue(hdr));
+        });
     }
 
     public void testSomeMatchesBinaryDocValues() throws IOException {

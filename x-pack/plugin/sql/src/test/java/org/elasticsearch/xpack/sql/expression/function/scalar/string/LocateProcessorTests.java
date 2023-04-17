@@ -33,6 +33,11 @@ public class LocateProcessorTests extends AbstractWireSerializingTestCase<Locate
     }
 
     @Override
+    protected LocateFunctionProcessor mutateInstance(LocateFunctionProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<LocateFunctionProcessor> instanceReader() {
         return LocateFunctionProcessor::new;
     }

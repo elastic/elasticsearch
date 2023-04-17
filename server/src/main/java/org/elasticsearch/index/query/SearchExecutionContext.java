@@ -35,12 +35,12 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -58,8 +58,9 @@ import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -305,7 +306,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     /**
      * Parse a document with current mapping.
      */
-    public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
+    public ParsedDocument parseDocument(SourceToParse source) throws DocumentParsingException {
         return mapperService.documentParser().parseDocument(source, mappingLookup);
     }
 
@@ -491,19 +492,35 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
-            SourceLookup.SourceProvider sourceProvider = mappingLookup == null
-                ? new SourceLookup.ReaderSourceProvider()
-                : mappingLookup.getSourceProvider();
-            this.lookup = new SearchLookup(
-                this::getFieldType,
-                (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
-                    fieldType,
-                    new FieldDataContext(fullyQualifiedIndex.getName(), searchLookup, this::sourcePath, fielddataOperation)
-                ),
-                sourceProvider
-            );
+            SourceProvider sourceProvider = isSourceSynthetic() ? (ctx, doc) -> {
+                throw new IllegalArgumentException("Cannot access source from scripts in synthetic mode");
+            } : SourceProvider.fromStoredFields();
+            setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }
         return this.lookup;
+    }
+
+    /**
+     * Replace the standard source provider and field lookup provider on the SearchLookup
+     *
+     * Note that this will replace the current SearchLookup with a new one, but will not update
+     * the source provider on previously build lookups. This method should only be called before
+     * IndexReader access by the current context
+     */
+    public void setLookupProviders(
+        SourceProvider sourceProvider,
+        Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider
+    ) {
+        // TODO can we assert that this is only called during FetchPhase?
+        this.lookup = new SearchLookup(
+            this::getFieldType,
+            (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
+                fieldType,
+                new FieldDataContext(fullyQualifiedIndex.getName(), searchLookup, this::sourcePath, fielddataOperation)
+            ),
+            sourceProvider,
+            fieldLookupProvider
+        );
     }
 
     public NestedScope nestedScope() {

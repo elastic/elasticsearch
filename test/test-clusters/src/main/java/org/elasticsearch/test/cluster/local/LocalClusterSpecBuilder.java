@@ -9,9 +9,10 @@
 package org.elasticsearch.test.cluster.local;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.util.resource.TextResource;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public interface LocalClusterSpecBuilder extends LocalSpecBuilder<LocalClusterSpecBuilder> {
     /**
@@ -19,7 +20,17 @@ public interface LocalClusterSpecBuilder extends LocalSpecBuilder<LocalClusterSp
      */
     LocalClusterSpecBuilder name(String name);
 
+    /**
+     * Apply configuration from a {@link LocalClusterConfigProvider}. This configuration is applied eagerly. Subsequent calls to this
+     * builder will override provider settings.
+     */
     LocalClusterSpecBuilder apply(LocalClusterConfigProvider configProvider);
+
+    /**
+     * Apply configuration from a {@link LocalClusterConfigProvider} created by the given {@link Supplier}. This configuration is applied
+     * lazily and will override existing builder settings.
+     */
+    LocalClusterSpecBuilder apply(Supplier<LocalClusterConfigProvider> configProvider);
 
     /**
      * Sets the number of nodes for the cluster.
@@ -50,9 +61,9 @@ public interface LocalClusterSpecBuilder extends LocalSpecBuilder<LocalClusterSp
     LocalClusterSpecBuilder user(String username, String password, String role);
 
     /**
-     * Register a roles file with cluster via the supplied {@link TextResource}.
+     * Register a roles file with cluster via the supplied {@link Resource}.
      */
-    LocalClusterSpecBuilder rolesFile(TextResource rolesFile);
+    LocalClusterSpecBuilder rolesFile(Resource rolesFile);
 
     ElasticsearchCluster build();
 }

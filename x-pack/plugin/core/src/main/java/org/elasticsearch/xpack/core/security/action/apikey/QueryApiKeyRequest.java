@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -72,7 +72,7 @@ public final class QueryApiKeyRequest extends ActionRequest {
             this.fieldSortBuilders = null;
         }
         this.searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             this.withLimitedBy = in.readBoolean();
         } else {
             this.withLimitedBy = false;
@@ -136,7 +136,7 @@ public final class QueryApiKeyRequest extends ActionRequest {
             out.writeList(fieldSortBuilders);
         }
         out.writeOptionalWriteable(searchAfterBuilder);
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeBoolean(withLimitedBy);
         }
     }

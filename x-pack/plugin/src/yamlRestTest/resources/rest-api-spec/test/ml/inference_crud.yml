@@ -1113,6 +1113,10 @@ setup:
 
 ---
 "Test put with defer_definition_decompression with invalid definition and no memory estimate":
+  - skip:
+       version: all
+       reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/94854"
+
   - do:
       catch: /Model \[my-regression-model\] inference config type \[classification\] does not support definition target type \[regression\]/
       ml.put_trained_model:

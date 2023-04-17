@@ -10,7 +10,7 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -75,7 +75,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      */
     public QuerySearchResult(StreamInput in, boolean delayedAggregations) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
             isNull = in.readBoolean();
         } else {
             isNull = false;
@@ -369,7 +369,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             hasProfileResults = profileShardResults != null;
             serviceTimeEWMA = in.readZLong();
             nodeQueueSize = in.readInt();
-            if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
                 setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
                 setRescoreDocIds(new RescoreDocIds(in));
             }
@@ -388,7 +388,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (aggregations != null && aggregations.isSerialized()) {
             throw new IllegalStateException("cannot send serialized version since it will leak");
         }
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)) {
             out.writeBoolean(isNull);
         }
         if (isNull == false) {
@@ -421,7 +421,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(profileShardResults);
         out.writeZLong(serviceTimeEWMA);
         out.writeInt(nodeQueueSize);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeOptionalWriteable(getShardSearchRequest());
             getRescoreDocIds().writeTo(out);
         }

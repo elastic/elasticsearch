@@ -9,7 +9,7 @@
 package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
@@ -107,8 +107,8 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.CURRENT;
         }
 
         @Override

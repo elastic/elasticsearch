@@ -135,7 +135,10 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, builder.build());
         jobResultsPersister = new JobResultsPersister(originSettingClient, resultsPersisterService);
-        auditor = new AnomalyDetectionAuditor(client(), clusterService);
+        // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
+        // AnomalyDetectionAuditor constructor. Instead we generate a random boolean value for that purpose.
+        boolean includeNodeInfo = randomBoolean();
+        auditor = new AnomalyDetectionAuditor(client(), clusterService, includeNodeInfo);
         waitForMlTemplates();
     }
 
@@ -491,7 +494,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         storedDataCounts.incrementInputBytes(1L);
         storedDataCounts.incrementMissingFieldCount(1L);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client(), resultsPersisterService, auditor);
-        jobDataCountsPersister.persistDataCounts(job.getId(), storedDataCounts);
+        jobDataCountsPersister.persistDataCounts(job.getId(), storedDataCounts, true);
         jobResultsPersister.commitWrites(job.getId(), JobResultsPersister.CommitType.RESULTS);
 
         setOrThrow.get();
@@ -1046,9 +1049,9 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         }
     }
 
-    private void indexDataCounts(DataCounts counts, String jobId) {
+    private void indexDataCounts(DataCounts counts, String jobId) throws InterruptedException {
         JobDataCountsPersister persister = new JobDataCountsPersister(client(), resultsPersisterService, auditor);
-        persister.persistDataCounts(jobId, counts);
+        persister.persistDataCounts(jobId, counts, true);
     }
 
     private void indexFilters(List<MlFilter> filters) throws IOException {

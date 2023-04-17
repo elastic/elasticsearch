@@ -45,6 +45,7 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -100,10 +101,12 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.stream.Collectors;
@@ -131,6 +134,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build()
     );
+    private static final BytesArray TRANSLOG_OPERATION_SOURCE = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
     private final ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     private final RecoveryPlannerService recoveryPlannerService = PeerOnlyRecoveryPlannerService.INSTANCE;
@@ -308,13 +312,13 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         );
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         RecoverySourceHandler.SendSnapshotResult result = future.actionGet();
-        assertThat(result.sentOperations, equalTo(expectedOps));
+        assertThat(result.sentOperations(), equalTo(expectedOps));
         List<Translog.Operation> sortedShippedOps = shippedOps.stream().sorted(Comparator.comparing(Translog.Operation::seqNo)).toList();
         assertThat(shippedOps.size(), equalTo(expectedOps));
         for (int i = 0; i < shippedOps.size(); i++) {
             assertThat(sortedShippedOps.get(i), equalTo(operations.get(i + (int) startingSeqNo + initialNumberOfDocs)));
         }
-        assertThat(result.targetLocalCheckpoint, equalTo(checkpointOnTarget.get()));
+        assertThat(result.targetLocalCheckpoint(), equalTo(checkpointOnTarget.get()));
     }
 
     public void testSendSnapshotStopOnError() throws Exception {
@@ -449,8 +453,8 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         );
         RecoverySourceHandler.SendSnapshotResult sendSnapshotResult = sendFuture.actionGet();
         assertTrue(received.get());
-        assertThat(sendSnapshotResult.targetLocalCheckpoint, equalTo(localCheckpoint.get()));
-        assertThat(sendSnapshotResult.sentOperations, equalTo(receivedSeqNos.size()));
+        assertThat(sendSnapshotResult.targetLocalCheckpoint(), equalTo(localCheckpoint.get()));
+        assertThat(sendSnapshotResult.sentOperations(), equalTo(receivedSeqNos.size()));
         Set<Long> sentSeqNos = new HashSet<>();
         for (Translog.Operation op : operations) {
             if (startingSeqNo <= op.seqNo() && op.seqNo() <= endingSeqNo && skipOperations.contains(op) == false) {
@@ -506,7 +510,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         @Override
         public Engine.Index createIndexOp(int docIdent) {
-            SourceToParse source = new SourceToParse(null, new BytesArray(formatted("""
+            SourceToParse source = new SourceToParse(null, new BytesArray(Strings.format("""
                 {
                     "@timestamp": %s,
                     "dim": "dim"
@@ -782,8 +786,30 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         assertFalse(phase2Called.get());
     }
 
-    @SuppressWarnings("unchecked")
     public void testCancellationsDoesNotLeakPrimaryPermits() throws Exception {
+        runPrimaryPermitsLeakTest((shard, cancellableThreads) -> {
+            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads);
+        });
+    }
+
+    public void testCancellationsDoesNotLeakPrimaryPermitsAsync() throws Exception {
+        runPrimaryPermitsLeakTest((shard, cancellableThreads) -> {
+            PlainActionFuture.<Void, RuntimeException>get(
+                future -> RecoverySourceHandler.runUnderPrimaryPermit(
+                    listener -> listener.onResponse(null),
+                    "test",
+                    shard,
+                    cancellableThreads,
+                    future
+                ),
+                10,
+                TimeUnit.SECONDS
+            );
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void runPrimaryPermitsLeakTest(BiConsumer<IndexShard, CancellableThreads> acquireAndReleasePermit) throws Exception {
         final CancellableThreads cancellableThreads = new CancellableThreads();
         final IndexShard shard = mock(IndexShard.class);
         final AtomicBoolean freed = new AtomicBoolean(true);
@@ -797,7 +823,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();
         try {
-            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads, logger);
+            acquireAndReleasePermit.accept(shard, cancellableThreads);
         } catch (CancellableThreads.ExecutionCancelledException e) {
             // expected.
         }
@@ -1185,7 +1211,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             final ShardRecoveryPlan shardRecoveryPlan = createShardRecoveryPlan(store, randomIntBetween(10, 20), randomIntBetween(10, 20));
 
             final ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover();
-            final List<String> fileNamesToBeRecoveredFromSnapshot = snapshotFilesToRecover.getSnapshotFiles()
+            final List<String> fileNamesToBeRecoveredFromSnapshot = snapshotFilesToRecover.snapshotFiles()
                 .stream()
                 .map(fileInfo -> fileInfo.metadata().name())
                 .toList();
@@ -1206,8 +1232,8 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                     BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
                     ActionListener<Void> listener
                 ) {
-                    assertThat(repository, is(equalTo(snapshotFilesToRecover.getRepository())));
-                    assertThat(indexId, is(equalTo(snapshotFilesToRecover.getIndexId())));
+                    assertThat(repository, is(equalTo(snapshotFilesToRecover.repository())));
+                    assertThat(indexId, is(equalTo(snapshotFilesToRecover.indexId())));
                     assertThat(containsSnapshotFile(snapshotFilesToRecover, snapshotFile), is(equalTo(true)));
                     String fileName = snapshotFile.metadata().name();
 
@@ -1528,7 +1554,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             final ShardRecoveryPlan fallbackPlan = shardRecoveryPlan.getFallbackPlan();
             List<StoreFileMetadata> sourceFilesToRecover = fallbackPlan.getSourceFilesToRecover();
             List<StoreFileMetadata> snapshotFilesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover()
-                .getSnapshotFiles()
+                .snapshotFiles()
                 .stream()
                 .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
                 .toList();
@@ -1563,7 +1589,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                         assertThat(receiveFileInfoFromSourceCalls.incrementAndGet(), is(equalTo(1)));
                     } else {
                         filesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover()
-                            .getSnapshotFiles()
+                            .snapshotFiles()
                             .stream()
                             .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
                             .toList();
@@ -1696,7 +1722,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover,
         BlobStoreIndexShardSnapshot.FileInfo snapshotFile
     ) {
-        return snapshotFilesToRecover.getSnapshotFiles().stream().anyMatch(f -> f.metadata().isSame(snapshotFile.metadata()));
+        return snapshotFilesToRecover.snapshotFiles().stream().anyMatch(f -> f.metadata().isSame(snapshotFile.metadata()));
     }
 
     private boolean containsFile(List<StoreFileMetadata> filesMetadata, StoreFileMetadata storeFileMetadata) {
@@ -1757,7 +1783,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         );
 
         Map<String, StoreFileMetadata> snapshotFiles = shardRecoveryPlan.getSnapshotFilesToRecover()
-            .getSnapshotFiles()
+            .snapshotFiles()
             .stream()
             .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
             .collect(Collectors.toMap(StoreFileMetadata::name, Function.identity()));
@@ -1954,29 +1980,33 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         };
     }
 
+    public static Translog.Operation generateOperation(long seqNo) {
+        final Translog.Operation op;
+        if (randomBoolean()) {
+            op = new Translog.Index(
+                "id",
+                seqNo,
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                TRANSLOG_OPERATION_SOURCE,
+                randomBoolean() ? randomAlphaOfLengthBetween(1, 5) : null,
+                randomNonNegativeLong()
+            );
+        } else if (randomBoolean()) {
+            op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
+        } else {
+            op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
+        }
+        return op;
+    }
+
     private static List<Translog.Operation> generateOperations(int numOps) {
         final List<Translog.Operation> operations = new ArrayList<>(numOps);
         final BytesArray source = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
         final Set<Long> seqNos = new HashSet<>();
         for (int i = 0; i < numOps; i++) {
             final long seqNo = randomValueOtherThanMany(n -> seqNos.add(n) == false, ESTestCase::randomNonNegativeLong);
-            final Translog.Operation op;
-            if (randomBoolean()) {
-                op = new Translog.Index(
-                    "id",
-                    seqNo,
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    source,
-                    randomBoolean() ? randomAlphaOfLengthBetween(1, 5) : null,
-                    randomNonNegativeLong()
-                );
-            } else if (randomBoolean()) {
-                op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
-            } else {
-                op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
-            }
-            operations.add(op);
+            operations.add(generateOperation(seqNo));
         }
         return operations;
     }

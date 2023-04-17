@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
  */
 public class NodesShutdownMetadata implements Metadata.Custom {
     public static final String TYPE = "node_shutdown";
-    public static final Version NODE_SHUTDOWN_VERSION = Version.V_7_13_0;
+    public static final TransportVersion NODE_SHUTDOWN_VERSION = TransportVersion.V_7_13_0;
     public static final NodesShutdownMetadata EMPTY = new NodesShutdownMetadata(Map.of());
 
     private static final ParseField NODES_FIELD = new ParseField("nodes");
@@ -54,12 +54,9 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     });
 
     static {
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> SingleNodeShutdownMetadata.parse(p),
-            v -> { throw new IllegalArgumentException("ordered " + NODES_FIELD.getPreferredName() + " are not supported"); },
-            NODES_FIELD
-        );
+        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> SingleNodeShutdownMetadata.parse(p), v -> {
+            throw new IllegalArgumentException("ordered " + NODES_FIELD.getPreferredName() + " are not supported");
+        }, NODES_FIELD);
     }
 
     public static NodesShutdownMetadata fromXContent(XContentParser parser) {
@@ -151,7 +148,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public TransportVersion getMinimalSupportedVersion() {
         return NODE_SHUTDOWN_VERSION;
     }
 
@@ -214,7 +211,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
+        public TransportVersion getMinimalSupportedVersion() {
             return NODE_SHUTDOWN_VERSION;
         }
 

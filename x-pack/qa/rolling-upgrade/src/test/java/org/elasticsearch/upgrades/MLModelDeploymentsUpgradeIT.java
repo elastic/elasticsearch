@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -191,7 +192,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     private void putModelDefinition(String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
     }
@@ -204,7 +205,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             { "vocabulary": [%s] }
             """, quotedWords));
         client().performRequest(request);
@@ -276,7 +277,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     private Response infer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }
             """, input));
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
@@ -287,7 +288,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
     private Response newInfer(String input, String modelId) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }
             """, input));
         var response = client().performRequest(request);

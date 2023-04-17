@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -19,8 +19,8 @@ public class MPNetTokenizationTests extends AbstractBWCSerializationTestCase<MPN
 
     private boolean lenient;
 
-    static MPNetTokenization mutateForVersion(MPNetTokenization instance, Version version) {
-        if (version.before(Version.V_8_2_0)) {
+    static MPNetTokenization mutateForVersion(MPNetTokenization instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_2_0)) {
             return new MPNetTokenization(
                 instance.doLowerCase,
                 instance.withSpecialTokens,
@@ -53,7 +53,12 @@ public class MPNetTokenizationTests extends AbstractBWCSerializationTestCase<MPN
     }
 
     @Override
-    protected MPNetTokenization mutateInstanceForVersion(MPNetTokenization instance, Version version) {
+    protected MPNetTokenization mutateInstance(MPNetTokenization instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected MPNetTokenization mutateInstanceForVersion(MPNetTokenization instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 

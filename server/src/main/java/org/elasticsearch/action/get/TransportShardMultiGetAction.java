@@ -81,8 +81,9 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        return clusterService.operationRouting()
+        ShardIterator iterator = clusterService.operationRouting()
             .getShards(state, request.request().index(), request.request().shardId(), request.request().preference());
+        return clusterService.operationRouting().useOnlyPromotableShardsForStateless(iterator);
     }
 
     @Override

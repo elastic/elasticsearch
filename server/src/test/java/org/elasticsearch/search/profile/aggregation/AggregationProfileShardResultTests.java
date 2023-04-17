@@ -27,8 +27,6 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.hamcrest.Matchers.emptyString;
-import static org.hamcrest.Matchers.not;
 
 public class AggregationProfileShardResultTests extends AbstractXContentSerializingTestCase<AggregationProfileShardResult> {
 
@@ -44,6 +42,11 @@ public class AggregationProfileShardResultTests extends AbstractXContentSerializ
     @Override
     protected AggregationProfileShardResult createTestInstance() {
         return createTestItem(2);
+    }
+
+    @Override
+    protected AggregationProfileShardResult mutateInstance(AggregationProfileShardResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -118,12 +121,6 @@ public class AggregationProfileShardResultTests extends AbstractXContentSerializ
                 }
               ]
             }"""), xContent.utf8ToString());
-    }
-
-    public void testToString() {
-        final String toString = createTestInstance().toString();
-        assertNotNull(toString);
-        assertThat(toString, not(emptyString()));
     }
 
 }

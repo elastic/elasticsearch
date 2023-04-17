@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -43,12 +43,8 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
     static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
 
-    static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
-        3,
-        0,
-        10,
-        -1
-    );
+    static final TermsAggregator.ConstantBucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS =
+        new TermsAggregator.ConstantBucketCountThresholds(3, 0, 10, -1);
     static final SignificanceHeuristic DEFAULT_SIGNIFICANCE_HEURISTIC = new JLHScore();
 
     private static final ObjectParser<SignificantTermsAggregationBuilder, Void> PARSER = new ObjectParser<>(
@@ -172,7 +168,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected boolean serializeTargetValueType(Version version) {
+    protected boolean serializeTargetValueType(TransportVersion version) {
         return true;
     }
 
@@ -383,7 +379,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_3_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_3_0;
     }
 }

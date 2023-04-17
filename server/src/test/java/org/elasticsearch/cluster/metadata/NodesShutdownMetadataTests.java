@@ -139,12 +139,7 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
     }
 
     @Override
-    protected Metadata.Custom mutateInstance(Metadata.Custom instance) throws IOException {
+    protected Metadata.Custom mutateInstance(Metadata.Custom instance) {
         return makeTestChanges(instance);
-    }
-
-    @Override
-    protected boolean isFragment() {
-        return true;
     }
 }

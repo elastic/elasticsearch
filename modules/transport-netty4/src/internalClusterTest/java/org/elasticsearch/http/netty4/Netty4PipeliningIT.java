@@ -13,6 +13,7 @@ import io.netty.util.ReferenceCounted;
 
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -53,7 +54,7 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
     private void assertOpaqueIdsInOrder(Collection<String> opaqueIds) {
         // check if opaque ids are monotonically increasing
         int i = 0;
-        String msg = formatted("Expected list of opaque ids to be monotonically increasing, got [%s]", opaqueIds);
+        String msg = Strings.format("Expected list of opaque ids to be monotonically increasing, got [%s]", opaqueIds);
         for (String opaqueId : opaqueIds) {
             assertThat(msg, opaqueId, is(String.valueOf(i++)));
         }

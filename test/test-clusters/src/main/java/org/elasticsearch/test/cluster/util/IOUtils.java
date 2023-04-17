@@ -10,9 +10,7 @@ package org.elasticsearch.test.cluster.util;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -89,32 +87,11 @@ public final class IOUtils {
         });
     }
 
-    public static String readStringFromStream(InputStream in) {
-        try {
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } finally {
-            if (in != null) {
-                try {
-                    in.close();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-        }
-    }
-
     private static void sync(Path sourceRoot, Path destinationRoot, BiConsumer<Path, Path> syncMethod) {
         assert Files.exists(destinationRoot) == false;
         try (Stream<Path> stream = Files.walk(sourceRoot)) {
             stream.forEach(source -> {
                 Path relativeDestination = sourceRoot.relativize(source);
-                if (relativeDestination.getNameCount() <= 1) {
-                    return;
-                }
-                // Throw away the first name as the archives have everything in a single top level folder we are not interested in
-                relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
 
                 Path destination = destinationRoot.resolve(relativeDestination);
                 if (Files.isDirectory(source)) {
@@ -133,7 +110,7 @@ public final class IOUtils {
                 }
             });
         } catch (UncheckedIOException e) {
-            if (e.getCause()instanceof NoSuchFileException cause) {
+            if (e.getCause() instanceof NoSuchFileException cause) {
                 // Ignore these files that are sometimes left behind by the JVM
                 if (cause.getFile() == null || cause.getFile().contains(".attach_pid") == false) {
                     throw new UncheckedIOException(cause);

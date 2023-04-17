@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -17,7 +17,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER
 /**
  * A response for a get index action.
  */
-public class GetIndexResponse extends ActionResponse implements ChunkedToXContent {
+public class GetIndexResponse extends ActionResponse implements ChunkedToXContentObject {
 
     private Map<String, MappingMetadata> mappings = Map.of();
     private Map<String, List<AliasMetadata>> aliases = Map.of();
@@ -75,7 +75,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
     GetIndexResponse(StreamInput in) throws IOException {
         super(in);
         this.indices = in.readStringArray();
-        mappings = in.readImmutableOpenMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
+        mappings = in.readImmutableOpenMap(StreamInput::readString, in.getTransportVersion().before(TransportVersion.V_8_0_0) ? i -> {
             int numMappings = i.readVInt();
             assert numMappings == 0 || numMappings == 1 : "Expected 0 or 1 mappings but got " + numMappings;
             if (numMappings == 1) {

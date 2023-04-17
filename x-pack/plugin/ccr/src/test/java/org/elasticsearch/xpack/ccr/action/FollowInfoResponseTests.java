@@ -9,18 +9,14 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FOLLOWER_INDICES_FIELD;
 import static org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.Status;
 
@@ -92,17 +88,12 @@ public class FollowInfoResponseTests extends AbstractChunkedSerializingTestCase<
         return new FollowInfoAction.Response(infos);
     }
 
-    public void testChunking() throws IOException {
-        final var instance = createTestInstance();
-        int chunkCount = 0;
-        try (var builder = jsonBuilder()) {
-            final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
-            while (iterator.hasNext()) {
-                iterator.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                chunkCount += 1;
-            }
-        } // closing the builder verifies that the XContent is well-formed
+    @Override
+    protected FollowInfoAction.Response mutateInstance(FollowInfoAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 
-        assertEquals(instance.getFollowInfos().size() + 2, chunkCount);
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), instance -> instance.getFollowInfos().size() + 2);
     }
 }

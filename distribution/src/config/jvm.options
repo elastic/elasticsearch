@@ -72,4 +72,4 @@
 @error.file@
 
 ## GC logging
--Xlog:gc*,gc+age=trace,safepoint:file=@loggc@:utctime,pid,tags:filecount=32,filesize=64m
+-Xlog:gc*,gc+age=trace,safepoint:file=@loggc@:utctime,level,pid,tags:filecount=32,filesize=64m

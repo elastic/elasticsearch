@@ -54,9 +54,10 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.geo",
         "org.elasticsearch.logging",
         "org.elasticsearch.lz4",
-        "org.elasticsearch.plugin.analysis.api",
-        "org.elasticsearch.plugin.api",
+        "org.elasticsearch.plugin",
+        "org.elasticsearch.plugin.analysis",
         "org.elasticsearch.pluginclassloader",
+        "org.elasticsearch.preallocate",
         "org.elasticsearch.securesm",
         "org.elasticsearch.server",
         "org.elasticsearch.xcontent"

@@ -84,6 +84,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private static final long RETENTION_OF_CHECKPOINTS_MS = 864000000L; // 10 days
     private static final long CHECKPOINT_CLEANUP_INTERVAL = 100L; // every 100 checkpoints
 
+    // constant for triggering state persistence, hardcoded for now
+    public static final long DEFAULT_TRIGGER_SAVE_STATE_INTERVAL_MS = 60_000; // 60s
+
     protected final TransformConfigManager transformsConfigManager;
     private final CheckpointProvider checkpointProvider;
     protected final TransformFailureHandler failureHandler;
@@ -119,6 +122,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private volatile RunState runState;
 
     private volatile long lastCheckpointCleanup = 0L;
+    private volatile long lastSaveStateMilliseconds;
 
     protected volatile boolean indexerThreadShuttingDown = false;
     protected volatile boolean saveStateRequestedDuringIndexerThreadShutdown = false;
@@ -154,6 +158,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         if (transformConfig.getSettings() != null && transformConfig.getSettings().getDocsPerSecond() != null) {
             docsPerSecond = transformConfig.getSettings().getDocsPerSecond();
         }
+        this.lastSaveStateMilliseconds = TimeUnit.NANOSECONDS.toMillis(getTimeNanos());
     }
 
     abstract void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener);
@@ -181,7 +186,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     @Override
     protected boolean triggerSaveState() {
         // trigger in case of listeners waiting for state being saved
-        return saveStateListeners.get() != null || super.triggerSaveState();
+        if (saveStateListeners.get() != null) {
+            return true;
+        }
+
+        return TimeUnit.NANOSECONDS.toMillis(getTimeNanos()) > lastSaveStateMilliseconds + DEFAULT_TRIGGER_SAVE_STATE_INTERVAL_MS;
     }
 
     public TransformConfig getConfig() {
@@ -357,7 +366,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // If we are not on the initial batch checkpoint and its the first pass of whatever continuous checkpoint we are on,
         // we should verify if there are local changes based on the sync config. If not, do not proceed further and exit.
         if (context.getCheckpoint() > 0 && initialRun()) {
-            sourceHasChanged(ActionListener.wrap(hasChanged -> {
+            checkpointProvider.sourceHasChanged(getLastCheckpoint(), ActionListener.wrap(hasChanged -> {
                 context.setLastSearchTime(instantOfTrigger);
                 hasSourceChanged = hasChanged;
                 if (hasChanged) {
@@ -724,7 +733,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             context.getStateReason(),
             getProgress(),
             null,
-            shouldStopAtCheckpoint
+            shouldStopAtCheckpoint,
+            context.getAuthState()
         );
         logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
 
@@ -738,6 +748,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 String msg = LoggerMessageFormat.format("[{}] failed notifying saveState listeners, ignoring.", getJobId());
                 logger.warn(msg, onResponseException);
             } finally {
+                lastSaveStateMilliseconds = TimeUnit.NANOSECONDS.toMillis(getTimeNanos());
                 next.run();
             }
         }, e -> {
@@ -835,7 +846,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     context.getStateReason(),
                     getProgress(),
                     null,
-                    newIndexerState == IndexerState.STARTED
+                    newIndexerState == IndexerState.STARTED,
+                    context.getAuthState()
                 );
 
                 // because save state is async we need to block the call until state is persisted, so that the job can not
@@ -843,7 +855,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 CountDownLatch latch = new CountDownLatch(1);
                 logger.debug("[{}] persisting stop at checkpoint", getJobId());
 
-                persistState(newTransformState, ActionListener.wrap(() -> latch.countDown()));
+                persistState(newTransformState, ActionListener.running(() -> latch.countDown()));
 
                 if (latch.await(PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
                     logger.error(
@@ -957,20 +969,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             logger.debug("[{}] checked for outdated checkpoints", getJobId());
             listener.onResponse(null);
         }
-    }
-
-    private void sourceHasChanged(ActionListener<Boolean> hasChangedListener) {
-        checkpointProvider.sourceHasChanged(getLastCheckpoint(), ActionListener.wrap(hasChanged -> {
-            logger.trace("[{}] change detected [{}].", getJobId(), hasChanged);
-            hasChangedListener.onResponse(hasChanged);
-        }, e -> {
-            logger.warn(() -> "[" + getJobId() + "] failed to detect changes for transform. Skipping update till next check.", e);
-            auditor.warning(
-                getJobId(),
-                "Failed to detect changes for transform, skipping update till next check. Exception: " + e.getMessage()
-            );
-            hasChangedListener.onResponse(false);
-        }));
     }
 
     private IterationResult<TransformIndexerPosition> processBuckets(final SearchResponse searchResponse) {
@@ -1111,7 +1109,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
 
             // Only apply extra filter if it is the subsequent run of the continuous transform
-            if (nextCheckpoint.getCheckpoint() > 1 && changeCollector != null) {
+            if (changeCollector != null) {
                 QueryBuilder filter = changeCollector.buildFilterQuery(lastCheckpoint, nextCheckpoint);
                 if (filter != null) {
                     filteredQuery.filter(filter);
@@ -1168,6 +1166,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     private RunState determineRunStateAtStart() {
+        if (context.from() != null) {
+            return RunState.IDENTIFY_CHANGES;
+        }
+
         // either 1st run or not a continuous transform
         if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
             return RunState.APPLY_RESULTS;

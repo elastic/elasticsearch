@@ -18,7 +18,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,27 +41,25 @@ public class NodesDeprecationCheckResponseTests extends AbstractWireSerializingT
     }
 
     @Override
-    protected NodesDeprecationCheckResponse mutateInstance(NodesDeprecationCheckResponse instance) throws IOException {
+    protected NodesDeprecationCheckResponse mutateInstance(NodesDeprecationCheckResponse instance) {
         int mutate = randomIntBetween(1, 3);
-        switch (mutate) {
+        return switch (mutate) {
             case 1 -> {
                 List<NodesDeprecationCheckAction.NodeResponse> responses = new ArrayList<>(instance.getNodes());
                 responses.add(randomNodeResponse());
-                return new NodesDeprecationCheckResponse(instance.getClusterName(), responses, instance.failures());
+                yield new NodesDeprecationCheckResponse(instance.getClusterName(), responses, instance.failures());
             }
             case 2 -> {
                 ArrayList<FailedNodeException> failures = new ArrayList<>(instance.failures());
                 failures.add(new FailedNodeException("test node", "test failure", new RuntimeException(randomAlphaOfLength(10))));
-                return new NodesDeprecationCheckResponse(instance.getClusterName(), instance.getNodes(), failures);
+                yield new NodesDeprecationCheckResponse(instance.getClusterName(), instance.getNodes(), failures);
             }
             case 3 -> {
                 String clusterName = randomValueOtherThan(instance.getClusterName().value(), () -> randomAlphaOfLengthBetween(5, 15));
-                return new NodesDeprecationCheckResponse(new ClusterName(clusterName), instance.getNodes(), instance.failures());
+                yield new NodesDeprecationCheckResponse(new ClusterName(clusterName), instance.getNodes(), instance.failures());
             }
-            default -> fail("invalid mutation");
-        }
-
-        return super.mutateInstance(instance);
+            default -> throw new AssertionError("invalid mutation");
+        };
     }
 
     private static DiscoveryNode randomDiscoveryNode() throws Exception {

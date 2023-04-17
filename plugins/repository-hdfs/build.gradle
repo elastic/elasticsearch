@@ -121,7 +121,7 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
             env 'CLASSPATH', "${-> project.configurations.getByName("hdfs" + hadoopVer + "Fixture").asPath}"
 
             maxWaitInSeconds 60
-            onlyIf { BuildParams.inFipsJvm == false }
+            BuildParams.withFipsEnabledOnly(it)
             waitCondition = { fixture, ant ->
                 // the hdfs.MiniHDFS fixture writes the ports file when
                 // it's ready, so we can just wait for the file to exist
@@ -273,7 +273,7 @@ tasks.withType(RestIntegTestTask).configureEach { testTask ->
     if (disabledIntegTestTaskNames.contains(name)) {
         enabled = false;
     }
-    onlyIf { BuildParams.inFipsJvm == false }
+    BuildParams.withFipsEnabledOnly(testTask)
 
     if (name.contains("Secure")) {
         if (disabledIntegTestTaskNames.contains(name) == false) {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -82,7 +83,9 @@ public interface ChunkedRestResponseBody {
                 Streams.noCloseStream(out)
             );
 
-            private final Iterator<? extends ToXContent> serialization = chunkedToXContent.toXContentChunked(params);
+            private final Iterator<? extends ToXContent> serialization = builder.getRestApiVersion() == RestApiVersion.V_7
+                ? chunkedToXContent.toXContentChunkedV7(params)
+                : chunkedToXContent.toXContentChunked(params);
 
             private BytesStream target;
 

@@ -19,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.xpack.spatial.index.fielddata.Component2DVisitor;
@@ -105,41 +106,61 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
     }
 
     private ConstantScoreWeight getStandardWeight(ScoreMode scoreMode, float boost) {
+        final Component2D component2D = create(geometries);
         return new ConstantScoreWeight(this, boost) {
-            final Component2D component2D = create(geometries);
 
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
-                final BinaryDocValues values = context.reader().getBinaryDocValues(field);
-                if (values == null) {
+                final ScorerSupplier scorerSupplier = scorerSupplier(context);
+                if (scorerSupplier == null) {
                     return null;
                 }
-                final GeometryDocValueReader reader = new GeometryDocValueReader();
-                final Component2DVisitor visitor = Component2DVisitor.getVisitor(component2D, relation, encoder);
+                return scorerSupplier.get(Long.MAX_VALUE);
+            }
 
-                final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
+            @Override
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) {
+                final Weight weight = this;
+                // implement ScorerSupplier, since we do some expensive stuff to make a scorer
+                return new ScorerSupplier() {
 
                     @Override
-                    public boolean matches() throws IOException {
-                        reader.reset(values.binaryValue());
-                        visitor.reset();
-                        reader.visit(visitor);
-                        return visitor.matches();
+                    public Scorer get(long leadCost) throws IOException {
+                        // binary doc values allocate an array upfront, lets only allocate it if we are going to use it
+                        final BinaryDocValues values = context.reader().getBinaryDocValues(field);
+                        if (values == null) {
+                            return null;
+                        }
+                        final GeometryDocValueReader reader = new GeometryDocValueReader();
+                        final Component2DVisitor visitor = Component2DVisitor.getVisitor(component2D, relation, encoder);
+                        final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
+                            @Override
+                            public boolean matches() throws IOException {
+                                reader.reset(values.binaryValue());
+                                visitor.reset();
+                                reader.visit(visitor);
+                                return visitor.matches();
+                            }
+
+                            @Override
+                            public float matchCost() {
+                                return 1000f; // TODO: what should it be?
+                            }
+                        };
+                        return new ConstantScoreScorer(weight, score(), scoreMode, iterator);
                     }
 
                     @Override
-                    public float matchCost() {
-                        return 1000f; // TODO: what should it be?
+                    public long cost() {
+                        return context.reader().maxDoc();
                     }
                 };
-                return new ConstantScoreScorer(this, boost, scoreMode, iterator);
             }
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
                 return DocValues.isCacheable(ctx, field);
             }
-
         };
     }
 
@@ -152,37 +173,59 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
 
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
-                final BinaryDocValues values = context.reader().getBinaryDocValues(field);
-                if (values == null) {
+                final ScorerSupplier scorerSupplier = scorerSupplier(context);
+                if (scorerSupplier == null) {
                     return null;
                 }
-                final GeometryDocValueReader reader = new GeometryDocValueReader();
-                final Component2DVisitor[] visitors = new Component2DVisitor[components2D.size()];
-                for (int i = 0; i < components2D.size(); i++) {
-                    visitors[i] = Component2DVisitor.getVisitor(components2D.get(i), relation, encoder);
-                }
+                return scorerSupplier.get(Long.MAX_VALUE);
+            }
 
-                final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
+            @Override
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) {
+                final Weight weight = this;
+                // implement ScorerSupplier, since we do some expensive stuff to make a scorer
+                return new ScorerSupplier() {
 
                     @Override
-                    public boolean matches() throws IOException {
-                        reader.reset(values.binaryValue());
-                        for (Component2DVisitor visitor : visitors) {
-                            visitor.reset();
-                            reader.visit(visitor);
-                            if (visitor.matches() == false) {
-                                return false;
-                            }
+                    public Scorer get(long leadCost) throws IOException {
+                        // binary doc values allocate an array upfront, lets only allocate it if we are going to use it
+                        final BinaryDocValues values = context.reader().getBinaryDocValues(field);
+                        if (values == null) {
+                            return null;
                         }
-                        return true;
+                        final Component2DVisitor[] visitors = new Component2DVisitor[components2D.size()];
+                        for (int i = 0; i < components2D.size(); i++) {
+                            visitors[i] = Component2DVisitor.getVisitor(components2D.get(i), relation, encoder);
+                        }
+                        final GeometryDocValueReader reader = new GeometryDocValueReader();
+                        final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
+
+                            @Override
+                            public boolean matches() throws IOException {
+                                reader.reset(values.binaryValue());
+                                for (Component2DVisitor visitor : visitors) {
+                                    visitor.reset();
+                                    reader.visit(visitor);
+                                    if (visitor.matches() == false) {
+                                        return false;
+                                    }
+                                }
+                                return true;
+                            }
+
+                            @Override
+                            public float matchCost() {
+                                return 1000f; // TODO: what should it be?
+                            }
+                        };
+                        return new ConstantScoreScorer(weight, score(), scoreMode, iterator);
                     }
 
                     @Override
-                    public float matchCost() {
-                        return 1000f; // TODO: what should it be?
+                    public long cost() {
+                        return context.reader().maxDoc();
                     }
                 };
-                return new ConstantScoreScorer(this, boost, scoreMode, iterator);
             }
 
             @Override

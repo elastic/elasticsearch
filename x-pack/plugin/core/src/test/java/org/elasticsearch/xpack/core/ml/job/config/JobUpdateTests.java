@@ -42,6 +42,11 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         return createRandom(randomAlphaOfLength(4), null);
     }
 
+    @Override
+    protected JobUpdate mutateInstance(JobUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     /**
      * Creates a completely random update when the job is null
      * or a random update that is is valid for the given job

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,6 +26,7 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.MockLogAppender;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -53,6 +55,9 @@ import static org.hamcrest.Matchers.oneOf;
 public class ClusterFormationFailureHelperTests extends ESTestCase {
 
     private static final ElectionStrategy electionStrategy = ElectionStrategy.DEFAULT_INSTANCE;
+
+    // Hard-coding the class name here because it is also mentioned in the troubleshooting docs, so should not be renamed without care.
+    private static final String LOGGER_NAME = "org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper";
 
     public void testScheduling() {
         final long expectedDelayMillis;
@@ -103,16 +108,32 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         final long startTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
         clusterFormationFailureHelper.start();
 
-        while (warningCount.get() == 0) {
-            assertTrue(clusterFormationFailureHelper.isRunning());
-            if (deterministicTaskQueue.hasRunnableTasks()) {
-                deterministicTaskQueue.runRandomTask();
-            } else {
-                deterministicTaskQueue.advanceTime();
+        var mockLogAppender = new MockLogAppender();
+        mockLogAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation("master not discovered", LOGGER_NAME, Level.WARN, "master not discovered")
+        );
+        mockLogAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "troubleshooting link",
+                LOGGER_NAME,
+                Level.WARN,
+                "* for troubleshooting guidance, see "
+                    + "https://www.elastic.co/guide/en/elasticsearch/reference/*/discovery-troubleshooting.html*"
+            )
+        );
+        try (var ignored = mockLogAppender.capturing(ClusterFormationFailureHelper.class)) {
+            while (warningCount.get() == 0) {
+                assertTrue(clusterFormationFailureHelper.isRunning());
+                if (deterministicTaskQueue.hasRunnableTasks()) {
+                    deterministicTaskQueue.runRandomTask();
+                } else {
+                    deterministicTaskQueue.advanceTime();
+                }
             }
+            assertThat(warningCount.get(), is(1L));
+            assertThat(deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis, is(expectedDelayMillis));
+            mockLogAppender.assertAllExpectationsMatched();
         }
-        assertThat(warningCount.get(), is(1L));
-        assertThat(deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis, is(expectedDelayMillis));
 
         while (warningCount.get() < 5) {
             assertTrue(clusterFormationFailureHelper.isRunning());

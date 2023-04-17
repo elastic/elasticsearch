@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -87,8 +87,8 @@ public final class IndexGraveyard implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     @Override
@@ -333,8 +333,8 @@ public final class IndexGraveyard implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.MINIMUM_COMPATIBLE;
         }
     }
 

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -211,7 +211,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             isSearchable,
             isAggregatable,
             isDimension == null ? false : isDimension,
-            metricType != null ? Enum.valueOf(TimeSeriesParams.MetricType.class, metricType) : null,
+            metricType != null ? TimeSeriesParams.MetricType.fromString(metricType) : null,
             indices != null ? indices.toArray(new String[0]) : null,
             nonSearchableIndices != null ? nonSearchableIndices.toArray(new String[0]) : null,
             nonAggregatableIndices != null ? nonAggregatableIndices.toArray(new String[0]) : null,
@@ -227,7 +227,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.isMetadataField = in.readBoolean();
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             this.isDimension = in.readBoolean();
             this.metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
         } else {
@@ -237,7 +237,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         this.indices = in.readOptionalStringArray();
         this.nonSearchableIndices = in.readOptionalStringArray();
         this.nonAggregatableIndices = in.readOptionalStringArray();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             this.nonDimensionIndices = in.readOptionalStringArray();
             this.metricConflictsIndices = in.readOptionalStringArray();
         } else {
@@ -254,14 +254,14 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         out.writeBoolean(isMetadataField);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeBoolean(isDimension);
             out.writeOptionalEnum(metricType);
         }
         out.writeOptionalStringArray(indices);
         out.writeOptionalStringArray(nonSearchableIndices);
         out.writeOptionalStringArray(nonAggregatableIndices);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeOptionalStringArray(nonDimensionIndices);
             out.writeOptionalStringArray(metricConflictsIndices);
         }

@@ -125,7 +125,8 @@ public class FsRepositoryTests extends ESTestCase {
                 shardId,
                 true,
                 new RecoverySource.SnapshotRecoverySource("test", new Snapshot("foo", snapshotId), Version.CURRENT, indexId),
-                new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, "")
+                new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, ""),
+                ShardRouting.Role.DEFAULT
             );
             routing = ShardRoutingHelper.initialize(routing, localNode.getId(), 0);
             RecoveryState state = new RecoveryState(routing, localNode, null);

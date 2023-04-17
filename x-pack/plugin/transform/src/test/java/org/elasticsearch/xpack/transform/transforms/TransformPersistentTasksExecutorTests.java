@@ -201,7 +201,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 shardId,
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+                ShardRouting.Role.DEFAULT
             );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             routingTable.add(
@@ -226,12 +227,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         indices.add(TransformInternalIndexConstants.LATEST_INDEX_NAME);
         for (String indexName : indices) {
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-            indexMetadata.settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            );
+            indexMetadata.settings(indexSettings(Version.CURRENT, 1, 0));
             metadata.put(indexMetadata);
             Index index = new Index(indexName, "_uuid");
             ShardId shardId = new ShardId(index, 0);
@@ -239,7 +235,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 shardId,
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+                ShardRouting.Role.DEFAULT
             );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -392,7 +389,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
     }
 
-    public TransformPersistentTasksExecutor buildTaskExecutor() {
+    private TransformPersistentTasksExecutor buildTaskExecutor() {
         ClusterService clusterService = mock(ClusterService.class);
         Client client = mock(Client.class);
         TransformAuditor mockAuditor = mock(TransformAuditor.class);

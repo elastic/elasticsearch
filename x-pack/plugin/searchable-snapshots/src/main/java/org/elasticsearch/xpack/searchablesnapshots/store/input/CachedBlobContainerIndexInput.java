@@ -9,13 +9,10 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
@@ -27,7 +24,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.blobcache.BlobCacheUtils.readSafe;
+import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 
 public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
 
@@ -124,14 +122,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
         assert rangeToRead.isSubRangeOf(rangeToWrite) : rangeToRead + " vs " + rangeToWrite;
         assert rangeToRead.length() == b.remaining() : b.remaining() + " vs " + rangeToRead;
 
-        final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(
-            rangeToWrite,
-            rangeToRead,
-            channel -> readCacheFile(channel, position, b),
-            this::writeCacheFile,
-            directory.cacheFetchAsyncExecutor()
-        );
-
+        final Future<Integer> populateCacheFuture = populateAndRead(b, position, length, cacheFile, rangeToWrite);
         final int bytesRead = populateCacheFuture.get();
         assert bytesRead == length : bytesRead + " vs " + length;
     }
@@ -172,9 +163,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                 range.end(),
                 cacheFileReference
             );
-
-            final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, range.length()))];
-
+            final ByteBuffer copyBuffer = writeBuffer.get();
             long totalBytesRead = 0L;
             final AtomicLong totalBytesWritten = new AtomicLong();
             long remainingBytes = range.length();
@@ -182,7 +171,8 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
             try (InputStream input = openInputStreamFromBlobStore(range.start(), range.length())) {
                 while (remainingBytes > 0L) {
                     assert totalBytesRead + remainingBytes == range.length();
-                    final int bytesRead = readSafe(input, copyBuffer, range.start(), range.end(), remainingBytes, cacheFileReference);
+                    copyBuffer.clear();
+                    final int bytesRead = readSafe(input, copyBuffer, range.start(), remainingBytes, cacheFileReference);
 
                     // The range to prewarm in cache
                     final long readStart = range.start() + totalBytesRead;
@@ -192,8 +182,11 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                     // noinspection UnnecessaryLocalVariable
                     final ByteRange rangeToRead = rangeToWrite;
                     cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel) -> bytesRead, (channel, start, end, progressUpdater) -> {
-                        final ByteBuffer byteBuffer = ByteBuffer.wrap(copyBuffer, toIntBytes(start - readStart), toIntBytes(end - start));
-                        final int writtenBytes = positionalWrite(channel, start, byteBuffer);
+                        final int writtenBytes = positionalWrite(
+                            channel,
+                            start,
+                            copyBuffer.slice(toIntBytes(start - readStart), toIntBytes(end - start))
+                        );
                         logger.trace(
                             "prefetchPart: writing range [{}-{}] of file [{}], [{}] bytes written",
                             start,
@@ -240,47 +233,15 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
     }
 
     @Override
-    public IndexInput slice(String sliceName, long sliceOffset, long sliceLength) {
-        if (sliceOffset < 0 || sliceLength < 0 || sliceOffset + sliceLength > length()) {
-            throw new IllegalArgumentException(
-                "slice() "
-                    + sliceName
-                    + " out of bounds: offset="
-                    + sliceOffset
-                    + ",length="
-                    + sliceLength
-                    + ",fileLength="
-                    + length()
-                    + ": "
-                    + this
-            );
-        }
-
-        // Are we creating a slice from a CFS file?
-        final boolean sliceCompoundFile = IndexFileNames.matchesExtension(name, "cfs")
-            && IndexFileNames.getExtension(sliceName) != null
-            && compoundFileOffset == 0L // not already a compound file
-            && isClone == false; // tests aggressively clone and slice
-
-        final ByteRange sliceHeaderByteRange;
-        final ByteRange sliceFooterByteRange;
-        final long sliceCompoundFileOffset;
-
-        if (sliceCompoundFile) {
-            sliceCompoundFileOffset = this.offset + sliceOffset;
-            sliceHeaderByteRange = directory.getBlobCacheByteRange(sliceName, sliceLength).shift(sliceCompoundFileOffset);
-            if (sliceHeaderByteRange.isEmpty() == false && sliceHeaderByteRange.length() < sliceLength) {
-                sliceFooterByteRange = ByteRange.of(sliceLength - CodecUtil.footerLength(), sliceLength).shift(sliceCompoundFileOffset);
-            } else {
-                sliceFooterByteRange = ByteRange.EMPTY;
-            }
-        } else {
-            sliceCompoundFileOffset = this.compoundFileOffset;
-            sliceHeaderByteRange = ByteRange.EMPTY;
-            sliceFooterByteRange = ByteRange.EMPTY;
-        }
-
-        final CachedBlobContainerIndexInput slice = new CachedBlobContainerIndexInput(
+    protected MetadataCachingIndexInput doSlice(
+        String sliceName,
+        long sliceOffset,
+        long sliceLength,
+        ByteRange sliceHeaderByteRange,
+        ByteRange sliceFooterByteRange,
+        long sliceCompoundFileOffset
+    ) {
+        return new CachedBlobContainerIndexInput(
             sliceName,
             directory,
             fileInfo,
@@ -295,8 +256,6 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
             sliceHeaderByteRange,
             sliceFooterByteRange
         );
-        slice.isClone = true;
-        return slice;
     }
 
     @Override

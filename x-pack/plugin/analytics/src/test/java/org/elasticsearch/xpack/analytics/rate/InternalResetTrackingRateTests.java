@@ -130,4 +130,9 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
         assertFalse(small.includes(unrelated));
         assertFalse(unrelated.includes(small));
     }
+
+    @Override
+    protected InternalResetTrackingRate mutateInstance(InternalResetTrackingRate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

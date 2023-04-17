@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -48,7 +49,7 @@ public class ProfileHasPrivilegesResponseTests extends AbstractWireSerializingTe
     }
 
     @Override
-    protected ProfileHasPrivilegesResponse mutateInstance(ProfileHasPrivilegesResponse instance) throws IOException {
+    protected ProfileHasPrivilegesResponse mutateInstance(ProfileHasPrivilegesResponse instance) {
         return randomFrom(
             new ProfileHasPrivilegesResponse(newMutatedSet(instance.hasPrivilegeUids()), instance.errors()),
             new ProfileHasPrivilegesResponse(instance.hasPrivilegeUids(), randomValueOtherThan(instance.errors(), this::randomErrors)),
@@ -81,19 +82,19 @@ public class ProfileHasPrivilegesResponseTests extends AbstractWireSerializingTe
                 final String errorString;
                 final Exception e = response.errors().get(k);
                 if (e instanceof IllegalArgumentException illegalArgumentException) {
-                    errorString = formatted("""
+                    errorString = Strings.format("""
                         {
                           "type": "illegal_argument_exception",
                           "reason": "%s"
                         }""", illegalArgumentException.getMessage());
                 } else if (e instanceof ResourceNotFoundException resourceNotFoundException) {
-                    errorString = formatted("""
+                    errorString = Strings.format("""
                         {
                           "type": "resource_not_found_exception",
                           "reason": "%s"
                         }""", resourceNotFoundException.getMessage());
                 } else if (e instanceof ElasticsearchException elasticsearchException) {
-                    errorString = formatted("""
+                    errorString = Strings.format("""
                         {
                           "type": "exception",
                           "reason": "%s",

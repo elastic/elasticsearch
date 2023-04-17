@@ -72,6 +72,11 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
     }
 
     @Override
+    protected PivotConfig mutateInstance(PivotConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<PivotConfig> instanceReader() {
         return PivotConfig::new;
     }

@@ -85,7 +85,7 @@ Notice that frozen shards have their own independent limit.
 Limits the total number of primary and replica frozen shards for the cluster.
 {es} calculates the limit as follows:
 
-`cluster.max_shards_per_node * number of frozen data nodes`
+`cluster.max_shards_per_node.frozen * number of frozen data nodes`
 
 Shards for closed indices do not count toward this limit. Defaults to `3000`.
 A cluster with no frozen data nodes is unlimited.

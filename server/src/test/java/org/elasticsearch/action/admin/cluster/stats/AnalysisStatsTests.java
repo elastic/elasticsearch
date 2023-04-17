@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -89,7 +88,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
     }
 
     @Override
-    protected AnalysisStats mutateInstance(AnalysisStats instance) throws IOException {
+    protected AnalysisStats mutateInstance(AnalysisStats instance) {
         switch (randomInt(7)) {
             case 0 -> {
                 Set<IndexFeatureStats> charFilters = new HashSet<>(instance.getUsedCharFilterTypes());

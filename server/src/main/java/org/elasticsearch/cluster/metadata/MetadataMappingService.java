@@ -15,11 +15,11 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterState
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -48,12 +48,13 @@ public class MetadataMappingService {
     private final ClusterService clusterService;
     private final IndicesService indicesService;
 
-    final PutMappingExecutor putMappingExecutor = new PutMappingExecutor();
+    private final MasterServiceTaskQueue<PutMappingClusterStateUpdateTask> taskQueue;
 
     @Inject
     public MetadataMappingService(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        taskQueue = clusterService.createTaskQueue("put-mapping", Priority.HIGH, new PutMappingExecutor());
     }
 
     record PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
@@ -246,12 +247,10 @@ public class MetadataMappingService {
             return;
         }
 
-        final PutMappingClusterStateUpdateTask task = new PutMappingClusterStateUpdateTask(request, listener);
-        clusterService.submitStateUpdateTask(
+        taskQueue.submitTask(
             "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
-            task,
-            ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
-            putMappingExecutor
+            new PutMappingClusterStateUpdateTask(request, listener),
+            request.masterNodeTimeout()
         );
     }
 }

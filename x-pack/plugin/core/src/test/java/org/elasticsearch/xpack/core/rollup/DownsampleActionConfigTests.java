@@ -23,6 +23,11 @@ public class DownsampleActionConfigTests extends AbstractXContentSerializingTest
         return randomConfig();
     }
 
+    @Override
+    protected DownsampleConfig mutateInstance(DownsampleConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static DownsampleConfig randomConfig() {
         return new DownsampleConfig(ConfigTestHelpers.randomInterval());
     }

@@ -77,6 +77,11 @@ public class JobBuilderTests extends AbstractWireSerializingTestCase<Job.Builder
     }
 
     @Override
+    protected Job.Builder mutateInstance(Job.Builder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Job.Builder> instanceReader() {
         return Job.Builder::new;
     }

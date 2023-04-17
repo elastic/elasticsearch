@@ -139,7 +139,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
             new ShardId(index, 0),
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+            ShardRouting.Role.DEFAULT
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         clusterStateBuilder.routingTable(
@@ -216,7 +217,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
                                         new ShardId(prevIndex, 0),
                                         true,
                                         RecoverySource.ExistingStoreRecoverySource.INSTANCE,
-                                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+                                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+                                        ShardRouting.Role.DEFAULT
                                     )
                                         .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
                                         .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, ""))
@@ -513,14 +515,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         String mappings
     ) {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-        indexMetadata.settings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), format)
-                .build()
-        );
+        indexMetadata.settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), format));
         indexMetadata.putAlias(AliasMetadata.builder(aliasName).build());
         indexMetadata.state(state);
         if (mappings != null) {

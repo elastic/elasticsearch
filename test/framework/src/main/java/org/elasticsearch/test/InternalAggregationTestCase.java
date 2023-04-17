@@ -10,7 +10,7 @@ package org.elasticsearch.test;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -399,7 +399,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         });
     }
 
-    public record BuilderAndToReduce<T> (AggregationBuilder builder, List<T> toReduce) {}
+    public record BuilderAndToReduce<T>(AggregationBuilder builder, List<T> toReduce) {}
 
     /**
      * Does this aggregation support reductions when the internal buckets are not in-order
@@ -730,8 +730,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.ZERO;
         }
     }
 }

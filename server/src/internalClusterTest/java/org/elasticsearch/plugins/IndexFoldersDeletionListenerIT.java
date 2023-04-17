@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -69,10 +70,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         ensureStableCluster(2 + 1, masterNode);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
+        createIndex(indexName, 2, 0);
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
@@ -127,19 +125,21 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         }, 30L, TimeUnit.SECONDS);
     }
 
+    @TestLogging(
+        reason = "Debug #93226",
+        value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG,"
+            + "org.elasticsearch.indices.IndicesService:DEBUG,"
+            + "org.elasticsearch.index.IndexService:DEBUG,"
+            + "org.elasticsearch.env.NodeEnvironment:DEBUG,"
+            + "org.elasticsearch.cluster.service.MasterService:TRACE"
+    )
     public void testListenersInvokedWhenIndexIsRelocated() throws Exception {
         final String masterNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(4);
         ensureStableCluster(4 + 1, masterNode);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
-                .build()
-        );
+        createIndex(indexName, 4, between(0, 1));
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
@@ -165,12 +165,8 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         }
 
         final List<String> excludedNodes = randomSubsetOf(2, shardsByNodes.keySet());
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", String.join(",", excludedNodes)).build())
-        );
+        logger.info("--> excluding nodes {}", excludedNodes);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", String.join(",", excludedNodes)), indexName);
         ensureGreen(indexName);
 
         assertBusy(() -> {
@@ -211,13 +207,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         ensureStableCluster(4 + 1, masterNode);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
-                .build()
-        );
+        createIndex(indexName, 4, between(0, 1));
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
@@ -339,15 +329,11 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         final IndexFoldersDeletionListenerPlugin plugin = plugin(dataNode);
         assertTrue("Expecting no shards deleted on node " + dataNode, plugin.deletedShards.isEmpty());
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.routing.allocation.enable", EnableAllocationDecider.Allocation.ALL)
-                        .put("index.routing.allocation.require._name", dataNode)
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put("index.routing.allocation.enable", EnableAllocationDecider.Allocation.ALL)
+                .put("index.routing.allocation.require._name", dataNode),
+            indexName
         );
         ensureGreen(indexName);
 

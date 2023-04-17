@@ -344,10 +344,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
                         .field("time")
                 )
         );
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> { assertThat(dataExtractorFactory, instanceOf(RollupDataExtractorFactory.class)); },
-            e -> fail()
-        );
+        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(dataExtractorFactory -> {
+            assertThat(dataExtractorFactory, instanceOf(RollupDataExtractorFactory.class));
+        }, e -> fail());
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
@@ -382,10 +381,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
 
         // Test with remote index, aggregation, and no chunking
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> { assertThat(dataExtractorFactory, instanceOf(AggregationDataExtractorFactory.class)); },
-            e -> fail()
-        );
+        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(dataExtractorFactory -> {
+            assertThat(dataExtractorFactory, instanceOf(AggregationDataExtractorFactory.class));
+        }, e -> fail());
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
@@ -466,10 +464,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
                         .field("time")
                 )
         );
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> { assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)); },
-            e -> fail()
-        );
+        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(dataExtractorFactory -> {
+            assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class));
+        }, e -> fail());
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),

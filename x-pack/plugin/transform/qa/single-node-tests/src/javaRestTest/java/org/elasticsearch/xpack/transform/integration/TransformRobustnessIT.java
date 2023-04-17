@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
@@ -32,7 +33,7 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         String transformId = "simple_continuous_pivot";
         String transformIndex = "pivot_reviews_continuous";
         final Request createTransformRequest = new Request("PUT", TransformField.REST_BASE_PATH_TRANSFORMS + transformId);
-        String config = formatted("""
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"

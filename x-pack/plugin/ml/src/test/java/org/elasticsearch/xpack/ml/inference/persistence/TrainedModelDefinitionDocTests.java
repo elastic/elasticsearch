@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -25,7 +26,7 @@ public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<Tra
 
         // The previous storage format was a base64 encoded string.
         // The new format should parse and decode the string storing the raw bytes.
-        String compressedStringDoc = formatted("""
+        String compressedStringDoc = Strings.format("""
             {
               "doc_type": "trained_model_definition_doc",
               "model_id": "bntHUo",

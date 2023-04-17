@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.DataStreamActionTests;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,7 +35,7 @@ public class ModifyDataStreamsRequestTests extends AbstractWireSerializingTestCa
     }
 
     @Override
-    protected Request mutateInstance(Request request) throws IOException {
+    protected Request mutateInstance(Request request) {
         final int moreActions = randomIntBetween(1, 5);
         List<DataStreamAction> actions = new ArrayList<>(request.getActions());
         for (int k = 1; k <= moreActions; k++) {

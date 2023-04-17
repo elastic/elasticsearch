@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -126,7 +127,7 @@ public class JwtRestIT extends ESRestTestCase {
         final String dn = randomDn();
         final String name = randomName();
         final String mail = randomMail();
-        final String rules = formatted("""
+        final String rules = Strings.format("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "username": "%s" } }
@@ -142,7 +143,7 @@ public class JwtRestIT extends ESRestTestCase {
         final String name = randomName();
         final String mail = randomMail();
 
-        final String rules = formatted("""
+        final String rules = Strings.format("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "dn": "%s" } }
@@ -160,7 +161,7 @@ public class JwtRestIT extends ESRestTestCase {
         final List<String> groups = randomList(1, 12, () -> randomAlphaOfLengthBetween(4, 12));
         final String mappedGroup = randomFrom(groups);
 
-        final String rules = formatted("""
+        final String rules = Strings.format("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "groups": "%s" } }
@@ -175,7 +176,7 @@ public class JwtRestIT extends ESRestTestCase {
         final String dn = randomDn();
         final String name = randomName();
         final String mail = randomMail();
-        final String rules = formatted("""
+        final String rules = Strings.format("""
             { "all": [
                 { "field": { "realm.name": "jwt1" } },
                 { "field": { "metadata.jwt_claim_sub": "%s" } }

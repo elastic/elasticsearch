@@ -152,6 +152,11 @@ public class NormalizeOutputGradleRunner extends GradleRunner {
         return new NormalizedBuildResult(delegate.buildAndFail());
     }
 
+    @Override
+    public BuildResult run() throws InvalidRunnerConfigurationException {
+        return new NormalizedBuildResult(delegate.run());
+    }
+
     private class NormalizedBuildResult implements BuildResult {
         private BuildResult delegate;
         private String normalizedString;

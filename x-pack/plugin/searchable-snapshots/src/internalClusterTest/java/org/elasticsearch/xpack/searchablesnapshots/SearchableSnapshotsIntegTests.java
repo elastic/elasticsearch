@@ -300,18 +300,14 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             client().admin().cluster().prepareState().get().getState().nodes().getDataNodes().values()
         );
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(restoredIndexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(
-                            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
-                            dataNode.getName()
-                        )
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(
+                    IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
+                    dataNode.getName()
+                ),
+            restoredIndexName
         );
 
         assertFalse(
@@ -328,15 +324,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertRecoveryStats(restoredIndexName, preWarmEnabled);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(restoredIndexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey()),
+            restoredIndexName
         );
 
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);

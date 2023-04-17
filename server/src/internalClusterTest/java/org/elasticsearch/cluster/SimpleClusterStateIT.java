@@ -8,18 +8,18 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -295,7 +295,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         ensureGreen("fuu");
 
         // close one index
-        assertAcked(client().admin().indices().close(Requests.closeIndexRequest("fuu")).get());
+        assertAcked(client().admin().indices().close(new CloseIndexRequest("fuu")).get());
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetadata(true).setIndices("f*").get();
         assertThat(clusterStateResponse.getState().metadata().indices().size(), is(1));
         assertThat(clusterStateResponse.getState().metadata().index("foo").getState(), equalTo(IndexMetadata.State.OPEN));
@@ -393,8 +393,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.CURRENT;
         }
 
         @Override
@@ -445,7 +445,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             final IndexNameExpressionResolver expressionResolver,
             final Supplier<RepositoriesService> repositoriesServiceSupplier,
             Tracer tracer,
-            AllocationDeciders allocationDeciders
+            AllocationService allocationService
         ) {
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();

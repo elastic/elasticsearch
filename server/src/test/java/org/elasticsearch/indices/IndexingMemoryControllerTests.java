@@ -403,7 +403,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             config.getLeafSorter(),
             config.getRelativeTimeInNanosSupplier(),
             config.getIndexCommitListener(),
-            config.isRecoveringAsPrimary()
+            config.isPromotableToPrimary()
         );
     }
 

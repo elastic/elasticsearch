@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.ValidationException;
@@ -136,7 +136,7 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                 if (in.readBoolean()) {
                     this.errors = in.readList(Error::new);
                 } else {
@@ -197,7 +197,7 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
                 if (errors != null) {
                     out.writeBoolean(true);
                     out.writeList(errors);

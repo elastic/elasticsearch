@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,6 +32,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotFeatureInfo;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -185,14 +187,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
-    private static final Version DIFFABLE_VERSION = Version.V_8_5_0;
+    private static final TransportVersion DIFFABLE_VERSION = TransportVersion.V_8_5_0;
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(DIFFABLE_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
             return new SnapshotInProgressDiff(in);
         }
         return readDiffFrom(Custom.class, TYPE, in);
@@ -647,7 +649,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
     }
 
-    public static class Entry implements Writeable, ToXContent, RepositoryOperation, Diffable<Entry> {
+    public static class Entry implements Writeable, ToXContentObject, RepositoryOperation, Diffable<Entry> {
         private final State state;
         private final Snapshot snapshot;
         private final boolean includeGlobalState;
@@ -1342,11 +1344,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         @Override
-        public boolean isFragment() {
-            return false;
-        }
-
-        @Override
         public Diff<Entry> diff(Entry previousState) {
             return new EntryDiff(previousState, this);
         }
@@ -1612,8 +1609,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.MINIMUM_COMPATIBLE;
         }
 
         @Override
@@ -1624,7 +1621,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert after != null : "should only write instances that were diffed from this node's state";
-            if (out.getVersion().onOrAfter(DIFFABLE_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(DIFFABLE_VERSION)) {
                 mapDiff.writeTo(out);
             } else {
                 new SimpleDiffable.CompleteDiff<>(after).writeTo(out);

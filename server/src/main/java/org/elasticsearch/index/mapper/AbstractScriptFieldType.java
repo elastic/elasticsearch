@@ -18,10 +18,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -103,7 +105,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        SearchExecutionContext context
+        SearchExecutionContext context,
+        @Nullable MultiTermQuery.RewriteMethod rewriteMethod
     ) {
         throw new IllegalArgumentException(unsupported("fuzzy", "keyword and text"));
     }
@@ -174,7 +177,11 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     @Override
     public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
+        return new DocValueFetcher(
+            docValueFormat(format, null),
+            context.getForField(this, FielddataOperation.SEARCH),
+            StoredFieldsSpec.NEEDS_SOURCE       // for now we assume runtime fields need source
+        );
     }
 
     /**
@@ -225,7 +232,10 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             Objects::toString
         ).setSerializerCheck((id, ic, v) -> ic);
 
-        private final FieldMapper.Parameter<String> onScriptError = FieldMapper.Parameter.onScriptErrorParam(m -> m.onScriptError, script);
+        private final FieldMapper.Parameter<OnScriptError> onScriptError = FieldMapper.Parameter.onScriptErrorParam(
+            m -> m.onScriptError,
+            script
+        );
 
         Builder(String name, ScriptContext<Factory> scriptContext) {
             super(name);
@@ -270,14 +280,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         }
 
         final RuntimeField createRuntimeField(Factory scriptFactory, Version indexVersion) {
-            var fieldType = createFieldType(
-                name,
-                scriptFactory,
-                getScript(),
-                meta(),
-                indexVersion,
-                OnScriptError.fromString(onScriptError.get())
-            );
+            var fieldType = createFieldType(name, scriptFactory, getScript(), meta(), indexVersion, onScriptError.get());
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
 

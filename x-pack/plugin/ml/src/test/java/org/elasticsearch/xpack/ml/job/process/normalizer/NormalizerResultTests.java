@@ -43,6 +43,11 @@ public class NormalizerResultTests extends AbstractXContentSerializingTestCase<N
     }
 
     @Override
+    protected NormalizerResult mutateInstance(NormalizerResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<NormalizerResult> instanceReader() {
         return NormalizerResult::new;
     }

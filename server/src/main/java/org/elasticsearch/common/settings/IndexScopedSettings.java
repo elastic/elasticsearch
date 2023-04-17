@@ -89,6 +89,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
         MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
@@ -96,6 +97,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING,
         IndexSortConfig.INDEX_SORT_FIELD_SETTING,
         IndexSortConfig.INDEX_SORT_ORDER_SETTING,
         IndexSortConfig.INDEX_SORT_MISSING_SETTING,
@@ -132,6 +134,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING,
         IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING,
         IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
+        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING,
         IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
         IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
         IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
@@ -163,6 +166,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP,
         DataTier.TIER_PREFERENCE_SETTING,
         IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
+        IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
+        IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

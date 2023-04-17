@@ -12,7 +12,7 @@ import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
+import org.elasticsearch.xpack.spatial.common.H3SphericalUtil;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 
 import java.io.IOException;
@@ -105,13 +106,14 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
 
             @Override
             protected Query toQuery(SearchExecutionContext context, String fieldName, MappedFieldType fieldType, String id) {
+                final long h3 = H3.stringToH3(id);
                 if (fieldType instanceof GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType geoShapeFieldType) {
                     // shapes are solved on the cartesian geometry
-                    final LatLonGeometry geometry = H3CartesianUtil.getLatLonGeometry(H3.stringToH3(id));
+                    final LatLonGeometry geometry = H3CartesianUtil.getLatLonGeometry(h3);
                     return geoShapeFieldType.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
                 } else {
                     // points are solved on the spherical geometry
-                    final H3LatLonGeometry geometry = new H3LatLonGeometry(id);
+                    final LatLonGeometry geometry = H3SphericalUtil.getLatLonGeometry(h3);
                     if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType pointFieldType) {
                         return pointFieldType.geoShapeQuery(context, fieldName, ShapeRelation.INTERSECTS, geometry);
                     } else if (fieldType instanceof GeoPointScriptFieldType scriptType) {
@@ -395,7 +397,7 @@ public class GeoGridQueryBuilder extends AbstractQueryBuilder<GeoGridQueryBuilde
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_3_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_8_3_0;
     }
 }

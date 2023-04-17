@@ -23,7 +23,3 @@ an aggregation. Refer to the following documentation to learn more:
 
 * <<search-aggregations-pipeline-inference-bucket-aggregation,{infer-cap} bucket aggregation>>
 * <<inference-processor,{infer-cap} processor>>
-
-You can use your trained model to perform semantic search:
-
-* <<semantic-search-api>>

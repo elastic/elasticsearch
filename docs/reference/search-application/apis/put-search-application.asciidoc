@@ -1,0 +1,66 @@
+[role="xpack"]
+[[put-search-application]]
+=== Put Search Application
+
+beta::[]
+
+++++
+<titleabbrev>Put Search Application</titleabbrev>
+++++
+
+Creates or updates a Search Application.
+
+[[put-search-application-request]]
+==== {api-request-title}
+
+`PUT _application/search_application/<name>`
+
+[[put-search-application-prereqs]]
+==== {api-prereq-title}
+
+Requires the `manage_search_application` cluster privilege.
+Also requires <<privileges-list-indices,manage privileges>> on all indices that are added to the Search Application.
+
+[[put-search-application-path-params]]
+==== {api-path-parms-title}
+
+`create`::
+(Optional, Boolean) If `true`, this request cannot replace or update existing Search Applications.
+Defaults to `false`.
+
+[[put-search-application-response-codes]]
+==== {api-response-codes-title}
+
+`404`::
+Search Application `<name>` does not exist.
+
+`409`::
+Search Application `<name>` exists and `create` is `true`.
+
+[[put-search-application-example]]
+==== {api-examples-title}
+
+The following example creates a new Search Application called `my-app`:
+
+[source,console]
+----
+PUT _application/search_application/my-app?create
+{
+  "indices": [ "index1", "index2" ],
+  "analytics_collection_name": "my-analytics-collection"
+}
+----
+// TEST[skip:TBD]
+
+The following example creates or updates an existing Search Application called `my_app`:
+
+[source,console]
+----
+PUT _application/search_application/my-app
+{
+  "indices": [ "index1", "index2", "index3" ],
+  "analytics_collection_name": "my-analytics-collection"
+}
+----
+// TEST[skip:TBD]
+

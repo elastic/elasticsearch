@@ -22,6 +22,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
@@ -30,6 +31,7 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -39,7 +41,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -289,7 +290,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         final SnapshotId snapshotToCorrupt = randomFrom(repositoryData.getSnapshotIds());
         logger.info("--> delete root level snapshot metadata blob for snapshot [{}]", snapshotToCorrupt);
-        Files.delete(repo.resolve(String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotToCorrupt.getUUID())));
+        Files.delete(repo.resolve(Strings.format(BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotToCorrupt.getUUID())));
 
         logger.info("--> strip version information from index-N blob");
         final RepositoryData withoutVersions = new RepositoryData(
@@ -812,6 +813,19 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             .setWaitForCompletion(true)
             .get();
         assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
+    }
+
+    public void testDeletesWithUnexpectedIndexBlob() throws Exception {
+        Path repo = randomRepoPath();
+        final String repoName = "test-repo";
+        createRepository(repoName, FsRepository.TYPE, repo);
+        final String snapshot = "first-snapshot";
+        createFullSnapshot(repoName, snapshot);
+        // create extra file with the index prefix
+        final var extraFile = Files.createFile(repo.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + randomAlphaOfLength(5)));
+        assertAcked(startDeleteSnapshot(repoName, snapshot).get());
+        // delete file again so repo consistency checks pass
+        Files.delete(extraFile);
     }
 
     private void assertRepositoryBlocked(String repo, String existingSnapshot) {

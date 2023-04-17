@@ -8,8 +8,6 @@
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -48,7 +46,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -100,6 +97,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -479,7 +477,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 () -> 0L
             ) {
                 @Override
-                Directory createDirectory(Path path) throws IOException {
+                protected Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
                         @Override
                         public IndexOutput createOutput(String name, IOContext context) throws IOException {
@@ -525,7 +523,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 () -> 0L
             ) {
                 @Override
-                Directory createDirectory(Path path) throws IOException {
+                protected Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
                         @Override
                         public void sync(Collection<String> names) {
@@ -552,7 +550,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion());
+                        writer.commit(
+                            newTerm,
+                            newState.version(),
+                            newState.metadata().oldestIndexVersion(),
+                            newState.metadata().clusterUUID(),
+                            newState.metadata().clusterUUIDCommitted()
+                        );
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -574,7 +578,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 () -> 0L
             ) {
                 @Override
-                Directory createDirectory(Path path) throws IOException {
+                protected Directory createDirectory(Path path) throws IOException {
                     return new FilterDirectory(super.createDirectory(path)) {
                         @Override
                         public void rename(String source, String dest) throws IOException {
@@ -603,7 +607,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion());
+                        writer.commit(
+                            newTerm,
+                            newState.version(),
+                            newState.metadata().oldestIndexVersion(),
+                            newState.metadata().clusterUUID(),
+                            newState.metadata().clusterUUIDCommitted()
+                        );
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -1524,7 +1534,6 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             }
 
             MockLogAppender mockAppender = new MockLogAppender();
-            mockAppender.start();
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "should see checkindex message",
@@ -1558,16 +1567,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 )
             );
 
-            Logger classLogger = LogManager.getLogger(PersistedClusterStateService.class);
-            Loggers.addAppender(classLogger, mockAppender);
-
-            try {
+            try (var ignored = mockAppender.capturing(PersistedClusterStateService.class)) {
                 persistedClusterStateService.loadBestOnDiskState();
-            } finally {
-                Loggers.removeAppender(classLogger, mockAppender);
-                mockAppender.stop();
+                mockAppender.assertAllExpectationsMatched();
             }
-            mockAppender.assertAllExpectationsMatched();
         }
     }
 
@@ -1771,6 +1774,25 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
+    public void testClusterUUIDIsStoredInCommitUserData() throws Exception {
+        final Path dataPath = createTempDir();
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[] { dataPath })) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            String clusterUUID = UUIDs.randomBase64UUID();
+            boolean clusterUUIDCommitted = randomBoolean();
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                    .metadata(Metadata.builder().clusterUUID(clusterUUID).clusterUUIDCommitted(clusterUUIDCommitted))
+                    .build();
+                writer.writeFullStateAndCommit(0, clusterState);
+            }
+
+            var onDiskState = persistedClusterStateService.loadBestOnDiskState();
+            assertThat(onDiskState.clusterUUID, is(equalTo(clusterUUID)));
+            assertThat(onDiskState.clusterUUIDCommitted, is(clusterUUIDCommitted));
+        }
+    }
+
     /**
      * Utility method for applying a consumer to each document (of the given types) associated with a DirectoryReader.
      */
@@ -1852,24 +1874,17 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         ClusterState clusterState,
         PersistedClusterStateService.Writer writer,
         MockLogAppender.LoggingExpectation expectation
-    ) throws IllegalAccessException, IOException {
+    ) throws IOException {
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         mockAppender.addExpectation(expectation);
-        Logger classLogger = LogManager.getLogger(PersistedClusterStateService.class);
-        Loggers.addAppender(classLogger, mockAppender);
-
-        try {
+        try (var ignored = mockAppender.capturing(PersistedClusterStateService.class)) {
             if (previousState == null) {
                 writer.writeFullStateAndCommit(currentTerm, clusterState);
             } else {
                 writer.writeIncrementalStateAndCommit(currentTerm, previousState, clusterState);
             }
-        } finally {
-            Loggers.removeAppender(classLogger, mockAppender);
-            mockAppender.stop();
+            mockAppender.assertAllExpectationsMatched();
         }
-        mockAppender.assertAllExpectationsMatched();
     }
 
     @Override

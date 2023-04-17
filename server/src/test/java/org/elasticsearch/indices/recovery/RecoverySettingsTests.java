@@ -434,10 +434,6 @@ public class RecoverySettingsTests extends ESTestCase {
         }
     }
 
-    private static ByteSizeValue randomByteSizeValue() {
-        return ByteSizeValue.ofBytes(randomLongBetween(0L, Long.MAX_VALUE >> 16));
-    }
-
     private static ByteSizeValue randomNonZeroByteSizeValue() {
         return ByteSizeValue.ofBytes(randomLongBetween(1L, Long.MAX_VALUE >> 16));
     }

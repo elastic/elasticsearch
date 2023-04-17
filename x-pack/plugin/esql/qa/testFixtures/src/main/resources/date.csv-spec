@@ -56,6 +56,21 @@ emp_no:integer | x:keyword                     | y:keyword
 ;
 
 
+compareToString
+from employees | where hire_date < "1985-03-01T00:00:00Z" | project emp_no, hire_date;
+
+emp_no:integer | hire_date:date
+10009          | 1985-02-18T00:00:00.000Z
+;
+
+
+compareToDatetime
+from employees | where hire_date < birth_date | project emp_no, hire_date;
+
+emp_no:integer | hire_date:date
+;
+
+
 nullDate
 from employees | where emp_no == 10040 | eval x = date_format(birth_date) | project emp_no, birth_date, hire_date, x;
 

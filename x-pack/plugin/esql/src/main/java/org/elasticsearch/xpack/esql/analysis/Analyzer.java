@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -22,12 +23,14 @@ import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRu
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -60,6 +63,8 @@ import java.util.Set;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
@@ -73,12 +78,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveFunctions(),
             new RemoveDuplicateProjections()
         );
-        var finish = new Batch<>(
-            "Finish Analysis",
-            Limiter.ONCE,
-            // new AddMissingProjection(),
-            new AddImplicitLimit()
-        );
+        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
         rules = List.of(resolution, finish);
     }
 
@@ -475,19 +475,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class AddMissingProjection extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            var projections = plan.collect(e -> e instanceof Project || e instanceof Aggregate);
-            if (projections.isEmpty()) {
-                // TODO: should unsupported fields be filtered?
-                plan = new EsqlProject(plan.source(), plan, plan.output());
-            }
-            return plan;
-        }
-    }
-
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
@@ -496,6 +483,58 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new Literal(Source.EMPTY, context.configuration().resultTruncationMaxSize(), DataTypes.INTEGER),
                 logicalPlan
             );
+        }
+    }
+
+    private static class PromoteStringsInDateComparisons extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            return plan.transformExpressionsUp(BinaryComparison.class, PromoteStringsInDateComparisons::promote);
+        }
+
+        private static Expression promote(BinaryComparison cmp) {
+            if (cmp.resolved() == false) {
+                return cmp;
+            }
+            var left = cmp.left();
+            var right = cmp.right();
+            boolean modified = false;
+            if (left.dataType() == DATETIME) {
+                if (right.dataType() == KEYWORD && right.foldable()) {
+                    right = stringToDate(right);
+                    modified = true;
+                }
+            } else {
+                if (right.dataType() == DATETIME) {
+                    if (left.dataType() == KEYWORD && left.foldable()) {
+                        left = stringToDate(left);
+                        modified = true;
+                    }
+                }
+            }
+            return modified ? cmp.replaceChildren(List.of(left, right)) : cmp;
+        }
+
+        private static Expression stringToDate(Expression stringExpression) {
+            var str = stringExpression.fold().toString();
+
+            Long millis = null;
+            // TODO: better control over this string format - do we want this to be flexible or always redirect folks to use date parsing
+            try {
+                millis = str == null ? null : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(str);
+            } catch (Exception ex) { // in case of exception, millis will be null which will trigger an error
+            }
+
+            var source = stringExpression.source();
+            Expression result;
+            if (millis == null) {
+                var errorMessage = format(null, "Invalid date [{}]", str);
+                result = new UnresolvedAttribute(source, source.text(), null, errorMessage);
+            } else {
+                result = new Literal(source, millis, DATETIME);
+            }
+            return result;
         }
     }
 }

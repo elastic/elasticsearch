@@ -455,7 +455,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         long expectedShardSize,
         RoutingChangesObserver changes
     ) {
-        if (startedShard.role() == ShardRouting.Role.INDEX_ONLY) {
+        if (startedShard.isSearchable()) {
             remove(startedShard);
             var unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, "relocating unsearchable shard");
 

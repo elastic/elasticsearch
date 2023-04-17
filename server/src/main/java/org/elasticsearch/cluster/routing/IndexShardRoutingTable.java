@@ -667,9 +667,7 @@ public class IndexShardRoutingTable {
         static boolean noRelocatingUnsearchableShards(List<ShardRouting> shards) {
             // this is unsupported until ES-4677 is implemented
             for (var shard : shards) {
-                if (shard.role() == ShardRouting.Role.INDEX_ONLY && shard.state() == ShardRoutingState.RELOCATING) {
-                    return false;
-                }
+                assert shard.role().isSearchable() || shard.relocating() == false : "unexpected RELOCATING unsearchable shard: " + shard;
             }
             return true;
         }

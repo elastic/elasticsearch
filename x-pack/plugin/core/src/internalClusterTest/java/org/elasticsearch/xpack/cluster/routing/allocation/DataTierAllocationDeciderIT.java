@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.cluster.routing.allocation;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -37,7 +36,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
@@ -202,12 +200,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         updateDesiredNodes(warmDesiredNode, newColdDesiredNode, masterDesiredNode);
 
         // Exclude the node that we want to decommission, so it can move to the new cold node
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(index)
-            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", coldNodeName).build())
-            .get();
-
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", coldNodeName), index);
         assertBusy(() -> assertPrimaryShardIsAllocatedInNodeWithRole(0, DiscoveryNodeRole.DATA_COLD_NODE_ROLE));
 
         startColdOnlyNode(newColdDesiredNode.externalId());
@@ -364,11 +357,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_WARM));
 
         // Required or else the test cleanup fails because it can't delete the indices
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(index, index + "-shrunk")
-            .setSettings(Settings.builder().put("index.blocks.read_only", false))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.blocks.read_only", false), index, index + "-shrunk");
     }
 
     public void testTemplateOverridden() {
@@ -475,10 +464,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     }
 
     private void updatePreference(String tier) {
-        client().admin()
-            .indices()
-            .updateSettings(new UpdateSettingsRequest(index).settings(Map.of(DataTier.TIER_PREFERENCE, tier)))
-            .actionGet();
+        updateIndexSettings(Settings.builder().put(DataTier.TIER_PREFERENCE, tier), index);
     }
 
     private DataTiersFeatureSetUsage getUsage() {

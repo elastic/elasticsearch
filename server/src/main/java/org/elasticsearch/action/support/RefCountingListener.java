@@ -104,7 +104,7 @@ public final class RefCountingListener implements Releasable {
     }
 
     /**
-     * Release the original reference to this object, which commpletes the delegate {@link ActionListener} if there are no other references.
+     * Release the original reference to this object, which completes the delegate {@link ActionListener} if there are no other references.
      *
      * It is invalid to call this method more than once. Doing so will trip an assertion if assertions are enabled, but will be ignored
      * otherwise. This deviates from the contract of {@link java.io.Closeable}.
@@ -167,7 +167,8 @@ public final class RefCountingListener implements Releasable {
 
     /**
      * Acquire a reference to this object and return a listener which consumes a response and releases the reference. The delegate {@link
-     * ActionListener} is called when all its references have been released. The consumer must not throw any exception.
+     * ActionListener} is called when all its references have been released. If the consumer throws an exception, the exception is passed
+     * to the final listener as if the returned listener was completed exceptionally.
      *
      * It is invalid to call this method once all references are released. Doing so will trip an assertion if assertions are enabled, and
      * will throw an {@link IllegalStateException} otherwise.
@@ -189,8 +190,7 @@ public final class RefCountingListener implements Releasable {
                         acquiredConsumer.accept(response);
                     }
                 } catch (Exception e) {
-                    assert false : e;
-                    throw e;
+                    addException(e);
                 }
             }
 
@@ -224,5 +224,13 @@ public final class RefCountingListener implements Releasable {
     @Override
     public String toString() {
         return "refCounting[" + delegate + "]";
+    }
+
+    /**
+     * @return {@code true} if at least one acquired listener has completed exceptionally, which means that the delegate listener will also
+     *         complete exceptionally once all acquired listeners are completed.
+     */
+    public boolean isFailing() {
+        return exceptionRef.get() != null;
     }
 }

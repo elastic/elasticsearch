@@ -8,7 +8,7 @@
 package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase<ClusterIndexHealth> {
-    private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.SHARDS, ClusterHealthRequest.Level.INDICES);
+    private final ClusterStatsLevel level = randomFrom(ClusterStatsLevel.SHARDS, ClusterStatsLevel.INDICES);
 
     public void testClusterIndexHealth() {
         RoutingTableGenerator routingTableGenerator = new RoutingTableGenerator();
@@ -73,9 +73,9 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
         return randomIndexHealth(randomAlphaOfLengthBetween(1, 10), level);
     }
 
-    public static ClusterIndexHealth randomIndexHealth(String indexName, ClusterHealthRequest.Level level) {
+    public static ClusterIndexHealth randomIndexHealth(String indexName, ClusterStatsLevel level) {
         Map<Integer, ClusterShardHealth> shards = new HashMap<>();
-        if (level == ClusterHealthRequest.Level.SHARDS) {
+        if (level == ClusterStatsLevel.SHARDS) {
             for (int i = 0; i < randomInt(5); i++) {
                 shards.put(i, ClusterShardHealthTests.randomShardHealth(i));
             }

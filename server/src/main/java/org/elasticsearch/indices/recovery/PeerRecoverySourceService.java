@@ -34,8 +34,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -83,7 +81,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             Actions.START_RECOVERY,
             ThreadPool.Names.GENERIC,
             StartRecoveryRequest::new,
-            new StartRecoveryTransportRequestHandler()
+            (request, channel, task) -> recover(request, task, new ChannelActionListener<>(channel))
         );
         // When the target node's START_RECOVERY request has failed due to a network disconnection, it will
         // send a REESTABLISH_RECOVERY. This attempts to reconnect to an existing recovery process taking
@@ -93,7 +91,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             Actions.REESTABLISH_RECOVERY,
             ThreadPool.Names.GENERIC,
             ReestablishRecoveryRequest::new,
-            new ReestablishRecoveryTransportRequestHandler()
+            (request, channel, task) -> reestablish(request, new ChannelActionListener<>(channel))
         );
     }
 
@@ -120,7 +118,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
-            ongoingRecoveries.cancel(indexShard, "shard is closed");
+            ongoingRecoveries.cancel(indexShard);
         }
     }
 
@@ -174,20 +172,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             request.recoveryId()
         );
         ongoingRecoveries.reestablishRecovery(request, shard, listener);
-    }
-
-    class StartRecoveryTransportRequestHandler implements TransportRequestHandler<StartRecoveryRequest> {
-        @Override
-        public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel, Task task) throws Exception {
-            recover(request, task, new ChannelActionListener<>(channel));
-        }
-    }
-
-    class ReestablishRecoveryTransportRequestHandler implements TransportRequestHandler<ReestablishRecoveryRequest> {
-        @Override
-        public void messageReceived(final ReestablishRecoveryRequest request, final TransportChannel channel, Task task) throws Exception {
-            reestablish(request, new ChannelActionListener<>(channel));
-        }
     }
 
     // exposed for testing
@@ -266,13 +250,13 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
         }
 
-        synchronized void cancel(IndexShard shard, String reason) {
+        synchronized void cancel(IndexShard shard) {
             final ShardRecoveryContext shardRecoveryContext = ongoingRecoveries.get(shard);
             if (shardRecoveryContext != null) {
                 final List<Exception> failures = new ArrayList<>();
                 for (RecoverySourceHandler handlers : shardRecoveryContext.recoveryHandlers.keySet()) {
                     try {
-                        handlers.cancel(reason);
+                        handlers.cancel("shard is closed");
                     } catch (Exception ex) {
                         failures.add(ex);
                     } finally {

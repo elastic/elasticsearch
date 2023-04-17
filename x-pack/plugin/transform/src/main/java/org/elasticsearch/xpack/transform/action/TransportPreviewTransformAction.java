@@ -38,7 +38,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -65,7 +65,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.DUMMY_DEST_INDEX_FOR_PREVIEW;
-import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
+import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
 
 public class TransportPreviewTransformAction extends HandledTransportAction<Request, Response> {
 
@@ -138,19 +138,17 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
         // <4> Validate transform query
         ActionListener<Boolean> validateConfigListener = ActionListener.wrap(
-            validateConfigResponse -> useSecondaryAuthIfAvailable(
-                securityContext,
-                () -> getPreview(
-                    parentTaskId,
-                    request.timeout(),
-                    config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
-                    function,
-                    config.getSource(),
-                    config.getDestination().getPipeline(),
-                    config.getDestination().getIndex(),
-                    config.getSyncConfig(),
-                    listener
-                )
+            validateConfigResponse -> getPreview(
+                parentTaskId,
+                request.timeout(),
+                config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
+                function,
+                config.getSource(),
+                config.getDestination().getPipeline(),
+                config.getDestination().getIndex(),
+                config.getDestination().getAliases(),
+                config.getSyncConfig(),
+                listener
             ),
             listener::onFailure
         );
@@ -178,6 +176,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         if (XPackSettings.SECURITY_ENABLED.get(nodeSettings)) {
             TransformPrivilegeChecker.checkPrivileges(
                 "preview",
+                nodeSettings,
                 securityContext,
                 indexNameExpressionResolver,
                 clusterState,
@@ -188,7 +187,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 DUMMY_DEST_INDEX_FOR_PREVIEW.equals(config.getDestination().getIndex()) == false,
                 checkPrivilegesListener
             );
-        } else { // No security enabled, just create the transform
+        } else { // No security enabled, just move on
             checkPrivilegesListener.onResponse(null);
         }
     }
@@ -202,12 +201,19 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         SourceConfig source,
         String pipeline,
         String dest,
+        List<DestAlias> aliases,
         SyncConfig syncConfig,
         ActionListener<Response> listener
     ) {
         Client parentTaskAssigningClient = new ParentTaskAssigningClient(client, parentTaskId);
 
         final SetOnce<Map<String, String>> mappings = new SetOnce<>();
+
+        final Map<String, String> filteredHeaders = getSecurityHeadersPreferringSecondary(
+            threadPool,
+            securityContext,
+            clusterService.state()
+        );
 
         ActionListener<SimulatePipelineResponse> pipelineResponseActionListener = ActionListener.wrap(simulatePipelineResponse -> {
             List<Map<String, Object>> docs = new ArrayList<>(simulatePipelineResponse.getResults().size());
@@ -276,7 +282,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             function.preview(
                 parentTaskAssigningClient,
                 timeout,
-                ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), clusterService.state()),
+                filteredHeaders,
                 source,
                 deducedMappings,
                 NUMBER_OF_PREVIEW_BUCKETS,
@@ -284,6 +290,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             );
         }, listener::onFailure);
 
-        function.deduceMappings(parentTaskAssigningClient, source, deduceMappingsListener);
+        function.deduceMappings(parentTaskAssigningClient, filteredHeaders, source, deduceMappingsListener);
     }
 }

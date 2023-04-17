@@ -36,9 +36,9 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("message", "this is some text")));
-        IndexableField[] lengthFields = doc.rootDoc().getFields("message_length");
-        assertEquals(1, lengthFields.length);
-        assertEquals("LongField <message_length:17>", lengthFields[0].toString());
+        List<IndexableField> lengthFields = doc.rootDoc().getFields("message_length");
+        assertEquals(1, lengthFields.size());
+        assertEquals("LongField <message_length:17>", lengthFields.get(0).toString());
     }
 
     public void testDocAccess() throws IOException {
@@ -95,7 +95,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             b.startObject("field2").field("type", "long").field("script", "field1_plus_two").endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
         assertEquals("Error executing script on field [field1]", e.getMessage());
 
         Throwable root = e.getCause();
@@ -118,7 +118,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
         assertEquals("Error executing script on field [index-field]", e.getMessage());
         assertEquals("No field found for [runtime-field] in mapping", e.getCause().getMessage());
     }

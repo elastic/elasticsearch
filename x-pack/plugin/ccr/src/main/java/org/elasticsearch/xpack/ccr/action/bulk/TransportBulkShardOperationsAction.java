@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -104,7 +105,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
                 request.getOperations(),
                 request.getMaxSeqNoOfUpdatesOrDeletes(),
                 primary,
-                logger
+                logger,
+                postWriteRefresh
             );
             result.replicaRequest().setParentTask(request.getParentTask());
             return result;
@@ -156,7 +158,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
         final List<Translog.Operation> sourceOperations,
         final long maxSeqNoOfUpdatesOrDeletes,
         final IndexShard primary,
-        final Logger logger
+        final Logger logger,
+        final PostWriteRefresh postWriteRefresh
     ) throws IOException {
         if (historyUUID.equalsIgnoreCase(primary.getHistoryUUID()) == false) {
             throw new IllegalStateException(
@@ -181,7 +184,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
                 appliedOperations.add(targetOp);
                 location = locationToSync(location, result.getTranslogLocation());
             } else {
-                if (result.getFailure()instanceof final AlreadyProcessedFollowingEngineException failure) {
+                if (result.getFailure() instanceof final AlreadyProcessedFollowingEngineException failure) {
                     // The existing operations below the global checkpoint won't be replicated as they were processed
                     // in every replicas already. However, the existing operations above the global checkpoint will be
                     // replicated to replicas but with the existing primary term (not the current primary term) in order
@@ -220,7 +223,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             appliedOperations,
             maxSeqNoOfUpdatesOrDeletes
         );
-        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, primary, logger);
+        return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, primary, logger, postWriteRefresh);
     }
 
     @Override

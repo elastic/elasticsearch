@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -32,6 +34,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         final Version targetNodeVersion = randomVersion(random());
+        TransportVersion serializationVersion = TransportVersionUtils.randomVersion(random());
         Store.MetadataSnapshot metadataSnapshot = randomBoolean()
             ? Store.MetadataSnapshot.EMPTY
             : new Store.MetadataSnapshot(
@@ -53,12 +56,12 @@ public class StartRecoveryRequestTests extends ESTestCase {
 
         final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         final OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        out.setTransportVersion(targetNodeVersion.transportVersion);
+        out.setTransportVersion(serializationVersion);
         outRequest.writeTo(out);
 
         final ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
-        in.setTransportVersion(targetNodeVersion.transportVersion);
+        in.setTransportVersion(serializationVersion);
         final StartRecoveryRequest inRequest = new StartRecoveryRequest(in);
 
         assertThat(outRequest.shardId(), equalTo(inRequest.shardId()));

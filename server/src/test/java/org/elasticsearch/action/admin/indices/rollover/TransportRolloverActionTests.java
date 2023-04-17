@@ -372,7 +372,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         // (primaries from only write index is considered)
         PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
         RolloverRequest rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
-        rolloverRequest.addMaxIndexDocsCondition(500L);
+        rolloverRequest.setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(500L).build());
         rolloverRequest.dryRun(true);
         transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
 
@@ -388,7 +388,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         // (primaries from only write index is considered)
         future = new PlainActionFuture<>();
         rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
-        rolloverRequest.addMaxIndexDocsCondition(300L);
+        rolloverRequest.setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(300L).build());
         rolloverRequest.dryRun(true);
         transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
 

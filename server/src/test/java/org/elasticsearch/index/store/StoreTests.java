@@ -935,7 +935,7 @@ public class StoreTests extends ESTestCase {
 
     public void testEmptyMetadataSnapshotStreaming() throws Exception {
         var outMetadataSnapshot = randomBoolean() ? Store.MetadataSnapshot.EMPTY : new Store.MetadataSnapshot(emptyMap(), emptyMap(), 0L);
-        var targetVersion = randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        var targetVersion = randomCompatibleVersion(random());
 
         var outBuffer = new ByteArrayOutputStream();
         var out = new OutputStreamStreamOutput(outBuffer);
@@ -1001,7 +1001,7 @@ public class StoreTests extends ESTestCase {
             new TransportNodesListShardStoreMetadata.StoreFilesMetadata(metadataSnapshot, peerRecoveryRetentionLeases);
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        TransportVersion targetVersion = randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        TransportVersion targetVersion = randomCompatibleVersion(random());
         out.setTransportVersion(targetVersion);
         outStoreFileMetadata.writeTo(out);
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
@@ -1022,7 +1022,7 @@ public class StoreTests extends ESTestCase {
             : new TransportNodesListShardStoreMetadata.StoreFilesMetadata(Store.MetadataSnapshot.EMPTY, emptyList());
         var outBuffer = new ByteArrayOutputStream();
         var out = new OutputStreamStreamOutput(outBuffer);
-        var targetVersion = randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        var targetVersion = randomCompatibleVersion(random());
         out.setTransportVersion(targetVersion);
         outStoreFileMetadata.writeTo(out);
 

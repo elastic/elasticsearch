@@ -83,8 +83,6 @@ public abstract class InferenceConfigItemTestCase<T extends VersionedNamedWritea
     @Override
     protected List<TransportVersion> bwcVersions() {
         T obj = createTestInstance();
-        return getAllBWCVersions(TransportVersion.CURRENT).stream()
-            .filter(v -> v.onOrAfter(obj.getMinimalSupportedVersion()))
-            .collect(Collectors.toList());
+        return getAllBWCVersions().stream().filter(v -> v.onOrAfter(obj.getMinimalSupportedVersion())).collect(Collectors.toList());
     }
 }

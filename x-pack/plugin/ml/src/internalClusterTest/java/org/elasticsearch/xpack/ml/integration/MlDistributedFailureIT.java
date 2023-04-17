@@ -115,20 +115,12 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     @Before
     public void setLogging() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put("logger.org.elasticsearch.xpack.ml.utils.persistence", "TRACE").build())
-            .get();
+        updateClusterSettings(Settings.builder().put("logger.org.elasticsearch.xpack.ml.utils.persistence", "TRACE"));
     }
 
     @After
     public void unsetLogging() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.utils.persistence").build())
-            .get();
+        updateClusterSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.utils.persistence"));
     }
 
     public void testLoseDedicatedMasterNode() throws Exception {

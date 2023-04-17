@@ -58,7 +58,6 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -137,10 +136,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         NamedAnalyzer keyword = new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer());
         NamedAnalyzer simple = new NamedAnalyzer("simple", AnalyzerScope.INDEX, new SimpleAnalyzer());
         NamedAnalyzer whitespace = new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
-        return new IndexAnalyzers(
-            Map.of("default", dflt, "standard", standard, "keyword", keyword, "simple", simple, "whitespace", whitespace),
-            Map.of(),
-            Map.of()
+        return IndexAnalyzers.of(
+            Map.of("default", dflt, "standard", standard, "keyword", keyword, "simple", simple, "whitespace", whitespace)
         );
     }
 
@@ -159,9 +156,9 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "new york city")));
         for (String field : new String[] { "field", "field._index_prefix", "field._2gram", "field._3gram" }) {
-            IndexableField[] fields = doc.rootDoc().getFields(field);
-            assertEquals(1, fields.length);
-            assertEquals("new york city", fields[0].stringValue());
+            List<IndexableField> fields = doc.rootDoc().getFields(field);
+            assertEquals(1, fields.size());
+            assertEquals("new york city", fields.get(0).stringValue());
         }
     }
 
@@ -299,9 +296,9 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "new york city")));
         for (String field : fields) {
-            IndexableField[] indexFields = doc.rootDoc().getFields(field);
-            assertEquals(1, indexFields.length);
-            assertEquals("new york city", indexFields[0].stringValue());
+            List<IndexableField> indexFields = doc.rootDoc().getFields(field);
+            assertEquals(1, indexFields.size());
+            assertEquals("new york city", indexFields.get(0).stringValue());
         }
     }
 
@@ -667,12 +664,12 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             }
         }));
 
-        IndexableField[] rootFields = parsedDocument.rootDoc().getFields("field");
-        IndexableField[] prefixFields = parsedDocument.rootDoc().getFields("field._index_prefix");
-        IndexableField[] shingle2Fields = parsedDocument.rootDoc().getFields("field._2gram");
-        IndexableField[] shingle3Fields = parsedDocument.rootDoc().getFields("field._3gram");
-        for (IndexableField[] fields : new IndexableField[][] { rootFields, prefixFields, shingle2Fields, shingle3Fields }) {
-            Set<String> expectedValues = Arrays.stream(fields).map(IndexableField::stringValue).collect(Collectors.toSet());
+        List<IndexableField> rootFields = parsedDocument.rootDoc().getFields("field");
+        List<IndexableField> prefixFields = parsedDocument.rootDoc().getFields("field._index_prefix");
+        List<IndexableField> shingle2Fields = parsedDocument.rootDoc().getFields("field._2gram");
+        List<IndexableField> shingle3Fields = parsedDocument.rootDoc().getFields("field._3gram");
+        for (List<IndexableField> fields : List.of(rootFields, prefixFields, shingle2Fields, shingle3Fields)) {
+            Set<String> expectedValues = fields.stream().map(IndexableField::stringValue).collect(Collectors.toSet());
             assertThat(values, equalTo(expectedValues));
         }
     }

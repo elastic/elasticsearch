@@ -65,6 +65,9 @@ PUT my-index-000001
 {
   "mappings": {
     "properties": {
+      "@timestamp": {
+        "type": "date"
+      },
       "my-field": {
         "type": "keyword"
       },
@@ -223,6 +226,21 @@ GET my-index-000001/_search?filter_path=aggregations
 
 If the field does not return any values, check the data ingestion process. The
 field may have a different name.
+
+[discrete]
+[[troubleshooting-searches-latest-data]]
+=== Check the latest value
+
+For time-series data, confirm there is non-filtered data within the attempted
+time range. For example, if you are trying to query the latest data for the
+`@timestamp` field, run the following to see if the max `@timestamp` falls
+within the attempted range:
+
+[source,console]
+----
+GET my-index-000001/_search?sort=@timestamp:desc&size=1
+----
+//TEST[continued]
 
 [discrete]
 [[troubleshooting-searches-validate-explain-profile]]

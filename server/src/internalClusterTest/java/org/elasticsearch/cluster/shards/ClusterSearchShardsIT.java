@@ -98,18 +98,8 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
     }
 
     public void testMultipleIndicesAllocation() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("test1")
-            .setSettings(Settings.builder().put("index.number_of_shards", "4").put("index.number_of_replicas", 1))
-            .execute()
-            .actionGet();
-        client().admin()
-            .indices()
-            .prepareCreate("test2")
-            .setSettings(Settings.builder().put("index.number_of_shards", "4").put("index.number_of_replicas", 1))
-            .execute()
-            .actionGet();
+        createIndex("test1", 4, 1);
+        createIndex("test2", 4, 1);
         client().admin()
             .indices()
             .prepareAliases()

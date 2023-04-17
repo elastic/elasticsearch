@@ -110,7 +110,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         verify(metadata).clusterUUID();
 
         assertThat(results, notNullValue());
-        assertThat(results.size(), equalTo((indices != NONE) ? routingTable.allShards().size() : 0));
+        assertThat(results.size(), equalTo((indices != NONE) ? (int) routingTable.allShards().count() : 0));
 
         for (MonitoringDoc monitoringDoc : results) {
             assertNotNull(monitoringDoc);
@@ -195,7 +195,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         }
 
         // This is only used by the test to decide how many shards should be covered
-        when(routingTable.allShards()).thenReturn(allShards);
+        when(routingTable.allShards()).thenReturn(allShards.stream());
 
         Collections.shuffle(allShards, new Random(numberOfPrimaryShards));
 

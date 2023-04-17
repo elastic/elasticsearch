@@ -699,8 +699,8 @@ public class IndexNameExpressionResolver {
         }
 
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
-        if (ia.getParentDataStream() != null) {
-            DataStream dataStream = ia.getParentDataStream().getDataStream();
+        DataStream dataStream = ia.getParentDataStream();
+        if (dataStream != null) {
             Map<String, DataStreamAlias> dataStreamAliases = state.metadata().dataStreamAliases();
             Stream<DataStreamAlias> stream;
             if (iterateIndexAliases(dataStreamAliases.size(), resolvedExpressions.size())) {
@@ -809,8 +809,8 @@ public class IndexNameExpressionResolver {
                     }
                 }
             } else if (indexAbstraction != null && indexAbstraction.getType() == Type.DATA_STREAM) {
-                IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
-                if (dataStream.getDataStream().isAllowCustomRouting() == false) {
+                DataStream dataStream = (DataStream) indexAbstraction;
+                if (dataStream.isAllowCustomRouting() == false) {
                     continue;
                 }
                 if (dataStream.getIndices() != null) {

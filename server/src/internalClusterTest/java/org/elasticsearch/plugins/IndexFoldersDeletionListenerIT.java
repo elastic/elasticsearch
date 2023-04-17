@@ -70,10 +70,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         ensureStableCluster(2 + 1, masterNode);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
+        createIndex(indexName, 2, 0);
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
@@ -142,13 +139,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         ensureStableCluster(4 + 1, masterNode);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
-                .build()
-        );
+        createIndex(indexName, 4, between(0, 1));
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
@@ -175,12 +166,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final List<String> excludedNodes = randomSubsetOf(2, shardsByNodes.keySet());
         logger.info("--> excluding nodes {}", excludedNodes);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", String.join(",", excludedNodes)).build())
-        );
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", String.join(",", excludedNodes)), indexName);
         ensureGreen(indexName);
 
         assertBusy(() -> {
@@ -221,13 +207,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         ensureStableCluster(4 + 1, masterNode);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
-                .build()
-        );
+        createIndex(indexName, 4, between(0, 1));
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
@@ -349,15 +329,11 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         final IndexFoldersDeletionListenerPlugin plugin = plugin(dataNode);
         assertTrue("Expecting no shards deleted on node " + dataNode, plugin.deletedShards.isEmpty());
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.routing.allocation.enable", EnableAllocationDecider.Allocation.ALL)
-                        .put("index.routing.allocation.require._name", dataNode)
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put("index.routing.allocation.enable", EnableAllocationDecider.Allocation.ALL)
+                .put("index.routing.allocation.require._name", dataNode),
+            indexName
         );
         ensureGreen(indexName);
 

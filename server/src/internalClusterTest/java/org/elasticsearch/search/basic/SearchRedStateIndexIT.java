@@ -136,11 +136,6 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
 
     @After
     public void cleanup() throws Exception {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull(SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey()))
-        );
+        updateClusterSettings(Settings.builder().putNull(SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey()));
     }
 }

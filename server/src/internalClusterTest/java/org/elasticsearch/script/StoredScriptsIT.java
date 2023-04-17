@@ -48,7 +48,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
         assertNotNull(script);
         assertEquals("1", script);
 
-        assertAcked(client().admin().cluster().prepareDeleteStoredScript().setId("foobar"));
+        assertAcked(client().admin().cluster().prepareDeleteStoredScript("foobar"));
         StoredScriptSource source = client().admin().cluster().prepareGetStoredScript("foobar").get().getSource();
         assertNull(source);
 

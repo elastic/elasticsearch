@@ -2,8 +2,27 @@
 [[config-monitoring-indices]]
 == Configuring indices for monitoring
 
-<<indices-templates-v1,Index templates>> are used to configure the indices
-that store the monitoring data collected from a cluster.
+Sometimes the default index settings might not work for your situation. For
+example, you might want to change index lifecycle management (ILM) settings,
+add custom mappings, or set the number of shards and replicas
+for the monitoring indices.
+
+You can change the default behavior. The steps you follow depend on which data
+collection method is used.
+
+[float]
+=== Configuring data streams created by {agent}
+
+{agent} uses data streams to store time series data across multiple indices
+while giving you a single named resource for requests. You can alter the
+settings of each dataset by configuring an `@custom` component template.
+For more information, refer to {fleet-guide}/data-streams.html[Data streams].
+
+[float]
+=== Configuring indices created by {metricbeat}
+
+<<indices-templates-v1,Index templates>> are used to configure the indices that
+store the monitoring data that {metricbeat} collects from a cluster.
 
 You can retrieve the templates through the `_template` API:
 
@@ -32,7 +51,8 @@ PUT /_index_template/custom_monitoring
   ".monitoring-beats-8-*",
   ".monitoring-es-8-*",
   ".monitoring-kibana-8-*",
-  ".monitoring-logstash-8-*"
+  ".monitoring-logstash-8-*",
+  ".monitoring-ent-search-8-*"
   ],
   "priority": 1,
   "template": {

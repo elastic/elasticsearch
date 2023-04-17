@@ -1196,7 +1196,7 @@ public final class NodeEnvironment implements Closeable {
                 paths.add(indexFolder);
             }
         }
-        return paths.toArray(new Path[paths.size()]);
+        return paths.toArray(Path[]::new);
     }
 
     /**
@@ -1265,12 +1265,14 @@ public final class NodeEnvironment implements Closeable {
     @Override
     public void close() {
         if (closed.compareAndSet(false, true) && locks != null) {
-            for (Lock lock : locks) {
-                try {
-                    logger.trace("releasing lock [{}]", lock);
-                    lock.close();
-                } catch (IOException e) {
-                    logger.trace(() -> "failed to release lock [" + lock + "]", e);
+            synchronized (locks) {
+                for (Lock lock : locks) {
+                    try {
+                        logger.trace("releasing lock [{}]", lock);
+                        lock.close();
+                    } catch (IOException e) {
+                        logger.trace(() -> "failed to release lock [" + lock + "]", e);
+                    }
                 }
             }
         }
@@ -1278,12 +1280,15 @@ public final class NodeEnvironment implements Closeable {
 
     private void assertEnvIsLocked() {
         if (closed.get() == false && locks != null) {
-            for (Lock lock : locks) {
-                try {
-                    lock.ensureValid();
-                } catch (IOException e) {
-                    logger.warn("lock assertion failed", e);
-                    throw new IllegalStateException("environment is not locked", e);
+            synchronized (locks) {
+                if (closed.get()) return; // raced with close() - we lost
+                for (Lock lock : locks) {
+                    try {
+                        lock.ensureValid();
+                    } catch (IOException e) {
+                        logger.warn("lock assertion failed", e);
+                        throw new IllegalStateException("environment is not locked", e);
+                    }
                 }
             }
         }

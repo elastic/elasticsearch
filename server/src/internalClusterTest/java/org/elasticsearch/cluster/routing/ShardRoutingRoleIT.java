@@ -313,12 +313,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
             // new replicas get the SEARCH_ONLY role
             routingTableWatcher.numReplicas += 1;
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, routingTableWatcher.numReplicas))
-            );
+            setReplicaCount(routingTableWatcher.numReplicas, "test");
 
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
@@ -327,12 +322,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             // removing replicas drops SEARCH_ONLY copies first
             while (routingTableWatcher.numReplicas > 0) {
                 routingTableWatcher.numReplicas -= 1;
-                assertAcked(
-                    client().admin()
-                        .indices()
-                        .prepareUpdateSettings("test")
-                        .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, routingTableWatcher.numReplicas))
-                );
+                setReplicaCount(routingTableWatcher.numReplicas, "test");
             }
 
             // restoring the index from a snapshot may change the number of indexing replicas because the routing table is created afresh
@@ -412,12 +402,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             createIndex(INDEX_NAME, routingTableWatcher.getIndexSettings());
 
             for (String nodeName : internalCluster().getNodeNames()) {
-                assertAcked(
-                    client().admin()
-                        .indices()
-                        .prepareUpdateSettings("test")
-                        .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", nodeName))
-                );
+                updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", nodeName), "test");
                 ensureGreen(INDEX_NAME);
             }
         } finally {
@@ -442,13 +427,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
 
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "not-a-node"))
-            );
-
+            updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "not-a-node"), "test");
             AllocationCommand cancelPrimaryCommand;
             while ((cancelPrimaryCommand = getCancelPrimaryCommand()) != null) {
                 client().admin().cluster().prepareReroute().add(cancelPrimaryCommand).get();

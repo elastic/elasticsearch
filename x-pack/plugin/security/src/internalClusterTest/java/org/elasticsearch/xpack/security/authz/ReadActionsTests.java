@@ -12,12 +12,12 @@ import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -223,8 +223,8 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         createIndicesWithRandomAliases("test1", "test2", "test3", "index1");
         {
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
-                .add(Requests.searchRequest())
-                .add(Requests.searchRequest("index1"))
+                .add(new SearchRequest(new String[] {}))
+                .add(new SearchRequest("index1"))
                 .get();
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
@@ -238,8 +238,8 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         }
         {
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
-                .add(Requests.searchRequest())
-                .add(Requests.searchRequest("index1").indicesOptions(IndicesOptions.fromOptions(true, true, true, randomBoolean())))
+                .add(new SearchRequest(new String[] {}))
+                .add(new SearchRequest("index1").indicesOptions(IndicesOptions.fromOptions(true, true, true, randomBoolean())))
                 .get();
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
@@ -255,8 +255,8 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         createIndicesWithRandomAliases("test1", "test2", "test3", "index1");
         {
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
-                .add(Requests.searchRequest())
-                .add(Requests.searchRequest("missing"))
+                .add(new SearchRequest(new String[] {}))
+                .add(new SearchRequest("missing"))
                 .get();
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
@@ -270,8 +270,8 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         }
         {
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
-                .add(Requests.searchRequest())
-                .add(Requests.searchRequest("missing").indicesOptions(IndicesOptions.fromOptions(true, true, true, randomBoolean())))
+                .add(new SearchRequest(new String[] {}))
+                .add(new SearchRequest("missing").indicesOptions(IndicesOptions.fromOptions(true, true, true, randomBoolean())))
                 .get();
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
@@ -289,8 +289,8 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         {
             // default indices options for search request don't ignore unavailable indices, only individual items fail.
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
-                .add(Requests.searchRequest())
-                .add(Requests.searchRequest("test4"))
+                .add(new SearchRequest(new String[] {}))
+                .add(new SearchRequest("test4"))
                 .get();
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
             assertReturnedIndices(multiSearchResponse.getResponses()[0].getResponse(), "test1", "test2", "test3");
@@ -303,8 +303,8 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         {
             // we set ignore_unavailable and allow_no_indices to true, no errors returned, second item doesn't have hits.
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
-                .add(Requests.searchRequest())
-                .add(Requests.searchRequest("test4").indicesOptions(IndicesOptions.fromOptions(true, true, true, randomBoolean())))
+                .add(new SearchRequest(new String[] {}))
+                .add(new SearchRequest("test4").indicesOptions(IndicesOptions.fromOptions(true, true, true, randomBoolean())))
                 .get();
             assertReturnedIndices(multiSearchResponse.getResponses()[0].getResponse(), "test1", "test2", "test3");
             assertNoSearchHits(multiSearchResponse.getResponses()[1].getResponse());
@@ -315,8 +315,8 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         createIndicesWithRandomAliases("test1", "test2", "test3", "index1");
         {
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
-                .add(Requests.searchRequest())
-                .add(Requests.searchRequest("index*"))
+                .add(new SearchRequest(new String[] {}))
+                .add(new SearchRequest("index*"))
                 .get();
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
@@ -327,11 +327,8 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         }
         {
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
-                .add(Requests.searchRequest())
-                .add(
-                    Requests.searchRequest("index*")
-                        .indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()))
-                )
+                .add(new SearchRequest(new String[] {}))
+                .add(new SearchRequest("index*").indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())))
                 .get();
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());

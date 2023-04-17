@@ -99,6 +99,7 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
     /* Use a closure on the string to delay evaluation until tests are executed */
     setting 'gcs.client.repository_test_kit.endpoint', { "${-> fixtureAddress('gcs-fixture-repository-test-kit')}" }, IGNORE_VALUE
     setting 'gcs.client.repository_test_kit.token_uri', { "${-> fixtureAddress('gcs-fixture-repository-test-kit')}/o/oauth2/token" }, IGNORE_VALUE
+    systemProperty 'test.repository_test_kit.skip_cas', 'true' // test fixture does not support CAS yet; TODO fix this
   } else {
     println "Using an external service to test " + project.name
   }

@@ -72,6 +72,12 @@ class KnnScoreDocQuery extends Query {
             throw new IllegalStateException("This KnnScoreDocQuery was created by a different reader");
         }
         return new Weight(this) {
+
+            @Override
+            public int count(LeafReaderContext context) {
+                return segmentStarts[context.ord + 1] - segmentStarts[context.ord];
+            }
+
             @Override
             public Explanation explain(LeafReaderContext context, int doc) {
                 int found = Arrays.binarySearch(docs, doc + context.docBase);
@@ -83,7 +89,11 @@ class KnnScoreDocQuery extends Query {
 
             @Override
             public Scorer scorer(LeafReaderContext context) {
-
+                // Segment starts indicate how many docs are in the segment,
+                // upper equalling lower indicates no documents for this segment
+                if (segmentStarts[context.ord] == segmentStarts[context.ord + 1]) {
+                    return null;
+                }
                 return new Scorer(this) {
                     final int lower = segmentStarts[context.ord];
                     final int upper = segmentStarts[context.ord + 1];
@@ -121,9 +131,13 @@ class KnnScoreDocQuery extends Query {
 
                     @Override
                     public float getMaxScore(int docId) {
-                        docId += context.docBase;
+                        // NO_MORE_DOCS indicates the maximum score for all docs in this segment
+                        // Anything less than must be accounted for via the docBase.
+                        if (docId != NO_MORE_DOCS) {
+                            docId += context.docBase;
+                        }
                         float maxScore = 0;
-                        for (int idx = Math.max(0, upTo); idx < upper && docs[idx] <= docId; idx++) {
+                        for (int idx = Math.max(lower, upTo); idx < upper && docs[idx] <= docId; idx++) {
                             maxScore = Math.max(maxScore, scores[idx] * boost);
                         }
                         return maxScore;

@@ -86,7 +86,8 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 .floodStageWatermark(new RelativeByteSizeValue(ByteSizeValue.ofBytes(50)))
                 .frozenFloodStageWatermark(new RelativeByteSizeValue(ByteSizeValue.ofBytes(50)))
                 .frozenFloodStageMaxHeadroom(ByteSizeValue.ofBytes(10))
-                .build()
+                .build(),
+            HealthMetadata.ShardLimits.newBuilder().maxShardsPerNode(999).maxShardsPerNodeFrozen(100).build()
         );
         node = new DiscoveryNode(
             "node",

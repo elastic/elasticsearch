@@ -8,7 +8,6 @@ package org.elasticsearch.cluster.coordination.votingonly;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase;
-import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.UUIDs;
@@ -39,8 +38,8 @@ public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase 
     }
 
     @Override
-    protected ElectionStrategy getElectionStrategy() {
-        return new VotingOnlyNodePlugin.VotingOnlyNodeElectionStrategy();
+    protected CoordinatorStrategy getCoordinatorStrategy() {
+        return new DefaultCoordinatorStrategy(new VotingOnlyNodePlugin.VotingOnlyNodeElectionStrategy());
     }
 
     public void testDoesNotElectVotingOnlyMasterNode() {

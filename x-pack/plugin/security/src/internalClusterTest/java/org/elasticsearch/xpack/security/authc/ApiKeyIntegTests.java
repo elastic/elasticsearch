@@ -498,7 +498,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         } else {
             builder.put(ApiKeyService.DELETE_RETENTION_PERIOD.getKey(), TimeValue.timeValueDays(deleteRetentionPeriodDays));
         }
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get();
+        updateClusterSettings(builder);
     }
 
     private void doTestInvalidKeysImmediatelyDeletedByRemover(String namePrefix) throws Exception {

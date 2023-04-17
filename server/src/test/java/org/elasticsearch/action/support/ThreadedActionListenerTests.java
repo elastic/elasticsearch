@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -50,7 +51,36 @@ public class ThreadedActionListenerTests extends ESTestCase {
                     final var listener = new ThreadedActionListener<Void>(
                         threadPool.executor(pool),
                         (pool.equals("fixed-bounded-queue") || pool.startsWith("scaling")) && rarely(),
-                        ActionListener.running(countdownLatch::countDown)
+                        ActionListener.runAfter(new ActionListener<>() {
+                            @Override
+                            public void onResponse(Void ignored) {}
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                assertNull(e.getCause());
+                                if (e instanceof EsRejectedExecutionException esRejectedExecutionException) {
+                                    assertTrue(esRejectedExecutionException.isExecutorShutdown());
+                                    if (e.getSuppressed().length == 0) {
+                                        return;
+                                    }
+                                    assertEquals(1, e.getSuppressed().length);
+                                    if (e.getSuppressed()[0] instanceof ElasticsearchException elasticsearchException) {
+                                        e = elasticsearchException;
+                                        assertNull(e.getCause());
+                                    } else {
+                                        throw new AssertionError("unexpected", e);
+                                    }
+                                }
+
+                                if (e instanceof ElasticsearchException) {
+                                    assertEquals("simulated", e.getMessage());
+                                    assertEquals(0, e.getSuppressed().length);
+                                } else {
+                                    throw new AssertionError("unexpected", e);
+                                }
+
+                            }
+                        }, countdownLatch::countDown)
                     );
                     synchronized (closeFlag) {
                         if (closeFlag.get() && shutdownUnsafePools.contains(pool)) {

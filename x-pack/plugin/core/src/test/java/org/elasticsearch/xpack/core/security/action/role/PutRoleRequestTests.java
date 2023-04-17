@@ -160,7 +160,7 @@ public class PutRoleRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
-            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
             logger.info("Serializing with version {}", version);
             out.setTransportVersion(version);
         }
@@ -183,7 +183,11 @@ public class PutRoleRequestTests extends ESTestCase {
         final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(
             RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES
         );
-        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(random(), versionBeforeRemoteIndices);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_17_0,
+            versionBeforeRemoteIndices
+        );
         out.setTransportVersion(version);
 
         final PutRoleRequest original = buildRandomRequest(randomBoolean());

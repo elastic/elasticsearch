@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
 
@@ -198,13 +199,12 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
      *
      * @return All the shards
      */
-    public List<ShardRouting> allShards() {
-        List<ShardRouting> shards = new ArrayList<>();
-        for (String index : indicesRouting.keySet()) {
-            List<ShardRouting> allShardsIndex = allShards(index);
-            shards.addAll(allShardsIndex);
-        }
-        return shards;
+    public Stream<ShardRouting> allShards() {
+        return indicesRouting.values().stream().flatMap(IndexRoutingTable::allShards).flatMap(IndexShardRoutingTable::allShards);
+    }
+
+    public Iterable<ShardRouting> allShardsIterator() {
+        return () -> allShards().iterator();
     }
 
     /**
@@ -398,7 +398,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             if (part.version == version && updatedRouting == part.indicesRouting) {
                 return part;
             }
-            return new RoutingTable(version, indicesRouting.apply(part.indicesRouting));
+            return new RoutingTable(version, updatedRouting);
         }
 
         @Override

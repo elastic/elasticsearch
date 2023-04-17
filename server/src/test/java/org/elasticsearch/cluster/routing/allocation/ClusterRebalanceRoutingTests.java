@@ -700,6 +700,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                     ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
                 )
+                .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
                 .build(),
             new TestGatewayAllocator() {
                 @Override
@@ -709,6 +710,9 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     }
                 }
             }
+        );
+        assertCriticalWarnings(
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
         );
 
         Metadata metadata = Metadata.builder()

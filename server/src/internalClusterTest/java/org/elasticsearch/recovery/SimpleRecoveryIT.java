@@ -8,17 +8,17 @@
 
 package org.elasticsearch.recovery;
 
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
-import static org.elasticsearch.client.internal.Requests.flushRequest;
-import static org.elasticsearch.client.internal.Requests.getRequest;
-import static org.elasticsearch.client.internal.Requests.indexRequest;
-import static org.elasticsearch.client.internal.Requests.refreshRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -42,13 +42,13 @@ public class SimpleRecoveryIT extends ESIntegTestCase {
 
         NumShards numShards = getNumShards("test");
 
-        client().index(indexRequest("test").id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
-        FlushResponse flushResponse = client().admin().indices().flush(flushRequest("test")).actionGet();
+        client().index(new IndexRequest("test").id("1").source(source("1", "test"), XContentType.JSON)).actionGet();
+        FlushResponse flushResponse = client().admin().indices().flush(new FlushRequest("test")).actionGet();
         assertThat(flushResponse.getTotalShards(), equalTo(numShards.totalNumShards));
         assertThat(flushResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
         assertThat(flushResponse.getFailedShards(), equalTo(0));
-        client().index(indexRequest("test").id("2").source(source("2", "test"), XContentType.JSON)).actionGet();
-        RefreshResponse refreshResponse = client().admin().indices().refresh(refreshRequest("test")).actionGet();
+        client().index(new IndexRequest("test").id("2").source(source("2", "test"), XContentType.JSON)).actionGet();
+        RefreshResponse refreshResponse = client().admin().indices().refresh(new RefreshRequest("test")).actionGet();
         assertThat(refreshResponse.getTotalShards(), equalTo(numShards.totalNumShards));
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
@@ -61,13 +61,13 @@ public class SimpleRecoveryIT extends ESIntegTestCase {
         GetResponse getResult;
 
         for (int i = 0; i < 5; i++) {
-            getResult = client().get(getRequest("test").id("1")).actionGet();
+            getResult = client().get(new GetRequest("test").id("1")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").id("1")).actionGet();
+            getResult = client().get(new GetRequest("test").id("1")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").id("2")).actionGet();
+            getResult = client().get(new GetRequest("test").id("2")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
-            getResult = client().get(getRequest("test").id("2")).actionGet();
+            getResult = client().get(new GetRequest("test").id("2")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
         }
 
@@ -78,17 +78,17 @@ public class SimpleRecoveryIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < 5; i++) {
-            getResult = client().get(getRequest("test").id("1")).actionGet();
+            getResult = client().get(new GetRequest("test").id("1")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").id("1")).actionGet();
+            getResult = client().get(new GetRequest("test").id("1")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").id("1")).actionGet();
+            getResult = client().get(new GetRequest("test").id("1")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client().get(getRequest("test").id("2")).actionGet();
+            getResult = client().get(new GetRequest("test").id("2")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
-            getResult = client().get(getRequest("test").id("2")).actionGet();
+            getResult = client().get(new GetRequest("test").id("2")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
-            getResult = client().get(getRequest("test").id("2")).actionGet();
+            getResult = client().get(new GetRequest("test").id("2")).actionGet();
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
         }
     }

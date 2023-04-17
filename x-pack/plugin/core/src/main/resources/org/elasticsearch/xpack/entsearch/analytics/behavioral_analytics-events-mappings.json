@@ -1,0 +1,159 @@
+{
+  "template": {
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "data_stream": {
+          "properties": {
+            "namespace": {
+              "type": "keyword"
+            },
+            "dataset": {
+              "type": "keyword"
+            },
+            "type": {
+              "type": "keyword"
+            }
+          }
+        },
+        "event": {
+          "properties": {
+            "action": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "source": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "document": {
+          "properties": {
+            "index": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "id": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "session": {
+          "properties": {
+            "id": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "user": {
+          "properties": {
+            "id": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "page": {
+          "properties": {
+            "url": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "title": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "referrer": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "search": {
+          "properties": {
+            "query": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "search_application": {
+                "type": "keyword",
+                "ignore_above": 1024
+            },
+            "filters": {
+              "type": "flattened"
+            },
+            "page": {
+              "properties": {
+                "current": {
+                  "type": "integer"
+                },
+                "size": {
+                  "type": "integer"
+                }
+              }
+            },
+            "sort": {
+              "properties": {
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "direction": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
+            },
+            "results": {
+              "properties": {
+                "total_results": {
+                  "type": "integer"
+                },
+                "items": {
+                  "properties": {
+                    "document": {
+                      "properties": {
+
+                      "index": {
+                        "type": "keyword",
+                        "ignore_above": 1024
+                      },
+                      "id": {
+                        "type": "keyword",
+                        "ignore_above": 1024
+                      }
+                    }
+                    },
+                    "page": {
+                      "properties": {
+                        "url": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "title": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Built-in mapping applied by default to behavioral analytics event data streams.",
+    "managed": true
+  },
+  "version": ${xpack.entsearch.analytics.template.version}
+}

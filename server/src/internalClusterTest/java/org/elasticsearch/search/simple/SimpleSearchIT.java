@@ -431,18 +431,10 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testTooLargeFromAndSizeOkByDynamicSetting() throws Exception {
         createIndex("idx");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("idx")
-                .setSettings(
-                    Settings.builder()
-                        .put(
-                            IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
-                            IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 2
-                        )
-                )
-                .get()
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 2),
+            "idx"
         );
         indexRandom(true, client().prepareIndex("idx").setSource("{}", XContentType.JSON));
 
@@ -512,13 +504,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testTooLargeRescoreOkByDynamicSetting() throws Exception {
         int defaultMaxWindow = IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY);
         createIndex("idx");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("idx")
-                .setSettings(Settings.builder().put(IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey(), defaultMaxWindow * 2))
-                .get()
-        );
+        updateIndexSettings(Settings.builder().put(IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey(), defaultMaxWindow * 2), "idx");
         indexRandom(true, client().prepareIndex("idx").setSource("{}", XContentType.JSON));
 
         assertHitCount(
@@ -530,15 +516,10 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testTooLargeRescoreOkByDynamicResultWindowSetting() throws Exception {
         int defaultMaxWindow = IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY);
         createIndex("idx");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("idx")
-                .setSettings(
-                    // Note that this is the RESULT window
-                    Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), defaultMaxWindow * 2)
-                )
-                .get()
+        updateIndexSettings(
+            // Note that this is the RESULT window
+            Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), defaultMaxWindow * 2),
+            "idx"
         );
         indexRandom(true, client().prepareIndex("idx").setSource("{}", XContentType.JSON));
 

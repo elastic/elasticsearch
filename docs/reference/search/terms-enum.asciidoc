@@ -6,8 +6,8 @@
 
 The terms enum API can be used to discover terms in the index that match
 a partial string. Supported field types are <<keyword-field-type,`keyword`>>,
-<<constant-keyword-field-type,`constant_keyword`>>, <<flattened,`flattened`>>
-and <<version, `version`>>. This is used for auto-complete:
+<<constant-keyword-field-type,`constant_keyword`>>, <<flattened,`flattened`>>,
+<<version, `version`>> and <<ip, `ip`>>. This is used for auto-complete:
 
 [source,console]
 --------------------------------------------------

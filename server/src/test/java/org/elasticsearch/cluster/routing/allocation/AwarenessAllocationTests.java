@@ -954,14 +954,14 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         AllocationCommands commands = new AllocationCommands();
         final var unusedNodes = clusterState.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         // Cancel all initializing shards
-        for (ShardRouting routing : clusterState.routingTable().allShards()) {
+        for (ShardRouting routing : clusterState.routingTable().allShardsIterator()) {
             unusedNodes.remove(routing.currentNodeId());
             if (routing.initializing()) {
                 commands.add(new CancelAllocationCommand(routing.shardId().getIndexName(), routing.id(), routing.currentNodeId(), false));
             }
         }
         // Move started primary to another node.
-        for (ShardRouting routing : clusterState.routingTable().allShards()) {
+        for (ShardRouting routing : clusterState.routingTable().allShardsIterator()) {
             if (routing.primary()) {
                 var currentNodeId = routing.currentNodeId();
                 unusedNodes.remove(currentNodeId);
@@ -1038,11 +1038,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         final Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(
-                        settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 99)
-                            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-                    )
+                    .settings(indexSettings(Version.CURRENT, 1, 99).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
             )
             .build();
 
@@ -1076,13 +1072,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         final AllocationService strategy = createAllocationService(settings);
 
         final Metadata metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder("test")
-                    .settings(
-                        settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-                    )
-            )
+            .put(IndexMetadata.builder("test").settings(indexSettings(Version.CURRENT, 1, 2)))
             .build();
 
         final ClusterState clusterState = applyStartedShardsUntilNoChange(

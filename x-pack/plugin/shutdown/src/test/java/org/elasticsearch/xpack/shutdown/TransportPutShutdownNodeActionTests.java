@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.shutdown;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskContext;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.shutdown.TransportPutShutdownNodeAction.PutShutdo
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import java.util.List;
@@ -46,6 +47,9 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
     @Mock
     private TaskContext<PutShutdownNodeTask> taskContext;
 
+    @Mock
+    private MasterServiceTaskQueue<PutShutdownNodeTask> taskQueue;
+
     @Before
     public void init() {
         MockitoAnnotations.openMocks(this);
@@ -55,6 +59,9 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         var actionFilters = mock(ActionFilters.class);
         var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        when(clusterService.createTaskQueue(any(), any(), Mockito.<ClusterStateTaskExecutor<PutShutdownNodeTask>>any())).thenReturn(
+            taskQueue
+        );
         action = new TransportPutShutdownNodeAction(
             transportService,
             clusterService,
@@ -71,24 +78,29 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         var request = new PutShutdownNodeAction.Request("node1", type, "sunsetting", allocationDelay, targetNodeName);
         action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
         var updateTask = ArgumentCaptor.forClass(PutShutdownNodeTask.class);
-        var taskConfig = ArgumentCaptor.forClass(ClusterStateTaskConfig.class);
         var taskExecutor = ArgumentCaptor.forClass(PutShutdownNodeExecutor.class);
-        verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
+        verify(clusterService).createTaskQueue(any(), any(), taskExecutor.capture());
+        verify(taskQueue).submitTask(any(), updateTask.capture(), any());
         when(taskContext.getTask()).thenReturn(updateTask.getValue());
         ClusterState stableState = taskExecutor.getValue()
             .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(ClusterState.EMPTY_STATE, List.of(taskContext), () -> null));
 
         // run the request again, there should be no call to submit an update task
-        clearInvocations(clusterService);
+        clearTaskQueueInvocations();
         action.masterOperation(null, request, stableState, ActionListener.noop());
-        verifyNoInteractions(clusterService);
+        verifyNoInteractions(taskQueue);
 
         // run the request again with empty state, the update task should return the same state
         action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
-        verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
+        verify(taskQueue).submitTask(any(), updateTask.capture(), any());
         when(taskContext.getTask()).thenReturn(updateTask.getValue());
         ClusterState gotState = taskExecutor.getValue()
             .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(stableState, List.of(taskContext), () -> null));
         assertThat(gotState, sameInstance(stableState));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void clearTaskQueueInvocations() {
+        clearInvocations(taskQueue);
     }
 }

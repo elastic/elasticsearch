@@ -9,9 +9,9 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -153,7 +153,7 @@ public class AllocationIdIT extends ESIntegTestCase {
     public void checkHealthStatus(String indexName, ClusterHealthStatus healthStatus) {
         final ClusterHealthStatus indexHealthStatus = client().admin()
             .cluster()
-            .health(Requests.clusterHealthRequest(indexName))
+            .health(new ClusterHealthRequest(indexName))
             .actionGet()
             .getStatus();
         assertThat(indexHealthStatus, is(healthStatus));

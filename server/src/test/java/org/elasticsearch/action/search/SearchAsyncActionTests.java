@@ -63,10 +63,9 @@ public class SearchAsyncActionTests extends ESTestCase {
         int numShards = 10;
 
         AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
-        ActionListener<SearchResponse> responseListener = ActionListener.wrap(
-            searchResponse::set,
-            (e) -> { throw new AssertionError("unexpected", e); }
-        );
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(searchResponse::set, (e) -> {
+            throw new AssertionError("unexpected", e);
+        });
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
 
@@ -284,7 +283,9 @@ public class SearchAsyncActionTests extends ESTestCase {
         AtomicReference<TestSearchResponse> response = new AtomicReference<>();
         ActionListener<SearchResponse> responseListener = ActionListener.wrap(
             searchResponse -> response.set((TestSearchResponse) searchResponse),
-            (e) -> { throw new AssertionError("unexpected", e); }
+            (e) -> {
+                throw new AssertionError("unexpected", e);
+            }
         );
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -615,10 +616,9 @@ public class SearchAsyncActionTests extends ESTestCase {
         request.allowPartialSearchResults(true);
 
         AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
-        ActionListener<SearchResponse> responseListener = ActionListener.wrap(
-            searchResponse::set,
-            (e) -> { throw new AssertionError("unexpected", e); }
-        );
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(searchResponse::set, (e) -> {
+            throw new AssertionError("unexpected", e);
+        });
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
 
         final int numUnavailableSkippedShards = randomIntBetween(1, 10);

@@ -241,7 +241,7 @@ public class SuggestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         TransportVersion bwcVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.CURRENT.minimumCompatibilityVersion(),
+            TransportVersion.MINIMUM_COMPATIBLE,
             TransportVersion.CURRENT
         );
 

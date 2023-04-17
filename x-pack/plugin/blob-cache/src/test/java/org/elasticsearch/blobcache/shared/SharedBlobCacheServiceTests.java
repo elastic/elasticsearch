@@ -7,6 +7,7 @@
 
 package org.elasticsearch.blobcache.shared;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
@@ -71,20 +72,25 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(3, cacheService.freeRegionCount());
             assertFalse(region1.tryEvict());
             assertEquals(3, cacheService.freeRegionCount());
+            final var bytesReadFuture = new PlainActionFuture<Integer>();
             region0.populateAndRead(
                 ByteRange.of(0L, 1L),
                 ByteRange.of(0L, 1L),
                 (channel, channelPos, relativePos, length) -> 1,
                 (channel, channelPos, relativePos, length, progressUpdater) -> progressUpdater.accept(length),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC)
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                bytesReadFuture
             );
             assertFalse(region0.tryEvict());
             assertEquals(3, cacheService.freeRegionCount());
+            assertFalse(bytesReadFuture.isDone());
             taskQueue.runAllRunnableTasks();
             assertTrue(region0.tryEvict());
             assertEquals(4, cacheService.freeRegionCount());
             assertTrue(region2.tryEvict());
             assertEquals(5, cacheService.freeRegionCount());
+            assertTrue(bytesReadFuture.isDone());
+            assertEquals(Integer.valueOf(1), bytesReadFuture.actionGet());
         }
     }
 
@@ -299,6 +305,18 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         assertThat(relativeCacheSize.isAbsolute(), is(true));
         assertThat(relativeCacheSize.getAbsolute(), equalTo(ByteSizeValue.ZERO));
         assertThat(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings), equalTo(ByteSizeValue.ofBytes(-1)));
+    }
+
+    public void testSearchNodeCacheSizeDefaults() {
+        final Settings settings = Settings.builder()
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            .build();
+
+        RelativeByteSizeValue relativeCacheSize = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.get(settings);
+        assertThat(relativeCacheSize.isAbsolute(), is(false));
+        assertThat(relativeCacheSize.isNonZeroSize(), is(true));
+        assertThat(relativeCacheSize.calculateValue(ByteSizeValue.ofBytes(10000), null), equalTo(ByteSizeValue.ofBytes(9000)));
+        assertThat(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings), equalTo(ByteSizeValue.ofGb(100)));
     }
 
     public void testMaxHeadroomRejectedForAbsoluteCacheSize() {

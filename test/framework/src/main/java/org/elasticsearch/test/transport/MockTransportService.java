@@ -91,23 +91,29 @@ public class MockTransportService extends TransportService {
     public static class TestPlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
-            return Arrays.asList(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
+            return List.of(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
         }
-    }
-
-    public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool) {
-        return createNewService(settings, version, threadPool, null);
     }
 
     public static MockTransportService createNewService(
         Settings settings,
         Version version,
+        TransportVersion transportVersion,
+        ThreadPool threadPool
+    ) {
+        return createNewService(settings, version, transportVersion, threadPool, null);
+    }
+
+    public static MockTransportService createNewService(
+        Settings settings,
+        Version version,
+        TransportVersion transportVersion,
         ThreadPool threadPool,
         @Nullable ClusterSettings clusterSettings
     ) {
         return createNewService(
             settings,
-            newMockTransport(settings, version.transportVersion, threadPool),
+            newMockTransport(settings, transportVersion, threadPool),
             version,
             threadPool,
             clusterSettings,

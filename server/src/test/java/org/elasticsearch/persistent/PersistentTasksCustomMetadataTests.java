@@ -51,11 +51,11 @@ import java.util.Optional;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_GATEWAY;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_SNAPSHOT;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
-import static org.elasticsearch.test.TransportVersionUtils.compatibleFutureVersion;
 import static org.elasticsearch.test.TransportVersionUtils.getFirstVersion;
+import static org.elasticsearch.test.TransportVersionUtils.getNextVersion;
 import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -276,7 +276,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
             TestPersistentTasksExecutor.NAME,
             new TestParams(
                 null,
-                randomVersionBetween(random(), compatibleFutureVersion(streamVersion), TransportVersion.CURRENT),
+                randomVersionBetween(random(), getNextVersion(streamVersion), TransportVersion.CURRENT),
                 randomBoolean() ? Optional.empty() : Optional.of("test")
             ),
             randomAssignment()
@@ -292,7 +292,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
             new NamedWriteableAwareStreamInput(input, getNamedWriteableRegistry())
         );
 
-        assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible_version")));
+        assertThat(read.taskMap().keySet(), contains("test_compatible_version"));
     }
 
     public void testDisassociateDeadNodes_givenNoPersistentTasks() {

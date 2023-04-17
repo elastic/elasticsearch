@@ -431,12 +431,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
     }
 
     private static IndexMetadata createIndexMetadata(String indexName, boolean withAlias) {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
-        IndexMetadata.Builder builder = IndexMetadata.builder(indexName).settings(settings);
+        IndexMetadata.Builder builder = IndexMetadata.builder(indexName).settings(indexSettings(Version.CURRENT, 1, 0));
         if (withAlias) {
             builder.putAlias(AliasMetadata.builder(TEST_INDEX_ALIAS).build());
         }

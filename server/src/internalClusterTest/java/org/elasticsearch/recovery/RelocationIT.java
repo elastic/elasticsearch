@@ -431,24 +431,11 @@ public class RelocationIT extends ESIntegTestCase {
                 );
             }
         }
-
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-            .get();
-
+        setReplicaCount(1, indexName);
         corruptionCount.await();
 
         logger.info("--> stopping replica assignment");
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
-                )
-        );
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
 
         logger.info("--> wait for all replica shards to be removed, on all nodes");
         assertBusy(() -> {
@@ -535,12 +522,10 @@ public class RelocationIT extends ESIntegTestCase {
         assertHitCount(countResponse, numDocs);
 
         logger.info(" --> moving index to new nodes");
-        Settings build = Settings.builder()
-            .put("index.routing.allocation.exclude.color", "red")
-            .put("index.routing.allocation.include.color", "blue")
-            .build();
-        client().admin().indices().prepareUpdateSettings("test").setSettings(build).execute().actionGet();
-
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.exclude.color", "red").put("index.routing.allocation.include.color", "blue"),
+            "test"
+        );
         // index while relocating
         logger.info(" --> indexing [{}] more docs", numDocs);
         for (int i = 0; i < numDocs; i++) {
@@ -725,11 +710,7 @@ public class RelocationIT extends ESIntegTestCase {
         ensureGreen("test");
         assertBusy(() -> assertAllShardsOnNodes(indexName, blueNodes));
         assertActiveCopiesEstablishedPeerRecoveryRetentionLeases();
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put("index.routing.allocation.include.color", "red"))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include.color", "red"), indexName);
         assertBusy(() -> assertAllShardsOnNodes(indexName, redNodes));
         ensureGreen("test");
         assertActiveCopiesEstablishedPeerRecoveryRetentionLeases();

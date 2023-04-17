@@ -19,9 +19,11 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -33,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Response> {
@@ -125,7 +128,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            this(transportService, actionFilters, Grok.getBuiltinPatterns(false), Grok.getBuiltinPatterns(true));
+            this(transportService, actionFilters, GrokBuiltinPatterns.legacyPatterns(), GrokBuiltinPatterns.ecsV1Patterns());
         }
 
         // visible for testing
@@ -147,7 +150,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
             ActionListener.completeWith(
                 listener,
                 () -> new Response(
-                    request.getEcsCompatibility().equals(Grok.ECS_COMPATIBILITY_MODES[0])
+                    request.getEcsCompatibility().equals(ECS_COMPATIBILITY_DISABLED)
                         ? request.sorted() ? sortedLegacyGrokPatterns : legacyGrokPatterns
                         : request.sorted() ? sortedEcsV1GrokPatterns
                         : ecsV1GrokPatterns
@@ -156,6 +159,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         }
     }
 
+    @ServerlessScope(Scope.PUBLIC)
     public static class RestAction extends BaseRestHandler {
 
         @Override
@@ -172,7 +176,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
             boolean sorted = request.paramAsBoolean("s", false);
             String ecsCompatibility = request.param("ecs_compatibility", GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE);
-            if (Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+            if (GrokBuiltinPatterns.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                 throw new IllegalArgumentException("unsupported ECS compatibility mode [" + ecsCompatibility + "]");
             }
             Request grokPatternsRequest = new Request(sorted, ecsCompatibility);

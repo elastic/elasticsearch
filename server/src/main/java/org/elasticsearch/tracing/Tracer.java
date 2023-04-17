@@ -10,6 +10,8 @@ package org.elasticsearch.tracing;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.Task;
 
 import java.util.Map;
 
@@ -19,13 +21,10 @@ import java.util.Map;
  * which represents some piece of work with a duration. Spans are nested to
  * create a parent-child hierarchy.
  * <p>
- * You can open a span using
- * {@link #startTrace(ThreadContext, String, String, Map)}, and stop it using
- * {@link #stopTrace(String)}, at which point the tracing system will queue
+ * You can open a span using {@link #startTrace}, and stop it using {@link #stopTrace}, at which point the tracing system will queue
  * the data to be sent somewhere for processing and storage.
  * <p>
- * You can add additional data to a span using the {@code setAttribute(...)}
- * methods, e.g.  {@link #setAttribute(String, String, String)}. This allows you
+ * You can add additional data to a span using the {@code #setAttribute} methods. This allows you
  * to attach data that is not available when the span is opened.
  * <p>
  * <b>Implementation node:</b> tracers have similar performance requirements to loggers,
@@ -39,25 +38,52 @@ public interface Tracer {
     /**
      * Called when a span starts.
      * @param threadContext the current context. Required for tracing parent/child span activity.
-     * @param id a unique identifier for the activity, and will not be sent to the tracing system. Add the ID
-     *           to the attributes if it is important
-     * @param name the name of the span. Sent to the tracing system
+     * @param spanId a unique identifier for the activity, and will not be sent to the tracing system. Add the ID
+     *               to the attributes if it is important
+     * @param name the name of the span. Used to filter out spans, but also sent to the tracing system
      * @param attributes arbitrary key/value data for the span. Sent to the tracing system
      */
-    void startTrace(ThreadContext threadContext, String id, String name, Map<String, Object> attributes);
+    void startTrace(ThreadContext threadContext, SpanId spanId, String name, Map<String, Object> attributes);
+
+    /**
+     * @see Tracer#startTrace(ThreadContext, SpanId, String, Map)
+     */
+    default void startTrace(ThreadContext threadContext, Task task, String name, Map<String, Object> attributes) {
+        startTrace(threadContext, SpanId.forTask(task), name, attributes);
+    }
+
+    /**
+     * @see Tracer#startTrace(ThreadContext, SpanId, String, Map)
+     */
+    default void startTrace(ThreadContext threadContext, RestRequest restRequest, String name, Map<String, Object> attributes) {
+        startTrace(threadContext, SpanId.forRestRequest(restRequest), name, attributes);
+    }
 
     /**
      * Called when a span starts. This version of the method relies on context to assign the span a parent.
      * @param name the name of the span. Sent to the tracing system
-     * @param attributes
      */
     void startTrace(String name, Map<String, Object> attributes);
 
     /**
      * Called when a span ends.
-     * @param id an identifier for the span
+     * @param spanId an identifier for the span
      */
-    void stopTrace(String id);
+    void stopTrace(SpanId spanId);
+
+    /**
+     * @see Tracer#stopTrace(SpanId)
+     */
+    default void stopTrace(Task task) {
+        stopTrace(SpanId.forTask(task));
+    }
+
+    /**
+     * @see Tracer#stopTrace(SpanId)
+     */
+    default void stopTrace(RestRequest restRequest) {
+        stopTrace(SpanId.forRestRequest(restRequest));
+    }
 
     /**
      * Called when a span ends. This version of the method relies on context to select the span to stop.
@@ -68,51 +94,58 @@ public interface Tracer {
      * Some tracing implementations support the concept of "events" within a span, marking a point in time during the span
      * when something interesting happened. If the tracing implementation doesn't support events, then nothing will be recorded.
      * This should only be called when a trace already been started on the {@code traceable}.
-     * @param id an identifier for the span
+     * @param spanId an identifier for the span
      * @param eventName the event that happened. This should be something meaningful to people reviewing the data, for example
      *                  "send response", "finished processing", "validated request", etc.
      */
-    void addEvent(String id, String eventName);
+    void addEvent(SpanId spanId, String eventName);
 
     /**
      * If an exception occurs during a span, you can add data about the exception to the span where the exception occurred.
      * This should only be called when a span has been started, otherwise it has no effect.
-     * @param id an identifier for the span
+     * @param spanId an identifier for the span
      * @param throwable the exception that occurred.
      */
-    void addError(String id, Throwable throwable);
+    void addError(SpanId spanId, Throwable throwable);
+
+    /**
+     * @see Tracer#addError(SpanId, Throwable)
+     */
+    default void addError(RestRequest restRequest, Throwable throwable) {
+        addError(SpanId.forRestRequest(restRequest), throwable);
+    }
 
     /**
      * Adds a boolean attribute to an active span. These will be sent to the endpoint that collects tracing data.
-     * @param id an identifier for the span
+     * @param spanId an identifier for the span
      * @param key the attribute key
      * @param value the attribute value
      */
-    void setAttribute(String id, String key, boolean value);
+    void setAttribute(SpanId spanId, String key, boolean value);
 
     /**
      * Adds a double attribute to an active span. These will be sent to the endpoint that collects tracing data.
-     * @param id an identifier for the span
+     * @param spanId an identifier for the span
      * @param key the attribute key
      * @param value the attribute value
      */
-    void setAttribute(String id, String key, double value);
+    void setAttribute(SpanId spanId, String key, double value);
 
     /**
      * Adds a long attribute to an active span. These will be sent to the endpoint that collects tracing data.
-     * @param id an identifier for the span
+     * @param spanId an identifier for the span
      * @param key the attribute key
      * @param value the attribute value
      */
-    void setAttribute(String id, String key, long value);
+    void setAttribute(SpanId spanId, String key, long value);
 
     /**
      * Adds a String attribute to an active span. These will be sent to the endpoint that collects tracing data.
-     * @param id an identifier for the span
+     * @param spanId an identifier for the span
      * @param key the attribute key
      * @param value the attribute value
      */
-    void setAttribute(String id, String key, String value);
+    void setAttribute(SpanId spanId, String key, String value);
 
     /**
      * Usually you won't need this about scopes when using tracing. However,
@@ -139,10 +172,17 @@ public interface Tracer {
      * <p>Nonetheless, it is possible to manually use scope where more detail is needed by
      * explicitly opening a scope via the `Tracer`.
      *
-     * @param id an identifier for the span
+     * @param spanId an identifier for the span
      * @return a scope. You MUST close it when you are finished with it.
      */
-    Releasable withScope(String id);
+    Releasable withScope(SpanId spanId);
+
+    /**
+     * @see Tracer#withScope(SpanId)
+     */
+    default Releasable withScope(Task task) {
+        return withScope(SpanId.forTask(task));
+    }
 
     /**
      * A Tracer implementation that does nothing. This is used when no tracer is configured,
@@ -150,37 +190,57 @@ public interface Tracer {
      */
     Tracer NOOP = new Tracer() {
         @Override
-        public void startTrace(ThreadContext threadContext, String id, String name, Map<String, Object> attributes) {}
+        public void startTrace(ThreadContext threadContext, SpanId spanId, String name, Map<String, Object> attributes) {}
+
+        @Override
+        public void startTrace(ThreadContext threadContext, Task task, String name, Map<String, Object> attributes) {}
+
+        @Override
+        public void startTrace(ThreadContext threadContext, RestRequest restRequest, String name, Map<String, Object> attributes) {}
 
         @Override
         public void startTrace(String name, Map<String, Object> attributes) {}
 
         @Override
-        public void stopTrace(String id) {}
+        public void stopTrace(SpanId spanId) {}
+
+        @Override
+        public void stopTrace(Task task) {}
+
+        @Override
+        public void stopTrace(RestRequest restRequest) {}
 
         @Override
         public void stopTrace() {}
 
         @Override
-        public void addEvent(String id, String eventName) {}
+        public void addEvent(SpanId spanId, String eventName) {}
 
         @Override
-        public void addError(String id, Throwable throwable) {}
+        public void addError(SpanId spanId, Throwable throwable) {}
 
         @Override
-        public void setAttribute(String id, String key, boolean value) {}
+        public void addError(RestRequest restRequest, Throwable throwable) {}
 
         @Override
-        public void setAttribute(String id, String key, double value) {}
+        public void setAttribute(SpanId spanId, String key, boolean value) {}
 
         @Override
-        public void setAttribute(String id, String key, long value) {}
+        public void setAttribute(SpanId spanId, String key, double value) {}
 
         @Override
-        public void setAttribute(String id, String key, String value) {}
+        public void setAttribute(SpanId spanId, String key, long value) {}
 
         @Override
-        public Releasable withScope(String id) {
+        public void setAttribute(SpanId spanId, String key, String value) {}
+
+        @Override
+        public Releasable withScope(SpanId spanId) {
+            return () -> {};
+        }
+
+        @Override
+        public Releasable withScope(Task task) {
             return () -> {};
         }
     };

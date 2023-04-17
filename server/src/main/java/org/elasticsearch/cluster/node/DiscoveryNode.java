@@ -642,6 +642,21 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    public DiscoveryNode withTransportAddress(TransportAddress transportAddress) {
+        return new DiscoveryNode(
+            getName(),
+            getId(),
+            getEphemeralId(),
+            getHostName(),
+            getHostAddress(),
+            transportAddress,
+            getAttributes(),
+            getRoles(),
+            getVersion(),
+            getExternalId()
+        );
+    }
+
     /**
      * Deduplicate the given string that must be a node id or node name.
      * This method accepts {@code null} input for which it returns {@code null} for convenience when used in deserialization code.

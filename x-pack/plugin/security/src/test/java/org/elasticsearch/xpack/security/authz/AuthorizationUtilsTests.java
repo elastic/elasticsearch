@@ -173,6 +173,6 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     private TransportVersion randomTransportVersion() {
-        return TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        return TransportVersionUtils.randomCompatibleVersion(random());
     }
 }

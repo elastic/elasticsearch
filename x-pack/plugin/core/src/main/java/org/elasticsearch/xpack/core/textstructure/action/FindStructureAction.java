@@ -17,7 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,8 +32,6 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class FindStructureAction extends ActionType<FindStructureAction.Response> {
-    public static final String ECS_COMPATIBILITY_DISABLED = Grok.ECS_COMPATIBILITY_MODES[0];
-    public static final String ECS_COMPATIBILITY_V1 = Grok.ECS_COMPATIBILITY_MODES[1];
 
     public static final FindStructureAction INSTANCE = new FindStructureAction();
     public static final String NAME = "cluster:monitor/text_structure/findstructure";
@@ -359,12 +357,12 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
                 }
             }
 
-            if (ecsCompatibility != null && Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+            if (ecsCompatibility != null && GrokBuiltinPatterns.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                 validationException = addValidationError(
                     "["
                         + ECS_COMPATIBILITY.getPreferredName()
                         + "] must be one of ["
-                        + String.join(", ", Grok.ECS_COMPATIBILITY_MODES)
+                        + String.join(", ", GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES)
                         + "] if specified",
                     validationException
                 );

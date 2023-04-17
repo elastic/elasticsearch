@@ -181,13 +181,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         createRepository(fsRepoName, FsRepository.TYPE);
 
         final String indexName = prefix + "index";
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
-                .build()
-        );
+        createIndex(indexName, 3, randomIntBetween(0, 1));
         ensureGreen(indexName);
 
         final int numDocs = scaledRandomIntBetween(1_000, 5_000);
@@ -243,12 +237,9 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
 
         final DiscoveryNode excludedDataNode = randomFrom(dataNodes);
         logger.info("--> relocating mounted index {} away from {}", mountedIndex, excludedDataNode);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(mountedIndexName)
-                .setSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", excludedDataNode.getId()))
-                .get()
+        updateIndexSettings(
+            Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", excludedDataNode.getId()),
+            mountedIndexName
         );
 
         ensureGreen(mountedIndexName);

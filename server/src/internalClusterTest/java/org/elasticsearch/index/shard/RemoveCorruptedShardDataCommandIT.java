@@ -287,12 +287,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         );
         ensureYellow();
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().putNull("index.routing.allocation.exclude._name"))
-        );
+        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.exclude._name"), indexName);
         ensureGreen();
 
         // Index some documents
@@ -491,12 +486,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         );
         ensureYellow();
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", (String) null))
-        );
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", (String) null), indexName);
         ensureGreen();
 
         // Index some documents
@@ -681,10 +671,11 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
     /** Disables translog flushing for the specified index */
     private static void disableTranslogFlush(String index) {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
-            .build();
-        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)),
+            index
+        );
     }
 
     private SeqNoStats getSeqNoStats(String index, int shardId) {

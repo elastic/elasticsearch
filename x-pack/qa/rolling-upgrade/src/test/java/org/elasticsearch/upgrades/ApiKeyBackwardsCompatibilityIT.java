@@ -124,7 +124,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     e = expectThrows(Exception.class, () -> createOrGrantApiKey(newVersionClient, randomRoleDescriptors(true)));
                     assertThat(
                         e.getMessage(),
-                        containsString("all nodes must have version [8080099] or higher to support remote indices privileges for API keys")
+                        containsString("all nodes must have version [8.8.0] or higher to support remote indices privileges for API keys")
                     );
                     e = expectThrows(
                         Exception.class,
@@ -132,7 +132,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     );
                     assertThat(
                         e.getMessage(),
-                        containsString("all nodes must have version [8080099] or higher to support remote indices privileges for API keys")
+                        containsString("all nodes must have version [8.8.0] or higher to support remote indices privileges for API keys")
                     );
                 } finally {
                     this.closeClientsByVersion();

@@ -19,21 +19,22 @@ import java.util.concurrent.Executor;
 /**
  * An action listener that wraps another action listener and dispatches its completion to an executor.
  */
-public final class ThreadedActionListener<Response> extends ActionListener.Delegating<Response, Response> {
+public final class ThreadedActionListener<Response> implements ActionListener<Response> {
 
     private static final Logger logger = LogManager.getLogger(ThreadedActionListener.class);
 
     private final Executor executor;
+    private final ActionListener<Response> delegate;
     private final boolean forceExecution;
 
-    public ThreadedActionListener(Executor executor, ActionListener<Response> listener) {
-        this(executor, false, listener);
+    public ThreadedActionListener(Executor executor, ActionListener<Response> delegate) {
+        this(executor, false, delegate);
     }
 
-    public ThreadedActionListener(Executor executor, boolean forceExecution, ActionListener<Response> listener) {
-        super(listener);
+    public ThreadedActionListener(Executor executor, boolean forceExecution, ActionListener<Response> delegate) {
         this.forceExecution = forceExecution;
         this.executor = executor;
+        this.delegate = delegate;
     }
 
     @Override
@@ -70,13 +71,13 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
             }
 
             @Override
-            public void onRejection(Exception e2) {
-                e.addSuppressed(e2);
+            public void onRejection(Exception rejectionException) {
+                rejectionException.addSuppressed(e);
                 try {
-                    delegate.onFailure(e);
-                } catch (Exception e3) {
-                    e.addSuppressed(e3);
-                    onFailure(e);
+                    delegate.onFailure(rejectionException);
+                } catch (Exception doubleFailure) {
+                    rejectionException.addSuppressed(doubleFailure);
+                    onFailure(rejectionException);
                 }
             }
 

@@ -45,7 +45,7 @@ public interface GrokCaptureExtracter {
                     // - GROK(pattern, "1") => { name: 1 }
                     // - GROK(pattern, "12") => { name: [1, 2] }
                     if (result.containsKey(key)) {
-                        if (result.get(key)instanceof List<?> values) {
+                        if (result.get(key) instanceof List<?> values) {
                             ((ArrayList<Object>) values).add(value);
                         } else {
                             var values = new ArrayList<>();

@@ -166,23 +166,31 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         this.configuredServerName = configuredServerName;
         assert Strings.isEmpty(configuredAddress) == false : "Cannot use proxy connection strategy with no configured addresses";
         this.address = address;
-        this.clusterNameValidator = (newConnection, actualProfile, listener) -> transportService.handshake(
-            RemoteConnectionManager.wrapConnectionWithClusterAlias(newConnection, clusterAlias),
-            actualProfile.getHandshakeTimeout(),
-            cn -> true,
-            listener.map(resp -> {
-                ClusterName remote = resp.getClusterName();
-                if (remoteClusterName.compareAndSet(null, remote)) {
-                    return null;
-                } else {
-                    if (remoteClusterName.get().equals(remote) == false) {
-                        DiscoveryNode node = newConnection.getNode();
-                        throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
+        this.clusterNameValidator = (newConnection, actualProfile, listener) -> {
+            assert actualProfile.getTransportProfile().equals(connectionManager.getConnectionProfile().getTransportProfile())
+                : "transport profile must be consistent between the connection manager and the actual profile";
+            transportService.handshake(
+                RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+                    newConnection,
+                    clusterAlias,
+                    actualProfile.getTransportProfile()
+                ),
+                actualProfile.getHandshakeTimeout(),
+                cn -> true,
+                listener.map(resp -> {
+                    ClusterName remote = resp.getClusterName();
+                    if (remoteClusterName.compareAndSet(null, remote)) {
+                        return null;
+                    } else {
+                        if (remoteClusterName.get().equals(remote) == false) {
+                            DiscoveryNode node = newConnection.getNode();
+                            throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
+                        }
+                        return null;
                     }
-                    return null;
-                }
-            })
-        );
+                })
+            );
+        };
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {

@@ -832,13 +832,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<QuerySpec<?>> getQueries() {
-            return singletonList(
-                new QuerySpec<>(
-                    "fail_on_rewrite_query",
-                    FailOnRewriteQueryBuilder::new,
-                    parseContext -> { throw new UnsupportedOperationException("No query parser for this plugin"); }
-                )
-            );
+            return singletonList(new QuerySpec<>("fail_on_rewrite_query", FailOnRewriteQueryBuilder::new, parseContext -> {
+                throw new UnsupportedOperationException("No query parser for this plugin");
+            }));
         }
     }
 
@@ -1232,8 +1228,17 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             assertEquals(expectedIndexName, searchShardTarget.getFullyQualifiedIndexName());
             assertEquals(clusterAlias, searchShardTarget.getClusterAlias());
             assertEquals(shardId, searchShardTarget.getShardId());
+
+            assertNull(searchContext.dfsResult());
+            searchContext.addDfsResult();
             assertSame(searchShardTarget, searchContext.dfsResult().getSearchShardTarget());
+
+            assertNull(searchContext.queryResult());
+            searchContext.addQueryResult();
             assertSame(searchShardTarget, searchContext.queryResult().getSearchShardTarget());
+
+            assertNull(searchContext.fetchResult());
+            searchContext.addFetchResult();
             assertSame(searchShardTarget, searchContext.fetchResult().getSearchShardTarget());
         }
     }

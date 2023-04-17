@@ -1096,9 +1096,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     ) {
         StepListener<Releasable> connectionListener = new StepListener<>();
         StepListener<R> fetchRemoteResultListener = new StepListener<>();
-        long startTime = System.nanoTime();
+        long startTimeMillis = transportService.getThreadPool().relativeTimeInMillis();
         connectionListener.whenComplete(releasable -> {
             if (masterEligibleNode == null) {
+                Releasables.close(releasable);
                 responseConsumer.accept(null);
             } else {
                 logger.trace("Opened connection to {}, making transport request", masterEligibleNode);
@@ -1121,38 +1122,50 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         });
 
         fetchRemoteResultListener.whenComplete(response -> {
-            long endTime = System.nanoTime();
-            logger.trace("Received remote response from {} in {}", masterEligibleNode, TimeValue.timeValueNanos(endTime - startTime));
+            long endTimeMillis = transportService.getThreadPool().relativeTimeInMillis();
+            logger.trace(
+                "Received remote response from {} in {}",
+                masterEligibleNode,
+                TimeValue.timeValueMillis(endTimeMillis - startTimeMillis)
+            );
             responseConsumer.accept(responseTransformationFunction.apply(response, null));
         }, e -> {
             logger.warn("Exception in remote request to master" + masterEligibleNode, e);
             responseConsumer.accept(responseTransformationFunction.apply(null, e));
         });
 
-        return transportService.getThreadPool().schedule(() -> {
-            if (masterEligibleNode == null) {
-                /*
-                 * This node's PeerFinder hasn't yet discovered the master-eligible nodes. By notifying the responseConsumer with a null
-                 * value we effectively do nothing, and allow this request to be recheduled.
-                 */
-                responseConsumer.accept(null);
-            } else {
-                Version minSupportedVersion = Version.V_8_4_0;
-                if (masterEligibleNode.getVersion().onOrAfter(minSupportedVersion) == false) {
-                    logger.trace(
-                        "Cannot get remote result from {} because it is at version {} and {} is required",
-                        masterEligibleNode,
-                        masterEligibleNode.getVersion(),
-                        minSupportedVersion
-                    );
+        return transportService.getThreadPool().schedule(new Runnable() {
+            @Override
+            public void run() {
+                if (masterEligibleNode == null) {
+                    /*
+                     * This node's PeerFinder hasn't yet discovered the master-eligible nodes. By notifying the responseConsumer with a null
+                     * value we effectively do nothing, and allow this request to be recheduled.
+                     */
+                    responseConsumer.accept(null);
                 } else {
-                    transportService.connectToNode(
-                        // Note: This connection must be explicitly closed in the connectionListener
-                        masterEligibleNode,
-                        ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
-                        connectionListener
-                    );
+                    Version minSupportedVersion = Version.V_8_4_0;
+                    if (masterEligibleNode.getVersion().onOrAfter(minSupportedVersion) == false) {
+                        logger.trace(
+                            "Cannot get remote result from {} because it is at version {} and {} is required",
+                            masterEligibleNode,
+                            masterEligibleNode.getVersion(),
+                            minSupportedVersion
+                        );
+                    } else {
+                        transportService.connectToNode(
+                            // Note: This connection must be explicitly closed in the connectionListener
+                            masterEligibleNode,
+                            ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
+                            connectionListener
+                        );
+                    }
                 }
+            }
+
+            @Override
+            public String toString() {
+                return "delayed retrieval of coordination diagnostics info from " + masterEligibleNode;
             }
         }, remoteRequestInitialDelay, ThreadPool.Names.SAME);
     }

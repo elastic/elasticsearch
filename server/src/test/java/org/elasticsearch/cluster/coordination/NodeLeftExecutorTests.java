@@ -9,11 +9,11 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -68,8 +69,12 @@ public class NodeLeftExecutorTests extends ESTestCase {
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
         final NodeLeftExecutor executor = new NodeLeftExecutor(allocationService) {
             @Override
-            protected ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
-                remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
+            protected ClusterState remainingNodesClusterState(
+                ClusterState currentState,
+                DiscoveryNodes.Builder remainingNodesBuilder,
+                Map<String, TransportVersion> transportVersions
+            ) {
+                remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder, transportVersions));
                 return remainingNodesClusterState.get();
             }
         };
@@ -134,12 +139,8 @@ public class NodeLeftExecutorTests extends ESTestCase {
             assertNull(
                 PlainActionFuture.<Void, RuntimeException>get(
                     future -> clusterService.getMasterService()
-                        .submitStateUpdateTask(
-                            "test",
-                            new NodeLeftExecutor.Task(nodeToRemove, "test reason", () -> future.onResponse(null)),
-                            ClusterStateTaskConfig.build(Priority.NORMAL),
-                            executor
-                        )
+                        .createTaskQueue("test", Priority.NORMAL, executor)
+                        .submitTask("test", new NodeLeftExecutor.Task(nodeToRemove, "test reason", () -> future.onResponse(null)), null)
                 )
             );
             appender.assertAllExpectationsMatched();

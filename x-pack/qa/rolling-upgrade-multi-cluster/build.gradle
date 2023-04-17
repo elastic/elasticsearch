@@ -92,5 +92,5 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
 // Security is explicitly disabled, do not run tests in FIPS mode
 tasks.withType(Test).configureEach {
-  onlyIf { BuildParams.inFipsJvm == false}
+  BuildParams.withFipsEnabledOnly(it)
 }

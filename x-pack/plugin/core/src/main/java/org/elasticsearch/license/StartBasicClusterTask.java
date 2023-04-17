@@ -64,7 +64,7 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
         if (shouldGenerateNewBasicLicense(currentLicense)) {
             License selfGeneratedLicense = generateBasicLicense(discoveryNodes);
             if (request.isAcknowledged() == false && currentLicense != null) {
-                Map<String, String[]> ackMessageMap = LicenseService.getAckMessages(selfGeneratedLicense, currentLicense);
+                Map<String, String[]> ackMessageMap = LicenseUtils.getAckMessages(selfGeneratedLicense, currentLicense);
                 if (ackMessageMap.isEmpty() == false) {
                     taskContext.success(
                         () -> listener.onResponse(
@@ -100,18 +100,18 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
     private boolean shouldGenerateNewBasicLicense(License currentLicense) {
         return currentLicense == null
             || License.LicenseType.isBasic(currentLicense.type()) == false
-            || LicenseService.SELF_GENERATED_LICENSE_MAX_NODES != currentLicense.maxNodes()
-            || LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != LicenseService.getExpiryDate(currentLicense);
+            || LicenseSettings.SELF_GENERATED_LICENSE_MAX_NODES != currentLicense.maxNodes()
+            || LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != LicenseUtils.getExpiryDate(currentLicense);
     }
 
     private License generateBasicLicense(DiscoveryNodes discoveryNodes) {
         final License.Builder specBuilder = License.builder()
             .uid(UUID.randomUUID().toString())
             .issuedTo(clusterName)
-            .maxNodes(LicenseService.SELF_GENERATED_LICENSE_MAX_NODES)
+            .maxNodes(LicenseSettings.SELF_GENERATED_LICENSE_MAX_NODES)
             .issueDate(clock.millis())
             .type(License.LicenseType.BASIC)
-            .expiryDate(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
+            .expiryDate(LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
 
         return SelfGeneratedLicense.create(specBuilder, discoveryNodes);
     }

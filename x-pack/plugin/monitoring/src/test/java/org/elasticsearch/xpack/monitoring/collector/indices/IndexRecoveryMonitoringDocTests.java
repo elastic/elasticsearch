@@ -101,7 +101,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
             new TransportAddress(TransportAddress.META_ADDRESS, 9301),
             singletonMap("attr", "value_1"),
             singleton(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT.minimumIndexCompatibilityVersion()
+            Version.CURRENT.minimumCompatibilityVersion()
         );
 
         final ShardId shardId = new ShardId("_index_a", "_uuid_a", 0);

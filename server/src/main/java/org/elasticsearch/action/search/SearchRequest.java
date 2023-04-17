@@ -44,14 +44,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to execute search against one or more indices (or all). Best created using
- * {@link org.elasticsearch.client.internal.Requests#searchRequest(String...)}.
+ * A request to execute search against one or more indices (or all).
  * <p>
  * Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including aggregations and such.
  * </p>
  *
- * @see org.elasticsearch.client.internal.Requests#searchRequest(String...)
  * @see org.elasticsearch.client.internal.Client#search(SearchRequest)
  * @see SearchResponse
  */

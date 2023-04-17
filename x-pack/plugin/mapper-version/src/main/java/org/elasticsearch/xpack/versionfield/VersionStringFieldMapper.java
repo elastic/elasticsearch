@@ -52,7 +52,6 @@ import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentParser;
@@ -66,6 +65,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.lucene.search.FuzzyQuery.defaultRewriteMethod;
+import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
+import static org.apache.lucene.search.RegexpQuery.DEFAULT_PROVIDER;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
 
@@ -178,7 +180,14 @@ public class VersionStringFieldMapper extends FieldMapper {
                     "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
                 );
             }
-            RegexpQuery query = new RegexpQuery(new Term(name(), new BytesRef(value)), syntaxFlags, matchFlags, maxDeterminizedStates) {
+            return new RegexpQuery(
+                new Term(name(), new BytesRef(value)),
+                syntaxFlags,
+                matchFlags,
+                DEFAULT_PROVIDER,
+                maxDeterminizedStates,
+                method == null ? CONSTANT_SCORE_REWRITE : method
+            ) {
 
                 @Override
                 protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {
@@ -196,11 +205,6 @@ public class VersionStringFieldMapper extends FieldMapper {
                     };
                 }
             };
-
-            if (method != null) {
-                query.setRewriteMethod(method);
-            }
-            return query;
         }
 
         /**
@@ -217,7 +221,8 @@ public class VersionStringFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             if (context.allowExpensiveQueries() == false) {
                 throw new ElasticsearchException(
@@ -229,7 +234,8 @@ public class VersionStringFieldMapper extends FieldMapper {
                 fuzziness.asDistance(BytesRefs.toString(value)),
                 prefixLength,
                 maxExpansions,
-                transpositions
+                transpositions,
+                rewriteMethod == null ? defaultRewriteMethod(maxExpansions) : rewriteMethod
             ) {
                 @Override
                 protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {
@@ -264,9 +270,9 @@ public class VersionStringFieldMapper extends FieldMapper {
                 );
             }
 
-            VersionFieldWildcardQuery query = new VersionFieldWildcardQuery(new Term(name(), value), caseInsensitive);
-            QueryParsers.setRewriteMethod(query, method);
-            return query;
+            return method == null
+                ? new VersionFieldWildcardQuery(new Term(name(), value), caseInsensitive)
+                : new VersionFieldWildcardQuery(new Term(name(), value), caseInsensitive, method);
         }
 
         @Override
@@ -317,16 +323,14 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-            throws IOException {
-            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+        public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
 
             Terms terms = MultiTerms.getTerms(reader, name());
             if (terms == null) {
                 // Field does not exist on this shard.
                 return null;
             }
-            CompiledAutomaton prefixAutomaton = VersionEncoder.prefixAutomaton(string, caseInsensitive);
+            CompiledAutomaton prefixAutomaton = VersionEncoder.prefixAutomaton(prefix, caseInsensitive);
             BytesRef searchBytes = searchAfter == null ? null : VersionEncoder.encodeVersion(searchAfter).bytesRef;
 
             if (prefixAutomaton.type == AUTOMATON_TYPE.ALL) {

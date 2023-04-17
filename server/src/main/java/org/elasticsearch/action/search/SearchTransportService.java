@@ -557,7 +557,9 @@ public class SearchTransportService {
             QUERY_CAN_MATCH_NAME,
             ThreadPool.Names.SAME,
             ShardSearchRequest::new,
-            (request, channel, task) -> { searchService.canMatch(request, new ChannelActionListener<>(channel)); }
+            (request, channel, task) -> {
+                searchService.canMatch(request, new ChannelActionListener<>(channel));
+            }
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, true, CanMatchShardResponse::new);
 
@@ -565,7 +567,9 @@ public class SearchTransportService {
             QUERY_CAN_MATCH_NODE_NAME,
             ThreadPool.Names.SEARCH_COORDINATION,
             CanMatchNodeRequest::new,
-            (request, channel, task) -> { searchService.canMatch(request, new ChannelActionListener<>(channel)); }
+            (request, channel, task) -> {
+                searchService.canMatch(request, new ChannelActionListener<>(channel));
+            }
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NODE_NAME, true, CanMatchNodeResponse::new);
     }

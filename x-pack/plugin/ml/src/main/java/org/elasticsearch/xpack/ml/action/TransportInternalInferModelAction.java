@@ -234,7 +234,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         // documents for each node.
         var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(request.numberOfDocuments());
         if (nodes.isEmpty()) {
-            logger.trace(() -> format("[%s] model not allocated to any node", deploymentId));
+            logger.trace(() -> format("[%s] model deployment not allocated to any node", deploymentId));
             listener.onFailure(
                 ExceptionsHelper.conflictStatusException("Trained model deployment [" + request.getId() + "] is not allocated to any nodes")
             );

@@ -693,7 +693,15 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 TLSConfig.noTLS(),
                 null,
                 successHeadersValidator
-            )
+            ) {
+                @Override
+                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    assertThat(
+                        HttpHeadersValidator.extractValidationContext(restRequest.getHttpRequest()),
+                        is(validationResultContextReference.get())
+                    );
+                }
+            }
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
@@ -772,7 +780,12 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 TLSConfig.noTLS(),
                 null,
                 failureHeadersValidator
-            )
+            ) {
+                @Override
+                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    throw new AssertionError();
+                }
+            }
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());

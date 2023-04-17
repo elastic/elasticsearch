@@ -973,7 +973,10 @@ public class RecoverySourceHandler {
     void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> outerListener) {
         // NB we release the operation permit as soon as we have created the lease, but delay the outer listener until it is synced
         final var leaseListener = new SubscribableListener<RetentionLease>();
-        final var delayedListener = outerListener.<ReplicationResponse>delegateFailure((l, ignored) -> leaseListener.addListener(l));
+        final var delayedListener = new ThreadedActionListener<>(
+            shard.getThreadPool().generic(),
+            outerListener.<ReplicationResponse>delegateFailure((l, ignored) -> leaseListener.addListener(l))
+        );
 
         runUnderPrimaryPermit(permitListener -> ActionListener.completeWith(permitListener, () -> {
             // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
@@ -983,13 +986,10 @@ public class RecoverySourceHandler {
             // not enough, and fall back to a file-based recovery.
             //
             // (approximately) because we do not guarantee to be able to satisfy every lease on every peer.
-            logger.trace("cloning primary's retention lease");
+            final var targetNodeId = request.targetNode().getId();
+            logger.trace("cloning primary's retention lease for target node ID [{}]", targetNodeId);
             try {
-                final StepListener<ReplicationResponse> cloneRetentionLeaseStep = new StepListener<>();
-                final RetentionLease clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(
-                    request.targetNode().getId(),
-                    new ThreadedActionListener<>(shard.getThreadPool().generic(), delayedListener)
-                );
+                final var clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(targetNodeId, delayedListener);
                 logger.trace("cloned primary's retention lease as [{}]", clonedLease);
                 return clonedLease;
             } catch (RetentionLeaseNotFoundException e) {
@@ -999,11 +999,7 @@ public class RecoverySourceHandler {
                 assert shard.indexSettings().getIndexVersionCreated().before(Version.V_7_4_0)
                     || shard.indexSettings().isSoftDeleteEnabled() == false;
                 final long estimatedGlobalCheckpoint = startingSeqNo - 1;
-                final RetentionLease newLease = shard.addPeerRecoveryRetentionLease(
-                    request.targetNode().getId(),
-                    estimatedGlobalCheckpoint,
-                    new ThreadedActionListener<>(shard.getThreadPool().generic(), delayedListener)
-                );
+                final var newLease = shard.addPeerRecoveryRetentionLease(targetNodeId, estimatedGlobalCheckpoint, delayedListener);
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
                 return newLease;
             }

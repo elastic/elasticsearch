@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -165,7 +166,7 @@ public class CoordinationState {
      * @throws CoordinationStateRejectedException if the arguments were incompatible with the current state of this object.
      */
     public Join handleStartJoin(StartJoinRequest startJoinRequest) {
-        if (electionStrategy.shouldJoinLeaderInTerm(getCurrentTerm(), startJoinRequest.getTerm()) == false) {
+        if (startJoinRequest.getTerm() <= getCurrentTerm()) {
             logger.debug(
                 "handleStartJoin: ignoring [{}] as term provided is not greater than current term [{}]",
                 startJoinRequest,
@@ -569,6 +570,10 @@ public class CoordinationState {
             if (adjustedMetadata != lastAcceptedState.metadata()) {
                 setLastAcceptedState(ClusterState.builder(lastAcceptedState).metadata(adjustedMetadata).build());
             }
+        }
+
+        default void getLatestStoredState(long term, ActionListener<ClusterState> listener) {
+            listener.onResponse(null);
         }
 
         default void close() throws IOException {}

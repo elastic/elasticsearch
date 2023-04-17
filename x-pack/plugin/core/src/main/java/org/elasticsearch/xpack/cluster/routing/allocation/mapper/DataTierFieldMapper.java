@@ -22,7 +22,6 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
-import java.util.List;
 
 public class DataTierFieldMapper extends MetadataFieldMapper {
 
@@ -79,9 +78,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
             }
 
             String tierPreference = getTierPreference(context);
-            return tierPreference == null
-                ? (lookup, doc, ignoredValues) -> List.of()
-                : (lookup, doc, ignoredValues) -> List.of(tierPreference);
+            return tierPreference == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(tierPreference);
         }
 
         /**

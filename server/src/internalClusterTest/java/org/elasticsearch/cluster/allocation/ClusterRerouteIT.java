@@ -368,10 +368,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> create an index with 1 shard");
-        createIndex(
-            "test",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
+        createIndex("test", 1, 0);
 
         if (randomBoolean()) {
             assertAcked(client().admin().indices().prepareClose("test"));
@@ -499,10 +496,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         List<String> nodesIds = internalCluster().startNodes(2);
 
         logger.info("--> create an index with 1 shard and 0 replicas");
-        createIndex(
-            "test-blocks",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
+        createIndex("test-blocks", 1, 0);
 
         if (randomBoolean()) {
             assertAcked(client().admin().indices().prepareClose("test-blocks"));

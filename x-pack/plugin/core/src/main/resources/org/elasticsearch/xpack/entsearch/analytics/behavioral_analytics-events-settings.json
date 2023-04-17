@@ -1,0 +1,21 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "lifecycle": {
+          "name": "behavioral_analytics-events-default_policy"
+        },
+        "codec": "best_compression",
+        "refresh_interval": "1s",
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "auto_expand_replicas": "0-1"
+      }
+    }
+  },
+  "_meta": {
+    "description": "Built-in settings applied by default to behavioral analytics event data streams.",
+    "managed": true
+  },
+  "version": ${xpack.entsearch.analytics.template.version}
+}

@@ -269,14 +269,12 @@ public class GeneralCastTests extends ScriptTestCase {
     }
 
     public void testIllegalVoidCasts() {
-        expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("def map = ['a': 1,'b': 2,'c': 3]; map.c = Collections.sort(new ArrayList(map.keySet()));"); }
-        );
-        expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("Map map = ['a': 1,'b': 2,'c': 3]; def x = new HashMap(); x.put(1, map.clear());"); }
-        );
+        expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def map = ['a': 1,'b': 2,'c': 3]; map.c = Collections.sort(new ArrayList(map.keySet()));");
+        });
+        expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("Map map = ['a': 1,'b': 2,'c': 3]; def x = new HashMap(); x.put(1, map.clear());");
+        });
     }
 
     public void testBoxedDefCalls() {

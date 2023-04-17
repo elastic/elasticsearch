@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -30,6 +31,7 @@ public class MappingParserContext {
     private final Function<String, Mapper.TypeParser> typeParsers;
     private final Function<String, RuntimeField.Parser> runtimeFieldParsers;
     private final Version indexVersionCreated;
+    private final Supplier<TransportVersion> clusterTransportVersion;
     private final Supplier<SearchExecutionContext> searchExecutionContextSupplier;
     private final ScriptCompiler scriptCompiler;
     private final IndexAnalyzers indexAnalyzers;
@@ -41,6 +43,7 @@ public class MappingParserContext {
         Function<String, Mapper.TypeParser> typeParsers,
         Function<String, RuntimeField.Parser> runtimeFieldParsers,
         Version indexVersionCreated,
+        Supplier<TransportVersion> clusterTransportVersion,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
@@ -51,6 +54,7 @@ public class MappingParserContext {
         this.typeParsers = typeParsers;
         this.runtimeFieldParsers = runtimeFieldParsers;
         this.indexVersionCreated = indexVersionCreated;
+        this.clusterTransportVersion = clusterTransportVersion;
         this.searchExecutionContextSupplier = searchExecutionContextSupplier;
         this.scriptCompiler = scriptCompiler;
         this.indexAnalyzers = indexAnalyzers;
@@ -88,6 +92,10 @@ public class MappingParserContext {
 
     public Version indexVersionCreated() {
         return indexVersionCreated;
+    }
+
+    public Supplier<TransportVersion> clusterTransportVersion() {
+        return clusterTransportVersion;
     }
 
     public Supplier<SearchExecutionContext> searchExecutionContext() {
@@ -132,6 +140,7 @@ public class MappingParserContext {
                 in.typeParsers,
                 in.runtimeFieldParsers,
                 in.indexVersionCreated,
+                in.clusterTransportVersion,
                 in.searchExecutionContextSupplier,
                 in.scriptCompiler,
                 in.indexAnalyzers,
@@ -160,6 +169,7 @@ public class MappingParserContext {
                 in.typeParsers,
                 in.runtimeFieldParsers,
                 in.indexVersionCreated,
+                in.clusterTransportVersion,
                 in.searchExecutionContextSupplier,
                 in.scriptCompiler,
                 in.indexAnalyzers,

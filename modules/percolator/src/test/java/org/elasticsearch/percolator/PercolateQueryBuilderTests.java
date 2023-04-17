@@ -228,10 +228,9 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     public void testRequiredParameters() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new PercolateQueryBuilder(null, new BytesArray("{}"), XContentType.JSON); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new PercolateQueryBuilder(null, new BytesArray("{}"), XContentType.JSON);
+        });
         assertThat(e.getMessage(), equalTo("[field] is a required argument"));
 
         e = expectThrows(

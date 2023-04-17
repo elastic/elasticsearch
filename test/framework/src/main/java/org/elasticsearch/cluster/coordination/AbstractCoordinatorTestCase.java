@@ -88,6 +88,7 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
@@ -106,6 +107,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -212,7 +214,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         return setting.get(Settings.EMPTY);
     }
 
-    // Updating the cluster state involves up to the following number of delays:
+    // Updating the cluster state involves the following delays:
     // 1. submit the task to the master service
     // 2. state publisher task on master
     // 3. master sends out PublishRequests to nodes
@@ -221,7 +223,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     // 6. nodes apply committed cluster state
     // 7. master receives ApplyCommitResponses
     // 8. apply committed state on master (last one to apply cluster state)
-    public static final int CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS = 8;
+    // 9. complete the publication listener back on the master service thread
+    public static final int CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS = 9;
     public static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS * DEFAULT_DELAY_VARIABILITY;
 
     private static final int ELECTION_RETRIES = 10;
@@ -886,6 +889,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
 
             countingPageCacheRecycler.assertAllPagesReleased();
+
+            coordinatorStrategy.close();
         }
 
         protected List<NamedWriteableRegistry.Entry> extraNamedWriteables() {
@@ -898,19 +903,16 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             );
         }
 
-        private VotingConfiguration getInitialConfigurationForNode(DiscoveryNode localNode, VotingConfiguration initialConfiguration) {
-            return coordinatorStrategy.getInitialConfigurationForNode(localNode, initialConfiguration);
-        }
-
-        CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode) {
-            return coordinatorStrategy.createFreshPersistedState(localNode, () -> disruptStorage);
+        CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode, ThreadPool threadPool) {
+            return coordinatorStrategy.createFreshPersistedState(localNode, () -> disruptStorage, threadPool);
         }
 
         CoordinationState.PersistedState createPersistedStateFromExistingState(
             DiscoveryNode newLocalNode,
             CoordinationState.PersistedState oldState,
             Function<Metadata, Metadata> adaptGlobalMetadata,
-            Function<Long, Long> adaptCurrentTerm
+            Function<Long, Long> adaptCurrentTerm,
+            ThreadPool threadPool
         ) {
             return coordinatorStrategy.createPersistedStateFromExistingState(
                 newLocalNode,
@@ -919,7 +921,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 adaptCurrentTerm,
                 deterministicTaskQueue::getCurrentTimeMillis,
                 getNamedWriteableRegistry(),
-                () -> disruptStorage
+                () -> disruptStorage,
+                threadPool
             );
         }
 
@@ -956,7 +959,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ClusterNode(
                 int nodeIndex,
                 DiscoveryNode localNode,
-                Function<DiscoveryNode, CoordinationState.PersistedState> persistedStateSupplier,
+                BiFunction<DiscoveryNode, ThreadPool, CoordinationState.PersistedState> persistedStateSupplier,
                 Settings nodeSettings,
                 NodeHealthService nodeHealthService
             ) {
@@ -964,11 +967,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 this.nodeIndex = nodeIndex;
                 this.localNode = localNode;
                 this.nodeSettings = nodeSettings;
-                persistedState = persistedStateSupplier.apply(localNode);
+                final ThreadPool threadPool = deterministicTaskQueue.getThreadPool(this::onNode);
+                persistedState = persistedStateSupplier.apply(localNode, threadPool);
                 assertTrue("must use a fresh PersistedState", openPersistedStates.add(persistedState));
                 boolean success = false;
                 try {
-                    DeterministicTaskQueue.onNodeLog(localNode, this::setUp).run();
+                    DeterministicTaskQueue.onNodeLog(localNode, () -> setUp(threadPool)).run();
                     success = true;
                 } finally {
                     if (success == false) {
@@ -977,8 +981,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 }
             }
 
-            private void setUp() {
-                final ThreadPool threadPool = deterministicTaskQueue.getThreadPool(this::onNode);
+            private void setUp(ThreadPool threadPool) {
                 clearableRecycler = new ClearableRecycler(recycler);
                 mockTransport = new DisruptableMockTransport(localNode, deterministicTaskQueue) {
                     @Override
@@ -1009,21 +1012,18 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     ) {
                         final TransportRequestOptions.Type chanType = options.type();
                         switch (action) {
-                            // tag::noformat
                             case JoinHelper.JOIN_ACTION_NAME, FollowersChecker.FOLLOWER_CHECK_ACTION_NAME,
-                                 LeaderChecker.LEADER_CHECK_ACTION_NAME -> assertThat(
-                                action,
-                                chanType,
-                                equalTo(TransportRequestOptions.Type.PING)
-                            );
-                            case JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
-                                 PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
-                                 Coordinator.COMMIT_STATE_ACTION_NAME -> assertThat(
-                                action,
-                                chanType,
-                                equalTo(TransportRequestOptions.Type.STATE)
-                            );
-                            // end::noformat
+                                LeaderChecker.LEADER_CHECK_ACTION_NAME -> assertThat(
+                                    action,
+                                    chanType,
+                                    equalTo(TransportRequestOptions.Type.PING)
+                                );
+                            case JoinValidationService.JOIN_VALIDATE_ACTION_NAME, PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
+                                Coordinator.COMMIT_STATE_ACTION_NAME -> assertThat(
+                                    action,
+                                    chanType,
+                                    equalTo(TransportRequestOptions.Type.STATE)
+                                );
                             case JoinHelper.JOIN_PING_ACTION_NAME -> assertThat(
                                 action,
                                 chanType,
@@ -1103,11 +1103,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     onJoinValidators,
                     Randomness.get(),
                     (s, p, r) -> {},
-                    coordinationServices.getQuorumStrategy(),
+                    coordinationServices.getElectionStrategy(),
                     nodeHealthService,
                     new NoneCircuitBreakerService(),
                     coordinationServices.getReconfigurator(),
-                    coordinationServices.getLeaderHeartbeatService()
+                    coordinationServices.getLeaderHeartbeatService(),
+                    coordinationServices.getPreVoteCollectorFactory()
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,
@@ -1194,7 +1195,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     return new ClusterNode(
                         nodeIndex,
                         newLocalNode,
-                        node -> createPersistedStateFromExistingState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm),
+                        (node, threadPool) -> createPersistedStateFromExistingState(
+                            newLocalNode,
+                            persistedState,
+                            adaptGlobalMetadata,
+                            adaptCurrentTerm,
+                            threadPool
+                        ),
                         settings,
                         nodeHealthService
                     );
@@ -1417,10 +1424,19 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             void applyInitialConfiguration() {
                 onNode(() -> {
-                    final VotingConfiguration configurationWithPlaceholders = getInitialConfigurationForNode(
-                        localNode,
-                        initialConfiguration
+                    final Set<String> nodeIdsWithPlaceholders = new HashSet<>(initialConfiguration.getNodeIds());
+                    Stream.generate(() -> BOOTSTRAP_PLACEHOLDER_PREFIX + UUIDs.randomBase64UUID(random()))
+                        .limit((Math.max(initialConfiguration.getNodeIds().size(), 2) - 1) / 2)
+                        .forEach(nodeIdsWithPlaceholders::add);
+                    final Set<String> nodeIds = new HashSet<>(
+                        randomSubsetOf(initialConfiguration.getNodeIds().size(), nodeIdsWithPlaceholders)
                     );
+                    // initial configuration should not have a place holder for local node
+                    if (initialConfiguration.getNodeIds().contains(localNode.getId()) && nodeIds.contains(localNode.getId()) == false) {
+                        nodeIds.remove(nodeIds.iterator().next());
+                        nodeIds.add(localNode.getId());
+                    }
+                    final VotingConfiguration configurationWithPlaceholders = new VotingConfiguration(nodeIds);
                     try {
                         coordinator.setInitialConfiguration(configurationWithPlaceholders);
                         logger.info("successfully set initial configuration to {}", configurationWithPlaceholders);
@@ -1459,7 +1475,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         return NOOP_TRANSPORT_INTERCEPTOR;
     }
 
-    protected interface CoordinatorStrategy {
+    protected interface CoordinatorStrategy extends Closeable {
         CoordinationServices getCoordinationServices(
             ThreadPool threadPool,
             Settings settings,
@@ -1467,7 +1483,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             CoordinationState.PersistedState persistedState
         );
 
-        CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage);
+        CoordinationState.PersistedState createFreshPersistedState(
+            DiscoveryNode localNode,
+            BooleanSupplier disruptStorage,
+            ThreadPool threadPool
+        );
 
         CoordinationState.PersistedState createPersistedStateFromExistingState(
             DiscoveryNode newLocalNode,
@@ -1476,18 +1496,21 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             Function<Long, Long> adaptCurrentTerm,
             LongSupplier currentTimeInMillisSupplier,
             NamedWriteableRegistry namedWriteableRegistry,
-            BooleanSupplier disruptStorage
+            BooleanSupplier disruptStorage,
+            ThreadPool threadPool
         );
 
-        VotingConfiguration getInitialConfigurationForNode(DiscoveryNode localNode, VotingConfiguration initialConfiguration);
+        default void close() {};
     }
 
     protected interface CoordinationServices {
-        ElectionStrategy getQuorumStrategy();
+        ElectionStrategy getElectionStrategy();
 
         Reconfigurator getReconfigurator();
 
         LeaderHeartbeatService getLeaderHeartbeatService();
+
+        PreVoteCollector.Factory getPreVoteCollectorFactory();
     }
 
     public class DefaultCoordinatorStrategy implements CoordinatorStrategy {
@@ -1510,7 +1533,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         ) {
             return new CoordinationServices() {
                 @Override
-                public ElectionStrategy getQuorumStrategy() {
+                public ElectionStrategy getElectionStrategy() {
                     return electionStrategy;
                 }
 
@@ -1523,11 +1546,20 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 public LeaderHeartbeatService getLeaderHeartbeatService() {
                     return LeaderHeartbeatService.NO_OP;
                 }
+
+                @Override
+                public PreVoteCollector.Factory getPreVoteCollectorFactory() {
+                    return StatefulPreVoteCollector::new;
+                }
             };
         }
 
         @Override
-        public CoordinationState.PersistedState createFreshPersistedState(DiscoveryNode localNode, BooleanSupplier disruptStorage) {
+        public CoordinationState.PersistedState createFreshPersistedState(
+            DiscoveryNode localNode,
+            BooleanSupplier disruptStorage,
+            ThreadPool threadPool
+        ) {
             return new MockPersistedState(localNode, disruptStorage);
         }
 
@@ -1539,7 +1571,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             Function<Long, Long> adaptCurrentTerm,
             LongSupplier currentTimeInMillisSupplier,
             NamedWriteableRegistry namedWriteableRegistry,
-            BooleanSupplier disruptStorage
+            BooleanSupplier disruptStorage,
+            ThreadPool threadPool
         ) {
             assert oldState instanceof MockPersistedState : oldState.getClass();
             return new MockPersistedState(
@@ -1551,21 +1584,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 namedWriteableRegistry,
                 disruptStorage
             );
-        }
-
-        @Override
-        public VotingConfiguration getInitialConfigurationForNode(DiscoveryNode localNode, VotingConfiguration initialConfiguration) {
-            final Set<String> nodeIdsWithPlaceholders = new HashSet<>(initialConfiguration.getNodeIds());
-            Stream.generate(() -> BOOTSTRAP_PLACEHOLDER_PREFIX + UUIDs.randomBase64UUID(random()))
-                .limit((Math.max(initialConfiguration.getNodeIds().size(), 2) - 1) / 2)
-                .forEach(nodeIdsWithPlaceholders::add);
-            final Set<String> nodeIds = new HashSet<>(randomSubsetOf(initialConfiguration.getNodeIds().size(), nodeIdsWithPlaceholders));
-            // initial configuration should not have a place holder for local node
-            if (initialConfiguration.getNodeIds().contains(localNode.getId()) && nodeIds.contains(localNode.getId()) == false) {
-                nodeIds.remove(nodeIds.iterator().next());
-                nodeIds.add(localNode.getId());
-            }
-            return new VotingConfiguration(nodeIds);
         }
     }
 
@@ -1621,7 +1639,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ThreadPool threadPool,
             Consumer<Runnable> onTaskAvailableToRun
         ) {
-            super(nodeName, serviceName, threadPool, onTaskAvailableToRun);
+            super(nodeName, threadPool, onTaskAvailableToRun);
         }
 
         @Override

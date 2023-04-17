@@ -230,7 +230,6 @@ final class ShardSplittingQuery extends Query {
         final LeafReader leafReader;
         final StoredFields storedFields;
         private int leftToVisit = 2;
-        private final BytesRef spare = new BytesRef();
         private String routing;
         private String id;
 

@@ -246,7 +246,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static IndexAnalyzers createIndexAnalyzers() {
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Map.ofEntries(
                 Map.entry("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),

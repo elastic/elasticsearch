@@ -287,7 +287,7 @@ public final class Grok {
         int result;
         try {
             matcherWatchdog.register(matcher);
-            result = matcher.search(offset, length, Option.DEFAULT);
+            result = matcher.search(offset, offset + length, Option.DEFAULT);
         } finally {
             matcherWatchdog.unregister(matcher);
         }

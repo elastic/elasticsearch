@@ -176,6 +176,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             assertOK(response);
             ObjectPath responseObject = ObjectPath.createFromResponse(response);
             assertNotNull(responseObject.evaluate(REMOTE_CLUSTER_NAME));
+            assertNull(responseObject.evaluate(REMOTE_CLUSTER_NAME + ".cluster_credentials"));
             logger.info("Established connection to remote cluster [" + REMOTE_CLUSTER_NAME + "]");
         }
 

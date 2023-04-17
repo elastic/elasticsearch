@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -34,7 +33,7 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         String index = "test";
         int numberOfShards = 2;
         int numberOfReplicas = 1;
-        createIndex(index, Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+        createIndex(index, 2, 1);
 
         indexData(index);
 
@@ -76,10 +75,7 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         String index = "test";
         int numberOfShards = 2;
         int numberOfReplicas = 1;
-        createIndex(
-            index,
-            Settings.builder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", numberOfReplicas).build()
-        );
+        createIndex(index, numberOfShards, numberOfReplicas);
         indexData(index);
         var clusterHealthResponse = client().admin()
             .cluster()

@@ -1,5 +1,0 @@
-pr: 93285
-summary: Make `GeoIpProcessor` backing database instance pluggable
-area: Ingest Node
-type: enhancement
-issues: []

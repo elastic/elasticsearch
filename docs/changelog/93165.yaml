@@ -1,5 +1,0 @@
-pr: 93165
-summary: Switch to Lucene's new `IntField/LongField/FloatField/DoubleField`
-area: Mapping
-type: enhancement
-issues: []

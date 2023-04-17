@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
-    private static final TimeValue NO_WAIT_TIME_VALUE = TimeValue.timeValueMillis(0);
     private final AtomicLong insertionOrder = new AtomicLong();
     private final Queue<Runnable> current = ConcurrentCollections.newQueue();
     private final ScheduledExecutorService timer;

@@ -94,6 +94,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     "vectors/10_dense_vector_basic/Deprecated function signature",
     "to support it, it would require to almost revert back the #48725 and complicate the code"
   )
+  task.skipTest("vectors/20_dense_vector_special_cases/Indexing of Dense vectors should error when dims don't match defined in the mapping", "Error message has changed")
   task.skipTest("vectors/30_sparse_vector_basic/Cosine Similarity", "not supported for compatibility")
   task.skipTest("vectors/30_sparse_vector_basic/Deprecated function signature", "not supported for compatibility")
   task.skipTest("vectors/30_sparse_vector_basic/Dot Product", "not supported for compatibility")

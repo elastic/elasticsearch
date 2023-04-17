@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -90,8 +91,20 @@ public class PublicationTests extends ESTestCase {
                 }
 
                 @Override
-                protected Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse) {
-                    return coordinationState.handlePublishResponse(sourceNode, publishResponse);
+                protected Optional<ListenableFuture<ApplyCommitRequest>> handlePublishResponse(
+                    DiscoveryNode sourceNode,
+                    PublishResponse publishResponse
+                ) {
+                    return coordinationState.handlePublishResponse(sourceNode, publishResponse).map(applyCommitRequest -> {
+                        final var future = new ListenableFuture<ApplyCommitRequest>();
+                        future.onResponse(applyCommitRequest);
+                        return future;
+                    });
+                }
+
+                @Override
+                protected <T> ActionListener<T> wrapListener(ActionListener<T> listener) {
+                    return listener;
                 }
             };
             currentPublication.start(faultyNodes);

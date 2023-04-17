@@ -15,6 +15,7 @@
             JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
+          set -e
 
           # Fetch beats artifacts
           export ES_VERSION=$(grep 'elasticsearch' build-tools-internal/version.properties | awk '{print $3}')

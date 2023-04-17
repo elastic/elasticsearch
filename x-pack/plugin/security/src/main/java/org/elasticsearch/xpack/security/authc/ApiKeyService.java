@@ -302,7 +302,7 @@ public class ApiKeyService {
             if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
-                    new IllegalStateException(
+                    new IllegalArgumentException(
                         "all nodes must have version ["
                             + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
                             + "] or higher to support remote indices privileges for API keys"
@@ -412,7 +412,7 @@ public class ApiKeyService {
         if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
-                new IllegalStateException(
+                new IllegalArgumentException(
                     "all nodes must have version ["
                         + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
                         + "] or higher to support remote indices privileges for API keys"
@@ -1001,10 +1001,14 @@ public class ApiKeyService {
                                 // move on
                                 validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                             } else {
-                                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                                listener.onResponse(
+                                    AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                                );
                             }
                         } else if (result.verify(credentials.getKey())) { // same key, pass the same result
-                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            listener.onResponse(
+                                AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                            );
                         } else {
                             apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
                             validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener);
@@ -1017,7 +1021,9 @@ public class ApiKeyService {
                             // move on
                             validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                         } else {
-                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            listener.onResponse(
+                                AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                            );
                         }
                     }, listener::onFailure));
                 }
@@ -1027,7 +1033,9 @@ public class ApiKeyService {
                         // move on
                         validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                     } else {
-                        listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                        listener.onResponse(
+                            AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                        );
                     }
                 }, listener::onFailure));
             }

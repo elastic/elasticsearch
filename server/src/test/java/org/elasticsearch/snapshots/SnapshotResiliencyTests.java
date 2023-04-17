@@ -101,6 +101,7 @@ import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
+import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -1617,7 +1618,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 this.node = node;
                 final Environment environment = createEnvironment(node.getName());
                 threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(node, runnable));
-                masterService = new FakeThreadPoolMasterService(node.getName(), "test", threadPool, deterministicTaskQueue::scheduleNow);
+                masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterService = new ClusterService(
@@ -1962,7 +1963,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     allocationService,
                     metadataCreateIndexService,
                     new MetadataDeleteIndexService(settings, clusterService, allocationService),
-                    new IndexMetadataVerifier(settings, namedXContentRegistry, mapperRegistry, indexScopedSettings, ScriptCompiler.NONE),
+                    new IndexMetadataVerifier(
+                        settings,
+                        clusterService,
+                        namedXContentRegistry,
+                        mapperRegistry,
+                        indexScopedSettings,
+                        ScriptCompiler.NONE
+                    ),
                     shardLimitValidator,
                     EmptySystemIndices.INSTANCE,
                     indicesService,
@@ -2194,7 +2202,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     () -> new StatusInfo(HEALTHY, "healthy-info"),
                     new NoneCircuitBreakerService(),
                     new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings()),
-                    LeaderHeartbeatService.NO_OP
+                    LeaderHeartbeatService.NO_OP,
+                    StatefulPreVoteCollector::new
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

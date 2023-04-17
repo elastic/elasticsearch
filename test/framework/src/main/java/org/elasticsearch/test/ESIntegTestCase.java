@@ -67,6 +67,7 @@ import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -99,6 +100,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -771,6 +773,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * creates an index with the given shard and replica counts
+     */
+    public final void createIndex(String name, int shards, int replicas) {
+        createIndex(name, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shards).put(SETTING_NUMBER_OF_REPLICAS, replicas).build());
+    }
+
+    /**
      * Creates a new {@link CreateIndexRequestBuilder} with the settings obtained from {@link #indexSettings()}.
      */
     public final CreateIndexRequestBuilder prepareCreate(String index) {
@@ -1077,6 +1086,34 @@ public abstract class ESIntegTestCase extends ESTestCase {
             return List.of();
         }
         return tasks.tasks().stream().filter(t -> taskNames.contains(t.getTaskName())).toList();
+    }
+
+    /**
+     * Waits for the health node to be assigned and returns the node
+     * that it is assigned to.
+     * Returns null if the health node is not assigned in due time.
+     */
+    @Nullable
+    public static DiscoveryNode waitAndGetHealthNode(InternalTestCluster internalCluster) {
+        DiscoveryNode[] healthNode = new DiscoveryNode[1];
+        try {
+            waitUntil(() -> {
+                ClusterState state = internalCluster.client()
+                    .admin()
+                    .cluster()
+                    .prepareState()
+                    .clear()
+                    .setMetadata(true)
+                    .setNodes(true)
+                    .get()
+                    .getState();
+                healthNode[0] = HealthNode.findHealthNode(state);
+                return healthNode[0] != null;
+            }, 15, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return healthNode[0];
     }
 
     /**

@@ -91,7 +91,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestName());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         repositoriesService = mock(RepositoriesService.class);
-        rerouteService = (reason, priority, listener) -> listener.onResponse(clusterService.state());
+        rerouteService = (reason, priority, listener) -> listener.onResponse(null);
     }
 
     @After
@@ -109,7 +109,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final int numberOfShards = randomIntBetween(1, 50);
         final CountDownLatch rerouteLatch = new CountDownLatch(numberOfShards);
         final RerouteService rerouteService = (reason, priority, listener) -> {
-            listener.onResponse(clusterService.state());
+            listener.onResponse(null);
             assertThat(rerouteLatch.getCount(), greaterThanOrEqualTo(0L));
             rerouteLatch.countDown();
         };
@@ -181,7 +181,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final CountDown reroutes = new CountDown(maxShardsToCreate);
         final RerouteService rerouteService = (reason, priority, listener) -> {
             try {
-                listener.onResponse(clusterService.state());
+                listener.onResponse(null);
             } finally {
                 if (reroutes.countDown()) {
                     waitForAllReroutesProcessed.onResponse(null);

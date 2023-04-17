@@ -9,13 +9,11 @@ setup:
       indices.create:
         index: index-with-rank-features
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               source_text:
                 type: keyword
-              tokens:
+              ml.tokens:
                 type: rank_features
 
   - do:
@@ -24,8 +22,6 @@ setup:
       indices.create:
         index: unrelated
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               source_text:
@@ -78,17 +74,17 @@ setup:
         refresh: true
         body: |
           {"index": {}}
-          {"source_text": "my words comforter", "tokens":[{"4":1.0},{"5":1.0},{"12":1.0}]}
+          {"source_text": "my words comforter", "ml.tokens":{"my":1.0, "words":1.0,"comforter":1.0}}
           {"index": {}}
-          {"source_text": "the machine is leaking", "tokens":[{"6":1.0},{"8":1.0},{"9":1.0},{"10":1.0}]}
+          {"source_text": "the machine is leaking", "ml.tokens":{"the":1.0,"machine":1.0,"is":1.0,"leaking":1.0}}
           {"index": {}}
-          {"source_text": "these are my words", "tokens":[{"2":1.0},{"3":1.0},{"4":1.0},{"5":1.0}]}
+          {"source_text": "these are my words", "ml.tokens":{"these":1.0,"are":1.0,"my":1.0,"words":1.0}}
           {"index": {}}
-          {"source_text": "the octopus comforter smells", "tokens":[{"6":1.0},{"11":1.0},{"12":1.0},{"13":1.0}]}
+          {"source_text": "the octopus comforter smells", "ml.tokens":{"the":1.0,"octopus":1.0,"comforter":1.0,"smells":1.0}}
           {"index": {}}
-          {"source_text": "the octopus comforter is leaking", "tokens":[{"6":1.0},{"9":1.0},{"10":1.0},{"11":1.0},{"12":1.0}]}
+          {"source_text": "the octopus comforter is leaking", "ml.tokens":{"the":1.0,"octopus":1.0,"comforter":1.0,"is":1.0,"leaking":1.0}}
           {"index": {}}
-          {"source_text": "washing machine smells", "tokens":[{"7":1.0},{"8":1.0},{"13":1.0}]}
+          {"source_text": "washing machine smells", "ml.tokens":{"washing":1.0,"machine":1.0,"smells":1.0}}
 
   - do:
       headers:
@@ -106,7 +102,7 @@ setup:
         body:
           query:
             text_expansion:
-              tokens:
+              ml.tokens:
                 model_id: text_expansion_model
                 model_text: "octopus comforter smells"
   - match: { hits.total.value: 4 }

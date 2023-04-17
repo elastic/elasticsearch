@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -76,9 +75,9 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotAllocator.class);
 
-    private static final ActionListener<ClusterState> REROUTE_LISTENER = new ActionListener<>() {
+    private static final ActionListener<Void> REROUTE_LISTENER = new ActionListener<>() {
         @Override
-        public void onResponse(ClusterState clusterRerouteResponse) {
+        public void onResponse(Void ignored) {
             logger.trace("reroute succeeded after loading snapshot cache information");
         }
 

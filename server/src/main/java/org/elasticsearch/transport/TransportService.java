@@ -60,6 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -406,7 +407,16 @@ public class TransportService extends AbstractLifecycleComponent
         if (boundTransportAddress == null) {
             return null;
         }
-        return new TransportInfo(boundTransportAddress, transport.profileBoundAddresses());
+        final Map<String, BoundTransportAddress> profileAddresses = transport.profileBoundAddresses();
+        if (remoteClusterService.isRemoteClusterServerEnabled()) {
+            final Map<String, BoundTransportAddress> filteredProfileAddress = profileAddresses.entrySet()
+                .stream()
+                .filter(entry -> false == RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE.equals(entry.getKey()))
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+            return new TransportInfo(boundTransportAddress, filteredProfileAddress);
+        } else {
+            return new TransportInfo(boundTransportAddress, profileAddresses);
+        }
     }
 
     public TransportStats stats() {
@@ -783,7 +793,14 @@ public class TransportService extends AbstractLifecycleComponent
                 if (unregisterChildNode == null) {
                     delegate = handler;
                 } else {
-                    delegate = new UnregisterChildTransportResponseHandler<>(unregisterChildNode, handler, action);
+                    delegate = new UnregisterChildTransportResponseHandler<>(
+                        unregisterChildNode,
+                        handler,
+                        action,
+                        request,
+                        unwrappedConn,
+                        taskManager
+                    );
                 }
             } else {
                 delegate = handler;
@@ -885,6 +902,7 @@ public class TransportService extends AbstractLifecycleComponent
         ContextRestoreResponseHandler<T> responseHandler = new ContextRestoreResponseHandler<>(storedContextSupplier, handler);
         // TODO we can probably fold this entire request ID dance into connection.sendRequest but it will be a bigger refactoring
         final long requestId = responseHandlers.add(new Transport.ResponseContext<>(responseHandler, connection, action));
+        request.setRequestId(requestId);
         final TimeoutHandler timeoutHandler;
         if (options.timeout() != null) {
             timeoutHandler = new TimeoutHandler(requestId, connection.getNode(), action);
@@ -905,6 +923,7 @@ public class TransportService extends AbstractLifecycleComponent
                 assert options.timeout() != null;
                 timeoutHandler.scheduleTimeout(options.timeout());
             }
+            logger.trace("sending internal request id [{}] action [{}] request [{}] options [{}]", requestId, action, request, options);
             connection.sendRequest(requestId, action, request, options); // local node optimization happens upstream
         } catch (final Exception e) {
             handleInternalSendException(action, node, requestId, timeoutHandler, e);
@@ -1641,10 +1660,13 @@ public class TransportService extends AbstractLifecycleComponent
         assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // we can remove this whole block in v9
     }
 
-    private record UnregisterChildTransportResponseHandler<T extends TransportResponse> (
+    private record UnregisterChildTransportResponseHandler<T extends TransportResponse>(
         Releasable unregisterChildNode,
         TransportResponseHandler<T> handler,
-        String action
+        String action,
+        TransportRequest childRequest,
+        Transport.Connection childConnection,
+        TaskManager taskManager
     ) implements TransportResponseHandler<T> {
 
         @Override
@@ -1655,6 +1677,9 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void handleException(TransportException exp) {
+            assert childRequest.getParentTask().isSet();
+            taskManager.cancelChildRemote(childRequest.getParentTask(), childRequest.getRequestId(), childConnection, exp.toString());
+
             unregisterChildNode.close();
             handler.handleException(exp);
         }

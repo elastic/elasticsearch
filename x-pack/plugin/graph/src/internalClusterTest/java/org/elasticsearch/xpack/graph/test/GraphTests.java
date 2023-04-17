@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
@@ -147,7 +147,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         // Disable security otherwise authentication failures happen creating indices.
         Builder newSettings = Settings.builder();
         newSettings.put(super.nodeSettings());
-        newSettings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        newSettings.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         // newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         // newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);

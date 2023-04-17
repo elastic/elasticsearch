@@ -17,7 +17,7 @@ apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
   javaRestTestImplementation project(':test:fixtures:geoip-fixture')
-  javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart")))
+  javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
 }
 
 assert Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() == 8 :

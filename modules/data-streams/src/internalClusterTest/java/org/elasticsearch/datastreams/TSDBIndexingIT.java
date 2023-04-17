@@ -249,7 +249,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             assertThat(
                 e.getCause().getCause().getMessage(),
                 equalTo(
-                    "All fields that match routing_path must be keywords with [time_series_dimension: true] and "
+                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                         + "without the [script] parameter. [metricset] was not [time_series_dimension: true]."
                 )
             );
@@ -316,7 +317,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         assertThat(
             e.getCause().getCause().getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] and "
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                     + "without the [script] parameter. [metricset] was [long]."
             )
         );

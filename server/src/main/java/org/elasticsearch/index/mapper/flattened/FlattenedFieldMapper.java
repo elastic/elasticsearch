@@ -289,7 +289,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(
                     "All fields that match routing_path "
                         + "must be keywords with [time_series_dimension: true] "
-                        + "and without the [script] parameter. ["
+                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                        + "without the [script] parameter. ["
                         + this.rootName
                         + "."
                         + this.key
@@ -742,7 +743,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(
                     "All fields that match routing_path "
                         + "must be keywords with [time_series_dimension: true] "
-                        + "and without the [script] parameter. ["
+                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                        + "without the [script] parameter. ["
                         + name()
                         + "] was ["
                         + typeName()

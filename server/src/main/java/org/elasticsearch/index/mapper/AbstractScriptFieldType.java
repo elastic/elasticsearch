@@ -208,7 +208,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         throw new IllegalArgumentException(
             "All fields that match routing_path "
                 + "must be keywords with [time_series_dimension: true] "
-                + "and without the [script] parameter. ["
+                + "or flattened fields with a list of dimensions in [time_series_dimensions] "
+                + "and without the [script] parameter. [ "
                 + name()
                 + "] was a runtime ["
                 + typeName()

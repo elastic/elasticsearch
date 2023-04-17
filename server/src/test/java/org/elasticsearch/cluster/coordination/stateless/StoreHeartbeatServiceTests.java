@@ -168,7 +168,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
         PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
         final var currentLeader = new DiscoveryNode("master", buildNewFakeTransportAddress(), Version.CURRENT);
 
-        final long currentTerm = currentTermProvider.get();;
+        final long currentTerm = currentTermProvider.get();
         boolean termBumpBeforeStart = randomBoolean();
         if (termBumpBeforeStart) {
             currentTermProvider.incrementAndGet();

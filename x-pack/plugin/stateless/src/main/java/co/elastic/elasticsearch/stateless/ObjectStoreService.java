@@ -43,6 +43,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -74,6 +76,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -331,17 +334,27 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     public static Map<String, StoreFileMetadata> findSearchShardFiles(BlobContainer blobContainer) throws IOException {
         // TODO ES-5310 must block the primary from deleting anything while we sort out at which commit to start
-        // TODO ES-5258 This looks for a commit from the latest primary term only, is that sufficient?
+        // TODO ES-5869 Tracks the work to attempt previous primary terms if the current term lacks a commit
         final var allBlobs = Map.copyOf(blobContainer.listBlobs());
-        if (allBlobs.keySet().stream().noneMatch(s -> s.startsWith(IndexFileNames.SEGMENTS))) {
+        OptionalLong maxGeneration = allBlobs.keySet()
+            .stream()
+            .filter(s -> s.startsWith(StatelessCompoundCommit.NAME))
+            .map(s -> s.substring(StatelessCompoundCommit.NAME.length()))
+            .mapToLong(Long::parseLong)
+            .max();
+        if (maxGeneration.isEmpty()) {
             return Map.of();
         }
-        try (var directory = new SegmentInfoCachingDirectory(blobContainer, allBlobs)) {
+        String commitFileName = StatelessCompoundCommit.NAME + maxGeneration.getAsLong();
+        StatelessCompoundCommit compoundCommit;
+        try (StreamInput streamInput = new InputStreamStreamInput(blobContainer.readBlob(commitFileName))) {
+            compoundCommit = StatelessCompoundCommit.read(commitFileName, streamInput);
+        }
+        try (var directory = new SegmentInfoCachingDirectory(blobContainer, compoundCommit)) {
             // SegmentInfos#readLatestCommit lists segments_N files, picks the latest, then loads it and all the .si files it mentions:
             final var segmentInfos = SegmentInfos.readLatestCommit(directory);
             // TODO ES-5310 can now notify the primary which commit we're going to be using, allowing cleanup of other commits
 
-            // TODO ES-5258 search shards are not aware of previous primary terms
             final Collection<String> commitFiles = segmentInfos.files(true);
             final var blobs = new HashMap<String, StoreFileMetadata>();
             for (String commitFile : commitFiles) {

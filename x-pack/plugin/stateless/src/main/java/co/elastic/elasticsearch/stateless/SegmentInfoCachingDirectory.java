@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.BaseDirectory;
@@ -26,7 +28,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NoLockFactory;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.store.BytesReferenceIndexInput;
@@ -36,7 +37,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -48,18 +48,18 @@ import java.util.Set;
 public class SegmentInfoCachingDirectory extends BaseDirectory {
 
     private final BlobContainer blobContainer;
-    private final Map<String, BlobMetadata> blobMetadataByName;
+    private final StatelessCompoundCommit compoundCommit;
     private final Map<String, BytesReference> blobContentsByName = new HashMap<>();
 
-    public SegmentInfoCachingDirectory(BlobContainer blobContainer, Map<String, BlobMetadata> blobMetadataByName) {
+    public SegmentInfoCachingDirectory(BlobContainer blobContainer, StatelessCompoundCommit compoundCommit) {
         super(NoLockFactory.INSTANCE);
         this.blobContainer = blobContainer;
-        this.blobMetadataByName = Collections.unmodifiableMap(blobMetadataByName);
+        this.compoundCommit = compoundCommit;
     }
 
     @Override
     public String[] listAll() {
-        return blobMetadataByName.keySet().toArray(new String[0]);
+        return compoundCommit.commitFiles().keySet().toArray(new String[0]);
     }
 
     @Override
@@ -70,11 +70,11 @@ public class SegmentInfoCachingDirectory extends BaseDirectory {
 
     @Override
     public long fileLength(String name) throws IOException {
-        var blobMetadata = blobMetadataByName.get(name);
-        if (blobMetadata == null) {
+        var blobLocation = compoundCommit.commitFiles().get(name);
+        if (blobLocation == null) {
             throw new FileNotFoundException(name);
         }
-        return blobMetadata.length();
+        return blobLocation.length();
     }
 
     @Override
@@ -107,7 +107,7 @@ public class SegmentInfoCachingDirectory extends BaseDirectory {
         throw new UnsupportedOperationException();
     }
 
-    public static boolean isCached(String name) {
+    private static boolean isCached(String name) {
         return name.startsWith(IndexFileNames.SEGMENTS) || IndexFileNames.matchesExtension(name, "si");
     }
 
@@ -117,15 +117,15 @@ public class SegmentInfoCachingDirectory extends BaseDirectory {
             assert false : name;
             throw new UnsupportedOperationException(name);
         }
-        final var blobMetadata = blobMetadataByName.get(name);
-        if (blobMetadata == null) {
+        final var blobLocation = compoundCommit.commitFiles().get(name);
+        if (blobLocation == null) {
             throw new FileNotFoundException(name);
         }
         try {
             return new BytesReferenceIndexInput(name, blobContentsByName.computeIfAbsent(name, n -> {
                 try (
-                    var bso = new BytesStreamOutput(Math.toIntExact(blobMetadata.length()));
-                    var inputStream = blobContainer.readBlob(name)
+                    var bso = new BytesStreamOutput(Math.toIntExact(blobLocation.length()));
+                    var inputStream = blobContainer.readBlob(blobLocation.blobName(), blobLocation.offset(), blobLocation.length())
                 ) {
                     Streams.copy(inputStream, bso);
                     return bso.bytes();
@@ -148,10 +148,5 @@ public class SegmentInfoCachingDirectory extends BaseDirectory {
     @Override
     public Set<String> getPendingDeletions() {
         return Set.of();
-    }
-
-    public boolean assertFileInCache(String name) {
-        assert blobContentsByName.containsKey(name) : name;
-        return true;
     }
 }

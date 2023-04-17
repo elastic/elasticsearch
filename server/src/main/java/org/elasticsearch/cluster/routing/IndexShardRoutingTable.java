@@ -613,7 +613,7 @@ public class IndexShardRoutingTable {
             assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
             assert noDuplicatePrimary(shards) : "expected but did not find unique primary in shard routing table: " + shards;
             assert noAssignedReplicaWithoutActivePrimary(shards) : "unexpected assigned replica with no active primary: " + shards;
-`            assert noRelocatingUnsearchableShards(shards) : "unexpected RELOCATING unsearchable shard: " + shards;
+            assert noRelocatingUnsearchableShards(shards) : "unexpected RELOCATING unsearchable shard: " + shards;
             return new IndexShardRoutingTable(shardId, shards);
         }
 

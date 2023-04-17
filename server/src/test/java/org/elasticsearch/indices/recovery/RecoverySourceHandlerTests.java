@@ -101,10 +101,12 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.stream.Collectors;
@@ -784,8 +786,30 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         assertFalse(phase2Called.get());
     }
 
-    @SuppressWarnings("unchecked")
     public void testCancellationsDoesNotLeakPrimaryPermits() throws Exception {
+        runPrimaryPermitsLeakTest((shard, cancellableThreads) -> {
+            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads);
+        });
+    }
+
+    public void testCancellationsDoesNotLeakPrimaryPermitsAsync() throws Exception {
+        runPrimaryPermitsLeakTest((shard, cancellableThreads) -> {
+            PlainActionFuture.<Void, RuntimeException>get(
+                future -> RecoverySourceHandler.runUnderPrimaryPermit(
+                    listener -> listener.onResponse(null),
+                    "test",
+                    shard,
+                    cancellableThreads,
+                    future
+                ),
+                10,
+                TimeUnit.SECONDS
+            );
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void runPrimaryPermitsLeakTest(BiConsumer<IndexShard, CancellableThreads> acquireAndReleasePermit) throws Exception {
         final CancellableThreads cancellableThreads = new CancellableThreads();
         final IndexShard shard = mock(IndexShard.class);
         final AtomicBoolean freed = new AtomicBoolean(true);
@@ -799,7 +823,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();
         try {
-            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads);
+            acquireAndReleasePermit.accept(shard, cancellableThreads);
         } catch (CancellableThreads.ExecutionCancelledException e) {
             // expected.
         }

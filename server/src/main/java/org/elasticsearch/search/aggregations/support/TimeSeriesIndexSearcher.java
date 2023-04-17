@@ -54,12 +54,18 @@ public class TimeSeriesIndexSearcher {
     private final boolean timestampReverse;
 
     public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations) {
-        this.searcher = new ContextIndexSearcher(
-            searcher.getIndexReader(),
-            searcher.getSimilarity(),
-            searcher.getQueryCache(),
-            searcher.getQueryCachingPolicy()
-        );
+        try {
+            this.searcher = new ContextIndexSearcher(
+                searcher.getIndexReader(),
+                searcher.getSimilarity(),
+                searcher.getQueryCache(),
+                searcher.getQueryCachingPolicy(),
+                false
+            );
+        } catch (IOException e) {
+            // IOException from wrapping the index searcher which should never happen.
+            throw new RuntimeException(e);
+        }
         this.cancellations = cancellations;
         cancellations.forEach(cancellation -> this.searcher.addQueryCancellation(cancellation));
 

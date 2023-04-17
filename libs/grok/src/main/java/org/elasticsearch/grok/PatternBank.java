@@ -27,6 +27,14 @@ public record PatternBank(Map<String, String> bank) {
         return bank.get(patternName);
     }
 
+    /**
+     * Extends a pattern bank with extra patterns, returning a new pattern bank.
+     * <p>
+     * The returned bank will be the same reference as the original pattern bank if the extra patterns map is null or empty.
+     *
+     * @param extraPatterns the patterns to extend this bank with (may be empty or null)
+     * @return the extended pattern bank
+     */
     public PatternBank extendWith(Map<String, String> extraPatterns) {
         if (extraPatterns == null || extraPatterns.isEmpty()) {
             return this;

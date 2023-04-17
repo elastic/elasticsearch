@@ -283,7 +283,7 @@ public class SearchApplicationIndexService {
                     .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
                     .directFieldAsBase64(
                         SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(),
-                        os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().nodes().getMinNodeVersion())
+                        os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().getMinTransportVersion())
                     )
                     .endObject();
             }
@@ -463,12 +463,13 @@ public class SearchApplicationIndexService {
         return new SearchApplication(in);
     }
 
-    static void writeSearchApplicationBinaryWithVersion(SearchApplication app, OutputStream os, Version minNodeVersion) throws IOException {
+    static void writeSearchApplicationBinaryWithVersion(SearchApplication app, OutputStream os, TransportVersion minTransportVersion)
+        throws IOException {
         // do not close the output
         os = Streams.noCloseStream(os);
-        TransportVersion.writeVersion(minNodeVersion.transportVersion, new OutputStreamStreamOutput(os));
+        TransportVersion.writeVersion(minTransportVersion, new OutputStreamStreamOutput(os));
         try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
-            out.setTransportVersion(minNodeVersion.transportVersion);
+            out.setTransportVersion(minTransportVersion);
             app.writeTo(out);
         }
     }

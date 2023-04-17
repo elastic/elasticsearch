@@ -213,8 +213,8 @@ public class QueryPhase {
         final List<Collector> collectedCollectors;
         if ((timeoutRunnable != null && searchContext.request().allowPartialSearchResults())
             || searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
-            // We need to handle the case when we allow partial results. Because we are not using
-            // lucene in-built timout, we need to run the reduce phase ourseleves. Hence, we collect
+            // We need to handle the case when the execution is exception driven (timeouts and early termination).
+            // In this case, we need to run the reduce phase ourselves, hence we collect
             // here the top level collectors.
             collectedCollectors = new ArrayList<>();
             final CollectorManager<Collector, Void> in = manager;
@@ -266,7 +266,7 @@ public class QueryPhase {
         // Search phase has finished, no longer need to check for timeout
         // otherwise reduction phase might get cancelled.
         searcher.removeQueryCancellation(timeoutRunnable);
-        // reduce our collectors to collect partial results
+        // Reduce our collectors to collect partial results
         manager.reduce(collectedCollectors);
     }
 

@@ -59,7 +59,6 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -78,6 +77,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * A field mapper that accepts a JSON object and flattens it into a single field. This data type
@@ -108,6 +108,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "flattened";
     public static final String KEYED_FIELD_SUFFIX = "._keyed";
+    public static final String TIME_SERIES_DIMENSIONS_ARRAY_PARAM = "time_series_dimensions";
 
     private static class Defaults {
         public static final int DEPTH_LIMIT = 20;
@@ -162,23 +163,25 @@ public final class FlattenedFieldMapper extends FieldMapper {
             m -> builder(m).splitQueriesOnWhitespace.get(),
             false
         );
-        private final Parameter<List<String>> dimensions = TimeSeriesParams.dimensionsParam(m -> builder(m).dimensions.get())
-            .addValidator(v -> {
-                if (v.isEmpty() == false && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
-                    throw new IllegalArgumentException(
-                        "Field ["
-                            + TimeSeriesParams.TIME_SERIES_DIMENSIONS_ARRAY_PARAM
-                            + "] requires that ["
-                            + indexed.name
-                            + "] and ["
-                            + hasDocValues.name
-                            + "] are true"
-                    );
-                }
-            })
-            .precludesParameters(ignoreAbove);
+        private final Parameter<List<String>> dimensions = dimensionsParam(m -> builder(m).dimensions.get()).addValidator(v -> {
+            if (v.isEmpty() == false && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                throw new IllegalArgumentException(
+                    "Field ["
+                        + TIME_SERIES_DIMENSIONS_ARRAY_PARAM
+                        + "] requires that ["
+                        + indexed.name
+                        + "] and ["
+                        + hasDocValues.name
+                        + "] are true"
+                );
+            }
+        }).precludesParameters(ignoreAbove);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
+            return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
+        }
 
         public Builder(String name) {
             super(name);

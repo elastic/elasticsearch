@@ -107,7 +107,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
 
         // bulk-write with wrong args
-        expectThrows(IllegalArgumentException.class, () -> out.writeBytes(new byte[] {}, 0, 1));
+        expectThrows(IndexOutOfBoundsException.class, () -> out.writeBytes(new byte[] {}, 0, 1));
         out.close();
     }
 

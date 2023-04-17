@@ -38,8 +38,8 @@ import java.util.Arrays;
  *
  * <li>
  *     (f)or encoding: encodes numeric fields in such a way to store the initial value and then the XOR between each value and the previous
- *     one, making delta encoding much more effective. Values sharing common values for higher bits will require less bits when delta encoded.
- *     This is expected to be effective especially with floating point values sharing a common exponent and sign bit.
+ *     one, making delta encoding much more effective. Values sharing common values for higher bits will require less bits when delta
+ *     encoded. This is expected to be effective especially with floating point values sharing a common exponent and sign bit.
  * </li>
  * </ul>
  *

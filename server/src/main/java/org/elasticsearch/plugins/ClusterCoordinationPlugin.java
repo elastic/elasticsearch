@@ -11,6 +11,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
+import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -59,6 +60,10 @@ public interface ClusterCoordinationPlugin {
     }
 
     default Optional<PreVoteCollector.Factory> getPreVoteCollectorFactory() {
+        return Optional.empty();
+    }
+
+    default Optional<LeaderHeartbeatService> getLeaderHeartbeatService(Settings settings) {
         return Optional.empty();
     }
 

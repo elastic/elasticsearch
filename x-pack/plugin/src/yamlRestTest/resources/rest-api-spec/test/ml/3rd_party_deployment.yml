@@ -483,3 +483,42 @@ setup:
         model_id: test_model
         deployment_id: test_model_deployment
         wait_for: started
+
+---
+"Test cannot start when deployment Id matches a different model":
+  - do:
+      catch: /Deployment id \[another_test_model\] is the same as an another model which is not the model being deployed. Deployment id can be the same as the model being deployed but cannot match a different model/
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        deployment_id: another_test_model
+
+---
+"Test start deployment with default Id":
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        wait_for: started
+  - match: {assignment.assignment_state: started}
+  - match: {assignment.task_parameters.model_id: test_model}
+  - match: {assignment.task_parameters.deployment_id: test_model}
+
+---
+"Test cannot create model with a deployment Id":
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        wait_for: started
+        deployment_id: test_model_deployment
+  - match: {assignment.assignment_state: started}
+
+  - do:
+      catch: /Cannot create model \[test_model_deployment\] the id is the same as an current model deployment/
+      ml.put_trained_model:
+        model_id: test_model_deployment
+        body: >
+          {
+            "model_type": "pytorch",
+            "inference_config": {
+              "ner": { }
+            }
+          }

@@ -10,6 +10,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -735,7 +737,18 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         });
         final Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.CURRENT);
-        sender.sendRequest(connection, "action", mock(TransportRequest.class), null, new TransportResponseHandler<>() {
+        final String action;
+        final TransportRequest request;
+        final boolean clusterStateAction = randomBoolean();
+        if (clusterStateAction) {
+            action = ClusterStateAction.NAME;
+            request = mock(ClusterStateRequest.class);
+        } else {
+            action = randomAlphaOfLengthBetween(5, 30);
+            request = mock(TransportRequest.class);
+        }
+
+        sender.sendRequest(connection, action, request, null, new TransportResponseHandler<>() {
             @Override
             public void handleResponse(TransportResponse response) {
                 // Headers should get restored before handle response is called
@@ -754,7 +767,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 return null;
             }
         });
-        if (authType.equals("internal")) {
+        if (authType.equals("internal") || clusterStateAction) {
             assertThat(
                 sentCrossClusterAccessSubjectInfo.get(),
                 equalTo(

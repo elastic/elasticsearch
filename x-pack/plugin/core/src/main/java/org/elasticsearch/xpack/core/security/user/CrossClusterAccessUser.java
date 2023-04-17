@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -23,8 +26,28 @@ public class CrossClusterAccessUser extends User {
 
     public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
-        new String[] { "cross_cluster_access" },
-        null,
+        new String[] {
+            "cross_cluster_access",
+            // TODO: add a named cluster privilege to cover following CCR actions
+            ClusterStateAction.NAME,
+            XPackInfoAction.NAME },
+        // Needed for CCR background jobs (with system user)
+        new RoleDescriptor.IndicesPrivileges[] {
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices("*")
+                .privileges(
+                    RetentionLeaseActions.Add.ACTION_NAME,
+                    RetentionLeaseActions.Remove.ACTION_NAME,
+                    RetentionLeaseActions.Renew.ACTION_NAME,
+                    "indices:monitor/stats",
+                    "indices:admin/ccr/restore/session/put",
+                    "indices:admin/ccr/restore/session/clear",
+                    "internal:transport/proxy/indices:admin/ccr/restore/session/clear",
+                    "indices:admin/ccr/restore/file_chunk/get",
+                    "internal:transport/proxy/indices:admin/ccr/restore/file_chunk/get"
+                )
+                .allowRestrictedIndices(true)
+                .build() },
         null,
         null,
         null,

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -66,6 +67,14 @@ import static org.elasticsearch.xpack.security.transport.RemoteClusterCredential
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
+    private static final Map<String, String> RCS_ACTION_NAME_LOOKUP = Map.of(
+        "internal:admin/ccr/restore/session/put",
+        "indices:admin/ccr/restore/session/put",
+        "internal:admin/ccr/restore/session/clear",
+        "indices:admin/ccr/restore/session/clear",
+        "internal:admin/ccr/restore/file_chunk/get",
+        "indices:admin/ccr/restore/file_chunk/get"
+    );
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
@@ -326,14 +335,26 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 assert authentication != null : "authentication must be present in security context";
 
                 final User user = authentication.getEffectiveSubject().getUser();
-                if (SystemUser.is(user)) {
-                    logger.trace(
-                        "Request [{}] for action [{}] towards [{}] initiated by the system user. "
-                            + "Sending request with internal cross cluster access user headers",
-                        request.getClass(),
-                        action,
-                        remoteClusterAlias
-                    );
+                if (SystemUser.is(user) || action.equals(ClusterStateAction.NAME)) {
+                    if (SystemUser.is(user)) {
+                        logger.trace(
+                            "Request [{}] for action [{}] towards [{}] initiated by the system user. "
+                                + "Sending request with internal cross cluster access user headers",
+                            request.getClass(),
+                            action,
+                            remoteClusterAlias
+                        );
+                    } else {
+                        // Use system user for cluster state requests (CCR has many calls of cluster state with end-user context)
+                        logger.trace(
+                            () -> format(
+                                "Switching to internal cross cluster access user for cluster state action towards [{}]. "
+                                    + "Original user is [%s]",
+                                remoteClusterAlias,
+                                user
+                            )
+                        );
+                    }
                     final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
                         remoteClusterCredentials.credentials(),
                         CrossClusterAccessUser.subjectInfo(
@@ -341,7 +362,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             authentication.getEffectiveSubject().getRealm().getNodeName()
                         )
                     );
-                    sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, action, request, options, handler);
+                    final String effectiveAction = RCS_ACTION_NAME_LOOKUP.getOrDefault(action, action);
+                    if (false == effectiveAction.equals(action)) {
+                        logger.info("switching action from [{}] to [{}]", action, effectiveAction);
+                    }
+                    sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, effectiveAction, request, options, handler);
                 } else if (User.isInternal(user)) {
                     final String message = "Internal user [" + user.principal() + "] should not be used for cross cluster requests";
                     assert false : message;

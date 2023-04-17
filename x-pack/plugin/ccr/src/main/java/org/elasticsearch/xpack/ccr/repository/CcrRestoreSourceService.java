@@ -121,6 +121,20 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         }
     }
 
+    public void ensureSessionShardIdConsistency(String sessionUUID, ShardId shardId) {
+        RestoreSession restore = onGoingRestores.get(sessionUUID);
+        if (restore == null) {
+            logger.debug("could not get session [{}] because session not found", sessionUUID);
+            throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
+        }
+        final ShardId sessionShardId = restore.indexShard.shardId();
+        if (false == sessionShardId.equals(shardId)) {
+            throw new IllegalArgumentException(
+                "session [" + sessionUUID + "] shardId [" + sessionShardId + "] does not match requested shardId [" + shardId + "]"
+            );
+        }
+    }
+
     public void closeSession(String sessionUUID) {
         internalCloseSession(sessionUUID, true);
     }

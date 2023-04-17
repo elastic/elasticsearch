@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -26,32 +27,40 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> {
 
-    public static final GetCcrRestoreFileChunkAction INSTANCE = new GetCcrRestoreFileChunkAction();
-    public static final String NAME = "internal:admin/ccr/restore/file_chunk/get";
+    public static final GetCcrRestoreFileChunkAction INTERNAL_INSTANCE = new GetCcrRestoreFileChunkAction();
+    public static final String INTERNAL_NAME = "internal:admin/ccr/restore/file_chunk/get";
+    public static final String NAME = "indices:admin/ccr/restore/file_chunk/get";
+    public static final GetCcrRestoreFileChunkAction INSTANCE = new GetCcrRestoreFileChunkAction(NAME);
 
     private GetCcrRestoreFileChunkAction() {
-        super(NAME, GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse::new);
+        this(INTERNAL_NAME);
     }
 
-    public static class TransportGetCcrRestoreFileChunkAction extends HandledTransportAction<
+    private GetCcrRestoreFileChunkAction(String name) {
+        super(name, GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse::new);
+    }
+
+    public abstract static class TransportGetCcrRestoreFileChunkAction extends HandledTransportAction<
         GetCcrRestoreFileChunkRequest,
         GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> {
 
         private final CcrRestoreSourceService restoreSourceService;
         private final BigArrays bigArrays;
 
-        @Inject
-        public TransportGetCcrRestoreFileChunkAction(
+        private TransportGetCcrRestoreFileChunkAction(
+            String actionName,
             BigArrays bigArrays,
             TransportService transportService,
             ActionFilters actionFilters,
             CcrRestoreSourceService restoreSourceService
         ) {
-            super(NAME, transportService, actionFilters, GetCcrRestoreFileChunkRequest::new, ThreadPool.Names.GENERIC);
-            TransportActionProxy.registerProxyAction(transportService, NAME, false, GetCcrRestoreFileChunkResponse::new);
+            super(actionName, transportService, actionFilters, GetCcrRestoreFileChunkRequest::new, ThreadPool.Names.GENERIC);
+            TransportActionProxy.registerProxyAction(transportService, actionName, false, GetCcrRestoreFileChunkResponse::new);
             this.restoreSourceService = restoreSourceService;
             this.bigArrays = bigArrays;
         }
@@ -62,9 +71,17 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             GetCcrRestoreFileChunkRequest request,
             ActionListener<GetCcrRestoreFileChunkResponse> listener
         ) {
+            final ShardId shardId = request.getShardId();
+            if (shardId != null) {
+                restoreSourceService.ensureSessionShardIdConsistency(request.getSessionUUID(), shardId);
+            }
             int bytesRequested = request.getSize();
             ByteArray array = bigArrays.newByteArray(bytesRequested, false);
             String fileName = request.getFileName();
+            final Path normalizedFilePath = Paths.get(fileName).normalize();
+            if (normalizedFilePath.startsWith(".") || normalizedFilePath.startsWith("..")) {
+                throw new IllegalArgumentException("invalid file name [" + fileName + "]");
+            }
             String sessionUUID = request.getSessionUUID();
             BytesReference pagedBytesReference = BytesReference.fromByteArray(array, bytesRequested);
             try (ReleasableBytesReference reference = new ReleasableBytesReference(pagedBytesReference, array)) {
@@ -76,6 +93,31 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             } catch (IOException e) {
                 listener.onFailure(e);
             }
+        }
+    }
+
+    public static class InternalTransportAction extends TransportGetCcrRestoreFileChunkAction {
+        @Inject
+        public InternalTransportAction(
+            BigArrays bigArrays,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            CcrRestoreSourceService restoreSourceService
+        ) {
+            super(INTERNAL_NAME, bigArrays, transportService, actionFilters, restoreSourceService);
+        }
+
+    }
+
+    public static class TransportAction extends TransportGetCcrRestoreFileChunkAction {
+        @Inject
+        public TransportAction(
+            BigArrays bigArrays,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            CcrRestoreSourceService restoreSourceService
+        ) {
+            super(NAME, bigArrays, transportService, actionFilters, restoreSourceService);
         }
     }
 

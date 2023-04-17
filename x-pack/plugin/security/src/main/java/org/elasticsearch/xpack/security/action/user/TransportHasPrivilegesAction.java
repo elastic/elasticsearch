@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -29,6 +30,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 
 /**
  * Transport action that tests whether the currently authenticated user has the specified
@@ -57,8 +60,17 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     @Override
     protected void doExecute(Task task, HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
         final String username = request.username();
-        final Subject subject = securityContext.getAuthentication().getEffectiveSubject();
-        if (subject.getUser().principal().equals(username) == false) {
+        final Authentication authentication = securityContext.getAuthentication();
+        final Subject subject = authentication.getEffectiveSubject();
+        if (authentication.isCrossClusterAccess()) {
+            final Subject innerSubject = ((Authentication) authentication.getAuthenticatingSubject()
+                .getMetadata()
+                .get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)).getEffectiveSubject();
+            if (innerSubject.getUser().principal().equals(username) == false) {
+                listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));
+                return;
+            }
+        } else if (subject.getUser().principal().equals(username) == false) {
             listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));
             return;
         }

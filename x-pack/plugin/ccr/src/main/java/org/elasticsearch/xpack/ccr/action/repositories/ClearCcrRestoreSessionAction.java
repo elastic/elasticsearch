@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -21,34 +22,62 @@ import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
 public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empty> {
 
-    public static final ClearCcrRestoreSessionAction INSTANCE = new ClearCcrRestoreSessionAction();
-    public static final String NAME = "internal:admin/ccr/restore/session/clear";
+    public static final ClearCcrRestoreSessionAction INTERNAL_INSTANCE = new ClearCcrRestoreSessionAction();
+    public static final String INTERNAL_NAME = "internal:admin/ccr/restore/session/clear";
+    public static final String NAME = "indices:admin/ccr/restore/session/clear";
+    public static final ClearCcrRestoreSessionAction INSTANCE = new ClearCcrRestoreSessionAction(NAME);
 
     private ClearCcrRestoreSessionAction() {
-        super(NAME, in -> ActionResponse.Empty.INSTANCE);
+        this(INTERNAL_NAME);
     }
 
-    public static class TransportDeleteCcrRestoreSessionAction extends HandledTransportAction<
+    private ClearCcrRestoreSessionAction(String name) {
+        super(name, in -> ActionResponse.Empty.INSTANCE);
+    }
+
+    private abstract static class TransportDeleteCcrRestoreSessionAction extends HandledTransportAction<
         ClearCcrRestoreSessionRequest,
         ActionResponse.Empty> {
 
         private final CcrRestoreSourceService ccrRestoreService;
 
-        @Inject
-        public TransportDeleteCcrRestoreSessionAction(
+        private TransportDeleteCcrRestoreSessionAction(
+            String actionName,
             ActionFilters actionFilters,
             TransportService transportService,
             CcrRestoreSourceService ccrRestoreService
         ) {
-            super(NAME, transportService, actionFilters, ClearCcrRestoreSessionRequest::new, ThreadPool.Names.GENERIC);
-            TransportActionProxy.registerProxyAction(transportService, NAME, false, in -> ActionResponse.Empty.INSTANCE);
+            super(actionName, transportService, actionFilters, ClearCcrRestoreSessionRequest::new, ThreadPool.Names.GENERIC);
+            TransportActionProxy.registerProxyAction(transportService, actionName, false, in -> ActionResponse.Empty.INSTANCE);
             this.ccrRestoreService = ccrRestoreService;
         }
 
         @Override
         protected void doExecute(Task task, ClearCcrRestoreSessionRequest request, ActionListener<ActionResponse.Empty> listener) {
+            final ShardId shardId = request.getShardId();
+            if (shardId != null) {
+                ccrRestoreService.ensureSessionShardIdConsistency(request.getSessionUUID(), shardId);
+            }
             ccrRestoreService.closeSession(request.getSessionUUID());
             listener.onResponse(ActionResponse.Empty.INSTANCE);
+        }
+    }
+
+    public static class InternalTransportAction extends TransportDeleteCcrRestoreSessionAction {
+        @Inject
+        public InternalTransportAction(
+            ActionFilters actionFilters,
+            TransportService transportService,
+            CcrRestoreSourceService ccrRestoreService
+        ) {
+            super(INTERNAL_NAME, actionFilters, transportService, ccrRestoreService);
+        }
+    }
+
+    public static class TransportAction extends TransportDeleteCcrRestoreSessionAction {
+        @Inject
+        public TransportAction(ActionFilters actionFilters, TransportService transportService, CcrRestoreSourceService ccrRestoreService) {
+            super(NAME, actionFilters, transportService, ccrRestoreService);
         }
     }
 }

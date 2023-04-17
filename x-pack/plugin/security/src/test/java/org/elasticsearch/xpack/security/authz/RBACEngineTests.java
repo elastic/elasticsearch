@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -45,6 +46,9 @@ import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -54,6 +58,7 @@ import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
@@ -412,6 +417,22 @@ public class RBACEngineTests extends ESTestCase {
         final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(new User("not-joe"), apiKeyId)
             .runAs(user, new Authentication.RealmRef("name", "type", randomAlphaOfLengthBetween(3, 8)));
         assertFalse(RBACEngine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
+    }
+
+    public void testSameUserPermissionForCrossClusterAccess() {
+        final CrossClusterAccessSubjectInfo ccaSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
+        final Authentication authentication = AuthenticationTestHelper.builder().apiKey().build().toCrossClusterAccess(ccaSubjectInfo);
+
+        // HasPrivileges is allowed
+        final HasPrivilegesRequest hasPrivilegesRequest = new HasPrivilegesRequest();
+        hasPrivilegesRequest.username(ccaSubjectInfo.getAuthentication().getEffectiveSubject().getUser().principal());
+        assertTrue(RBACEngine.checkSameUserPermissions(HasPrivilegesAction.NAME, hasPrivilegesRequest, authentication));
+
+        // Other actions, e.g. GetUserPrivilegesAction, are not allowed even if they are allowed when performing within a single cluster
+        final GetUserPrivilegesRequest getUserPrivilegesRequest = new GetUserPrivilegesRequestBuilder(mock(ElasticsearchClient.class))
+            .username(ccaSubjectInfo.getAuthentication().getEffectiveSubject().getUser().principal())
+            .request();
+        assertFalse(RBACEngine.checkSameUserPermissions(GetUserPrivilegesAction.NAME, getUserPrivilegesRequest, authentication));
     }
 
     /**

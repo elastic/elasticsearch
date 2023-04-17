@@ -64,7 +64,7 @@ public class ThreadedActionListenerTests extends ESTestCase {
                                         return;
                                     }
                                     assertEquals(1, e.getSuppressed().length);
-                                    if (e.getSuppressed()[0]instanceof ElasticsearchException elasticsearchException) {
+                                    if (e.getSuppressed()[0] instanceof ElasticsearchException elasticsearchException) {
                                         e = elasticsearchException;
                                         assertNull(e.getCause());
                                     } else {

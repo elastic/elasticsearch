@@ -15,19 +15,20 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportPostStartBasicAction extends TransportMasterNodeAction<PostStartBasicRequest, PostStartBasicResponse> {
 
-    private final ClusterStateLicenseService clusterStateLicenseService;
+    private final MutableLicenseService licenseService;
 
     @Inject
     public TransportPostStartBasicAction(
         TransportService transportService,
         ClusterService clusterService,
-        ClusterStateLicenseService clusterStateLicenseService,
+        MutableLicenseService licenseService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -43,7 +44,7 @@ public class TransportPostStartBasicAction extends TransportMasterNodeAction<Pos
             PostStartBasicResponse::new,
             ThreadPool.Names.SAME
         );
-        this.clusterStateLicenseService = clusterStateLicenseService;
+        this.licenseService = licenseService;
     }
 
     @Override
@@ -53,7 +54,7 @@ public class TransportPostStartBasicAction extends TransportMasterNodeAction<Pos
         ClusterState state,
         ActionListener<PostStartBasicResponse> listener
     ) throws Exception {
-        clusterStateLicenseService.startBasicLicense(request, listener);
+        licenseService.startBasicLicense(request, listener);
     }
 
     @Override

@@ -1,0 +1,75 @@
+setup:
+  - skip:
+      features: allowed_warnings
+      version: " - 8.7.99"
+      reason: "data lifecycles only supported in 8.8+"
+  - do:
+      allowed_warnings:
+        - "index template [my-lifecycle] has index patterns [my-data-stream-1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-lifecycle] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-lifecycle
+        body:
+          index_patterns: [my-data-stream-1]
+          template:
+            settings:
+              index.number_of_replicas: 0
+            lifecycle:
+              data_retention: "10d"
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-1
+
+---
+"Get data lifecycle":
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "*"
+  - length: { data_streams: 1}
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.lifecycle.data_retention: '10d' }
+
+---
+"Get data lifecycle when at least one data stream does not exist":
+
+  - do:
+      catch:  missing
+      indices.get_data_lifecycle:
+        name: "my-data-stream-1,does-not-exist"
+  - match: { error.reason: "no such index [does-not-exist]" }
+
+---
+"Put data lifecycle does not succeed when at lease one data stream does not exist":
+
+  - do:
+      catch:  missing
+      indices.put_data_lifecycle:
+        name: "my-data-stream-1,does-not-exist"
+        body:
+          data_retention: '30d'
+  - match: { error.reason: "no such index [does-not-exist]" }
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "*"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.lifecycle.data_retention: '10d' }
+
+---
+"Delete data lifecycle does not succeed when at lease one data stream does not exist":
+
+  - do:
+      catch:  missing
+      indices.delete_data_lifecycle:
+        name: "my-data-stream-1,does-not-exist"
+  - match: { error.reason: "no such index [does-not-exist]" }
+
+  - do:
+      indices.get_data_lifecycle:
+        name: "*"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: my-data-stream-1 }
+  - match: { data_streams.0.lifecycle.data_retention: '10d' }

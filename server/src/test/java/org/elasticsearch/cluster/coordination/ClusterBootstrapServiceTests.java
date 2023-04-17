@@ -109,9 +109,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             settings.put(UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.getKey(), timeout + "ms");
         }
 
-        final AtomicReference<Supplier<Iterable<DiscoveryNode>>> discoveredNodesSupplier = new AtomicReference<>(
-            () -> { throw new AssertionError("should not be called yet"); }
-        );
+        final AtomicReference<Supplier<Iterable<DiscoveryNode>>> discoveredNodesSupplier = new AtomicReference<>(() -> {
+            throw new AssertionError("should not be called yet");
+        });
 
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
@@ -165,13 +165,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     private void testDoesNothingWithSettings(Settings.Builder builder) {
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            builder.build(),
-            transportService,
-            () -> { throw new AssertionError("should not be called"); },
-            () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
-        );
+        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(builder.build(), transportService, () -> {
+            throw new AssertionError("should not be called");
+        }, () -> false, vc -> { throw new AssertionError("should not be called"); });
         transportService.start();
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
         deterministicTaskQueue.runAllTasks();
@@ -185,7 +181,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 transportService,
                 Collections::emptyList,
                 () -> false,
-                vc -> { throw new AssertionError("should not be called"); }
+                vc -> {
+                    throw new AssertionError("should not be called");
+                }
             )
         );
 
@@ -309,7 +307,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             Collections::emptyList,
             () -> true,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -332,7 +332,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(otherNode1).toList(),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -356,7 +358,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(otherNode1, otherNode2).toList(),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -372,7 +376,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(otherNode1, otherNode2).toList(),
             () -> true,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -396,7 +402,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).toList(),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -409,7 +417,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).toList(),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -422,7 +432,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).toList(),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
         transportService.start();
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
@@ -461,7 +473,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             discoveredNodes::get,
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -482,7 +496,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             discoveredNodes::get,
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -568,7 +584,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             Collections::emptyList,
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -681,7 +699,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 transportService,
                 Collections::emptyList,
                 () -> false,
-                vc -> { throw new AssertionError("should not be called"); }
+                vc -> {
+                    throw new AssertionError("should not be called");
+                }
             ).logBootstrapState(metadataBuilder.build());
 
             mockAppender.assertAllExpectationsMatched();
@@ -695,13 +715,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 )
             );
 
-            new ClusterBootstrapService(
-                Settings.EMPTY,
-                transportService,
-                Collections::emptyList,
-                () -> false,
-                vc -> { throw new AssertionError("should not be called"); }
-            ).logBootstrapState(Metadata.builder().clusterUUID("test-uuid").clusterUUIDCommitted(true).build());
+            new ClusterBootstrapService(Settings.EMPTY, transportService, Collections::emptyList, () -> false, vc -> {
+                throw new AssertionError("should not be called");
+            }).logBootstrapState(Metadata.builder().clusterUUID("test-uuid").clusterUUIDCommitted(true).build());
 
             mockAppender.assertAllExpectationsMatched();
 
@@ -725,7 +741,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 transportService,
                 Collections::emptyList,
                 () -> false,
-                vc -> { throw new AssertionError("should not be called"); }
+                vc -> {
+                    throw new AssertionError("should not be called");
+                }
             ).logBootstrapState(Metadata.builder().clusterUUID("test-uuid").clusterUUIDCommitted(true).build());
 
             mockAppender.assertAllExpectationsMatched();

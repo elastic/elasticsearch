@@ -24,6 +24,7 @@ public class PutTrainedModelActionRequestTests extends AbstractWireSerializingTe
             TrainedModelConfigTests.createTestInstance(modelId, false)
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .build(),
+            randomBoolean(),
             randomBoolean()
         );
     }

@@ -129,6 +129,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
                                 TrainedModelAssignment.Builder.empty(
                                     new StartTrainedModelDeploymentAction.TaskParams(
                                         "model1",
+                                        "deployment1",
                                         MODEL_MEMORY_REQUIREMENT,
                                         1,
                                         1,

@@ -42,7 +42,7 @@ public class VersionFieldMapperTests extends MetadataMapperTestCase {
     public void testIncludeInObjectNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source(b -> b.field("_version", 1))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> docMapper.parse(source(b -> b.field("_version", 1))));
 
         assertThat(e.getCause().getMessage(), containsString("Field [_version] is a metadata field and cannot be added inside a document"));
     }

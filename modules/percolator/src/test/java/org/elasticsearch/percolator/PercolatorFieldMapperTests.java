@@ -29,6 +29,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -46,6 +47,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -562,14 +564,9 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 )
             );
         BytesRef qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name()).get(0).binaryValue();
-        SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
-            randomInt(20),
-            0,
-            null,
-            () -> { throw new UnsupportedOperationException(); },
-            null,
-            emptyMap()
-        );
+        SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
+            throw new UnsupportedOperationException();
+        }, null, emptyMap());
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(queryBuilder, searchExecutionContext, future);
         assertQueryBuilder(qbSource, future.get());
@@ -577,7 +574,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testPercolatorFieldMapperUnMappedField() throws Exception {
         addQueryFieldMappings();
-        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> {
+        DocumentParsingException exception = expectThrows(DocumentParsingException.class, () -> {
             mapperService.documentMapper()
                 .parse(
                     new SourceToParse(
@@ -610,8 +607,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                         XContentType.JSON
                     )
                 );
-        } catch (MapperParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("query malformed, must start with start_object"));
+        } catch (DocumentParsingException e) {
+            assertThat(e.getMessage(), containsString("query malformed, must start with start_object"));
         }
     }
 
@@ -740,7 +737,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         queryBuilderAsBytes = doc.rootDoc().getField("object_field.query_field.query_builder_field").binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> {
             mapperService.documentMapper()
                 .parse(
                     new SourceToParse(
@@ -826,6 +823,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 // then the length of the field value in bytes.
                 input.readVInt();
                 input.readVInt();
+                TransportVersion.readVersion(input);
                 QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                 assertThat(queryBuilder, equalTo(expected));
             }
@@ -889,6 +887,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 // then the length of the field value in bytes.
                 input.readVInt();
                 input.readVInt();
+                TransportVersion.readVersion(input);
                 ScriptQueryBuilder queryBuilder = (ScriptQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
                 assertEquals(Script.DEFAULT_SCRIPT_LANG, queryBuilder.script().getLang());
             }
@@ -931,6 +930,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), writableRegistry())) {
                 input.readVInt();
                 input.readVInt();
+                TransportVersion.readVersion(input);
                 FunctionScoreQueryBuilder queryBuilder = (FunctionScoreQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
                 ScriptScoreFunctionBuilder function = (ScriptScoreFunctionBuilder) queryBuilder.filterFunctionBuilders()[0]
                     .getScoreFunction();

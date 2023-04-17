@@ -25,7 +25,7 @@ public class SizeValue implements Writeable, Comparable<SizeValue> {
 
     public static void validateUnit(String unit) {
         if (VALUE_SET.contains(unit) == false) {
-            throw new ElasticsearchParseException("Failed to parse size unit [" + unit +  "]");
+            throw new ElasticsearchParseException("Failed to parse size unit [" + unit + "]");
         }
     }
 

@@ -36,7 +36,7 @@ public class TimeValue implements Comparable<TimeValue> {
 
     public static void validateUnit(String unit) {
         if (VALUE_SET.contains(unit) == false) {
-            throw new IllegalArgumentException("Failed to parse byte size unit [" + unit +  "]");
+            throw new IllegalArgumentException("Failed to parse byte size unit [" + unit + "]");
         }
     }
 

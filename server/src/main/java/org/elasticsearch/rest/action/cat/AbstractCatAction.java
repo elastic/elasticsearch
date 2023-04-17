@@ -11,7 +11,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.core.TimeValue;

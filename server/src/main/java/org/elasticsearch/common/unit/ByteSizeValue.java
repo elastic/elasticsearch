@@ -42,7 +42,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     public static void validateUnit(String unit) {
         if (VALUE_SET.contains(unit) == false) {
-            throw new ElasticsearchParseException("Failed to parse byte size unit [" + unit +  "]");
+            throw new ElasticsearchParseException("Failed to parse byte size unit [" + unit + "]");
         }
     }
 

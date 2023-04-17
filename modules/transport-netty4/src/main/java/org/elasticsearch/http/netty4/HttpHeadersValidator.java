@@ -30,7 +30,7 @@ import java.util.Objects;
 import static org.elasticsearch.http.netty4.Netty4HttpRequest.getHttpHeadersAsMap;
 import static org.elasticsearch.http.netty4.Netty4HttpRequest.translateRequestMethod;
 
-public final class HttpHeadersValidator {
+public class HttpHeadersValidator {
 
     /**
      * Trivial {@link HttpHeadersValidator} implementation, to be used in tests, that successfully validates

@@ -39,6 +39,7 @@ import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -53,9 +54,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.CorsHandler;
+import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
+import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationResultContext;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -75,6 +78,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -643,11 +647,183 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
     }
 
+    public void testHttpHeadersSuccessfulValidation() throws InterruptedException {
+        final Settings settings = createSettings();
+        final AtomicReference<HttpMethod> httpMethodReference = new AtomicReference<>();
+        final AtomicReference<String> urlReference = new AtomicReference<>();
+        final AtomicReference<String> headerReference = new AtomicReference<>();
+        final AtomicReference<String> headerValueReference = new AtomicReference<>();
+        final AtomicReference<ValidationResultContext> validationResultContextReference = new AtomicReference<>();
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                assertThat(
+                    HttpHeadersValidator.extractValidationContext(request.getHttpRequest()),
+                    is(validationResultContextReference.get())
+                );
+                assertThat(request.getHttpRequest().uri(), is(urlReference.get()));
+                assertThat(request.getHttpRequest().header(headerReference.get()), is(headerValueReference.get()));
+                assertThat(request.getHttpRequest().method(), is(translateRequestMethod(httpMethodReference.get())));
+                channel.sendResponse(new RestResponse(OK, RestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                throw new AssertionError();
+            }
+        };
+        final HttpHeadersValidator successHeadersValidator = new HttpHeadersValidator(
+            ((httpPreRequest, channel, validationResultContextActionListener) -> {
+                assertThat(httpPreRequest.uri(), is(urlReference.get()));
+                assertThat(httpPreRequest.header(headerReference.get()), is(headerValueReference.get()));
+                assertThat(httpPreRequest.method(), is(translateRequestMethod(httpMethodReference.get())));
+                validationResultContextActionListener.onResponse(validationResultContextReference.get());
+            })
+        );
+        try (
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                settings,
+                networkService,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(settings),
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null,
+                successHeadersValidator
+            )
+        ) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+            for (HttpMethod httpMethod : List.of(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.PATCH)) {
+                httpMethodReference.set(httpMethod);
+                urlReference.set(
+                    "/"
+                        + randomAlphaOfLengthBetween(4, 8)
+                        + "?X-"
+                        + randomAlphaOfLengthBetween(4, 8)
+                        + "="
+                        + randomAlphaOfLengthBetween(4, 8)
+                );
+                headerReference.set("X-" + randomAlphaOfLengthBetween(4, 8));
+                headerValueReference.set(randomAlphaOfLengthBetween(4, 8));
+                validationResultContextReference.set(() -> {});
+                try (Netty4HttpClient client = new Netty4HttpClient()) {
+                    FullHttpRequest request = new DefaultFullHttpRequest(
+                        HttpVersion.HTTP_1_1,
+                        httpMethodReference.get(),
+                        urlReference.get()
+                    );
+                    request.headers().set(headerReference.get(), headerValueReference.get());
+                    FullHttpResponse response = client.send(remoteAddress.address(), request);
+                    assertThat(response.status(), is(HttpResponseStatus.OK));
+                }
+            }
+        }
+    }
+
+    public void testHttpHeadersFailedValidation() throws InterruptedException {
+        final Settings settings = createSettings();
+        final AtomicReference<HttpMethod> httpMethodReference = new AtomicReference<>();
+        final AtomicReference<String> urlReference = new AtomicReference<>();
+        final AtomicReference<String> headerReference = new AtomicReference<>();
+        final AtomicReference<String> headerValueReference = new AtomicReference<>();
+        final AtomicReference<Exception> validationResultExceptionReference = new AtomicReference<>();
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                throw new AssertionError();
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                assertThat(cause, instanceOf(HttpHeadersValidationException.class));
+                assertThat(((ElasticsearchWrapperException) cause).getCause(), is(validationResultExceptionReference.get()));
+                assertThat(channel.request().getHttpRequest().uri(), is(urlReference.get()));
+                assertThat(channel.request().getHttpRequest().header(headerReference.get()), is(headerValueReference.get()));
+                assertThat(channel.request().getHttpRequest().method(), is(translateRequestMethod(httpMethodReference.get())));
+                try {
+                    channel.sendResponse(new RestResponse(channel, (Exception) ((ElasticsearchWrapperException) cause).getCause()));
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        };
+        final HttpHeadersValidator failureHeadersValidator = new HttpHeadersValidator(
+            ((httpPreRequest, channel, validationResultContextActionListener) -> {
+                assertThat(httpPreRequest.uri(), is(urlReference.get()));
+                assertThat(httpPreRequest.header(headerReference.get()), is(headerValueReference.get()));
+                assertThat(httpPreRequest.method(), is(translateRequestMethod(httpMethodReference.get())));
+                validationResultContextActionListener.onFailure(validationResultExceptionReference.get());
+            })
+        );
+        try (
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                settings,
+                networkService,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(settings),
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null,
+                failureHeadersValidator
+            )
+        ) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+            for (HttpMethod httpMethod : List.of(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE, HttpMethod.PATCH)) {
+                httpMethodReference.set(httpMethod);
+                urlReference.set(
+                    "/"
+                        + randomAlphaOfLengthBetween(4, 8)
+                        + "?X-"
+                        + randomAlphaOfLengthBetween(4, 8)
+                        + "="
+                        + randomAlphaOfLengthBetween(4, 8)
+                );
+                headerReference.set("X-" + randomAlphaOfLengthBetween(4, 8));
+                headerValueReference.set(randomAlphaOfLengthBetween(4, 8));
+                validationResultExceptionReference.set(new Exception());
+                try (Netty4HttpClient client = new Netty4HttpClient()) {
+                    FullHttpRequest request = new DefaultFullHttpRequest(
+                        HttpVersion.HTTP_1_1,
+                        httpMethodReference.get(),
+                        urlReference.get()
+                    );
+                    request.headers().set(headerReference.get(), headerValueReference.get());
+                    FullHttpResponse response = client.send(remoteAddress.address(), request);
+                    assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
+                }
+            }
+        }
+    }
+
     private Settings createSettings() {
         return createBuilderWithPort().build();
     }
 
     private Settings.Builder createBuilderWithPort() {
         return Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange());
+    }
+
+    private static RestRequest.Method translateRequestMethod(HttpMethod httpMethod) {
+        if (httpMethod == HttpMethod.GET) return RestRequest.Method.GET;
+
+        if (httpMethod == HttpMethod.POST) return RestRequest.Method.POST;
+
+        if (httpMethod == HttpMethod.PUT) return RestRequest.Method.PUT;
+
+        if (httpMethod == HttpMethod.DELETE) return RestRequest.Method.DELETE;
+
+        if (httpMethod == HttpMethod.PATCH) {
+            return RestRequest.Method.PATCH;
+        }
+
+        throw new IllegalArgumentException("Unexpected http method: " + httpMethod);
     }
 }

@@ -1,5 +1,5 @@
 pr: 95273
-summary: Support flattened fields as tsdb dimension fields
+summary: Support flattened fields as time series dimension fields
 area: TSDB
 type: feature
 issues: []

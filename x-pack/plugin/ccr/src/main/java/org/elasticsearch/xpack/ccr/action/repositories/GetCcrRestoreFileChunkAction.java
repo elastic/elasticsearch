@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> {
 
@@ -80,7 +80,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             ByteArray array = bigArrays.newByteArray(bytesRequested, false);
             String fileName = request.getFileName();
             // Ensure no file system traversal is possible
-            final Path normalizedFilePath = Paths.get(fileName).normalize();
+            final Path normalizedFilePath = PathUtils.get(fileName).normalize();
             if (normalizedFilePath.startsWith(".") || normalizedFilePath.startsWith("..")) {
                 throw new IllegalArgumentException("invalid file name [" + fileName + "]");
             }

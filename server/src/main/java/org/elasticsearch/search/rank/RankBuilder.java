@@ -48,7 +48,7 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
         doWriteTo(out);
     }
 
-    public abstract void doWriteTo(StreamOutput out) throws IOException;
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

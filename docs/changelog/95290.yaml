@@ -1,0 +1,5 @@
+pr: 95290
+summary: Remove unused deprecation logger in rest multi search action.
+area: Search
+type: Non-Issue
+issues: []

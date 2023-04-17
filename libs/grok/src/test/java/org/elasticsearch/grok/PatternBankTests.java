@@ -25,8 +25,8 @@ public class PatternBankTests extends ESTestCase {
     }
 
     public void testBankCannotBeNull() {
-        var e = expectThrows(AssertionError.class, () -> new PatternBank(null));
-        assertEquals("pattern bank must not be null", e.getMessage());
+        var e = expectThrows(NullPointerException.class, () -> new PatternBank(null));
+        assertEquals("bank must not be null", e.getMessage());
     }
 
     public void testConstructorValidatesCircularReferences() {

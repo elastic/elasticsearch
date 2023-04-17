@@ -12,13 +12,14 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public record PatternBank(Map<String, String> bank) {
 
     public static PatternBank EMPTY = new PatternBank(Map.of());
 
     public PatternBank {
-        assert bank != null : "pattern bank must not be null";
+        Objects.requireNonNull(bank, "bank must not be null");
         bank = Map.copyOf(bank);
         forbidCircularReferences(bank);
     }

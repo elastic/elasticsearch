@@ -38,8 +38,8 @@ public class SearchFiltersAnalyticsEventFieldTests extends AnalyticsEventFieldPa
             randomDouble(),
             randomBoolean(),
             randomMap(1, 10, () -> new Tuple<>(randomIdentifier(), randomIdentifier())),
-            randomList(10, ESTestCase::randomInt),
-            randomList(10, ESTestCase::randomBoolean)
+            randomList(1, 10, ESTestCase::randomInt),
+            randomList(1, 10, ESTestCase::randomBoolean)
         );
 
         for (Object value : invalidValues) {

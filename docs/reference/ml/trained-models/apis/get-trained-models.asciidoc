@@ -76,7 +76,7 @@ options are:
     it was specified by the user or tuned during hyperparameter optimization.
  - `total_feature_importance`: Includes the total {feat-imp} for the training
    data set.
- - `download_status`: Includes the field `is_fully_downloaded` indicating if the
+ - `definition_status`: Includes the field `fully_defined` indicating if the
 full model definition is present.
 The baseline and total {feat-imp} values are returned in the `metadata` field
 in the response body.
@@ -931,10 +931,10 @@ The input field names for the model definition.
 An array of input field names for the model.
 =====
 
-`is_fully_downloaded`::
+`fully_defined`::
 (boolean)
 True if the full model definition is present.
-This field is only present if `include=download_status` was specified in the request.
+This field is only present if `include=definition_status` was specified in the request.
 
 // Begin location
 `location`::

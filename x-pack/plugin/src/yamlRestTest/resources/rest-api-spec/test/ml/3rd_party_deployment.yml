@@ -385,5 +385,5 @@ setup:
   - do:
       ml.get_trained_models:
         model_id: test_model
-        include: download_status
-  - match: { trained_model_configs.0.is_fully_downloaded: true }
+        include: definition_status
+  - match: { trained_model_configs.0.fully_defined: true }

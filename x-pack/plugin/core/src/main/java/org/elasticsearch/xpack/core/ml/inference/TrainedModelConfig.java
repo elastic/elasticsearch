@@ -71,7 +71,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
     public static final String HYPERPARAMETERS = "hyperparameters";
     public static final String MODEL_ALIASES = "model_aliases";
-    public static final String DOWNLOAD_STATUS = "download_status";
+    public static final String DEFINITION_STATUS = "definition_status";
 
     private static final String ESTIMATED_HEAP_MEMORY_USAGE_HUMAN = "estimated_heap_memory_usage";
     private static final String MODEL_SIZE_HUMAN = "model_size";
@@ -188,7 +188,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     private final LazyModelDefinition definition;
     private final TrainedModelLocation location;
     private final ModelPackageConfig modelPackageConfig;
-    private Boolean downloadStatus;
+    private Boolean fullDefinition;
 
     TrainedModelConfig(
         String modelId,
@@ -268,10 +268,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             modelPackageConfig = in.readOptionalWriteable(ModelPackageConfig::new);
-            downloadStatus = in.readOptionalBoolean();
+            fullDefinition = in.readOptionalBoolean();
         } else {
             modelPackageConfig = null;
-            downloadStatus = null;
+            fullDefinition = null;
         }
     }
 
@@ -399,8 +399,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return Optional.ofNullable(inferenceConfig).map(InferenceConfig::isAllocateOnly).orElse(false);
     }
 
-    public void setDownloadStatus(boolean downloadStatus) {
-        this.downloadStatus = downloadStatus;
+    public void setFullDefinition(boolean fullDefinition) {
+        this.fullDefinition = fullDefinition;
     }
 
     @Override
@@ -431,7 +431,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeOptionalWriteable(modelPackageConfig);
-            out.writeOptionalBoolean(downloadStatus);
+            out.writeOptionalBoolean(fullDefinition);
         }
     }
 
@@ -492,8 +492,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (location != null) {
             writeNamedObject(builder, params, LOCATION.getPreferredName(), location);
         }
-        if (params.paramAsBoolean(DOWNLOAD_STATUS, false) && downloadStatus != null) {
-            builder.field("is_fully_downloaded", downloadStatus);
+        if (params.paramAsBoolean(DEFINITION_STATUS, false) && fullDefinition != null) {
+            builder.field("fully_defined", fullDefinition);
         }
         builder.endObject();
         return builder;

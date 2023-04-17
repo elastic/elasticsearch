@@ -87,7 +87,7 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                 configs.get(0).getModelId(),
                 configs.get(0).getLocation().getResourceName(),
                 ActionListener.wrap(isDownloaded -> {
-                    configs.get(0).setDownloadStatus(isDownloaded);
+                    configs.get(0).setFullDefinition(isDownloaded);
                     listener.onResponse(responseBuilder.setModels(configs).build());
                 }, listener::onFailure)
             );

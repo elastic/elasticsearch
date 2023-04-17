@@ -30,7 +30,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * The builder to support RRF. Adds user-defined parameters for window size and rank constant.
  */
-public class RRFRankBuilder extends RankBuilder<RRFRankBuilder> {
+public class RRFRankBuilder extends RankBuilder {
 
     public static final int DEFAULT_RANK_CONSTANT = 60;
 
@@ -104,8 +104,8 @@ public class RRFRankBuilder extends RankBuilder<RRFRankBuilder> {
     }
 
     @Override
-    protected boolean doEquals(RRFRankBuilder other) {
-        return Objects.equals(rankConstant, other.rankConstant);
+    protected boolean doEquals(RankBuilder other) {
+        return Objects.equals(rankConstant, ((RRFRankBuilder) other).rankConstant);
     }
 
     @Override

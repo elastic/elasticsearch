@@ -135,7 +135,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private List<KnnSearchBuilder> knnSearch = new ArrayList<>();
 
-    private RankBuilder<?> rankBuilder = null;
+    private RankBuilder rankBuilder = null;
 
     private int from = -1;
 
@@ -400,12 +400,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return Collections.unmodifiableList(knnSearch);
     }
 
-    public SearchSourceBuilder rankBuilder(RankBuilder<?> rankBuilder) {
+    public SearchSourceBuilder rankBuilder(RankBuilder rankBuilder) {
         this.rankBuilder = rankBuilder;
         return this;
     }
 
-    public RankBuilder<?> rankBuilder() {
+    public RankBuilder rankBuilder() {
         return rankBuilder;
     }
 

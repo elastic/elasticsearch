@@ -27,7 +27,7 @@ import java.util.Objects;
  * and subsequent generation of appropriate contexts for handling searches that
  * require multiple queries for global rank relevance.
  */
-public abstract class RankBuilder<RCB extends RankBuilder<RCB>> implements VersionedNamedWriteable, ToXContentObject {
+public abstract class RankBuilder implements VersionedNamedWriteable, ToXContentObject {
 
     public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
 
@@ -86,11 +86,11 @@ public abstract class RankBuilder<RCB extends RankBuilder<RCB>> implements Versi
             return false;
         }
         @SuppressWarnings("unchecked")
-        RCB other = (RCB) obj;
+        RankBuilder other = (RankBuilder) obj;
         return Objects.equals(windowSize, other.windowSize()) && doEquals(other);
     }
 
-    protected abstract boolean doEquals(RCB other);
+    protected abstract boolean doEquals(RankBuilder other);
 
     @Override
     public final int hashCode() {

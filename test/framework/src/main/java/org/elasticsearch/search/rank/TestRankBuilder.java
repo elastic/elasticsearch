@@ -22,7 +22,7 @@ import java.util.List;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class TestRankBuilder extends RankBuilder<TestRankBuilder> {
+public class TestRankBuilder extends RankBuilder {
 
     public static final String NAME = "rank_test";
 
@@ -82,7 +82,7 @@ public class TestRankBuilder extends RankBuilder<TestRankBuilder> {
     }
 
     @Override
-    protected boolean doEquals(TestRankBuilder other) {
+    protected boolean doEquals(RankBuilder other) {
         return true;
     }
 

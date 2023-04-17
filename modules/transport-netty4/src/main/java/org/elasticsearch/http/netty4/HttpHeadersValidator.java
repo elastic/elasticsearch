@@ -14,6 +14,7 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpRequest;
+
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.TriConsumer;
@@ -35,7 +36,7 @@ public final class HttpHeadersValidator {
      * Trivial {@link HttpHeadersValidator} implementation, to be used in tests, that successfully validates
      * any and all HTTP request headers.
      */
-    public final static HttpHeadersValidator VALIDATE_EVERYTHING_VALIDATOR = new HttpHeadersValidator(
+    public static final HttpHeadersValidator VALIDATE_EVERYTHING_VALIDATOR = new HttpHeadersValidator(
         (httpPreRequest, channel, listener) -> listener.onResponse(ValidatableHttpHeaders.OK)
     );
 

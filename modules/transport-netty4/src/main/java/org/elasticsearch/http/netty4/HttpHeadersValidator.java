@@ -68,7 +68,8 @@ public class HttpHeadersValidator {
         });
     }
 
-    public HttpMessage wrapAsValidatableMessage(HttpMessage newlyDecodedMessage) {
+    public static HttpMessage wrapAsValidatableMessage(HttpMessage newlyDecodedMessage) {
+        assert newlyDecodedMessage instanceof HttpRequest;
         DefaultHttpRequest httpRequest = (DefaultHttpRequest) newlyDecodedMessage;
         ValidatableHttpHeaders validatableHttpHeaders = new ValidatableHttpHeaders(newlyDecodedMessage.headers());
         return new DefaultHttpRequest(httpRequest.protocolVersion(), httpRequest.method(), httpRequest.uri(), validatableHttpHeaders);

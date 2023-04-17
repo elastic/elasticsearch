@@ -155,17 +155,17 @@ public class Netty4HttpRequest implements HttpRequest {
 
     @Override
     public HttpRequest removeHeader(String header) {
-        HttpHeaders headersWithoutContentTypeHeader = request.headers().copy();
-        headersWithoutContentTypeHeader.remove(header);
-        HttpHeaders trailingHeaders = request.trailingHeaders().copy();
-        trailingHeaders.remove(header);
+        HttpHeaders copiedHeadersWithout = request.headers().copy();
+        copiedHeadersWithout.remove(header);
+        HttpHeaders copiedTrailingHeadersWithout = request.trailingHeaders().copy();
+        copiedTrailingHeadersWithout.remove(header);
         FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(
             request.protocolVersion(),
             request.method(),
             request.uri(),
             request.content(),
-            headersWithoutContentTypeHeader,
-            trailingHeaders
+            copiedHeadersWithout,
+            copiedTrailingHeadersWithout
         );
         return new Netty4HttpRequest(sequence, requestWithoutHeader, released, pooled, content);
     }

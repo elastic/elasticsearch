@@ -35,12 +35,14 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
@@ -79,6 +81,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
@@ -262,6 +265,28 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         MultiGetResponse multiGetResponse = client().prepareMultiGet().addIds(indexName, id, id2).get();
         assertTrue(multiGetResponse.getResponses()[0].getResponse().isExists());
         assertTrue(multiGetResponse.getResponses()[1].getResponse().isExists());
+    }
+
+    public void testBulkRequestFailureWithWaitUntilRefresh() throws Exception {
+        startIndexNodes(numShards);
+        startSearchNodes(numReplicas);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        var bulkResponse = client().prepareBulk()
+            .add(client().prepareUpdate(indexName, "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2"))
+            .setRefreshPolicy(WAIT_UNTIL)
+            .get();
+        assertThat(bulkResponse.getItems().length, equalTo(1));
+        assertThat(bulkResponse.getItems()[0].getFailure().getCause(), instanceOf(DocumentMissingException.class));
     }
 
     public void testSearchShardsNotifiedOnNewCommits() throws Exception {

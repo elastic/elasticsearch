@@ -31,7 +31,6 @@ public class SearchFiltersAnalyticsEventFieldTests extends AnalyticsEventFieldPa
         // No invalid field since we are parsing a map.
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95230")
     public void testParsingInvalidFiltersValues() throws IOException {
 
         List<Object> invalidValues = List.of(
@@ -39,8 +38,8 @@ public class SearchFiltersAnalyticsEventFieldTests extends AnalyticsEventFieldPa
             randomDouble(),
             randomBoolean(),
             randomMap(1, 10, () -> new Tuple<>(randomIdentifier(), randomIdentifier())),
-            randomList(10, ESTestCase::randomInt),
-            randomList(10, ESTestCase::randomBoolean)
+            randomList(1, 10, ESTestCase::randomInt),
+            randomList(1, 10, ESTestCase::randomBoolean)
         );
 
         for (Object value : invalidValues) {

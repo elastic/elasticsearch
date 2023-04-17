@@ -15,7 +15,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankShardContext;
-import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * The builder to support RRF. Adds user-defined parameters for window size and rank constant.
@@ -34,18 +36,25 @@ public class RRFRankBuilder extends RankBuilder<RRFRankBuilder> {
 
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
-    static final ObjectParser<RRFRankBuilder, Void> PARSER = new ObjectParser<>(RankRRFPlugin.NAME);
+    static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>(RankRRFPlugin.NAME, args -> {
+        int windowSize = args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0];
+        int rankConstant = args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1];
+        if (rankConstant < 1) {
+            throw new IllegalArgumentException("[rank_constant] must be greater than [0] for [rrf]");
+        }
+        return new RRFRankBuilder(windowSize, rankConstant);
+    });
 
     static {
-        PARSER.declareInt(RRFRankBuilder::windowSize, WINDOW_SIZE_FIELD);
-        PARSER.declareInt(RRFRankBuilder::rankConstant, RANK_CONSTANT_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), WINDOW_SIZE_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), RANK_CONSTANT_FIELD);
     }
 
     public static RRFRankBuilder fromXContent(XContentParser parser) throws IOException {
         if (RankRRFPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
         }
-        return PARSER.parse(parser, new RRFRankBuilder(), null);
+        return PARSER.parse(parser, null);
     }
 
     @Override
@@ -53,9 +62,12 @@ public class RRFRankBuilder extends RankBuilder<RRFRankBuilder> {
         builder.field(RANK_CONSTANT_FIELD.getPreferredName(), rankConstant);
     }
 
-    private int rankConstant = DEFAULT_RANK_CONSTANT;
+    private final int rankConstant;
 
-    public RRFRankBuilder() {}
+    public RRFRankBuilder(int windowSize, int rankConstant) {
+        super(windowSize);
+        this.rankConstant = rankConstant;
+    }
 
     public RRFRankBuilder(StreamInput in) throws IOException {
         super(in);
@@ -75,14 +87,6 @@ public class RRFRankBuilder extends RankBuilder<RRFRankBuilder> {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.V_8_8_0;
-    }
-
-    public RRFRankBuilder rankConstant(int rankConstant) {
-        if (rankConstant < 1) {
-            throw new IllegalArgumentException("[rank_constant] must be greater than [0] for [rrf]");
-        }
-        this.rankConstant = rankConstant;
-        return this;
     }
 
     public int rankConstant() {

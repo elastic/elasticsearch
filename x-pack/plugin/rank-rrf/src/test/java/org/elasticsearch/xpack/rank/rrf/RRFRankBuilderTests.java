@@ -18,25 +18,16 @@ public class RRFRankBuilderTests extends AbstractXContentSerializingTestCase<RRF
 
     @Override
     protected RRFRankBuilder createTestInstance() {
-        RRFRankBuilder builder = new RRFRankBuilder();
-        if (frequently()) {
-            builder.rankConstant(randomIntBetween(1, Integer.MAX_VALUE));
-        }
-        if (frequently()) {
-            builder.windowSize(randomIntBetween(0, 10000));
-        }
-        return builder;
+        return new RRFRankBuilder(randomIntBetween(0, 100000), randomIntBetween(1, Integer.MAX_VALUE));
     }
 
     @Override
     protected RRFRankBuilder mutateInstance(RRFRankBuilder instance) throws IOException {
-        RRFRankBuilder builder = new RRFRankBuilder();
         if (randomBoolean()) {
-            builder.rankConstant(instance.rankConstant() == 1 ? 2 : instance.rankConstant() - 1);
+            return new RRFRankBuilder(instance.windowSize(), instance.rankConstant() == 1 ? 2 : instance.rankConstant() - 1);
         } else {
-            builder.windowSize(builder.windowSize() == 0 ? 1 : builder.windowSize() - 1);
+            return new RRFRankBuilder(instance.windowSize() == 0 ? 1 : instance.windowSize() - 1, instance.rankConstant());
         }
-        return builder;
     }
 
     @Override
@@ -51,7 +42,7 @@ public class RRFRankBuilderTests extends AbstractXContentSerializingTestCase<RRF
         parser.nextToken();
         assertEquals(parser.currentToken(), XContentParser.Token.FIELD_NAME);
         assertEquals(parser.currentName(), RankRRFPlugin.NAME);
-        RRFRankBuilder builder = RRFRankBuilder.PARSER.parse(parser, new RRFRankBuilder(), null);
+        RRFRankBuilder builder = RRFRankBuilder.PARSER.parse(parser, null);
         parser.nextToken();
         Assert.assertEquals(parser.currentToken(), XContentParser.Token.END_OBJECT);
         parser.nextToken();

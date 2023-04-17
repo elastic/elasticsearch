@@ -12,40 +12,39 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.test.ESTestCase.frequently;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class TestRankBuilder extends RankBuilder<TestRankBuilder> {
 
     public static final String NAME = "rank_test";
 
-    static final ObjectParser<TestRankBuilder, Void> PARSER = new ObjectParser<>(NAME);
+    static final ConstructingObjectParser<TestRankBuilder, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        args -> new TestRankBuilder(args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0])
+    );
 
     static {
-        PARSER.declareInt(TestRankBuilder::windowSize, WINDOW_SIZE_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), WINDOW_SIZE_FIELD);
     }
 
     public static TestRankBuilder fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new TestRankBuilder(), null);
+        return PARSER.parse(parser, null);
     }
 
     public static TestRankBuilder randomRankBuilder() {
-        TestRankBuilder testRankBuilder = new TestRankBuilder();
-        if (frequently()) {
-            testRankBuilder.windowSize(randomIntBetween(0, 10000));
-        }
-        return testRankBuilder;
+        return new TestRankBuilder(randomIntBetween(0, 100000));
     }
 
-    public TestRankBuilder() {
-        super();
+    public TestRankBuilder(int windowSize) {
+        super(windowSize);
     }
 
     public TestRankBuilder(StreamInput in) throws IOException {

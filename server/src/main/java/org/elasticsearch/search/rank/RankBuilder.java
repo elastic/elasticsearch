@@ -33,9 +33,11 @@ public abstract class RankBuilder<RCB extends RankBuilder<RCB>> implements Versi
 
     public static final int DEFAULT_WINDOW_SIZE = SearchService.DEFAULT_SIZE;
 
-    private int windowSize = DEFAULT_WINDOW_SIZE;
+    private final int windowSize;
 
-    public RankBuilder() {}
+    public RankBuilder(int windowSize) {
+        this.windowSize = windowSize;
+    }
 
     public RankBuilder(StreamInput in) throws IOException {
         windowSize = in.readVInt();
@@ -60,12 +62,6 @@ public abstract class RankBuilder<RCB extends RankBuilder<RCB>> implements Versi
     }
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
-
-    @SuppressWarnings("unchecked")
-    public RCB windowSize(int windowSize) {
-        this.windowSize = windowSize;
-        return (RCB) this;
-    }
 
     public int windowSize() {
         return windowSize;

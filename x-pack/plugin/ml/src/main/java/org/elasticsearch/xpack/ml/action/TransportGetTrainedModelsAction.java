@@ -65,8 +65,8 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
 
         Response.Builder responseBuilder = Response.builder();
 
-        ActionListener<List<TrainedModelConfig>> getModelDownloadStatusListener = ActionListener.wrap(configs -> {
-            if (request.getIncludes().isIncludeDownloadStatus() == false) {
+        ActionListener<List<TrainedModelConfig>> getModelDefinitionStatusListener = ActionListener.wrap(configs -> {
+            if (request.getIncludes().isIncludeDefinitionStatus() == false) {
                 listener.onResponse(responseBuilder.setModels(configs).build());
                 return;
             }
@@ -78,11 +78,11 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
             }
 
             if (configs.get(0).getModelType() != TrainedModelType.PYTORCH) {
-                listener.onFailure(ExceptionsHelper.badRequestException("The download status is only relevant to PyTorch model types"));
+                listener.onFailure(ExceptionsHelper.badRequestException("Definition status is only relevant to PyTorch model types"));
                 return;
             }
 
-            downloadStatus(
+            definitionStatus(
                 new OriginSettingClient(client, ML_ORIGIN),
                 configs.get(0).getModelId(),
                 configs.get(0).getLocation().getResourceName(),
@@ -106,7 +106,7 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                 return;
             }
 
-            if (request.getIncludes().isIncludeDownloadStatus() && totalAndIds.v2().size() > 1) {
+            if (request.getIncludes().isIncludeDefinitionStatus() && totalAndIds.v2().size() > 1) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "Getting the model download status is not supported when getting more than one model"
@@ -123,8 +123,8 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                     request.getIncludes(),
                     parentTaskId,
                     ActionListener.wrap(
-                        config -> getModelDownloadStatusListener.onResponse(Collections.singletonList(config)),
-                        getModelDownloadStatusListener::onFailure
+                        config -> getModelDefinitionStatusListener.onResponse(Collections.singletonList(config)),
+                        getModelDefinitionStatusListener::onFailure
                     )
                 );
             } else {
@@ -133,7 +133,7 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                     request.getIncludes(),
                     request.isAllowNoResources(),
                     parentTaskId,
-                    getModelDownloadStatusListener
+                    getModelDefinitionStatusListener
                 );
             }
         }, listener::onFailure);
@@ -148,7 +148,7 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
         );
     }
 
-    private void downloadStatus(Client client, String modelId, String index, ActionListener<Boolean> listener) {
+    private void definitionStatus(Client client, String modelId, String index, ActionListener<Boolean> listener) {
         client.prepareSearch(index)
             .setQuery(
                 QueryBuilders.constantScoreQuery(

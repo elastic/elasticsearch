@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper.AuthenticationTestBuilder;
-import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -26,6 +25,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_NAME_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class XContentUtilsTests extends ESTestCase {
@@ -72,21 +72,15 @@ public class XContentUtilsTests extends ESTestCase {
     }
 
     public void testAddAuthorizationInfoWithCrossClusterAccess() throws IOException {
-        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
-            AuthenticationTestHelper.builder().build()
-        );
-        assert false == crossClusterAccessSubjectInfo.getAuthentication().isCrossClusterAccess();
-        final Authentication authentication = AuthenticationTestHelper.builder()
-            .apiKey()
-            .build()
-            .toCrossClusterAccess(crossClusterAccessSubjectInfo);
+        final Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
         final var apiKeyName = (String) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_NAME_KEY);
+        final var innerAuthentication = (Authentication) authentication.getAuthenticatingSubject()
+            .getMetadata()
+            .get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
 
         // Rely on the target function itself to generate the json string for inner authentication.
         // This is OK because other subject variants are tested elsewhere. We are only interested in the cross cluster variant here.
-        String innerAuthenticationString = generateJson(
-            Map.of(AuthenticationField.AUTHENTICATION_KEY, crossClusterAccessSubjectInfo.getAuthentication().encode())
-        );
+        String innerAuthenticationString = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, innerAuthentication.encode()));
         innerAuthenticationString = innerAuthenticationString.replace("{\"authorization\":", "");
         innerAuthenticationString = innerAuthenticationString.substring(0, innerAuthenticationString.length() - 1);
 

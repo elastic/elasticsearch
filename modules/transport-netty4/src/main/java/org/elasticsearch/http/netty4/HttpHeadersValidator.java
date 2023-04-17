@@ -14,7 +14,6 @@ import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpRequest;
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.TriConsumer;
@@ -122,13 +121,18 @@ public final class HttpHeadersValidator {
             }
         }
 
+        /**
+         * Must be called at most once in order to mark the http headers as successfully validated.
+         * The intent of the {@link ValidationResultContext} parameter is to associate some details about the validation
+         * that can be later retrieved when dispatching the request.
+         */
         public void markAsSuccessfullyValidated(ValidationResultContext validationResultContext) {
             this.validationResultContextSetOnce.set(Objects.requireNonNull(validationResultContext));
         }
 
         @Override
         public HttpHeaders copy() {
-            // copy but STILL CARRY the same validation result
+            // copy the headers but also STILL CARRY the same validation result
             return new ValidatableHttpHeaders(super.copy(), validationResultContextSetOnce.get());
         }
     }

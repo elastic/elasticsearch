@@ -1438,6 +1438,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(monitoringUserRole, metricsPrefix + "system.cpu-default");
         assertNoAccessAllowed(monitoringUserRole, metricsPrefix + "elastic_agent.filebeat-default");
 
+        assertOnlyReadAllowed(monitoringUserRole, metricsPrefix + "elasticsearch");
         assertOnlyReadAllowed(monitoringUserRole, metricsPrefix + "elasticsearch.stack_monitoring.cluster_stats-default");
         assertOnlyReadAllowed(monitoringUserRole, metricsPrefix + "elasticsearch.ingest_pipeline-default");
         assertOnlyReadAllowed(monitoringUserRole, metricsPrefix + "kibana.stack_monitoring.stats-default");

@@ -210,6 +210,24 @@ teardown:
                     id: "getting-started"
                     index: elastic-documentation-en
 
+---
+"Post search analytics event - With filters":
+  - do:
+      search_application.post_behavioral_analytics_event:
+        collection_name: my-test-analytics-collection
+        event_type: "search"
+        body:
+          session:
+            id: "123"
+          user:
+            id: "456"
+          search:
+            query: "test-query"
+            filters:
+              brand: "elastic"
+              products: ["elasticsearch", "kibana"]
+              rating: "[3-5]"
+
 # Search click event tests #######################################
 ---
 "Post search_click analytics event":

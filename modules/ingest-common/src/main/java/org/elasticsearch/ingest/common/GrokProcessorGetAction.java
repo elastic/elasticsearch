@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Response> {
@@ -149,7 +150,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
             ActionListener.completeWith(
                 listener,
                 () -> new Response(
-                    request.getEcsCompatibility().equals(GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[0])
+                    request.getEcsCompatibility().equals(ECS_COMPATIBILITY_DISABLED)
                         ? request.sorted() ? sortedLegacyGrokPatterns : legacyGrokPatterns
                         : request.sorted() ? sortedEcsV1GrokPatterns
                         : ecsV1GrokPatterns

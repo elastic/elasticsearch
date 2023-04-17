@@ -67,13 +67,18 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
-                        [
-                          {
-                            "names": ["shared-*", "apm-1", ".security*"],
-                            "privileges": ["read", "read_cross_cluster"],
-                            "allow_restricted_indices": true
+                        {
+                          "role": {
+                            "cluster": ["cross_cluster_access"],
+                            "index": [
+                              {
+                                "names": ["shared-*", "apm-1", ".security*"],
+                                "privileges": ["read", "read_cross_cluster"],
+                                "allow_restricted_indices": true
+                              }
+                            ]
                           }
-                        ]""");
+                        }""");
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
                 return (String) API_KEY_MAP_REF.get().get("encoded");
@@ -104,7 +109,7 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
     ).around(fulfillingCluster).around(queryCluster);
 
     public void testAnonymousUserFromQueryClusterWorks() throws Exception {
-        configureRemoteClusters();
+        configureRemoteCluster();
         final String crossClusterAccessApiKeyId = (String) API_KEY_MAP_REF.get().get("id");
 
         // Fulfilling cluster

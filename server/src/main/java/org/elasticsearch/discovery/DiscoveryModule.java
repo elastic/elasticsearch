@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
+import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -48,6 +49,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -182,6 +184,9 @@ public class DiscoveryModule {
                 );
         }
 
+        var reconfigurator = getReconfigurator(settings, clusterSettings, clusterCoordinationPlugins);
+        var preVoteCollectorFactory = getPreVoteCollectorFactory(clusterCoordinationPlugins);
+
         if (MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)
             || LEGACY_MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)
             || SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
@@ -203,15 +208,55 @@ public class DiscoveryModule {
                 electionStrategy,
                 nodeHealthService,
                 circuitBreakerService,
-                new Reconfigurator(settings, clusterSettings),
+                reconfigurator,
                 LeaderHeartbeatService.NO_OP,
-                StatefulPreVoteCollector::new
+                preVoteCollectorFactory
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
 
         logger.info("using discovery type [{}] and seed hosts providers {}", discoveryType, seedProviderNames);
+    }
+
+    // visible for testing
+    static Reconfigurator getReconfigurator(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        List<ClusterCoordinationPlugin> clusterCoordinationPlugins
+    ) {
+        final var reconfiguratorFactories = clusterCoordinationPlugins.stream()
+            .map(ClusterCoordinationPlugin::getReconfiguratorFactory)
+            .flatMap(Optional::stream)
+            .toList();
+
+        if (reconfiguratorFactories.size() > 1) {
+            throw new IllegalStateException("multiple reconfigurator factories found: " + reconfiguratorFactories);
+        }
+
+        if (reconfiguratorFactories.size() == 1) {
+            return reconfiguratorFactories.get(0).newReconfigurator(settings, clusterSettings);
+        }
+
+        return new Reconfigurator(settings, clusterSettings);
+    }
+
+    // visible for testing
+    static PreVoteCollector.Factory getPreVoteCollectorFactory(List<ClusterCoordinationPlugin> clusterCoordinationPlugins) {
+        final var preVoteCollectorFactories = clusterCoordinationPlugins.stream()
+            .map(ClusterCoordinationPlugin::getPreVoteCollectorFactory)
+            .flatMap(Optional::stream)
+            .toList();
+
+        if (preVoteCollectorFactories.size() > 1) {
+            throw new IllegalStateException("multiple pre-vote collector factories found: " + preVoteCollectorFactories);
+        }
+
+        if (preVoteCollectorFactories.size() == 1) {
+            return preVoteCollectorFactories.get(0);
+        }
+
+        return StatefulPreVoteCollector::new;
     }
 
     public static boolean isSingleNodeDiscovery(Settings settings) {

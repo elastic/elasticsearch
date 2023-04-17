@@ -155,22 +155,44 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             () -> cosineField.createKnnQuery(new float[] { 0.0f, 0.0f, 0.0f }, 10, null, null)
         );
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
+    }
 
-        DenseVectorFieldType fieldWith2048dims = new DenseVectorFieldType(
-            "f",
-            Version.CURRENT,
-            DenseVectorFieldMapper.ElementType.FLOAT,
-            2048,
-            true,
-            VectorSimilarity.COSINE,
-            Collections.emptyMap()
-        );
-        float[] queryVector = new float[2048];
-        for (int i = 0; i < 2048; i++) {
-            queryVector[i] = randomFloat();
+    public void testCreateKnnQueryMaxDims() {
+        {   // float type with 2048 dims
+            DenseVectorFieldType fieldWith2048dims = new DenseVectorFieldType(
+                "f",
+                Version.CURRENT,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                2048,
+                true,
+                VectorSimilarity.COSINE,
+                Collections.emptyMap()
+            );
+            float[] queryVector = new float[2048];
+            for (int i = 0; i < 2048; i++) {
+                queryVector[i] = randomFloat();
+            }
+            Query query = fieldWith2048dims.createKnnQuery(queryVector, 10, null, null);
+            assertThat(query, instanceOf(KnnFloatVectorQuery.class));
         }
-        Query query = fieldWith2048dims.createKnnQuery(queryVector, 10, null, null);
-        assertThat(query, instanceOf(KnnFloatVectorQuery.class));
+
+        {   // byte type with 2048 dims
+            DenseVectorFieldType fieldWith2048dims = new DenseVectorFieldType(
+                "f",
+                Version.CURRENT,
+                DenseVectorFieldMapper.ElementType.BYTE,
+                2048,
+                true,
+                VectorSimilarity.COSINE,
+                Collections.emptyMap()
+            );
+            byte[] queryVector = new byte[2048];
+            for (int i = 0; i < 2048; i++) {
+                queryVector[i] = randomByte();
+            }
+            Query query = fieldWith2048dims.createKnnQuery(queryVector, 10, null, null);
+            assertThat(query, instanceOf(KnnByteVectorQuery.class));
+        }
     }
 
     public void testByteCreateKnnQuery() {
@@ -206,21 +228,5 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
         e = expectThrows(IllegalArgumentException.class, () -> cosineField.createKnnQuery(new byte[] { 0, 0, 0 }, 10, null, null));
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
-
-        DenseVectorFieldType fieldWith2048dims = new DenseVectorFieldType(
-            "f",
-            Version.CURRENT,
-            DenseVectorFieldMapper.ElementType.BYTE,
-            2048,
-            true,
-            VectorSimilarity.COSINE,
-            Collections.emptyMap()
-        );
-        byte[] queryVector = new byte[2048];
-        for (int i = 0; i < 2048; i++) {
-            queryVector[i] = randomByte();
-        }
-        Query query = fieldWith2048dims.createKnnQuery(queryVector, 10, null, null);
-        assertThat(query, instanceOf(KnnByteVectorQuery.class));
     }
 }

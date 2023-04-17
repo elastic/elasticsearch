@@ -177,9 +177,25 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 )
             );
         }
+        // test max limit for non-indexed vectors
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 b.field("type", "dense_vector");
+                b.field("dims", 3000);
+            })));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Failed to parse mapping: "
+                        + "The number of dimensions for field [field] should be in the range [1, 2048] but was [3000]"
+                )
+            );
+        }
+        // test max limit for indexed vectors
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("index", "true");
                 b.field("dims", 3000);
             })));
             assertThat(

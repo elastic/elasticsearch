@@ -6,9 +6,12 @@
  */
 package org.elasticsearch.xpack.ql.util;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.search.spell.LevenshteinDistance;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ToXContent;
@@ -320,6 +323,11 @@ public final class StringUtils {
         } else {
             return bi.longValueExact();
         }
+    }
+
+    public static BytesRef parseIP(String string) {
+        var inetAddress = InetAddresses.forString(string);
+        return new BytesRef(InetAddressPoint.encode(inetAddress));
     }
 
     public static String ordinal(int i) {

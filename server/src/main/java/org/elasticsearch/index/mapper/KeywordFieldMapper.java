@@ -786,9 +786,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         + "must be keywords with [time_series_dimension: true] "
                         + "and without the [script] parameter. ["
                         + name()
-                        + "] was ["
-                        + typeName()
-                        + "]."
+                        + "] was not [time_series_dimension: true]."
                 );
             }
             if (scriptValues != null) {

@@ -210,7 +210,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
                 + "must be keywords with [time_series_dimension: true] "
                 + "and without the [script] parameter. ["
                 + name()
-                + "] was ["
+                + "] was a runtime ["
                 + typeName()
                 + "]."
         );

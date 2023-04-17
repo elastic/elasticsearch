@@ -55,8 +55,7 @@ setup:
       indices.put_data_lifecycle:
         name: "*"
         body:
-          lifecycle:
-            data_retention: '30d'
+          data_retention: '30d'
   - is_true: acknowledged
 
   - do:
@@ -87,8 +86,7 @@ setup:
       indices.put_data_lifecycle:
         name: "simple-data-stream1"
         body:
-          lifecycle:
-            data_retention: '30d'
+          data_retention: '30d'
   - is_true: acknowledged
 
   - do:

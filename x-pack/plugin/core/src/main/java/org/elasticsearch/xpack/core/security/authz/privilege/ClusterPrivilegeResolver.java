@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
@@ -156,7 +157,8 @@ public class ClusterPrivilegeResolver {
 
     private static final Set<String> CROSS_CLUSTER_ACCESS_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-        RemoteClusterNodesAction.NAME
+        RemoteClusterNodesAction.NAME,
+        XPackInfoAction.NAME
     );
     private static final Set<String> MANAGE_ENRICH_AUTOMATON = Set.of("cluster:admin/xpack/enrich/*");
 

@@ -11,6 +11,7 @@ package org.elasticsearch.dlm.action;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MinPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.dlm.ExplainIndexDataLifecycle;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -110,7 +111,7 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
                     new MinPrimaryShardDocsCondition(4L)
                 )
             );
-            Response response = new Response(List.of(explainIndex), rolloverConditions);
+            Response response = new Response(List.of(explainIndex), new RolloverConfiguration(rolloverConditions));
 
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             response.toXContentChunked(EMPTY_PARAMS).forEachRemaining(xcontent -> {
@@ -221,7 +222,7 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
     }
 
     @Override
-    protected Response mutateInstance(Response instance) throws IOException {
+    protected Response mutateInstance(Response instance) {
         return randomResponse();
     }
 
@@ -229,8 +230,10 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
         return new Response(
             List.of(createRandomIndexDLMExplanation(System.nanoTime(), randomBoolean() ? new DataLifecycle() : null)),
             randomBoolean()
-                ? new RolloverConditions(
-                    Map.of(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(randomLongBetween(1000, 199_999_000)))
+                ? new RolloverConfiguration(
+                    new RolloverConditions(
+                        Map.of(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(randomLongBetween(1000, 199_999_000)))
+                    )
                 )
                 : null
         );

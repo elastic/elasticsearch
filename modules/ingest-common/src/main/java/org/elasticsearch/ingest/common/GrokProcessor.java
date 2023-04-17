@@ -22,12 +22,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 
 public final class GrokProcessor extends AbstractProcessor {
 
     public static final String TYPE = "grok";
-    public static final String DEFAULT_ECS_COMPATIBILITY_MODE = GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[0];
+    public static final String DEFAULT_ECS_COMPATIBILITY_MODE = ECS_COMPATIBILITY_DISABLED;
 
     private static final String PATTERN_MATCH_KEY = "_ingest._grok_match_index";
     private static final Logger logger = LogManager.getLogger(GrokProcessor.class);

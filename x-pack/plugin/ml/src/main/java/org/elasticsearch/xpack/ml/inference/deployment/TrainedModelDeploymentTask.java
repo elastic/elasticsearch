@@ -69,6 +69,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
 
     void init(InferenceConfig inferenceConfig) {
         if (this.inferenceConfigHolder.trySet(inferenceConfig)) {
+            // track the model usage not the deployment Id
             licensedFeature.startTracking(licenseState, "model-" + params.getModelId());
         }
     }
@@ -76,6 +77,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     public void updateNumberOfAllocations(int numberOfAllocations) {
         params = new TaskParams(
             params.getModelId(),
+            params.getDeploymentId(),
             params.getModelBytes(),
             numberOfAllocations,
             params.getThreadsPerAllocation(),
@@ -87,6 +89,10 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
 
     public String getModelId() {
         return params.getModelId();
+    }
+
+    public String getDeploymentId() {
+        return params.getDeploymentId();
     }
 
     public long estimateMemoryUsageBytes() {
@@ -102,8 +108,9 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     }
 
     public void markAsStopped(String reason) {
+        // stop tracking the model usage
         licensedFeature.stopTracking(licenseState, "model-" + params.getModelId());
-        logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
+        logger.debug("[{}] Stopping due to reason [{}]", getDeploymentId(), reason);
         stoppedReasonHolder.trySet(reason);
         stopped = true;
     }
@@ -119,12 +126,12 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     @Override
     protected void onCancelled() {
         String reason = getReasonCancelled();
-        logger.info("[{}] task cancelled due to reason [{}]", getModelId(), reason);
+        logger.info("[{}] task cancelled due to reason [{}]", getDeploymentId(), reason);
         stop(
             reason,
             ActionListener.wrap(
                 acknowledgedResponse -> {},
-                e -> logger.error(() -> "[" + getModelId() + "] error stopping the model after task cancellation", e)
+                e -> logger.error(() -> "[" + getDeploymentId() + "] error stopping the deployment after task cancellation", e)
             )
         );
     }
@@ -138,7 +145,9 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         ActionListener<InferenceResults> listener
     ) {
         if (inferenceConfigHolder.get() == null) {
-            listener.onFailure(ExceptionsHelper.conflictStatusException("Trained model [{}] is not initialized", params.getModelId()));
+            listener.onFailure(
+                ExceptionsHelper.conflictStatusException("Trained model deployment [{}] is not initialized", params.getDeploymentId())
+            );
             return;
         }
         if (update.isSupported(inferenceConfigHolder.get()) == false) {

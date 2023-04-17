@@ -379,3 +379,11 @@ setup:
         model_alias: "pytorch"
         model_id: "another_test_model"
         reassign: true
+
+---
+"Test include model definition status":
+  - do:
+      ml.get_trained_models:
+        model_id: test_model
+        include: definition_status
+  - match: { trained_model_configs.0.fully_defined: true }

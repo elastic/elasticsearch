@@ -193,6 +193,25 @@ mappings for the destination index are undesirable, use the
 <<indices-create-index,Create index API>> prior to starting the {transform}.
 end::dest-index[]
 
+tag::dest-aliases[]
+The aliases that the destination index for the {transform} should have.
+Aliases are manipulated using the stored credentials of the transform, which means the secondary credentials supplied
+at creation time (if both primary and secondary credentials are specified).
+
+The destination index is added to the aliases regardless whether the destination
+index was created by the transform or pre-created by the user.
+end::dest-aliases[]
+
+tag::dest-aliases-alias[]
+The name of the alias.
+end::dest-aliases-alias[]
+
+tag::dest-aliases-move-on-creation[]
+Whether or not the destination index should be the **only** index in this alias.
+If `true`, all the other indices will be removed from this alias before adding the destination index to this alias.
+Defaults to `false`.
+end::dest-aliases-move-on-creation[]
+
 tag::dest-pipeline[]
 The unique identifier for an <<ingest,ingest pipeline>>.
 end::dest-pipeline[]

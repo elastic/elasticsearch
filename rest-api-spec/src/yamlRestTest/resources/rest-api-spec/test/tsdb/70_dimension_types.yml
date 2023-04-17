@@ -179,6 +179,8 @@ flattened dimension:
 flattened field missing routing path field:
   - skip:
       features: close_to
+      version: " - 8.7.99"
+      reason: flattened field support as dimension added in 8.8.0
 
   - do:
       indices.create:
@@ -290,6 +292,8 @@ flattened field missing routing path field:
 flattened field misspelled routing path field:
   - skip:
       features: close_to
+      version: " - 8.7.99"
+      reason: flattened field support as dimension added in 8.8.0
 
   - do:
       indices.create:

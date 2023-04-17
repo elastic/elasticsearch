@@ -278,7 +278,7 @@ public final class XContentTestUtils {
             currentPath.push(parser.currentName().replaceAll("\\.", "\\\\."));
         }
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            validPaths.add(String.join(".", currentPath.toArray(new String[currentPath.size()])));
+            validPaths.add(String.join(".", currentPath.toArray(String[]::new)));
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 if (parser.currentToken() == XContentParser.Token.START_OBJECT
                     || parser.currentToken() == XContentParser.Token.START_ARRAY) {

@@ -5,9 +5,11 @@
 package org.elasticsearch.xpack.esql.expression.predicate.logical;
 
 import java.lang.Boolean;
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -32,12 +34,37 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object vVal = v.computeRow(page, position);
-    if (vVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block vUncastBlock = v.eval(page);
+    if (vUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return Not.process((boolean) vVal);
+    BooleanBlock vBlock = (BooleanBlock) vUncastBlock;
+    BooleanVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      return eval(page.getPositionCount(), vBlock);
+    }
+    return eval(page.getPositionCount(), vVector).asBlock();
+  }
+
+  public BooleanBlock eval(int positionCount, BooleanBlock vBlock) {
+    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendBoolean(Not.process(vBlock.getBoolean(vBlock.getFirstValueIndex(p))));
+    }
+    return result.build();
+  }
+
+  public BooleanVector eval(int positionCount, BooleanVector vVector) {
+    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendBoolean(Not.process(vVector.getBoolean(p)));
+    }
+    return result.build();
   }
 
   @Override

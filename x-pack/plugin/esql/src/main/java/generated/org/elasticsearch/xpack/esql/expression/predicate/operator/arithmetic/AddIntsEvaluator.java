@@ -5,9 +5,11 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import java.lang.Integer;
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -36,20 +38,54 @@ public final class AddIntsEvaluator implements EvalOperator.ExpressionEvaluator 
     if (rhsVal == null) {
       return null;
     }
-    return Add.processInts((int) lhsVal, (int) rhsVal);
+    return Add.processInts(((Number) lhsVal).intValue(), ((Number) rhsVal).intValue());
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object lhsVal = lhs.computeRow(page, position);
-    if (lhsVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block lhsUncastBlock = lhs.eval(page);
+    if (lhsUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    Object rhsVal = rhs.computeRow(page, position);
-    if (rhsVal == null) {
-      return null;
+    IntBlock lhsBlock = (IntBlock) lhsUncastBlock;
+    Block rhsUncastBlock = rhs.eval(page);
+    if (rhsUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return Add.processInts((int) lhsVal, (int) rhsVal);
+    IntBlock rhsBlock = (IntBlock) rhsUncastBlock;
+    IntVector lhsVector = lhsBlock.asVector();
+    if (lhsVector == null) {
+      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
+    }
+    IntVector rhsVector = rhsBlock.asVector();
+    if (rhsVector == null) {
+      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
+    }
+    return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
+  }
+
+  public IntBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
+    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendInt(Add.processInts(lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsBlock.getInt(rhsBlock.getFirstValueIndex(p))));
+    }
+    return result.build();
+  }
+
+  public IntVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
+    IntVector.Builder result = IntVector.newVectorBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendInt(Add.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+    }
+    return result.build();
   }
 
   @Override

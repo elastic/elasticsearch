@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanArrayVector;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.UnaryScalarFunction;
@@ -62,8 +65,16 @@ public class IsNull extends UnaryScalarFunction implements Mappable {
 
     private record IsNullEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Object computeRow(Page page, int pos) {
-            return field.computeRow(page, pos) == null;
+        public Block eval(Page page) {
+            Block fieldBlock = field.eval(page);
+            if (fieldBlock.asVector() != null) {
+                return BooleanBlock.newConstantBlockWith(false, page.getPositionCount());
+            }
+            boolean[] result = new boolean[page.getPositionCount()];
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                result[p] = fieldBlock.isNull(p);
+            }
+            return new BooleanArrayVector(result, result.length).asBlock();
         }
     }
 }

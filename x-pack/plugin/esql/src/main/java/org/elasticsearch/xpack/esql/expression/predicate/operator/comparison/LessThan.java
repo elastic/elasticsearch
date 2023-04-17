@@ -25,7 +25,7 @@ public class LessThan {
         return lhs < rhs;
     }
 
-    @Evaluator(extraName = "Keywords")
+    @Evaluator(extraName = "Keywords")  // TODO rename to "Bytes"
     static boolean processKeywords(BytesRef lhs, BytesRef rhs) {
         return lhs.compareTo(rhs) < 0;
     }

@@ -5,10 +5,14 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import java.lang.Integer;
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -33,12 +37,39 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object valVal = val.computeRow(page, position);
-    if (valVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block valUncastBlock = val.eval(page);
+    if (valUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return Length.process((BytesRef) valVal);
+    BytesRefBlock valBlock = (BytesRefBlock) valUncastBlock;
+    BytesRefVector valVector = valBlock.asVector();
+    if (valVector == null) {
+      return eval(page.getPositionCount(), valBlock);
+    }
+    return eval(page.getPositionCount(), valVector).asBlock();
+  }
+
+  public IntBlock eval(int positionCount, BytesRefBlock valBlock) {
+    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
+    BytesRef valScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendInt(Length.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
+    }
+    return result.build();
+  }
+
+  public IntVector eval(int positionCount, BytesRefVector valVector) {
+    IntVector.Builder result = IntVector.newVectorBuilder(positionCount);
+    BytesRef valScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendInt(Length.process(valVector.getBytesRef(p, valScratch)));
+    }
+    return result.build();
   }
 
   @Override

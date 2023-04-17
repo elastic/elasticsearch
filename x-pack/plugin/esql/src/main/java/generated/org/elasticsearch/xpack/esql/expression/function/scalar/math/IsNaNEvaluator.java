@@ -5,9 +5,13 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.Boolean;
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -28,16 +32,41 @@ public final class IsNaNEvaluator implements EvalOperator.ExpressionEvaluator {
     if (valVal == null) {
       return null;
     }
-    return IsNaN.process((double) valVal);
+    return IsNaN.process(((Number) valVal).doubleValue());
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object valVal = val.computeRow(page, position);
-    if (valVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block valUncastBlock = val.eval(page);
+    if (valUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return IsNaN.process((double) valVal);
+    DoubleBlock valBlock = (DoubleBlock) valUncastBlock;
+    DoubleVector valVector = valBlock.asVector();
+    if (valVector == null) {
+      return eval(page.getPositionCount(), valBlock);
+    }
+    return eval(page.getPositionCount(), valVector).asBlock();
+  }
+
+  public BooleanBlock eval(int positionCount, DoubleBlock valBlock) {
+    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendBoolean(IsNaN.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
+    }
+    return result.build();
+  }
+
+  public BooleanVector eval(int positionCount, DoubleVector valVector) {
+    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendBoolean(IsNaN.process(valVector.getDouble(p)));
+    }
+    return result.build();
   }
 
   @Override

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.lucene.BytesRefs;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -62,17 +62,19 @@ public class StringExtractOperator extends AbstractPageMappingOperator {
             blockBuilders[i] = BytesRefBlock.newBlockBuilder(rowsCount);
         }
 
+        BytesRefBlock input = (BytesRefBlock) inputEvaluator.eval(page);
+        BytesRef spare = new BytesRef();
         for (int row = 0; row < rowsCount; row++) {
-            Object input = inputEvaluator.computeRow(page, row);
-            if (input == null) {
+            if (input.isNull(row)) {
                 for (int i = 0; i < fieldNames.length; i++) {
                     blockBuilders[i].appendNull();
                 }
                 continue;
             }
 
-            String stringInput = BytesRefs.toString(input);
-            Map<String, String> items = parser.apply(stringInput);
+            // For now more than a single input value will just read the first one
+            int position = input.getFirstValueIndex(row);
+            Map<String, String> items = parser.apply(input.getBytesRef(position, spare).utf8ToString());
             if (items == null) {
                 for (int i = 0; i < fieldNames.length; i++) {
                     blockBuilders[i].appendNull();

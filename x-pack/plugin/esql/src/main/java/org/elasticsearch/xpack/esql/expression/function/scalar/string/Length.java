@@ -57,7 +57,7 @@ public class Length extends UnaryScalarFunction implements Mappable {
     }
 
     @Evaluator
-    static Integer process(BytesRef val) {
+    static int process(BytesRef val) {
         return UnicodeUtil.codePointCount(val);
     }
 

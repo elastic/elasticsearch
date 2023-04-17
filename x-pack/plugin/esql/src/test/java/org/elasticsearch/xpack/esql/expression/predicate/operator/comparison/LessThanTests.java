@@ -25,7 +25,7 @@ public class LessThanTests extends AbstractBinaryComparisonTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "LessThanIntsEvaluator[lhs=Ints[channel=0], rhs=Ints[channel=1]]";
+        return "LessThanIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]";
     }
 
     @Override

@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -43,13 +45,13 @@ public class IsNullTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected void assertSimpleWithNulls(List<Object> data, Object value, int nullBlock) {
-        assertThat(value, equalTo(true));
+    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
+        assertTrue(((BooleanBlock) value).asVector().getBoolean(0));
     }
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "IsNullEvaluator[field=Keywords[channel=0]]";
+        return "IsNullEvaluator[field=Attribute[channel=0]]";
     }
 
     @Override

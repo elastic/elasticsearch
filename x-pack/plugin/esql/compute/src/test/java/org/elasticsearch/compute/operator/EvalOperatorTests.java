@@ -12,11 +12,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
@@ -26,25 +26,27 @@ public class EvalOperatorTests extends OperatorTestCase {
         return new TupleBlockSourceOperator(LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 
-    record Addition(int channelA, int channelB) implements EvalOperator.ExpressionEvaluator {
-
+    record Addition(int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Object computeRow(Page page, int position) {
-            long a = page.<LongBlock>getBlock(channelA).getLong(position);
-            long b = page.<LongBlock>getBlock(channelB).getLong(position);
-            return a + b;
+        public Block eval(Page page) {
+            LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
+            LongVector rhsVector = page.<LongBlock>getBlock(1).asVector();
+            LongVector.Builder result = LongVector.newVectorBuilder(page.getPositionCount());
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                result.appendLong(lhsVector.getLong(p) + rhsVector.getLong(p));
+            }
+            return result.build().asBlock();
         }
     }
 
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
-        Supplier<EvalOperator.ExpressionEvaluator> expEval = () -> new Addition(0, 1);
-        return new EvalOperator.EvalOperatorFactory(expEval, ElementType.LONG);
+        return new EvalOperator.EvalOperatorFactory(() -> new Addition(0, 1), ElementType.LONG);
     }
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "EvalOperator[elementType=LONG, evaluator=Addition[channelA=0, channelB=1]]";
+        return "EvalOperator[elementType=LONG, evaluator=Addition[lhs=0, rhs=1]]";
     }
 
     @Override

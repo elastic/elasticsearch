@@ -9,6 +9,8 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -27,12 +29,14 @@ public class FilterOperatorTests extends OperatorTestCase {
 
     record SameLastDigit(int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Object computeRow(Page page, int position) {
+        public Block eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
             LongVector rhsVector = page.<LongBlock>getBlock(1).asVector();
-            long lhs = lhsVector.getLong(position);
-            long rhs = rhsVector.getLong(position);
-            return lhs % 10 == rhs % 10;
+            BooleanVector.Builder result = BooleanVector.newVectorBuilder(page.getPositionCount());
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                result.appendBoolean(lhsVector.getLong(p) % 10 == rhsVector.getLong(p) % 10);
+            }
+            return result.build().asBlock();
         }
     }
 

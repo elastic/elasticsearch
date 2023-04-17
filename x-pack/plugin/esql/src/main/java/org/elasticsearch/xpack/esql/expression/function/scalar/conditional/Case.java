@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
@@ -22,6 +26,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
@@ -146,21 +151,45 @@ public class Case extends ScalarFunction implements Mappable {
     public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
-        return () -> new CaseEvaluator(children().stream().map(toEvaluator).map(Supplier::get).toList());
+        return () -> new CaseEvaluator(
+            LocalExecutionPlanner.toElementType(dataType()),
+            children().stream().map(toEvaluator).map(Supplier::get).toList()
+        );
     }
 
-    private record CaseEvaluator(List<EvalOperator.ExpressionEvaluator> children) implements EvalOperator.ExpressionEvaluator {
+    private record CaseEvaluator(ElementType resultType, List<EvalOperator.ExpressionEvaluator> children)
+        implements
+            EvalOperator.ExpressionEvaluator {
         @Override
-        public Object computeRow(Page page, int position) {
-            for (int i = 0; i + 1 < children().size(); i += 2) {
-                EvalOperator.ExpressionEvaluator child = children.get(i);
-                Boolean condition = (Boolean) child.computeRow(page, position);
-                if (condition != null && condition) {
-                    return children.get(i + 1).computeRow(page, position);
+        public Block eval(Page page) {
+            // Evaluate row at a time for now because its simpler. Much slower. But simpler.
+            int positionCount = page.getPositionCount();
+            Block.Builder result = resultType.newBlockBuilder(positionCount);
+            position: for (int p = 0; p < positionCount; p++) {
+                int[] positions = new int[] { p };
+                Page limited = new Page(
+                    IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
+                );
+                for (int c = 0; c + 1 < children.size(); c += 2) {
+                    BooleanBlock condition = (BooleanBlock) children.get(c).eval(limited);
+                    if (condition.isNull(0)) {
+                        continue;
+                    }
+                    if (false == condition.getBoolean(condition.getFirstValueIndex(0))) {
+                        continue;
+                    }
+                    Block r = children.get(c + 1).eval(limited);
+                    result.copyFrom(r, 0, 1);
+                    continue position;
                 }
+                if (children().size() % 2 == 0) {
+                    result.appendNull();
+                    continue;
+                }
+                Block r = children.get(children.size() - 1).eval(limited);
+                result.copyFrom(r, 0, 1);
             }
-            // return default, if one provided, or null otherwise
-            return children().size() % 2 == 0 ? null : children.get(children().size() - 1).computeRow(page, position);
+            return result.build();
         }
     }
 }

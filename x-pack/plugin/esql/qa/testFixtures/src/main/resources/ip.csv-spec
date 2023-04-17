@@ -14,14 +14,12 @@ eth1           |epsilon        |null                                            
 eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]                           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
 ;
 
-# Affected by https://github.com/elastic/elasticsearch-internal/issues/971
 equals
 from hosts | sort host, card | where ip0 == ip1;
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth0           |alpha          |127.0.0.1                |127.0.0.1
 eth1           |alpha          |::1                      |::1
-eth2           |epsilon        |fe81::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
 ;
 
 # ignored due to unstable sort
@@ -41,7 +39,6 @@ card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth0           |alpha          |127.0.0.1                |127.0.0.1
 eth1           |alpha          |::1                      |::1
 eth0           |beta           |127.0.0.1                |::1
-eth2           |epsilon        |fe81::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
 eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
@@ -63,18 +60,16 @@ from hosts | sort host, card | where ip0 < ip1;
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
 eth1           |beta           |127.0.0.1                |128.0.0.1
-eth0           |epsilon        |fe80::cae2:65ff:fece:feb9|fe80::cae2:65ff:fece:fec1
 lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
 ;
 
 notEquals
-from hosts | sort host, card | where ip0 != ip1;
+from hosts | sort host, card, ip1 | where ip0 != ip1;
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth0           |beta           |127.0.0.1                |::1
-eth1           |beta           |127.0.0.1                |128.0.0.1
 eth1           |beta           |127.0.0.1                |127.0.0.2
-eth0           |epsilon        |fe80::cae2:65ff:fece:feb9|fe80::cae2:65ff:fece:fec1
+eth1           |beta           |127.0.0.1                |128.0.0.1
 eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
 ;
@@ -115,15 +110,15 @@ null           |[127.0.0.1, 127.0.0.2, 127.0.0.3]
 conditional
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | project eq, ip0, ip1;
 
-eq:ip                    |ip0:ip                                                                           |ip1:ip
-127.0.0.1                |127.0.0.1                                                                        |127.0.0.1
-::1                      |::1                                                                              |::1
-::1                      |127.0.0.1                                                                        |::1
-127.0.0.2                |127.0.0.1                                                                        |127.0.0.2
-128.0.0.1                |127.0.0.1                                                                        |128.0.0.1
-fe81::cae2:65ff:fece:feb9|fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9
-127.0.0.3                |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3
-fe80::cae2:65ff:fece:fec1|[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1
-127.0.0.1                |null                                                                             |[127.0.0.1, 127.0.0.2, 127.0.0.3]
-fe81::cae2:65ff:fece:feb9|[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]                           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+eq:ip                                                 |ip0:ip                                                                           |ip1:ip
+127.0.0.1                                             |127.0.0.1                                                                        |127.0.0.1
+::1                                                   |::1                                                                              |::1
+::1                                                   |127.0.0.1                                                                        |::1
+127.0.0.2                                             |127.0.0.1                                                                        |127.0.0.2
+128.0.0.1                                             |127.0.0.1                                                                        |128.0.0.1
+fe81::cae2:65ff:fece:feb9                             |fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9
+127.0.0.3                                             |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3
+fe80::cae2:65ff:fece:fec1                             |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1
+[127.0.0.1, 127.0.0.2, 127.0.0.3]                     |null                                                                             |[127.0.0.1, 127.0.0.2, 127.0.0.3]
+[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]|[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]                           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
 ;

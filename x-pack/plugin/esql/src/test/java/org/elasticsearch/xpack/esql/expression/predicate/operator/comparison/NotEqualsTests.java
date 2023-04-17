@@ -25,7 +25,7 @@ public class NotEqualsTests extends AbstractBinaryComparisonTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "NotEqualsIntsEvaluator[lhs=Ints[channel=0], rhs=Ints[channel=1]]";
+        return "NotEqualsIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]";
     }
 
     @Override

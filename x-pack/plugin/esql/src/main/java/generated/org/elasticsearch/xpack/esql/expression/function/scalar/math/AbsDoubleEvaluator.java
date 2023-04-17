@@ -5,9 +5,11 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.Double;
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -28,16 +30,41 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
     if (fieldValVal == null) {
       return null;
     }
-    return Abs.process((double) fieldValVal);
+    return Abs.process(((Number) fieldValVal).doubleValue());
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object fieldValVal = fieldVal.computeRow(page, position);
-    if (fieldValVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block fieldValUncastBlock = fieldVal.eval(page);
+    if (fieldValUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return Abs.process((double) fieldValVal);
+    DoubleBlock fieldValBlock = (DoubleBlock) fieldValUncastBlock;
+    DoubleVector fieldValVector = fieldValBlock.asVector();
+    if (fieldValVector == null) {
+      return eval(page.getPositionCount(), fieldValBlock);
+    }
+    return eval(page.getPositionCount(), fieldValVector).asBlock();
+  }
+
+  public DoubleBlock eval(int positionCount, DoubleBlock fieldValBlock) {
+    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendDouble(Abs.process(fieldValBlock.getDouble(fieldValBlock.getFirstValueIndex(p))));
+    }
+    return result.build();
+  }
+
+  public DoubleVector eval(int positionCount, DoubleVector fieldValVector) {
+    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendDouble(Abs.process(fieldValVector.getDouble(p)));
+    }
+    return result.build();
   }
 
   @Override

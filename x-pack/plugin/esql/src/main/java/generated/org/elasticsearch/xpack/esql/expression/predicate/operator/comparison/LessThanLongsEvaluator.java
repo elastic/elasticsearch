@@ -5,9 +5,13 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import java.lang.Boolean;
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -36,20 +40,54 @@ public final class LessThanLongsEvaluator implements EvalOperator.ExpressionEval
     if (rhsVal == null) {
       return null;
     }
-    return LessThan.processLongs((long) lhsVal, (long) rhsVal);
+    return LessThan.processLongs(((Number) lhsVal).longValue(), ((Number) rhsVal).longValue());
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object lhsVal = lhs.computeRow(page, position);
-    if (lhsVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block lhsUncastBlock = lhs.eval(page);
+    if (lhsUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    Object rhsVal = rhs.computeRow(page, position);
-    if (rhsVal == null) {
-      return null;
+    LongBlock lhsBlock = (LongBlock) lhsUncastBlock;
+    Block rhsUncastBlock = rhs.eval(page);
+    if (rhsUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return LessThan.processLongs((long) lhsVal, (long) rhsVal);
+    LongBlock rhsBlock = (LongBlock) rhsUncastBlock;
+    LongVector lhsVector = lhsBlock.asVector();
+    if (lhsVector == null) {
+      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
+    }
+    LongVector rhsVector = rhsBlock.asVector();
+    if (rhsVector == null) {
+      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
+    }
+    return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
+  }
+
+  public BooleanBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
+    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendBoolean(LessThan.processLongs(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
+    }
+    return result.build();
+  }
+
+  public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
+    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendBoolean(LessThan.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
+    }
+    return result.build();
   }
 
   @Override

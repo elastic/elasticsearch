@@ -5,9 +5,11 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import java.lang.Boolean;
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -40,16 +42,50 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object lhsVal = lhs.computeRow(page, position);
-    if (lhsVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block lhsUncastBlock = lhs.eval(page);
+    if (lhsUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    Object rhsVal = rhs.computeRow(page, position);
-    if (rhsVal == null) {
-      return null;
+    BooleanBlock lhsBlock = (BooleanBlock) lhsUncastBlock;
+    Block rhsUncastBlock = rhs.eval(page);
+    if (rhsUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return NotEquals.processBools((boolean) lhsVal, (boolean) rhsVal);
+    BooleanBlock rhsBlock = (BooleanBlock) rhsUncastBlock;
+    BooleanVector lhsVector = lhsBlock.asVector();
+    if (lhsVector == null) {
+      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
+    }
+    BooleanVector rhsVector = rhsBlock.asVector();
+    if (rhsVector == null) {
+      return eval(page.getPositionCount(), lhsBlock, rhsBlock);
+    }
+    return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
+  }
+
+  public BooleanBlock eval(int positionCount, BooleanBlock lhsBlock, BooleanBlock rhsBlock) {
+    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendBoolean(NotEquals.processBools(lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)), rhsBlock.getBoolean(rhsBlock.getFirstValueIndex(p))));
+    }
+    return result.build();
+  }
+
+  public BooleanVector eval(int positionCount, BooleanVector lhsVector, BooleanVector rhsVector) {
+    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendBoolean(NotEquals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p)));
+    }
+    return result.build();
   }
 
   @Override

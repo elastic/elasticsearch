@@ -5,9 +5,11 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.Long;
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -28,16 +30,41 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
     if (fieldValVal == null) {
       return null;
     }
-    return Abs.process((long) fieldValVal);
+    return Abs.process(((Number) fieldValVal).longValue());
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object fieldValVal = fieldVal.computeRow(page, position);
-    if (fieldValVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block fieldValUncastBlock = fieldVal.eval(page);
+    if (fieldValUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return Abs.process((long) fieldValVal);
+    LongBlock fieldValBlock = (LongBlock) fieldValUncastBlock;
+    LongVector fieldValVector = fieldValBlock.asVector();
+    if (fieldValVector == null) {
+      return eval(page.getPositionCount(), fieldValBlock);
+    }
+    return eval(page.getPositionCount(), fieldValVector).asBlock();
+  }
+
+  public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
+    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendLong(Abs.process(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p))));
+    }
+    return result.build();
+  }
+
+  public LongVector eval(int positionCount, LongVector fieldValVector) {
+    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendLong(Abs.process(fieldValVector.getLong(p)));
+    }
+    return result.build();
   }
 
   @Override

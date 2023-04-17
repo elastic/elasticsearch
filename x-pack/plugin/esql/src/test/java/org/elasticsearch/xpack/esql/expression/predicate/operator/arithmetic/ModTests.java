@@ -22,7 +22,7 @@ public class ModTests extends AbstractArithmeticTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "ModIntsEvaluator[lhs=Ints[channel=0], rhs=Ints[channel=1]]";
+        return "ModIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]";
     }
 
     @Override

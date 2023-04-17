@@ -114,8 +114,14 @@ public final class CsvAssert {
                 var blockType = Type.asType(block.elementType());
 
                 if (blockType == Type.LONG && expectedType == Type.DATETIME) {
-                    blockType = Type.DATETIME;
-                } else if (blockType == Type.KEYWORD && expectedType == Type.IP) {
+                    continue;
+                }
+                if (blockType == Type.KEYWORD && expectedType == Type.IP) {
+                    // Type.asType translates all bytes references into keywords
+                    continue;
+                }
+                if (blockType == Type.NULL) {
+                    // Null pages don't have any real type information beyond "it's all null, man"
                     continue;
                 }
 

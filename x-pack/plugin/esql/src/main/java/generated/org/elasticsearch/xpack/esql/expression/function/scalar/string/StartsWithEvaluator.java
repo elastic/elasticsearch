@@ -5,10 +5,14 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import java.lang.Boolean;
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -41,16 +45,55 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object strVal = str.computeRow(page, position);
-    if (strVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block strUncastBlock = str.eval(page);
+    if (strUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    Object prefixVal = prefix.computeRow(page, position);
-    if (prefixVal == null) {
-      return null;
+    BytesRefBlock strBlock = (BytesRefBlock) strUncastBlock;
+    Block prefixUncastBlock = prefix.eval(page);
+    if (prefixUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return StartsWith.process((BytesRef) strVal, (BytesRef) prefixVal);
+    BytesRefBlock prefixBlock = (BytesRefBlock) prefixUncastBlock;
+    BytesRefVector strVector = strBlock.asVector();
+    if (strVector == null) {
+      return eval(page.getPositionCount(), strBlock, prefixBlock);
+    }
+    BytesRefVector prefixVector = prefixBlock.asVector();
+    if (prefixVector == null) {
+      return eval(page.getPositionCount(), strBlock, prefixBlock);
+    }
+    return eval(page.getPositionCount(), strVector, prefixVector).asBlock();
+  }
+
+  public BooleanBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock prefixBlock) {
+    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
+    BytesRef strScratch = new BytesRef();
+    BytesRef prefixScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      if (prefixBlock.isNull(p) || prefixBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendBoolean(StartsWith.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), prefixBlock.getBytesRef(prefixBlock.getFirstValueIndex(p), prefixScratch)));
+    }
+    return result.build();
+  }
+
+  public BooleanVector eval(int positionCount, BytesRefVector strVector,
+      BytesRefVector prefixVector) {
+    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
+    BytesRef strScratch = new BytesRef();
+    BytesRef prefixScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendBoolean(StartsWith.process(strVector.getBytesRef(p, strScratch), prefixVector.getBytesRef(p, prefixScratch)));
+    }
+    return result.build();
   }
 
   @Override

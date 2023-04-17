@@ -4,10 +4,14 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -43,24 +47,71 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
     if (lengthVal == null) {
       return null;
     }
-    return Substring.process((BytesRef) strVal, (int) startVal, (int) lengthVal);
+    return Substring.process((BytesRef) strVal, ((Number) startVal).intValue(), ((Number) lengthVal).intValue());
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object strVal = str.computeRow(page, position);
-    if (strVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block strUncastBlock = str.eval(page);
+    if (strUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    Object startVal = start.computeRow(page, position);
-    if (startVal == null) {
-      return null;
+    BytesRefBlock strBlock = (BytesRefBlock) strUncastBlock;
+    Block startUncastBlock = start.eval(page);
+    if (startUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    Object lengthVal = length.computeRow(page, position);
-    if (lengthVal == null) {
-      return null;
+    IntBlock startBlock = (IntBlock) startUncastBlock;
+    Block lengthUncastBlock = length.eval(page);
+    if (lengthUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return Substring.process((BytesRef) strVal, (int) startVal, (int) lengthVal);
+    IntBlock lengthBlock = (IntBlock) lengthUncastBlock;
+    BytesRefVector strVector = strBlock.asVector();
+    if (strVector == null) {
+      return eval(page.getPositionCount(), strBlock, startBlock, lengthBlock);
+    }
+    IntVector startVector = startBlock.asVector();
+    if (startVector == null) {
+      return eval(page.getPositionCount(), strBlock, startBlock, lengthBlock);
+    }
+    IntVector lengthVector = lengthBlock.asVector();
+    if (lengthVector == null) {
+      return eval(page.getPositionCount(), strBlock, startBlock, lengthBlock);
+    }
+    return eval(page.getPositionCount(), strVector, startVector, lengthVector).asBlock();
+  }
+
+  public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, IntBlock startBlock,
+      IntBlock lengthBlock) {
+    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
+    BytesRef strScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      if (startBlock.isNull(p) || startBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      if (lengthBlock.isNull(p) || lengthBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendBytesRef(Substring.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), startBlock.getInt(startBlock.getFirstValueIndex(p)), lengthBlock.getInt(lengthBlock.getFirstValueIndex(p))));
+    }
+    return result.build();
+  }
+
+  public BytesRefVector eval(int positionCount, BytesRefVector strVector, IntVector startVector,
+      IntVector lengthVector) {
+    BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
+    BytesRef strScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendBytesRef(Substring.process(strVector.getBytesRef(p, strScratch), startVector.getInt(p), lengthVector.getInt(p)));
+    }
+    return result.build();
   }
 
   @Override

@@ -8,9 +8,9 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 
@@ -59,9 +59,19 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
             blockBuilders[i] = types[i].newBlockBuilder(rowsCount);
         }
 
+        BytesRefBlock input = (BytesRefBlock) inputEvaluator.eval(page);
+        BytesRef spare = new BytesRef();
         for (int row = 0; row < rowsCount; row++) {
-            Object input = inputEvaluator.computeRow(page, row);
-            evaluator.computeRow(BytesRefs.toBytesRef(input), blockBuilders);
+            if (input.isNull(row)) {
+                for (int i = 0; i < blockBuilders.length; i++) {
+                    blockBuilders[i].appendNull();
+                }
+                continue;
+            }
+
+            // For now more than a single input value will just read the first one
+            int position = input.getFirstValueIndex(row);
+            evaluator.computeRow(input.getBytesRef(position, spare), blockBuilders);
         }
 
         Block[] blocks = new Block[blockBuilders.length];

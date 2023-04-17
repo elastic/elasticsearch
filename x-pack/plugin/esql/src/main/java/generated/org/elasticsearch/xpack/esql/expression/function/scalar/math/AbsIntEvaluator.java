@@ -5,9 +5,11 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.Integer;
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -28,16 +30,41 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
     if (fieldValVal == null) {
       return null;
     }
-    return Abs.process((int) fieldValVal);
+    return Abs.process(((Number) fieldValVal).intValue());
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object fieldValVal = fieldVal.computeRow(page, position);
-    if (fieldValVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block fieldValUncastBlock = fieldVal.eval(page);
+    if (fieldValUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return Abs.process((int) fieldValVal);
+    IntBlock fieldValBlock = (IntBlock) fieldValUncastBlock;
+    IntVector fieldValVector = fieldValBlock.asVector();
+    if (fieldValVector == null) {
+      return eval(page.getPositionCount(), fieldValBlock);
+    }
+    return eval(page.getPositionCount(), fieldValVector).asBlock();
+  }
+
+  public IntBlock eval(int positionCount, IntBlock fieldValBlock) {
+    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendInt(Abs.process(fieldValBlock.getInt(fieldValBlock.getFirstValueIndex(p))));
+    }
+    return result.build();
+  }
+
+  public IntVector eval(int positionCount, IntVector fieldValVector) {
+    IntVector.Builder result = IntVector.newVectorBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendInt(Abs.process(fieldValVector.getInt(p)));
+    }
+    return result.build();
   }
 
   @Override

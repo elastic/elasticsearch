@@ -5,9 +5,11 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.Long;
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -28,16 +30,41 @@ public final class RoundLongNoDecimalsEvaluator implements EvalOperator.Expressi
     if (valVal == null) {
       return null;
     }
-    return Round.process((long) valVal);
+    return Round.process(((Number) valVal).longValue());
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object valVal = val.computeRow(page, position);
-    if (valVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block valUncastBlock = val.eval(page);
+    if (valUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return Round.process((long) valVal);
+    LongBlock valBlock = (LongBlock) valUncastBlock;
+    LongVector valVector = valBlock.asVector();
+    if (valVector == null) {
+      return eval(page.getPositionCount(), valBlock);
+    }
+    return eval(page.getPositionCount(), valVector).asBlock();
+  }
+
+  public LongBlock eval(int positionCount, LongBlock valBlock) {
+    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendLong(Round.process(valBlock.getLong(valBlock.getFirstValueIndex(p))));
+    }
+    return result.build();
+  }
+
+  public LongVector eval(int positionCount, LongVector valVector) {
+    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendLong(Round.process(valVector.getLong(p)));
+    }
+    return result.build();
   }
 
   @Override

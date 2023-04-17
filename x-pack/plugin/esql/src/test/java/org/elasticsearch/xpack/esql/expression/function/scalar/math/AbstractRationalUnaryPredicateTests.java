@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -64,7 +65,8 @@ public abstract class AbstractRationalUnaryPredicateTests extends AbstractScalar
     }
 
     private void testCase(double d) {
-        assertThat((Boolean) evaluator(expressionForSimpleData()).get().computeRow(row(List.of(d)), 0), resultMatcher(d));
+        BooleanBlock block = (BooleanBlock) evaluator(expressionForSimpleData()).get().eval(row(List.of(d)));
+        assertThat(block.getBoolean(0), resultMatcher(d));
     }
 
     public final void testNaN() {

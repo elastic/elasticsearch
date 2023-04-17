@@ -5,10 +5,12 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import java.lang.Long;
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -32,16 +34,41 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
     if (fieldValVal == null) {
       return null;
     }
-    return DateTrunc.process((long) fieldValVal, rounding);
+    return DateTrunc.process(((Number) fieldValVal).longValue(), rounding);
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object fieldValVal = fieldVal.computeRow(page, position);
-    if (fieldValVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block fieldValUncastBlock = fieldVal.eval(page);
+    if (fieldValUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return DateTrunc.process((long) fieldValVal, rounding);
+    LongBlock fieldValBlock = (LongBlock) fieldValUncastBlock;
+    LongVector fieldValVector = fieldValBlock.asVector();
+    if (fieldValVector == null) {
+      return eval(page.getPositionCount(), fieldValBlock, rounding);
+    }
+    return eval(page.getPositionCount(), fieldValVector, rounding).asBlock();
+  }
+
+  public LongBlock eval(int positionCount, LongBlock fieldValBlock, Rounding.Prepared rounding) {
+    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendLong(DateTrunc.process(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p)), rounding));
+    }
+    return result.build();
+  }
+
+  public LongVector eval(int positionCount, LongVector fieldValVector, Rounding.Prepared rounding) {
+    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendLong(DateTrunc.process(fieldValVector.getLong(p), rounding));
+    }
+    return result.build();
   }
 
   @Override

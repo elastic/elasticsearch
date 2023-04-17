@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.gen;
 
+import com.squareup.javapoet.TypeName;
+
 import java.util.Arrays;
 import java.util.function.Predicate;
 
@@ -47,5 +49,51 @@ public class Methods {
             }
         }
         return null;
+    }
+
+    /**
+     * Returns the name of the method used to add {@code valueType} instances
+     * to vector or block builders.
+     */
+    static String appendMethod(TypeName elementType) {
+        if (elementType.equals(TypeName.BOOLEAN)) {
+            return "appendBoolean";
+        }
+        if (elementType.equals(Types.BYTES_REF)) {
+            return "appendBytesRef";
+        }
+        if (elementType.equals(TypeName.INT)) {
+            return "appendInt";
+        }
+        if (elementType.equals(TypeName.LONG)) {
+            return "appendLong";
+        }
+        if (elementType.equals(TypeName.DOUBLE)) {
+            return "appendDouble";
+        }
+        throw new IllegalArgumentException("unknown append method for [" + elementType + "]");
+    }
+
+    /**
+     * Returns the name of the method used to get {@code valueType} instances
+     * from vectors or blocks.
+     */
+    static String getMethod(TypeName elementType) {
+        if (elementType.equals(TypeName.BOOLEAN)) {
+            return "getBoolean";
+        }
+        if (elementType.equals(Types.BYTES_REF)) {
+            return "getBytesRef";
+        }
+        if (elementType.equals(TypeName.INT)) {
+            return "getInt";
+        }
+        if (elementType.equals(TypeName.LONG)) {
+            return "getLong";
+        }
+        if (elementType.equals(TypeName.DOUBLE)) {
+            return "getDouble";
+        }
+        throw new IllegalArgumentException("unknown get method for [" + elementType + "]");
     }
 }

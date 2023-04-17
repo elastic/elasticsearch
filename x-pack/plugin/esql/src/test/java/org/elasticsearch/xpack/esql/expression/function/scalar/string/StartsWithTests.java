@@ -50,7 +50,7 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "StartsWithEvaluator[str=Keywords[channel=0], prefix=Keywords[channel=1]]";
+        return "StartsWithEvaluator[str=Attribute[channel=0], prefix=Attribute[channel=1]]";
     }
 
     @Override

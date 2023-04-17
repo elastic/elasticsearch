@@ -5,9 +5,13 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.Long;
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -28,16 +32,41 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
     if (vVal == null) {
       return null;
     }
-    return Cast.castIntToLong((int) vVal);
+    return Cast.castIntToLong(((Number) vVal).intValue());
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object vVal = v.computeRow(page, position);
-    if (vVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block vUncastBlock = v.eval(page);
+    if (vUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return Cast.castIntToLong((int) vVal);
+    IntBlock vBlock = (IntBlock) vUncastBlock;
+    IntVector vVector = vBlock.asVector();
+    if (vVector == null) {
+      return eval(page.getPositionCount(), vBlock);
+    }
+    return eval(page.getPositionCount(), vVector).asBlock();
+  }
+
+  public LongBlock eval(int positionCount, IntBlock vBlock) {
+    LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendLong(Cast.castIntToLong(vBlock.getInt(vBlock.getFirstValueIndex(p))));
+    }
+    return result.build();
+  }
+
+  public LongVector eval(int positionCount, IntVector vVector) {
+    LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendLong(Cast.castIntToLong(vVector.getInt(p)));
+    }
+    return result.build();
   }
 
   @Override

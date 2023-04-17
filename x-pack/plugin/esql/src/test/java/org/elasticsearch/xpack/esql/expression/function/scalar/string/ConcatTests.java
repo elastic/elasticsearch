@@ -46,7 +46,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "ConcatEvaluator[values=[Keywords[channel=0], Keywords[channel=1]]]";
+        return "ConcatEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]";
     }
 
     @Override
@@ -89,13 +89,16 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
     public void testMany() {
         List<Object> simpleData = Stream.of("cats", " ", "and", " ", "dogs").map(s -> (Object) new BytesRef(s)).toList();
         assertThat(
-            evaluator(
-                new Concat(
-                    Source.EMPTY,
-                    field("a", DataTypes.KEYWORD),
-                    IntStream.range(1, 5).mapToObj(i -> field(Integer.toString(i), DataTypes.KEYWORD)).toList()
-                )
-            ).get().computeRow(row(simpleData), 0),
+            valueAt(
+                evaluator(
+                    new Concat(
+                        Source.EMPTY,
+                        field("a", DataTypes.KEYWORD),
+                        IntStream.range(1, 5).mapToObj(i -> field(Integer.toString(i), DataTypes.KEYWORD)).toList()
+                    )
+                ).get().eval(row(simpleData)),
+                0
+            ),
             equalTo(new BytesRef("cats and dogs"))
         );
     }
@@ -103,18 +106,21 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
     public void testSomeConstant() {
         List<Object> simpleData = Stream.of("cats", "and", "dogs").map(s -> (Object) new BytesRef(s)).toList();
         assertThat(
-            evaluator(
-                new Concat(
-                    Source.EMPTY,
-                    field("a", DataTypes.KEYWORD),
-                    List.of(
-                        new Literal(Source.EMPTY, new BytesRef(" "), DataTypes.KEYWORD),
-                        field("b", DataTypes.KEYWORD),
-                        new Literal(Source.EMPTY, new BytesRef(" "), DataTypes.KEYWORD),
-                        field("c", DataTypes.KEYWORD)
+            valueAt(
+                evaluator(
+                    new Concat(
+                        Source.EMPTY,
+                        field("a", DataTypes.KEYWORD),
+                        List.of(
+                            new Literal(Source.EMPTY, new BytesRef(" "), DataTypes.KEYWORD),
+                            field("b", DataTypes.KEYWORD),
+                            new Literal(Source.EMPTY, new BytesRef(" "), DataTypes.KEYWORD),
+                            field("c", DataTypes.KEYWORD)
+                        )
                     )
-                )
-            ).get().computeRow(row(simpleData), 0),
+                ).get().eval(row(simpleData)),
+                0
+            ),
             equalTo(new BytesRef("cats and dogs"))
         );
     }

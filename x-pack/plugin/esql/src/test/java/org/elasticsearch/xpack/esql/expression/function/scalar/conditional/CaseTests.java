@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -45,7 +48,7 @@ public class CaseTests extends AbstractFunctionTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "CaseEvaluator[children=[Booleans[channel=0], Keywords[channel=1], Keywords[channel=2]]]";
+        return "CaseEvaluator[resultType=BYTES_REF, children=[Attribute[channel=0], Attribute[channel=1], Attribute[channel=2]]]";
     }
 
     @Override
@@ -54,23 +57,23 @@ public class CaseTests extends AbstractFunctionTestCase {
     }
 
     @Override
-    protected void assertSimpleWithNulls(List<Object> data, Object value, int nullBlock) {
+    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
         if (nullBlock == 0) {
-            assertThat(value, equalTo(data.get(2)));
+            assertThat(valueAt(value, 0), equalTo(data.get(2)));
             return;
         }
         if (((Boolean) data.get(0)).booleanValue()) {
             if (nullBlock == 1) {
                 super.assertSimpleWithNulls(data, value, nullBlock);
             } else {
-                assertThat(value, equalTo(data.get(1)));
+                assertThat(valueAt(value, 0), equalTo(data.get(1)));
             }
             return;
         }
         if (nullBlock == 2) {
             super.assertSimpleWithNulls(data, value, nullBlock);
         } else {
-            assertThat(value, equalTo(data.get(2)));
+            assertThat(valueAt(value, 0), equalTo(data.get(2)));
         }
     }
 
@@ -94,7 +97,12 @@ public class CaseTests extends AbstractFunctionTestCase {
     }
 
     public void testEvalCase() {
-        testCase(caseExpr -> caseExpr.toEvaluator(child -> () -> (page, pos) -> child.fold()).get().computeRow(null, 0));
+        testCase(
+            caseExpr -> valueAt(
+                caseExpr.toEvaluator(child -> evaluator(child)).get().eval(new Page(IntBlock.newConstantBlockWith(0, 1))),
+                0
+            )
+        );
     }
 
     public void testFoldCase() {
@@ -145,17 +153,16 @@ public class CaseTests extends AbstractFunctionTestCase {
 
     public void testCaseIsLazy() {
         Case caseExpr = caseExpr(true, 1, true, 2);
-        assertEquals(1, caseExpr.toEvaluator(child -> {
+        assertEquals(1, valueAt(caseExpr.toEvaluator(child -> {
             Object value = child.fold();
             if (value.equals(2)) {
-                return () -> (page, pos) -> {
+                return () -> page -> {
                     fail("Unexpected evaluation of 4th argument");
                     return null;
                 };
-            } else {
-                return () -> (page, pos) -> value;
             }
-        }).get().computeRow(null, 0));
+            return evaluator(child);
+        }).get().eval(new Page(IntBlock.newConstantBlockWith(0, 1))), 0));
     }
 
     private static Case caseExpr(Object... args) {

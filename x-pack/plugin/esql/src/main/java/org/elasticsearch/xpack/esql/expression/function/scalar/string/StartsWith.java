@@ -68,7 +68,7 @@ public class StartsWith extends ScalarFunction implements Mappable {
     }
 
     @Evaluator
-    static Boolean process(BytesRef str, BytesRef prefix) {
+    static boolean process(BytesRef str, BytesRef prefix) {
         if (str.length < prefix.length) {
             return false;
         }

@@ -5,9 +5,13 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.Double;
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -36,20 +40,54 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
     if (decimalsVal == null) {
       return null;
     }
-    return Round.process((double) valVal, (long) decimalsVal);
+    return Round.process(((Number) valVal).doubleValue(), ((Number) decimalsVal).longValue());
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object valVal = val.computeRow(page, position);
-    if (valVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block valUncastBlock = val.eval(page);
+    if (valUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    Object decimalsVal = decimals.computeRow(page, position);
-    if (decimalsVal == null) {
-      return null;
+    DoubleBlock valBlock = (DoubleBlock) valUncastBlock;
+    Block decimalsUncastBlock = decimals.eval(page);
+    if (decimalsUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return Round.process((double) valVal, (long) decimalsVal);
+    LongBlock decimalsBlock = (LongBlock) decimalsUncastBlock;
+    DoubleVector valVector = valBlock.asVector();
+    if (valVector == null) {
+      return eval(page.getPositionCount(), valBlock, decimalsBlock);
+    }
+    LongVector decimalsVector = decimalsBlock.asVector();
+    if (decimalsVector == null) {
+      return eval(page.getPositionCount(), valBlock, decimalsBlock);
+    }
+    return eval(page.getPositionCount(), valVector, decimalsVector).asBlock();
+  }
+
+  public DoubleBlock eval(int positionCount, DoubleBlock valBlock, LongBlock decimalsBlock) {
+    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      if (decimalsBlock.isNull(p) || decimalsBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendDouble(Round.process(valBlock.getDouble(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
+    }
+    return result.build();
+  }
+
+  public DoubleVector eval(int positionCount, DoubleVector valVector, LongVector decimalsVector) {
+    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendDouble(Round.process(valVector.getDouble(p), decimalsVector.getLong(p)));
+    }
+    return result.build();
   }
 
   @Override

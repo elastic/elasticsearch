@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -54,14 +55,14 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "SubstringEvaluator[str=Keywords[channel=0], start=Ints[channel=1], length=Ints[channel=2]]";
+        return "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]";
     }
 
     public void testNoLengthToString() {
         assertThat(
             evaluator(new Substring(Source.EMPTY, field("str", DataTypes.KEYWORD), field("start", DataTypes.INTEGER), null)).get()
                 .toString(),
-            equalTo("SubstringNoLengthEvaluator[str=Keywords[channel=0], start=Ints[channel=1]]")
+            equalTo("SubstringNoLengthEvaluator[str=Attribute[channel=0], start=Attribute[channel=1]]")
         );
     }
 
@@ -131,15 +132,15 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
     }
 
     private String process(String str, int start, Integer length) {
-        Object result = evaluator(
+        Block result = evaluator(
             new Substring(
                 Source.EMPTY,
                 field("str", DataTypes.KEYWORD),
                 new Literal(Source.EMPTY, start, DataTypes.INTEGER),
                 length == null ? null : new Literal(Source.EMPTY, length, DataTypes.INTEGER)
             )
-        ).get().computeRow(row(List.of(new BytesRef(str))), 0);
-        return result == null ? null : ((BytesRef) result).utf8ToString();
+        ).get().eval(row(List.of(new BytesRef(str))));
+        return result == null ? null : ((BytesRef) valueAt(result, 0)).utf8ToString();
     }
 
 }

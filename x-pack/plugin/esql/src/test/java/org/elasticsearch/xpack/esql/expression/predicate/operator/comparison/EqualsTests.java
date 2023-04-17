@@ -23,7 +23,7 @@ public class EqualsTests extends AbstractBinaryComparisonTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "EqualsIntsEvaluator[lhs=Ints[channel=0], rhs=Ints[channel=1]]";
+        return "EqualsIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]";
     }
 
     @Override

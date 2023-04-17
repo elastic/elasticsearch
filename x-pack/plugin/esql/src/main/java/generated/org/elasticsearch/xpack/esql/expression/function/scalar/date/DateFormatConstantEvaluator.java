@@ -4,11 +4,15 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
-import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -33,16 +37,41 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
     if (valVal == null) {
       return null;
     }
-    return DateFormat.process((long) valVal, formatter);
+    return DateFormat.process(((Number) valVal).longValue(), formatter);
   }
 
   @Override
-  public Object computeRow(Page page, int position) {
-    Object valVal = val.computeRow(page, position);
-    if (valVal == null) {
-      return null;
+  public Block eval(Page page) {
+    Block valUncastBlock = val.eval(page);
+    if (valUncastBlock.areAllValuesNull()) {
+      return Block.constantNullBlock(page.getPositionCount());
     }
-    return DateFormat.process((long) valVal, formatter);
+    LongBlock valBlock = (LongBlock) valUncastBlock;
+    LongVector valVector = valBlock.asVector();
+    if (valVector == null) {
+      return eval(page.getPositionCount(), valBlock, formatter);
+    }
+    return eval(page.getPositionCount(), valVector, formatter).asBlock();
+  }
+
+  public BytesRefBlock eval(int positionCount, LongBlock valBlock, DateFormatter formatter) {
+    BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+        result.appendNull();
+        continue position;
+      }
+      result.appendBytesRef(DateFormat.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), formatter));
+    }
+    return result.build();
+  }
+
+  public BytesRefVector eval(int positionCount, LongVector valVector, DateFormatter formatter) {
+    BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatter));
+    }
+    return result.build();
   }
 
   @Override

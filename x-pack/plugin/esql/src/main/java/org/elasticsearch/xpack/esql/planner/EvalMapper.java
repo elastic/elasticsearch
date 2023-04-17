@@ -8,13 +8,16 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -22,10 +25,10 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
 import java.util.List;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 public final class EvalMapper {
@@ -77,13 +80,69 @@ public final class EvalMapper {
         protected Supplier<ExpressionEvaluator> map(BinaryLogic bc, Layout layout) {
             Supplier<ExpressionEvaluator> leftEval = toEvaluator(bc.left(), layout);
             Supplier<ExpressionEvaluator> rightEval = toEvaluator(bc.right(), layout);
+            /**
+             * Evaluator for the <href a="https://en.wikipedia.org/wiki/Three-valued_logic">three-valued boolean expressions</href>.
+             * We can't generate these with the {@link Evaluator} annotation because that
+             * always implements viral null. And three-valued boolean expressions don't.
+             * {@code false AND null} is {@code false} and {@code true OR null} is {@code true}.
+             */
             record BooleanLogicExpressionEvaluator(BinaryLogic bl, ExpressionEvaluator leftEval, ExpressionEvaluator rightEval)
                 implements
                     ExpressionEvaluator {
                 @Override
-                public Object computeRow(Page page, int pos) {
-                    return bl.function().apply((Boolean) leftEval.computeRow(page, pos), (Boolean) rightEval.computeRow(page, pos));
+                public Block eval(Page page) {
+                    Block lhs = leftEval.eval(page);
+                    Block rhs = rightEval.eval(page);
+
+                    Vector lhsVector = lhs.asVector();
+                    Vector rhsVector = rhs.asVector();
+                    if (lhsVector != null && rhsVector != null) {
+                        return eval((BooleanVector) lhsVector, (BooleanVector) rhsVector);
+                    }
+                    return eval(lhs, rhs);
                 }
+
+                /**
+                 * Eval blocks, handling {@code null}. This takes {@link Block} instead of
+                 * {@link BooleanBlock} because blocks that <strong>only</strong> contain
+                 * {@code null} can't be cast to {@link BooleanBlock}. So we check for
+                 * {@code null} first and don't cast at all if the value is {@code null}.
+                 */
+                private Block eval(Block lhs, Block rhs) {
+                    int positionCount = lhs.getPositionCount();
+                    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
+                    for (int p = 0; p < positionCount; p++) {
+                        if (lhs.getValueCount(p) > 1) {
+                            result.appendNull();
+                            continue;
+                        }
+                        if (rhs.getValueCount(p) > 1) {
+                            result.appendNull();
+                            continue;
+                        }
+                        Boolean v = bl.function()
+                            .apply(
+                                lhs.isNull(p) ? null : ((BooleanBlock) lhs).getBoolean(lhs.getFirstValueIndex(p)),
+                                rhs.isNull(p) ? null : ((BooleanBlock) rhs).getBoolean(rhs.getFirstValueIndex(p))
+                            );
+                        if (v == null) {
+                            result.appendNull();
+                            continue;
+                        }
+                        result.appendBoolean(v);
+                    }
+                    return result.build();
+                }
+
+                private Block eval(BooleanVector lhs, BooleanVector rhs) {
+                    int positionCount = lhs.getPositionCount();
+                    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
+                    for (int p = 0; p < positionCount; p++) {
+                        result.appendBoolean(bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
+                    }
+                    return result.build().asBlock();
+                }
+
             }
             return () -> new BooleanLogicExpressionEvaluator(bc, leftEval.get(), rightEval.get());
         }
@@ -100,87 +159,14 @@ public final class EvalMapper {
     static class Attributes extends ExpressionMapper<Attribute> {
         @Override
         protected Supplier<ExpressionEvaluator> map(Attribute attr, Layout layout) {
-            // TODO these aren't efficient so we should do our best to remove them, but, for now, they are what we have
+            record Attribute(int channel) implements ExpressionEvaluator {
+                @Override
+                public Block eval(Page page) {
+                    return page.getBlock(channel);
+                }
+            }
             int channel = layout.getChannel(attr.id());
-            if (attr.dataType() == DataTypes.DOUBLE) {
-                record Doubles(int channel) implements ExpressionEvaluator {
-                    @Override
-                    public Object computeRow(Page page, int pos) {
-                        DoubleBlock block = page.getBlock(channel);
-                        if (block.isNull(pos)) {
-                            return null;
-                        }
-                        return block.getDouble(block.getFirstValueIndex(pos));
-                    }
-                }
-                return () -> new Doubles(channel);
-            }
-            if (attr.dataType() == DataTypes.LONG || attr.dataType() == DataTypes.DATETIME) {
-                record Longs(int channel) implements ExpressionEvaluator {
-                    @Override
-                    public Object computeRow(Page page, int pos) {
-                        LongBlock block = page.getBlock(channel);
-                        if (block.isNull(pos)) {
-                            return null;
-                        }
-                        return block.getLong(block.getFirstValueIndex(pos));
-                    }
-                }
-                return () -> new Longs(channel);
-            }
-            if (attr.dataType() == DataTypes.INTEGER) {
-                record Ints(int channel) implements ExpressionEvaluator {
-                    @Override
-                    public Object computeRow(Page page, int pos) {
-                        IntBlock block = page.getBlock(channel);
-                        if (block.isNull(pos)) {
-                            return null;
-                        }
-                        return block.getInt(block.getFirstValueIndex(pos));
-                    }
-                }
-                return () -> new Ints(channel);
-            }
-            if (attr.dataType() == DataTypes.KEYWORD || attr.dataType() == DataTypes.IP) {
-                record Keywords(int channel) implements ExpressionEvaluator {
-                    @Override
-                    public Object computeRow(Page page, int pos) {
-                        BytesRefBlock block = page.getBlock(channel);
-                        if (block.isNull(pos)) {
-                            return null;
-                        }
-                        return block.getBytesRef(block.getFirstValueIndex(pos), new BytesRef());
-                    }
-                }
-                return () -> new Keywords(channel);
-            }
-            if (attr.dataType() == DataTypes.BOOLEAN) {
-                record Booleans(int channel) implements ExpressionEvaluator {
-                    @Override
-                    public Object computeRow(Page page, int pos) {
-                        BooleanBlock block = page.getBlock(channel);
-                        if (block.isNull(pos)) {
-                            return null;
-                        }
-                        return block.getBoolean(block.getFirstValueIndex(pos));
-                    }
-                }
-                return () -> new Booleans(channel);
-            }
-            if (attr.dataType() == DataTypes.NULL) {
-                record Nulls(int channel) implements ExpressionEvaluator {
-                    @Override
-                    public Object computeRow(Page page, int pos) {
-                        Block block = page.getBlock(channel);
-                        if (block.isNull(pos)) {
-                            return null;
-                        }
-                        throw new QlIllegalArgumentException("null block has non null!?");
-                    }
-                }
-                return () -> new Nulls(channel);
-            }
-            throw new UnsupportedOperationException("unsupported field type [" + attr.dataType().typeName() + "]");
+            return () -> new Attribute(channel);
         }
     }
 
@@ -188,30 +174,43 @@ public final class EvalMapper {
 
         @Override
         protected Supplier<ExpressionEvaluator> map(Literal lit, Layout layout) {
-            record LiteralsExpressionEvaluator(Literal lit) implements ExpressionEvaluator {
+            record LiteralsEvaluator(IntFunction<Block> block) implements ExpressionEvaluator {
                 @Override
-                public Object computeRow(Page page, int pos) {
-                    return lit.value();
+                public Block eval(Page page) {
+                    return block.apply(page.getPositionCount());
                 }
             }
-
-            assert checkDataType(lit) : "unsupported data value [" + lit.value() + "] for data type [" + lit.dataType() + "]";
-            return () -> new LiteralsExpressionEvaluator(lit);
+            IntFunction<Block> block = block(lit);
+            return () -> new LiteralsEvaluator(block);
         }
 
-        private boolean checkDataType(Literal lit) {
+        private IntFunction<Block> block(Literal lit) {
             if (lit.value() == null) {
-                // Null is always ok
-                return true;
+                return Block::constantNullBlock;
             }
             return switch (LocalExecutionPlanner.toElementType(lit.dataType())) {
-                case BOOLEAN -> lit.value() instanceof Boolean;
-                case BYTES_REF -> lit.value() instanceof BytesRef;
-                case DOUBLE -> lit.value() instanceof Double;
-                case INT -> lit.value() instanceof Integer;
-                case LONG -> lit.value() instanceof Long;
-                case NULL -> true;
-                case DOC, UNKNOWN -> false;
+                case BOOLEAN -> {
+                    boolean v = (boolean) lit.value();
+                    yield positions -> BooleanBlock.newConstantBlockWith(v, positions);
+                }
+                case BYTES_REF -> {
+                    BytesRef v = (BytesRef) lit.value();
+                    yield positions -> BytesRefBlock.newConstantBlockWith(v, positions);
+                }
+                case DOUBLE -> {
+                    double v = (double) lit.value();
+                    yield positions -> DoubleBlock.newConstantBlockWith(v, positions);
+                }
+                case INT -> {
+                    int v = (int) lit.value();
+                    yield positions -> IntBlock.newConstantBlockWith(v, positions);
+                }
+                case LONG -> {
+                    long v = (long) lit.value();
+                    yield positions -> LongBlock.newConstantBlockWith(v, positions);
+                }
+                case NULL -> Block::constantNullBlock;
+                case DOC, UNKNOWN -> throw new UnsupportedOperationException("can't eval to doc or unknown");
             };
         }
     }

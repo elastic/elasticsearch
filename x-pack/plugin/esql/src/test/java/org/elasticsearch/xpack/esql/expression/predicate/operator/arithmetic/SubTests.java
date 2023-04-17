@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 public class SubTests extends AbstractArithmeticTestCase {
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "SubIntsEvaluator[lhs=Ints[channel=0], rhs=Ints[channel=1]]";
+        return "SubIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]";
     }
 
     @Override

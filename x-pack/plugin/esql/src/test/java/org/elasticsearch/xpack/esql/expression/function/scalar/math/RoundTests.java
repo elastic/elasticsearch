@@ -60,12 +60,15 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
     }
 
     private Object process(Number val) {
-        return evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), null)).get().computeRow(row(List.of(val)), 0);
+        return valueAt(evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), null)).get().eval(row(List.of(val))), 0);
     }
 
     private Object process(Number val, int decimals) {
-        return evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), field("decimals", DataTypes.INTEGER))).get()
-            .computeRow(row(List.of(val, decimals)), 0);
+        return valueAt(
+            evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), field("decimals", DataTypes.INTEGER))).get()
+                .eval(row(List.of(val, decimals))),
+            0
+        );
     }
 
     private DataType typeOf(Number val) {
@@ -103,13 +106,13 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "RoundDoubleEvaluator[val=Doubles[channel=0], decimals=CastIntToLongEvaluator[v=Ints[channel=1]]]";
+        return "RoundDoubleEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]";
     }
 
     public void testNoDecimalsToString() {
         assertThat(
             evaluator(new Round(Source.EMPTY, field("val", DataTypes.DOUBLE), null)).get().toString(),
-            equalTo("RoundDoubleNoDecimalsEvaluator[val=Doubles[channel=0]]")
+            equalTo("RoundDoubleNoDecimalsEvaluator[val=Attribute[channel=0]]")
         );
     }
 

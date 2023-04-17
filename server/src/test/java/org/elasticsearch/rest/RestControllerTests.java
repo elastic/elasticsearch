@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -624,12 +624,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchBadRequestWithValidationException() {
         final RestStatus status = randomFrom(RestStatus.values());
-        final Exception exception = new ElasticsearchException("bad bad exception") {
-            @Override
-            public RestStatus status() {
-                return status;
-            }
-        };
+        final Exception exception = new ElasticsearchStatusException("bad bad exception", status);
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
 
         // it's always a 400 bad request when dispatching "regular" {@code ElasticsearchException}

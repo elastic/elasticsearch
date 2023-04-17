@@ -20,7 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class HttpHeadersValidatorTests extends ESTestCase {
+public final class HttpHeadersValidatorTests extends ESTestCase {
 
     public void testRemoveHeaderPreservesValidationResult() {
         final ValidationResultContext validationResultContext = () -> {};

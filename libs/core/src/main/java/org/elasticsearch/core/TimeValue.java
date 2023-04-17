@@ -10,10 +10,12 @@ package org.elasticsearch.core;
 
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public class TimeValue implements Comparable<TimeValue> {
 
+    public static Set<String> VALUE_SET = Set.of("nanos", "micros", "ms", "s", "m", "h", "d");
     /** How many nano-seconds in one milli-second */
     public static final long NSEC_PER_MSEC = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
 
@@ -31,6 +33,12 @@ public class TimeValue implements Comparable<TimeValue> {
 
     private final long duration;
     private final TimeUnit timeUnit;
+
+    public static void validateUnit(String unit) {
+        if (VALUE_SET.contains(unit) == false) {
+            throw new IllegalArgumentException("Failed to parse byte size unit [" + unit +  "]");
+        }
+    }
 
     public TimeValue(long millis) {
         this(millis, TimeUnit.MILLISECONDS);

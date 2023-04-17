@@ -112,6 +112,10 @@ public class RestClusterStateAction extends BaseRestHandler {
         }
         settingsFilter.addFilterSettingParams(request);
 
+        // pre-consume response params
+        request.paramAsBoolean(Settings.FLAT_SETTINGS_PARAM, true);
+        request.param(SettingsFilter.SETTINGS_FILTER_PARAM);
+
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             ClusterStateAction.INSTANCE,
             clusterStateRequest,

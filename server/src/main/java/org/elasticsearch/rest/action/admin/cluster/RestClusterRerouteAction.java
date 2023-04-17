@@ -74,8 +74,6 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        // pre-consume response params
-        responseParams().forEach(request::param);
         ClusterRerouteRequest clusterRerouteRequest = createRequest(request);
         settingsFilter.addFilterSettingParams(request);
         if (clusterRerouteRequest.explain()) {
@@ -86,6 +84,9 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         if (metric == null) {
             request.params().put("metric", DEFAULT_METRICS);
         }
+        // pre-consume response params
+        request.paramAsBoolean(Settings.FLAT_SETTINGS_PARAM, true);
+        request.param(SettingsFilter.SETTINGS_FILTER_PARAM);
         return channel -> client.admin().cluster().reroute(clusterRerouteRequest, new RestChunkedToXContentListener<>(channel));
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateA
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -47,9 +48,6 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        // pre-consume response params
-        responseParams().forEach(request::param);
-
         final GetComponentTemplateAction.Request getRequest = new GetComponentTemplateAction.Request(request.param("name"));
         if (DataLifecycle.isEnabled()) {
             getRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
@@ -58,6 +56,10 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
         getRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRequest.masterNodeTimeout()));
 
         final boolean implicitAll = getRequest.name() == null;
+
+        // pre-consume response params
+        request.paramAsBoolean(Settings.FLAT_SETTINGS_PARAM, true);
+        request.param(SettingsFilter.SETTINGS_FILTER_PARAM);
 
         return channel -> client.execute(GetComponentTemplateAction.INSTANCE, getRequest, new RestToXContentListener<>(channel) {
             @Override

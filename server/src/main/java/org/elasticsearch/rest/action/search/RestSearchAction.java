@@ -423,6 +423,7 @@ public class RestSearchAction extends BaseRestHandler {
         checkSearchType(restRequest, searchRequest);
         // ensures that the rest param is consumed
         restRequest.paramAsBoolean(INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
+        restRequest.paramAsBoolean(TYPED_KEYS_PARAM, false);
     }
 
     /**

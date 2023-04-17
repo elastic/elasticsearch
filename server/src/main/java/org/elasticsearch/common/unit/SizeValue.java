@@ -15,11 +15,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Set;
 
 public class SizeValue implements Writeable, Comparable<SizeValue> {
 
+    public static final Set<String> VALUE_SET = Set.of("", "k", "m", "g", "t", "p");
     private final long size;
     private final SizeUnit sizeUnit;
+
+    public static void validateUnit(String unit) {
+        if (VALUE_SET.contains(unit) == false) {
+            throw new ElasticsearchParseException("Failed to parse size unit [" + unit +  "]");
+        }
+    }
 
     public SizeValue(long singles) {
         this(singles, SizeUnit.SINGLE);

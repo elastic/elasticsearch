@@ -810,6 +810,13 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         }
     }
 
+    public static void validateBoolean(String value) {
+        if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value)) {
+            return;
+        }
+        throw new ElasticsearchParseException("[" + value + "] is not a validate boolean value.");
+    }
+
     public static final Set<String> FORMAT_PARAMS = Set.of("settings_filter", FLAT_SETTINGS_PARAM);
 
     /**

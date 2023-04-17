@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXContentFragment {
 
@@ -37,6 +38,13 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     public static final ByteSizeValue ZERO = new ByteSizeValue(0, ByteSizeUnit.BYTES);
     public static final ByteSizeValue ONE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
     public static final ByteSizeValue MINUS_ONE = new ByteSizeValue(-1, ByteSizeUnit.BYTES);
+    public static final Set<String> VALUE_SET = Set.of("b", "k", "kb", "m", "mb", "g", "gb", "t", "tb", "p", "pb");
+
+    public static void validateUnit(String unit) {
+        if (VALUE_SET.contains(unit) == false) {
+            throw new ElasticsearchParseException("Failed to parse byte size unit [" + unit +  "]");
+        }
+    }
 
     public static ByteSizeValue ofBytes(long size) {
         if (size == 0) {

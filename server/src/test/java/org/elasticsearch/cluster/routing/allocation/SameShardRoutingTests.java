@@ -38,10 +38,10 @@ import java.util.List;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShardsWithState;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.numberOfShardsOfType;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -104,13 +104,13 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             .build();
         clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
-        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
+        assertThat(numberOfShardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
 
         logger.info("--> start all primary shards, no replica will be started since its on the same host");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
-        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(0));
+        assertThat(numberOfShardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
+        assertThat(numberOfShardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(0));
 
         logger.info("--> add another node, with a different host, replicas will be allocating");
         clusterState = ClusterState.builder(clusterState)
@@ -133,8 +133,8 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             .build();
         clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
-        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
-        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
+        assertThat(numberOfShardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));
+        assertThat(numberOfShardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
         for (ShardRouting shardRouting : shardsWithState(clusterState.getRoutingNodes(), INITIALIZING)) {
             assertThat(shardRouting.currentNodeId(), equalTo("node3"));
         }

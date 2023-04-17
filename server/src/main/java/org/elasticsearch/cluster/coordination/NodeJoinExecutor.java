@@ -212,7 +212,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             }
 
             final ClusterState clusterStateWithNewNodesAndDesiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(
-                newState.nodes(nodesBuilder).build()
+                newState.nodes(nodesBuilder).transportVersions(transportVersions).build()
             );
             final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(clusterStateWithNewNodesAndDesiredNodes);
             assert enforceVersionBarrier == false
@@ -251,6 +251,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         assert currentState.term() < term : term + " vs " + currentState;
         DiscoveryNodes currentNodes = currentState.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
+        Map<String, TransportVersion> transportVersions = new HashMap<>(currentState.transportVersions());
         nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
 
         for (final var taskContext : taskContexts) {
@@ -259,6 +260,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
                     logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
                     nodesBuilder.remove(nodeWithSameId.getId());
+                    transportVersions.remove(nodeWithSameId.getId());
                 }
                 final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());
                 if (nodeWithSameAddress != null && nodeWithSameAddress.equals(joiningNode) == false) {
@@ -268,6 +270,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         joiningNode
                     );
                     nodesBuilder.remove(nodeWithSameAddress.getId());
+                    transportVersions.remove(nodeWithSameAddress.getId());
                 }
             }
         }
@@ -276,6 +279,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         // or removed by us above
         ClusterState tmpState = ClusterState.builder(currentState)
             .nodes(nodesBuilder)
+            .transportVersions(transportVersions)
             .blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
             .metadata(
                 Metadata.builder(currentState.metadata())

@@ -83,8 +83,8 @@ setup:
 
 "Basic test profiled":
   - skip:
-      version: " - 8.6.99"
-      reason: Time series result serialization changed in 8.6.0
+      version: " - 8.7.99"
+      reason: Time series profiling enabled in 8.8
 
   - do:
       search:

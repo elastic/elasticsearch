@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -182,6 +183,39 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             assertEngineContainsIdNoRefresh(replica, id);
         } finally {
             closeShards(primary, replica);
+        }
+    }
+
+    public void testWaitForWithNullLocationCompletedImmediately() throws IOException {
+        final IndexShard primary = spy(newShard(true));
+        recoverShardFromStore(primary);
+        ReplicationGroup realReplicationGroup = primary.getReplicationGroup();
+        try {
+            PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
+            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
+
+            ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
+            IndexShardRoutingTable routingTable = mock(IndexShardRoutingTable.class);
+            when(primary.getReplicationGroup()).thenReturn(replicationGroup).thenReturn(realReplicationGroup);
+            when(replicationGroup.getRoutingTable()).thenReturn(routingTable);
+            ShardRouting shardRouting = ShardRouting.newUnassigned(
+                primary.shardId(),
+                false,
+                RecoverySource.PeerRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
+                ShardRouting.Role.SEARCH_ONLY
+            );
+            // Randomly test scenarios with and without unpromotables
+            if (randomBoolean()) {
+                when(routingTable.unpromotableShards()).thenReturn(Collections.emptyList());
+            } else {
+                when(routingTable.unpromotableShards()).thenReturn(List.of(shardRouting));
+            }
+            WriteRequest.RefreshPolicy policy = WriteRequest.RefreshPolicy.WAIT_UNTIL;
+            postWriteRefresh.refreshShard(policy, primary, null, f);
+            f.actionGet();
+        } finally {
+            closeShards(primary, primary);
         }
     }
 

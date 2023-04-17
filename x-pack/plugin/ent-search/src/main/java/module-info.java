@@ -10,12 +10,17 @@ module org.elasticsearch.application {
 
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
+    requires org.elasticsearch.mustache;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;
 
     exports org.elasticsearch.xpack.application.analytics;
     exports org.elasticsearch.xpack.application.analytics.action;
+    exports org.elasticsearch.xpack.application.analytics.event;
+    exports org.elasticsearch.xpack.application.analytics.event.parser.field;
+    exports org.elasticsearch.xpack.application.analytics.event.parser.event;
+    exports org.elasticsearch.xpack.application.analytics.ingest;
 
     exports org.elasticsearch.xpack.application.search;
     exports org.elasticsearch.xpack.application.search.action;

@@ -88,6 +88,7 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
@@ -888,6 +889,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
 
             countingPageCacheRecycler.assertAllPagesReleased();
+
+            coordinatorStrategy.close();
         }
 
         protected List<NamedWriteableRegistry.Entry> extraNamedWriteables() {
@@ -1472,7 +1475,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         return NOOP_TRANSPORT_INTERCEPTOR;
     }
 
-    protected interface CoordinatorStrategy {
+    protected interface CoordinatorStrategy extends Closeable {
         CoordinationServices getCoordinationServices(
             ThreadPool threadPool,
             Settings settings,
@@ -1496,6 +1499,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             BooleanSupplier disruptStorage,
             ThreadPool threadPool
         );
+
+        default void close() {};
     }
 
     protected interface CoordinationServices {

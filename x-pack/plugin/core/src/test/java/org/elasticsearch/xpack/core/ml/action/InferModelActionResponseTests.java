@@ -29,6 +29,8 @@ import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResultsTests;
 
@@ -43,14 +45,15 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
 
     private static List<String> INFERENCE_RESULT_TYPES = List.of(
         ClassificationInferenceResults.NAME,
-        RegressionInferenceResults.NAME,
         NerResults.NAME,
-        TextEmbeddingResults.NAME,
-        PyTorchPassThroughResults.NAME,
         FillMaskResults.NAME,
-        WarningInferenceResults.NAME,
+        PyTorchPassThroughResults.NAME,
         QuestionAnsweringInferenceResults.NAME,
-        TextExpansionResults.NAME
+        RegressionInferenceResults.NAME,
+        TextEmbeddingResults.NAME,
+        TextExpansionResults.NAME,
+        TextSimilarityInferenceResults.NAME,
+        WarningInferenceResults.NAME
     );
 
     @Override
@@ -79,14 +82,15 @@ public class InferModelActionResponseTests extends AbstractWireSerializingTestCa
     private static InferenceResults randomInferenceResult(String resultType) {
         return switch (resultType) {
             case ClassificationInferenceResults.NAME -> ClassificationInferenceResultsTests.createRandomResults();
-            case RegressionInferenceResults.NAME -> RegressionInferenceResultsTests.createRandomResults();
             case NerResults.NAME -> NerResultsTests.createRandomResults();
-            case TextEmbeddingResults.NAME -> TextEmbeddingResultsTests.createRandomResults();
-            case PyTorchPassThroughResults.NAME -> PyTorchPassThroughResultsTests.createRandomResults();
             case FillMaskResults.NAME -> FillMaskResultsTests.createRandomResults();
-            case WarningInferenceResults.NAME -> WarningInferenceResultsTests.createRandomResults();
+            case PyTorchPassThroughResults.NAME -> PyTorchPassThroughResultsTests.createRandomResults();
             case QuestionAnsweringInferenceResults.NAME -> QuestionAnsweringInferenceResultsTests.createRandomResults();
+            case RegressionInferenceResults.NAME -> RegressionInferenceResultsTests.createRandomResults();
+            case TextEmbeddingResults.NAME -> TextEmbeddingResultsTests.createRandomResults();
             case TextExpansionResults.NAME -> TextExpansionResultsTests.createRandomResults();
+            case TextSimilarityInferenceResults.NAME -> TextSimilarityInferenceResultsTests.createRandomResults();
+            case WarningInferenceResults.NAME -> WarningInferenceResultsTests.createRandomResults();
             default -> throw new AssertionError("unexpected result type [" + resultType + "]");
         };
     }

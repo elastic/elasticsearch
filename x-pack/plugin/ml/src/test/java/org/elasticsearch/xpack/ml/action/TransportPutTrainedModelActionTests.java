@@ -51,12 +51,10 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
                 TextExpansionConfigTests.createRandom() }
         );
 
-        Map<String, Object> inferenceConfigMap = null;
+        Map<String, Object> inferenceConfigMap;
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = inferenceConfig.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             inferenceConfigMap = XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON).v2();
-        } catch (IOException e) {
-            fail("failed to create" + e.getMessage());
         }
 
         assertNotNull(inferenceConfigMap);

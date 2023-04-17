@@ -351,7 +351,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(LifecycleSettings.LIFECYCLE_NAME, randomAlphaOfLength(5))
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey(), randomAlphaOfLength(5))
-            .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean());
+            .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean());
 
         final Integer totalFieldsLimit = randomBoolean() ? randomIntBetween(100, 10_000) : null;
         if (totalFieldsLimit != null) {

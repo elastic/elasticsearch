@@ -144,13 +144,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
     }
 
-    public void reset() {
-        Releasables.close(pages);
-        pages.clear();
-        pageIndex = -1;
-        currentPageOffset = pageSize;
-    }
-
     @Override
     public void flush() {
         // nothing to do
@@ -235,11 +228,11 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             assert pageSize == newPage.v().length;
             pages.add(newPage);
             // We are at the end of the current page, increment page index
-            if (currentPageOffset == pageSize) {
-                pageIndex++;
-                currentPageOffset = 0;
-            }
             currentCapacity += pageSize;
+        }
+        if (currentPageOffset == pageSize) {
+            pageIndex++;
+            currentPageOffset = 0;
         }
     }
 }

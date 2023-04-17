@@ -72,12 +72,17 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey(Strings.format("""
-                        [
-                          {
-                             "names": ["%s"],
-                             "privileges": ["read", "read_cross_cluster"]
+                        {
+                          "role": {
+                            "cluster": ["cross_cluster_access"],
+                            "index": [
+                              {
+                                  "names": ["%s"],
+                                  "privileges": ["read", "read_cross_cluster"]
+                              }
+                            ]
                           }
-                        ]""", REMOTE_INDEX_NAME));
+                        }""", REMOTE_INDEX_NAME));
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
                 return (String) API_KEY_MAP_REF.get().get("encoded");
@@ -98,7 +103,7 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
      * @throws Exception in case of unexpected errors
      */
     @Override
-    protected void configureRemoteClusters(boolean isProxyMode) throws Exception {
+    protected void configureRemoteCluster(boolean isProxyMode) throws Exception {
         // This method assume the cross cluster access API key is already configured in keystore
         final Settings.Builder builder = Settings.builder();
         if (isProxyMode) {
@@ -112,8 +117,11 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
     }
 
     public void testCrossClusterAccessFeatureTrackingAndLicensing() throws Exception {
+        assertBasicLicense(fulfillingClusterClient);
+        assertBasicLicense(client());
+
         final boolean useProxyMode = randomBoolean();
-        configureRemoteClusters(useProxyMode);
+        configureRemoteCluster(useProxyMode);
 
         // Fulfilling cluster
         {
@@ -224,6 +232,20 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             exception.getMessage(),
             containsString("current license is non-compliant for [" + CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE_NAME + "]")
         );
+    }
+
+    private void assertBasicLicense(RestClient client) throws Exception {
+        final var request = new Request("GET", "/_license");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASS)));
+        assertBusy(() -> {
+            final Response response;
+            try {
+                response = client.performRequest(request);
+            } catch (ResponseException e) {
+                throw new AssertionError(e);
+            }
+            assertThat(ObjectPath.createFromResponse(response).evaluate("license.type"), equalTo("basic"));
+        });
     }
 
     private void deleteLicenseFromCluster(RestClient client) throws IOException {

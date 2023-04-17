@@ -157,7 +157,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
             });
         }
         // Update the lifecycle of the data stream
-        updateLifecycle(dataStreamName, new DataLifecycle(TimeValue.timeValueMillis(1)));
+        updateLifecycle(dataStreamName, TimeValue.timeValueMillis(1));
         // Verify that the retention has changed for all backing indices
         assertBusy(() -> {
             GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
@@ -281,7 +281,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         // mark the first generation index as read-only so deletion fails when we enable the retention configuration
         updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), true), firstGenerationIndex);
         try {
-            updateLifecycle(dataStreamName, new DataLifecycle(TimeValue.timeValueSeconds(1)));
+            updateLifecycle(dataStreamName, TimeValue.timeValueSeconds(1));
 
             assertBusy(() -> {
                 GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
@@ -382,10 +382,10 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }
 
-    static void updateLifecycle(String dataStreamName, DataLifecycle dataLifecycle) {
+    static void updateLifecycle(String dataStreamName, TimeValue dataRetention) {
         PutDataLifecycleAction.Request putDataLifecycleRequest = new PutDataLifecycleAction.Request(
             new String[] { dataStreamName },
-            dataLifecycle
+            dataRetention
         );
         AcknowledgedResponse putDataLifecycleResponse = client().execute(PutDataLifecycleAction.INSTANCE, putDataLifecycleRequest)
             .actionGet();

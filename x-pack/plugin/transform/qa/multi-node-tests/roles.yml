@@ -15,3 +15,11 @@ source_index_access:
         - view_index_metadata
         - indices:data/write/bulk
         - indices:data/write/index
+
+fleet_index_access:
+  indices:
+    # Give access to the Fleet indices (which are system indices)
+    - names: [ '.fleet*' ]
+      privileges:
+        - all
+      allow_restricted_indices: true

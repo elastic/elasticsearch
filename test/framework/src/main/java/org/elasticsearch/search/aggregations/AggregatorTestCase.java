@@ -623,6 +623,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceDense(
+        IndexSearcher searcher,
+        AggTestConfig aggTestConfig
+    ) {
+
+    }
+
     protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
     }
@@ -651,6 +658,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
                 V agg = searchAndReduce(indexSearcher, aggTestConfig);
                 verify.accept(agg);
+
+                if (aggTestConfig.builder().supportsDenseAggregations()) {
+                    V agg = searchAndReduceDense(indexSearcher, aggTestConfig);
+                    verify.accept(agg);
+                }
 
                 verifyOutputFieldNames(aggTestConfig.builder(), agg);
             }

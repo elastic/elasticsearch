@@ -9,23 +9,33 @@
 package org.elasticsearch.grok;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public record PatternBank(Map<String, String> bank) {
+public class PatternBank {
 
     public static PatternBank EMPTY = new PatternBank(Map.of());
 
-    public PatternBank {
+    private final Map<String, String> bank;
+
+    public PatternBank(Map<String, String> bank) {
         Objects.requireNonNull(bank, "bank must not be null");
-        bank = Map.copyOf(bank);
         forbidCircularReferences(bank);
+
+        // the bank reference should be unmodifiable, based on a defensive copy of the passed-in bank, and
+        // maintain the iteration order of the passed-in bank (assuming there was a meaningful order)
+        this.bank = Collections.unmodifiableMap(new LinkedHashMap<>(bank));
     }
 
     public String get(String patternName) {
         return bank.get(patternName);
+    }
+
+    public Map<String, String> bank() {
+        return bank;
     }
 
     /**

@@ -51,7 +51,6 @@ public final class Grok {
 
     private static final int MAX_TO_REGEX_ITERATIONS = 100_000; // sanity limit
 
-    private final PatternBank patternBank;
     private final boolean namedCaptures;
     private final Regex compiledExpression;
     private final MatcherWatchdog matcherWatchdog;
@@ -76,11 +75,10 @@ public final class Grok {
         MatcherWatchdog matcherWatchdog,
         Consumer<String> logCallBack
     ) {
-        this.patternBank = patternBank;
         this.namedCaptures = namedCaptures;
         this.matcherWatchdog = matcherWatchdog;
 
-        String expression = toRegex(grokPattern);
+        String expression = toRegex(patternBank, grokPattern);
         byte[] expressionBytes = expression.getBytes(StandardCharsets.UTF_8);
         this.compiledExpression = new Regex(
             expressionBytes,
@@ -118,7 +116,7 @@ public final class Grok {
      *
      * @return named regex expression
      */
-    protected String toRegex(String grokPattern) {
+    protected String toRegex(PatternBank patternBank, String grokPattern) {
         StringBuilder res = new StringBuilder();
         for (int i = 0; i < MAX_TO_REGEX_ITERATIONS; i++) {
             byte[] grokPatternBytes = grokPattern.getBytes(StandardCharsets.UTF_8);

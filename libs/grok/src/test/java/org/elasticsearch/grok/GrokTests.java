@@ -415,7 +415,7 @@ public class GrokTests extends ESTestCase {
         Grok g = new Grok(bank, pattern, false, logger::warn);
         assertCaptureConfig(g, Map.of("EXCITED_NAME_0", STRING, "NAME_21", STRING, "NAME_22", STRING));
 
-        assertEquals("(?<EXCITED_NAME_0>!!!(?<NAME_21>Tal)!!!) - (?<NAME_22>Tal)", g.toRegex(pattern));
+        assertEquals("(?<EXCITED_NAME_0>!!!(?<NAME_21>Tal)!!!) - (?<NAME_22>Tal)", g.toRegex(bank, pattern));
         assertEquals(true, g.match(text));
 
         Object actual = g.captures(text);

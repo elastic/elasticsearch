@@ -56,12 +56,17 @@ public class RemoteClusterSecurityTransformIT extends AbstractRemoteClusterSecur
             .setting("xpack.security.authc.token.enabled", "true")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 API_KEY_MAP_REF.compareAndSet(null, createCrossClusterAccessApiKey("""
-                    [
-                      {
-                         "names": ["shared-transform-index"],
-                         "privileges": ["read", "read_cross_cluster", "view_index_metadata"]
+                    {
+                      "role": {
+                        "cluster": ["cross_cluster_access"],
+                        "index": [
+                          {
+                              "names": ["shared-transform-index"],
+                              "privileges": ["read", "read_cross_cluster", "view_index_metadata"]
+                          }
+                        ]
                       }
-                    ]"""));
+                    }"""));
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })
             .rolesFile(Resource.fromClasspath("roles.yml"))
@@ -74,7 +79,7 @@ public class RemoteClusterSecurityTransformIT extends AbstractRemoteClusterSecur
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testCrossClusterTransform() throws Exception {
-        configureRemoteClusters();
+        configureRemoteCluster();
 
         // Fulfilling cluster
         {

@@ -194,6 +194,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         verifyNoMoreInteractions(client);
     }
 
+    @SuppressWarnings("unchecked")
     public void testFailedRequestsAreRetried() {
         MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue = newMockTaskQueue();
         ClusterAdminClient client = mock(ClusterAdminClient.class);

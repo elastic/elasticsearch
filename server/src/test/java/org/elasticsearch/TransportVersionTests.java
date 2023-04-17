@@ -82,7 +82,7 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testDefinedConstants() throws IllegalAccessException {
         Pattern historicalVersion = Pattern.compile("^V_(\\d{1,2})_(\\d{1,2})_(\\d{1,2})$");
-        Pattern transportVersion = Pattern.compile("^V_(\\d{2,})_(\\d{3})_(\\d{3})$");
+        Pattern transportVersion = Pattern.compile("^V_(\\d+)_(\\d{3})_(\\d{3})$");
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE", "MINIMUM_CCS_VERSION");
 
         for (java.lang.reflect.Field field : TransportVersion.class.getFields()) {

@@ -95,6 +95,7 @@ final class TransformPrivilegeChecker {
                 .indices(sourceIndex)
                 // We need to read the source indices mapping to deduce the destination mapping, hence the need for view_index_metadata
                 .privileges("read", "view_index_metadata")
+                .allowRestrictedIndices(true)
                 .build();
             indicesPrivileges.add(sourceIndexPrivileges);
         }
@@ -121,6 +122,7 @@ final class TransformPrivilegeChecker {
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(destIndex)
                 .privileges(destPrivileges)
+                .allowRestrictedIndices(true)
                 .build();
             indicesPrivileges.add(destIndexPrivileges);
         }

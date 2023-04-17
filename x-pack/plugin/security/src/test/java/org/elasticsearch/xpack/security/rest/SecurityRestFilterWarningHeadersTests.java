@@ -66,17 +66,17 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
         headers.put("X-elastic-product", Collections.singletonList("Some product header"));
         Map<String, List<String>> afterHeaders;
 
-        // Remove all the headers on authentication failures
+        // only remove the response headers for 401 and 403
         afterHeaders = testProcessAuthenticationFailed(RestStatus.BAD_REQUEST, headers);
-        assertEquals(afterHeaders.size(), 0);
+        assertEquals(afterHeaders.size(), 2);
         afterHeaders = testProcessAuthenticationFailed(RestStatus.INTERNAL_SERVER_ERROR, headers);
-        assertEquals(afterHeaders.size(), 0);
+        assertEquals(afterHeaders.size(), 2);
         afterHeaders = testProcessAuthenticationFailed(RestStatus.UNAUTHORIZED, headers);
         assertEquals(afterHeaders.size(), 0);
         afterHeaders = testProcessAuthenticationFailed(RestStatus.FORBIDDEN, headers);
         assertEquals(afterHeaders.size(), 0);
 
-        // On rest handling failures only remove headers if rest status is UNAUTHORIZED or FORBIDDEN
+        // only remove the response headers for 401 and 403
         afterHeaders = testProcessRestHandlingFailed(RestStatus.BAD_REQUEST, headers);
         assertEquals(afterHeaders.size(), 2);
         afterHeaders = testProcessRestHandlingFailed(RestStatus.INTERNAL_SERVER_ERROR, headers);
@@ -96,8 +96,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
             authcService,
             secondaryAuthenticator,
             new AuditTrailService(null, null),
-            restHandler,
-            false
+            restHandler
         );
         RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
         Authentication primaryAuthentication = AuthenticationTestHelper.builder().build();
@@ -136,8 +135,7 @@ public class SecurityRestFilterWarningHeadersTests extends ESTestCase {
             authcService,
             secondaryAuthenticator,
             mock(AuditTrailService.class),
-            restHandler,
-            false
+            restHandler
         );
         RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
         doAnswer((i) -> {

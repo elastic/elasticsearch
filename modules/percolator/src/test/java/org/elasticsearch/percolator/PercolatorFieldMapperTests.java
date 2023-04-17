@@ -29,6 +29,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -822,6 +823,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 // then the length of the field value in bytes.
                 input.readVInt();
                 input.readVInt();
+                TransportVersion.readVersion(input);
                 QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                 assertThat(queryBuilder, equalTo(expected));
             }
@@ -885,6 +887,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 // then the length of the field value in bytes.
                 input.readVInt();
                 input.readVInt();
+                TransportVersion.readVersion(input);
                 ScriptQueryBuilder queryBuilder = (ScriptQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
                 assertEquals(Script.DEFAULT_SCRIPT_LANG, queryBuilder.script().getLang());
             }
@@ -927,6 +930,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), writableRegistry())) {
                 input.readVInt();
                 input.readVInt();
+                TransportVersion.readVersion(input);
                 FunctionScoreQueryBuilder queryBuilder = (FunctionScoreQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
                 ScriptScoreFunctionBuilder function = (ScriptScoreFunctionBuilder) queryBuilder.filterFunctionBuilders()[0]
                     .getScoreFunction();

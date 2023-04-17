@@ -24,9 +24,9 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.numberOfShardsOfType;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardsLimitAllocationTests extends ESAllocationTestCase {
@@ -166,7 +166,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
         logger.info("Start the primary shards");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), STARTED), equalTo(5));
+        assertThat(numberOfShardsWithState(clusterState.getRoutingNodes(), STARTED), equalTo(5));
 
         logger.info("add another index with 5 shards");
         metadata = Metadata.builder(clusterState.metadata())
@@ -185,7 +185,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
 
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), STARTED), equalTo(10));
+        assertThat(numberOfShardsWithState(clusterState.getRoutingNodes(), STARTED), equalTo(10));
 
         for (ShardRouting shardRouting : clusterState.getRoutingNodes().node("node1")) {
             assertThat(shardRouting.getIndexName(), equalTo("test"));

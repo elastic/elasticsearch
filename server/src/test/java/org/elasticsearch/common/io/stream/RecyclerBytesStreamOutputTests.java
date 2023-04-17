@@ -712,6 +712,22 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
     }
 
+    public void testWriteLongToCompletePage() throws IOException {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
+            out.seek(PageCacheRecycler.BYTE_PAGE_SIZE + 1);
+            int longPos = PageCacheRecycler.BYTE_PAGE_SIZE - Long.BYTES;
+            out.seek(longPos);
+            long longValue = randomLong();
+            out.writeLong(longValue);
+            byte byteValue = randomByte();
+            out.writeByte(byteValue);
+            var input = out.bytes().streamInput();
+            assertEquals(longPos, input.skip(longPos));
+            assertEquals(longValue, input.readLong());
+            assertEquals(byteValue, input.readByte());
+        }
+    }
+
     private static class TestWriteable implements Writeable {
 
         private boolean value;

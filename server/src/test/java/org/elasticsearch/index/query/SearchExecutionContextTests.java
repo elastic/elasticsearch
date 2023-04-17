@@ -23,6 +23,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
@@ -487,6 +488,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
                 mapperRegistry.getRuntimeFieldParsers()::get,
                 indexSettings.getIndexVersionCreated(),
+                () -> TransportVersion.CURRENT,
                 searchExecutionContextSupplier,
                 ScriptCompiler.NONE,
                 indexAnalyzers,

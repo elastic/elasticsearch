@@ -77,6 +77,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -185,7 +186,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
-        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+        Map<String, Processor.Factory> processorFactories = new TreeMap<>();
         for (IngestPlugin ingestPlugin : ingestPlugins) {
             Map<String, Processor.Factory> newProcessors = ingestPlugin.getProcessors(parameters);
             for (Map.Entry<String, Processor.Factory> entry : newProcessors.entrySet()) {
@@ -194,7 +195,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
             }
         }
-        return Collections.unmodifiableMap(processorFactories);
+        logger.debug("registered ingest processor types: {}", processorFactories.keySet());
+        return Map.copyOf(processorFactories);
     }
 
     /**
@@ -363,7 +365,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     static List<PipelineConfiguration> innerGetPipelines(IngestMetadata ingestMetadata, String... ids) {
         if (ingestMetadata == null) {
-            return Collections.emptyList();
+            return List.of();
         }
 
         // if we didn't ask for _any_ ID, then we get them all (this is the same as if they ask for '*')

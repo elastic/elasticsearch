@@ -1,12 +1,11 @@
 {
   "search_application.put": {
     "documentation": {
-      "url": "http://todo.com/tbd",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-search-application.html",
       "description": "Creates or updates a search application."
     },
-    "stability": "experimental",
-    "visibility": "feature_flag",
-    "feature_flag": "xpack.ent-search.enabled",
+    "stability": "beta",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"

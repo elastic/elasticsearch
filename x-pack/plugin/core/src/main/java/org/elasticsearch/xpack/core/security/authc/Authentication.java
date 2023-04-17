@@ -46,12 +46,14 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -280,6 +282,63 @@ public final class Authentication implements ToXContentObject {
         } else {
             return authentication.getAuthenticatingSubject().getMetadata();
         }
+    }
+
+    /**
+     * Creates a copy of this Authentication instance, but only with metadata entries specified by `fieldsToKeep`.
+     * All other entries are removed from the copy's metadata.
+     */
+    public Authentication copyWithFilteredMetadataFields(final Set<String> fieldsToKeep) {
+        Objects.requireNonNull(fieldsToKeep);
+        if (fieldsToKeep.isEmpty()) {
+            return copyWithEmptyMetadata();
+        }
+        final Map<String, Object> metadataCopy = new HashMap<>(authenticatingSubject.getMetadata());
+        final boolean metadataChanged = metadataCopy.keySet().retainAll(fieldsToKeep);
+        if (logger.isTraceEnabled() && metadataChanged) {
+            logger.trace(
+                "Authentication metadata [{}] for subject [{}] contains fields other than [{}]. These will be removed in the copy.",
+                authenticatingSubject.getMetadata().keySet(),
+                authenticatingSubject.getUser().principal(),
+                fieldsToKeep
+            );
+        }
+        return copyWithMetadata(Collections.unmodifiableMap(metadataCopy));
+    }
+
+    public Authentication copyWithEmptyMetadata() {
+        if (logger.isTraceEnabled() && false == authenticatingSubject.getMetadata().isEmpty()) {
+            logger.trace(
+                "Authentication metadata [{}] for subject [{}] is not empty. All fields will be removed in the copy.",
+                authenticatingSubject.getMetadata().keySet(),
+                authenticatingSubject.getUser().principal()
+            );
+        }
+        return copyWithMetadata(Collections.emptyMap());
+    }
+
+    private Authentication copyWithMetadata(final Map<String, Object> newMetadata) {
+        Objects.requireNonNull(newMetadata);
+        return isRunAs()
+            ? new Authentication(
+                effectiveSubject,
+                new Subject(
+                    authenticatingSubject.getUser(),
+                    authenticatingSubject.getRealm(),
+                    authenticatingSubject.getTransportVersion(),
+                    newMetadata
+                ),
+                type
+            )
+            : new Authentication(
+                new Subject(
+                    authenticatingSubject.getUser(),
+                    authenticatingSubject.getRealm(),
+                    authenticatingSubject.getTransportVersion(),
+                    newMetadata
+                ),
+                type
+            );
     }
 
     /**
@@ -513,8 +572,7 @@ public final class Authentication implements ToXContentObject {
         doWriteTo(effectiveSubject, authenticatingSubject, type, out);
     }
 
-    // Package private for testing
-    static void doWriteTo(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type, StreamOutput out)
+    private static void doWriteTo(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type, StreamOutput out)
         throws IOException {
         // cross cluster access introduced a new synthetic realm and subject type; these cannot be parsed by older versions, so rewriting we
         // should not send them across the wire to older nodes
@@ -810,7 +868,7 @@ public final class Authentication implements ToXContentObject {
                         + "a non-null serialized cross cluster access role descriptors field"
                 );
             }
-            checkNoRunAs(this, "Remote access");
+            checkNoRunAs(this, "Cross cluster access");
         } else {
             if (isRunAs()) {
                 checkRunAsConsistency(effectiveSubject, authenticatingSubject);

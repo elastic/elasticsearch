@@ -246,10 +246,7 @@ public class ElasticsearchAssertions {
             );
         }
         assertThat(
-            "Some expected ids were not found in search results: "
-                + Arrays.toString(idsSet.toArray(new String[idsSet.size()]))
-                + "."
-                + shardStatus,
+            "Some expected ids were not found in search results: " + new ArrayList<>(idsSet) + "." + shardStatus,
             idsSet.size(),
             equalTo(0)
         );

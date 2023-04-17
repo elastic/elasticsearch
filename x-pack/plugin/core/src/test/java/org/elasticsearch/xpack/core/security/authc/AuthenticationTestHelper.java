@@ -261,7 +261,7 @@ public class AuthenticationTestHelper {
     }
 
     private static Authentication randomCrossClusterAccessSupportedAuthenticationSubject(boolean allowInternalUser) {
-        final Set<String> allowedTypes = new HashSet<>(Set.of("realm", "apikey"));
+        final Set<String> allowedTypes = new HashSet<>(Set.of("realm", "apikey", "service_account"));
         if (allowInternalUser) {
             allowedTypes.add("internal");
         }
@@ -270,6 +270,7 @@ public class AuthenticationTestHelper {
             case "realm" -> AuthenticationTestHelper.builder().realm().build();
             case "apikey" -> AuthenticationTestHelper.builder().apiKey().build();
             case "internal" -> AuthenticationTestHelper.builder().internal(CrossClusterAccessUser.INSTANCE).build();
+            case "service_account" -> AuthenticationTestHelper.builder().serviceAccount().build();
             default -> throw new UnsupportedOperationException("unknown type " + type);
         };
     }

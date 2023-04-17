@@ -1291,12 +1291,14 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
 
             final ClusterNode newNode = cluster1.new ClusterNode(
-                nextNodeIndex.getAndIncrement(), nodeInOtherCluster.getLocalNode(), n -> cluster1.createPersistedStateFromExistingState(
-                    n,
-                    nodeInOtherCluster.persistedState,
-                    Function.identity(),
-                    Function.identity()
-                ), nodeInOtherCluster.nodeSettings, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info")
+                nextNodeIndex.getAndIncrement(), nodeInOtherCluster.getLocalNode(), (node, threadPool) -> cluster1
+                    .createPersistedStateFromExistingState(
+                        node,
+                        nodeInOtherCluster.persistedState,
+                        Function.identity(),
+                        Function.identity(),
+                        threadPool
+                    ), nodeInOtherCluster.nodeSettings, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info")
             );
 
             cluster1.clusterNodes.add(newNode);

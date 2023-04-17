@@ -13,14 +13,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public class GrokBuiltinPatterns {
-    public static final String[] ECS_COMPATIBILITY_MODES = { "disabled", "v1" };
+
+    public static final String ECS_COMPATIBILITY_DISABLED = "disabled";
+    public static final String ECS_COMPATIBILITY_V1 = "v1";
+    public static final List<String> ECS_COMPATIBILITY_MODES = List.of(ECS_COMPATIBILITY_DISABLED, ECS_COMPATIBILITY_V1);
+
     /**
      * Patterns built in to the grok library.
      */
@@ -54,14 +57,14 @@ public class GrokBuiltinPatterns {
 
     public static Map<String, String> get(String ecsCompatibility) {
         if (isValidEcsCompatibilityMode(ecsCompatibility)) {
-            return get(ECS_COMPATIBILITY_MODES[1].equals(ecsCompatibility));
+            return get(ECS_COMPATIBILITY_V1.equals(ecsCompatibility));
         } else {
             throw new IllegalArgumentException("unsupported ECS compatibility mode [" + ecsCompatibility + "]");
         }
     }
 
     public static boolean isValidEcsCompatibilityMode(String ecsCompatibility) {
-        return Arrays.asList(ECS_COMPATIBILITY_MODES).contains(ecsCompatibility);
+        return ECS_COMPATIBILITY_MODES.contains(ecsCompatibility);
     }
 
     private static Map<String, String> loadLegacyPatterns() {

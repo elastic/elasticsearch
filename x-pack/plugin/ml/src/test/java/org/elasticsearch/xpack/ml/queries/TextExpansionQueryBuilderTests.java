@@ -90,7 +90,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         }
 
         var response = InferModelAction.Response.builder()
-            .setModelId(request.getModelId())
+            .setId(request.getId())
             .addInferenceResults(List.of(new TextExpansionResults("foo", tokens, randomBoolean())))
             .build();
         @SuppressWarnings("unchecked")  // We matched the method above.

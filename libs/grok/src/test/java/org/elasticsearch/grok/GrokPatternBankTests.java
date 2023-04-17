@@ -30,12 +30,7 @@ public class GrokPatternBankTests extends ESTestCase {
     }
 
     public void testConstructorValidatesCircularReferences() {
-        var e = expectThrows(IllegalArgumentException.class, () -> {
-            var bank = Map.of("NAME", "!!!%{NAME}!!!");
-            var patternBank = new GrokPatternBank(bank);
-            assertNotSame(bank, patternBank.bank());
-            assertEquals(bank, patternBank.bank());
-        });
+        var e = expectThrows(IllegalArgumentException.class, () -> new GrokPatternBank(Map.of("NAME", "!!!%{NAME}!!!")));
         assertEquals("circular reference in pattern [NAME][!!!%{NAME}!!!]", e.getMessage());
     }
 

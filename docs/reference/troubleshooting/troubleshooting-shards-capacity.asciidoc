@@ -11,11 +11,11 @@ The current shards capacity of the cluster is available in the
 === Cluster is close to reaching the configured maximum number of shards for data nodes.
 
 The <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> cluster
-setting limits the maximum number of open shards for a cluster, only counting over data nodes
+setting limits the maximum number of open shards for a clusster, only counting data nodes
 that do not belong to the frozen tier.
 
-This symptom indicates that an action should be taken, otherwise, either the creation of new
-indices or the upgrading of the cluster could be blocked.
+This symptom indicates that action should be taken, otherwise, either the creation of new
+indices or upgrading the cluster could be blocked.
 
 If you're confident your changes won't destabilize the cluster, you can
 temporarily increase the limit using the <<cluster-update-settings,cluster update settings API>>:
@@ -32,7 +32,7 @@ PUT _cluster/settings
 
 This increase should only be temporary. As a long-term solution, we recommend
 you add nodes to the oversharded data tier or
-<<reduce-cluster-shard-count,reduce your cluster's shard count>> in nodes that do not belong
+<<reduce-cluster-shard-count,reduce your cluster's shard count>> on nodes that do not belong
 to the frozen tier. To verify that the change has fixed the issue, you can get the current
 status of the `shards_capacity` indicator by checking the `data` section of the
 <<health-api-example,health API>>:
@@ -59,11 +59,11 @@ PUT _cluster/settings
 === Cluster is close to reaching the configured maximum number of shards for frozen nodes.
 
 The <<cluster-max-shards-per-node-frozen,`cluster.max_shards_per_node.frozen`>> cluster
-setting limits the maximum number of open shards for a cluster, only counting over data nodes
+setting limits the maximum number of open shards for a cluster, only counting data nodes
 that belong to the frozen tier.
 
-This symptom indicates that an action should be taken, otherwise, either the creation of new
-indices in the frozen tier or the upgrading of the cluster could be blocked.
+This symptom indicates that action should be taken, otherwise, either the creation of new
+indices or upgrading the cluster could be blocked.
 
 If you're confident your changes won't destabilize the cluster, you can
 temporarily increase the limit using the <<cluster-update-settings,cluster update settings API>>:
@@ -80,7 +80,7 @@ PUT _cluster/settings
 
 This increase should only be temporary. As a long-term solution, we recommend you add nodes to
 the oversharded frozen data tier or
-<<reduce-cluster-shard-count,reduce your cluster's shard count>> for nodes that do belong
+<<reduce-cluster-shard-count,reduce your cluster's shard count>> for nodes that belong
 to the frozen tier. To verify that the change has fixed the issue, you can get the current
 status of the `shards_capacity` indicator by checking the `frozen` section of the
 <<health-api-example,health API>>:

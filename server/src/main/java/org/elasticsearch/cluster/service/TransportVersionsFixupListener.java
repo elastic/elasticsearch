@@ -98,7 +98,10 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             for (var c : context.taskContexts()) {
                 for (var e : c.getTask().results().entrySet()) {
                     // this node's transport version might have been updated already/node has gone away
-                    if (Objects.equals(builder.transportVersions().get(e.getKey()), INFERRED_TRANSPORT_VERSION)) {
+                    TransportVersion recordedTv = builder.transportVersions().get(e.getKey());
+                    assert (recordedTv != null) || (context.initialState().nodes().nodeExists(e.getKey()) == false)
+                        : "Node " + e.getKey() + " is in the cluster but does not have an associated transport version recorded";
+                    if (Objects.equals(recordedTv, INFERRED_TRANSPORT_VERSION)) {
                         builder.putTransportVersion(e.getKey(), e.getValue());
                         modified = true;
                     }

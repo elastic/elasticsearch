@@ -32,7 +32,18 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class SearchApplicationTemplate implements ToXContentObject, Writeable {
 
-    public static final SearchApplicationTemplate DEFAULT_TEMPLATE = buildDefaultTemplate();
+    public static final SearchApplicationTemplate DEFAULT_TEMPLATE = new SearchApplicationTemplate(
+        new Script(ScriptType.INLINE, MustacheScriptEngine.NAME, """
+            {
+              "query": {
+                "query_string": {
+                    "query": "{{query_string}}",
+                    "default_field": "{{default_field}}"
+                    }
+                }
+            }
+            """, Map.of("query_string", "*", "default_field", "*"))
+    );
     private final Script script;
 
     public SearchApplicationTemplate(StreamInput in) throws IOException {
@@ -98,13 +109,6 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
 
     public Script script() {
         return script;
-    }
-
-    private static SearchApplicationTemplate buildDefaultTemplate() {
-        Map<String, Object> params = Map.of("query_string", "*", "default_field", "*");
-        String query = "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"{{default_field}}\" } } }";
-        final Script script = new Script(ScriptType.INLINE, "mustache", query, params);
-        return new SearchApplicationTemplate(script);
     }
 
 }

@@ -88,7 +88,7 @@ teardown:
   - match: {
     template: {
       script: {
-        source:  "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"{{default_field}}\" } } }",
+        source:  "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n",
         params: {
             query_string: "*",
             default_field: "*"

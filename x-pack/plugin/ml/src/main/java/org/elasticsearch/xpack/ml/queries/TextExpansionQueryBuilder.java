@@ -41,8 +41,6 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     public static final ParseField MODEL_TEXT = new ParseField("model_text");
     public static final ParseField MODEL_ID = new ParseField("model_id");
 
-    private static final String DEFAULT_MODEL_ID = "slim";
-
     private final String fieldName;
     private final String modelText;
     private final String modelId;
@@ -55,10 +53,13 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         if (modelText == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + MODEL_TEXT.getPreferredName() + " value");
         }
+        if (modelId == null) {
+            throw new IllegalArgumentException("[" + NAME + "] requires a " + MODEL_ID.getPreferredName() + " value");
+        }
 
         this.fieldName = fieldName;
         this.modelText = modelText;
-        this.modelId = modelId == null ? DEFAULT_MODEL_ID : modelId;
+        this.modelId = modelId;
     }
 
     public TextExpansionQueryBuilder(StreamInput in) throws IOException {

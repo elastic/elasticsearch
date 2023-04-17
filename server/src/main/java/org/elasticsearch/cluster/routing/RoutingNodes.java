@@ -40,7 +40,6 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -384,18 +383,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
             }
         }
         return true;
-    }
-
-    public List<ShardRouting> shards(Predicate<ShardRouting> predicate) {
-        List<ShardRouting> shards = new ArrayList<>();
-        for (RoutingNode routingNode : this) {
-            for (ShardRouting shardRouting : routingNode) {
-                if (predicate.test(shardRouting)) {
-                    shards.add(shardRouting);
-                }
-            }
-        }
-        return shards;
     }
 
     @Override

@@ -130,6 +130,19 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
 
+    private static final DiffableUtils.ValueSerializer<String, TransportVersion> TRANSPORT_VERSION_VALUE_SERIALIZER =
+        new DiffableUtils.NonDiffableValueSerializer<>() {
+            @Override
+            public void write(TransportVersion value, StreamOutput out) throws IOException {
+                TransportVersion.writeVersion(value, out);
+            }
+
+            @Override
+            public TransportVersion read(StreamInput in, String key) throws IOException {
+                return TransportVersion.readVersion(in);
+            }
+        };
+
     public static final String UNKNOWN_UUID = "_na_";
 
     public static final long UNKNOWN_VERSION = -1;
@@ -758,6 +771,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         public Builder transportVersions(Map<String, TransportVersion> versions) {
             versions.forEach((key, value) -> Objects.requireNonNull(value, key));
+            // remove all versions not present in the new map
+            this.transportVersions.keySet().retainAll(versions.keySet());
             this.transportVersions.putAll(versions);
             return this;
         }
@@ -915,7 +930,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     private static TransportVersion inferTransportVersion(DiscoveryNode node) {
         TransportVersion tv;
         if (node.getVersion().before(Version.V_8_8_0)) {
-            // 1-2-1 mapping between Version and TransportVersion
+            // 1-to-1 mapping between Version and TransportVersion
             tv = TransportVersion.fromId(node.getVersion().id);
         } else {
             // use the lowest value it could be for now
@@ -956,6 +971,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         private final Diff<DiscoveryNodes> nodes;
 
+        @Nullable
+        private final Diff<Map<String, TransportVersion>> transportVersions;
+
         private final Diff<Metadata> metadata;
 
         private final Diff<ClusterBlocks> blocks;
@@ -969,6 +987,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             clusterName = after.clusterName;
             routingTable = after.routingTable.diff(before.routingTable);
             nodes = after.nodes.diff(before.nodes);
+            transportVersions = DiffableUtils.diff(
+                before.transportVersions,
+                after.transportVersions,
+                DiffableUtils.getStringKeySerializer(),
+                TRANSPORT_VERSION_VALUE_SERIALIZER
+            );
             metadata = after.metadata.diff(before.metadata);
             blocks = after.blocks.diff(before.blocks);
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
@@ -981,6 +1005,15 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             toVersion = in.readLong();
             routingTable = RoutingTable.readDiffFrom(in);
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && in.readBoolean()) {
+                transportVersions = DiffableUtils.readJdkMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    TRANSPORT_VERSION_VALUE_SERIALIZER
+                );
+            } else {
+                transportVersions = null;   // infer at application time
+            }
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
             customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
@@ -997,6 +1030,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             out.writeLong(toVersion);
             routingTable.writeTo(out);
             nodes.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+                out.writeOptionalWriteable(transportVersions);
+            }
             metadata.writeTo(out);
             blocks.writeTo(out);
             customs.writeTo(out);
@@ -1019,6 +1055,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             builder.version(toVersion);
             builder.routingTable(routingTable.apply(state.routingTable));
             builder.nodes(nodes.apply(state.nodes));
+            if (transportVersions != null) {
+                builder.transportVersions(transportVersions.apply(state.transportVersions));
+            } else {
+                // infer the versions from discoverynodes for now
+                builder.nodes().getNodes().values().forEach(n -> builder.putTransportVersion(n.getId(), inferTransportVersion(n)));
+            }
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));
             builder.customs(customs.apply(state.customs));

@@ -56,7 +56,7 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
     }
 
     public void testCrossClusterSearch() throws Exception {
-        configureRemoteClusters();
+        configureRemoteCluster();
         configureRolesOnClusters();
 
         // Fulfilling cluster

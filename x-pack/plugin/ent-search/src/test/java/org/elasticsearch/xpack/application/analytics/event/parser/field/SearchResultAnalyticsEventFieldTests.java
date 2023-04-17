@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.application.analytics.event.parser.field.P
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchResultAnalyticsEventField.SEARCH_RESULTS_TOTAL_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchResultAnalyticsEventField.SEARCH_RESULT_ITEMS_FIELD;
 
-public class AnalyticsEventSearchResultFieldTests extends AnalyticsEventFieldParserTestCase<Object> {
+public class SearchResultAnalyticsEventFieldTests extends AnalyticsEventFieldParserTestCase<Object> {
     @Override
     public List<String> requiredFields() {
         return Collections.emptyList();

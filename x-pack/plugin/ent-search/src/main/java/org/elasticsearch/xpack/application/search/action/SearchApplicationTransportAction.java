@@ -23,6 +23,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
+/**
+ * Base class for {@link org.elasticsearch.xpack.application.search.SearchApplication} related actions, that checks license features
+ */
 public abstract class SearchApplicationTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends
     HandledTransportAction<Request, Response> {
 

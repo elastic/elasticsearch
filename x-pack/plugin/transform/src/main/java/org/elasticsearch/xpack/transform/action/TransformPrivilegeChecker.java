@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
 import org.elasticsearch.xpack.core.transform.transforms.NullRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
@@ -119,6 +120,17 @@ final class TransformPrivilegeChecker {
                 && config.getRetentionPolicyConfig() instanceof NullRetentionPolicyConfig == false) {
                 destPrivileges.add("delete");
             }
+            if (config.getDestination().getAliases() != null && config.getDestination().getAliases().isEmpty() == false) {
+                destPrivileges.add("manage");
+
+                RoleDescriptor.IndicesPrivileges destAliasPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(config.getDestination().getAliases().stream().map(DestAlias::getAlias).toList())
+                    .privileges("manage")
+                    .allowRestrictedIndices(true)
+                    .build();
+                indicesPrivileges.add(destAliasPrivileges);
+            }
+
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(destIndex)
                 .privileges(destPrivileges)

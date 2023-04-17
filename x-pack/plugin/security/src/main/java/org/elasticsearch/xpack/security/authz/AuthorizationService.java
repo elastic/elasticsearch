@@ -221,13 +221,16 @@ public class AuthorizationService {
                 + subject.getUser().principal()
                 + "] is an internal user and we should never try to retrieve its roles descriptors towards a remote cluster";
             assert false : message;
+            logger.warn(message);
             listener.onFailure(new IllegalArgumentException(message));
             return;
         }
 
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
-        final AuthorizationInfo authorizationInfo = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
-        assert authorizationInfo != null : "authorization info must be available in thread context";
+        // AuthZ info can be null for persistent tasks
+        if (threadContext.<AuthorizationInfo>getTransient(AUTHORIZATION_INFO_KEY) == null) {
+            logger.debug("authorization info not available in thread context, resolving it for subject [{}]", subject);
+        }
         authorizationEngine.resolveAuthorizationInfo(
             subject,
             wrapPreservingContext(

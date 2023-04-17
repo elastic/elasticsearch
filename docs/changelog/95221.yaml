@@ -1,0 +1,5 @@
+pr: 95221
+summary: Longer timeout for mapping update during resize
+area: Mapping
+type: bug
+issues: []

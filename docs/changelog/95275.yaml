@@ -1,0 +1,5 @@
+pr: 95275
+summary: Remove debugging cruft from `IndexShardOperationPermits`
+area: CRUD
+type: tech debt
+issues: []

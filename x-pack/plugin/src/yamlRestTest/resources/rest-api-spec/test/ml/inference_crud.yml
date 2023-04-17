@@ -1210,7 +1210,7 @@ setup:
         model_id: _all
         include: definition_status
   - do:
-      catch: /The download status is only relevant to PyTorch model types/
+      catch: /Definition status is only relevant to PyTorch model types/
       ml.get_trained_models:
         model_id: a-regression-model-0
         include: definition_status

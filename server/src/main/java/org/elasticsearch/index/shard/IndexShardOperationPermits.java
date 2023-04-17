@@ -245,7 +245,6 @@ final class IndexShardOperationPermits implements Closeable {
             return Releasables.releaseOnce(semaphore::release);
         } else {
             // this should never happen, if it does something is deeply wrong
-            assert false;
             throw new IllegalStateException("failed to obtain permit but operations are not delayed");
         }
     }

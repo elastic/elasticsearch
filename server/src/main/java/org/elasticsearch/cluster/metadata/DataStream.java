@@ -616,27 +616,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return List.of();
         }
 
-        List<Index> indicesPastRetention = getIndicesOlderThan(
+        List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
             lifecycle.getDataRetention(),
             indexMetadataSupplier,
             this::isIndexManagedByDLM,
             nowSupplier
         );
-        // when it comes to executing retention the write index should be excluded (a data stream must always have a write index)
-        indicesPastRetention.remove(getWriteIndex());
         return indicesPastRetention;
     }
 
     /**
-     * Returns the backing indices that are older than the provided age.
-     * The index age is calculated from the rollover or index creation date.
+     * Returns the non-write backing indices that are older than the provided age, *excluding the write index*.
+     * The index age is calculated from the rollover or index creation date (or the origination date if present).
      * Note that the write index is also evaluated and could be returned in the list
      * of results.
      * If an indices predicate is provided the returned list of indices will be filtered
      * according to the predicate definition. This is useful for things like "return only
      * the backing indices that are managed by DLM".
      */
-    public List<Index> getIndicesOlderThan(
+    public List<Index> getNonWriteIndicesOlderThan(
         TimeValue age,
         Function<String, IndexMetadata> indexMetadataSupplier,
         @Nullable Predicate<IndexMetadata> indicesPredicate,
@@ -650,11 +648,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 // so let's ignore deleted indices
                 continue;
             }
-            TimeValue indexLifecycleDate = getGenerationLifecycleDate(name, indexMetadata, index.equals(getWriteIndex()));
-            long nowMillis = nowSupplier.getAsLong();
-            if (nowMillis >= indexLifecycleDate.getMillis() + age.getMillis()) {
-                if (indicesPredicate == null || indicesPredicate.test(indexMetadata)) {
-                    olderIndices.add(index);
+            TimeValue indexLifecycleDate = getGenerationLifecycleDate(indexMetadata);
+            if (indexLifecycleDate != null) {
+                long nowMillis = nowSupplier.getAsLong();
+                if (nowMillis >= indexLifecycleDate.getMillis() + age.getMillis()) {
+                    if (indicesPredicate == null || indicesPredicate.test(indexMetadata)) {
+                        olderIndices.add(index);
+                    }
                 }
             }
         }
@@ -690,20 +690,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Returns the rollover or creation date for the provided index, or the origination date if one is set.
-     * We look for the rollover information for the provided data stream name as the
+     * We look for the rollover information for the provided data stream as the
      * rollover target. If the index has not been rolled over for the provided
-     * data stream name we return the index creation date.
+     * data stream name we return the index creation date. If this is the write index, we return null.
+     * @param index
+     * @return The generation date, or null if this is the write index
      */
-    static TimeValue getGenerationLifecycleDate(String dataStreamName, IndexMetadata index, boolean isWriteIndex) {
+    @Nullable
+    public TimeValue getGenerationLifecycleDate(IndexMetadata index) {
         /*
          * If it exists, the origination date is used in place of the creation date and the rollover date. The only exception is for a
          * write index -- if the write index has not been rolled over yet then we use the creation date so that it is properly rolled over.
          */
-        if (isWriteIndex) {
-            return TimeValue.timeValueMillis(index.getCreationDate());
+        if (index.getIndex().equals(getWriteIndex())) {
+            return null;
         }
         Long originationDate = index.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, null);
-        RolloverInfo rolloverInfo = index.getRolloverInfos().get(dataStreamName);
+        RolloverInfo rolloverInfo = index.getRolloverInfos().get(getName());
         if (rolloverInfo != null) {
             return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, rolloverInfo::getTime));
         } else {

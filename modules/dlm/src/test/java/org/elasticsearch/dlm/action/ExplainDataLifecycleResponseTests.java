@@ -185,6 +185,7 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
             true,
             now,
             randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
+            TimeValue.timeValueMillis(now),
             lifecycle,
             randomBoolean() ? new NullPointerException("bad times").getMessage() : null
         );

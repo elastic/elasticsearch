@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService.ObjectStoreType;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
@@ -233,7 +234,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
                     @Override
                     public InputStream readBlob(String blobName) throws IOException {
-                        assert permittedFiles.contains(blobName) : blobName + " in " + permittedFiles;
+                        assert blobName.startsWith(StatelessCompoundCommit.NAME) || permittedFiles.contains(blobName)
+                            : blobName + " in " + permittedFiles;
                         return super.readBlob(blobName);
                     }
                 }
@@ -291,10 +293,9 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     .listBlobs()
                     .keySet()
                     .stream()
-                    .filter(s -> s.startsWith(IndexFileNames.SEGMENTS))
+                    .filter(s -> s.startsWith(StatelessCompoundCommit.NAME))
                     .count()
             );
-            assertEquals(Math.min(1L, commitCount), permittedFiles.stream().filter(s -> s.startsWith(IndexFileNames.SEGMENTS)).count());
 
             final var dir = SearchDirectory.unwrapDirectory(testHarness.searchStore.directory());
             final var blobContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, 1);

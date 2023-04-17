@@ -38,7 +38,7 @@ public class AggregationPhase {
             && context.aggregations().factories().context().isInSortOrderExecutionRequired()) {
             TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), getCancellationChecks(context));
             try {
-                // TODO: we are executing here the time series aggregation and let we will execute the query?
+                // Execute here the time_series aggregations. The collecting top docs for the main query is done in QueryPhase
                 Collector collector = collectorManager.newCollector();
                 searcher.search(context.rewrittenQuery(), collectorManager.bucketCollector);
                 collectorManager.reduce(List.of(collector));

@@ -153,6 +153,9 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         ensureCapacityFromPosition(position);
         int offsetInPage = (int) (position % pageSize);
         int pageIndex = (int) position / pageSize;
+        // Special handling for seeking to the first index in a new page, which is handled as a seeking to one-after the last index
+        // in the previous case. This is done so that seeking to the first index of a new page does not cause a page allocation while
+        // still allowing a fast check via (pageSize - currentPageOffset) on the remaining size in the current page in all other methods.
         if (offsetInPage == 0) {
             this.pageIndex = pageIndex - 1;
             this.currentPageOffset = pageSize;

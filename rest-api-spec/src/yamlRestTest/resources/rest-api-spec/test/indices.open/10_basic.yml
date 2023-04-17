@@ -144,3 +144,123 @@
         version: "8.0.0 - "
       warnings:
         - "?wait_for_active_shards=index-setting is now the default behaviour; the 'index-setting' value for this parameter should no longer be used since it will become unsupported in version 9"
+
+
+---
+"Close index with wait_for_active_shards set to 0":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: test_index
+        wait_for_active_shards: 0
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+  - match: { indices.test_index.closed: true }
+
+---
+"Open index with wait_for_active_shards set to 0":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.open:
+        index: test_index
+        wait_for_active_shards: 0
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+
+  - do:
+      indices.open:
+        index: test_index
+        wait_for_active_shards: 0
+  - is_true: acknowledged
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+  - match: { indices.test_index.opened: true }
+
+---
+"Close/open index with no underscore in index name":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.create:
+        index: testIndex
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: testIndex
+        wait_for_active_shards: 0
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+  - match: { indices.testIndex.closed: true }
+
+  - do:
+      indices.open:
+        index: testIndex
+        wait_for_active_shards: 0
+  - is_true: acknowledged
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+  - match: { indices.testIndex.opened: true }
+
+---
+"Close/Open index with wait_for_active_shards set to 1":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.create:
+        index: index
+        body:
+          settings:
+            number_of_replicas: 1
+
+  - do:
+      indices.close:
+        index: index
+        wait_for_active_shards: 1
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+  - match: { indices.test_index.closed: true }
+
+  - do:
+      indices.open:
+        index: index
+        wait_for_active_shards: 1
+  - is_true: acknowledged
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+  - match: { indices.test_index.opened: true }
+  

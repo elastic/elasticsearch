@@ -18,9 +18,12 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -39,7 +42,12 @@ public class RestOpenIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        OpenIndexRequest openIndexRequest = new OpenIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        Map<String, Object> mapping = request.contentParser().map();
+        String[] allIndices = XContentMapValues.nodeStringArrayValue(mapping.get("index"));
+        if (request.hasParam("index")) {
+            allIndices = Strings.splitStringByCommaToArray(request.param("index"));
+        }
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest(allIndices);
         openIndexRequest.timeout(request.paramAsTime("timeout", openIndexRequest.timeout()));
         openIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", openIndexRequest.masterNodeTimeout()));
         openIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, openIndexRequest.indicesOptions()));

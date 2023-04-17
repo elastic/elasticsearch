@@ -107,7 +107,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
 
         // bulk-write with wrong args
-        expectThrows(IllegalArgumentException.class, () -> out.writeBytes(new byte[] {}, 0, 1));
+        expectThrows(IndexOutOfBoundsException.class, () -> out.writeBytes(new byte[] {}, 0, 1));
         out.close();
     }
 
@@ -1037,7 +1037,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
             while (bytesAllocated < Integer.MAX_VALUE) {
                 var thisAllocation = between(1, Integer.MAX_VALUE - bytesAllocated);
                 bytesAllocated += thisAllocation;
-                final var expectedPages = ((long) bytesAllocated + pageSize - 1) / pageSize;
+                final long expectedPages = (long) bytesAllocated / pageSize + (bytesAllocated % pageSize == 0 ? 0 : 1);
                 try {
                     output.skip(thisAllocation);
                     assertThat(pagesAllocated.get(), equalTo(expectedPages));

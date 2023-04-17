@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -49,7 +49,7 @@ public class AnalyticsCollectionTests extends ESTestCase {
     public final void testRandomSerialization() throws IOException {
         for (int runs = 0; runs < 10; runs++) {
             AnalyticsCollection collection = randomAnalyticsCollection();
-            assertTransportSerialization(collection, Version.CURRENT);
+            assertTransportSerialization(collection, TransportVersion.CURRENT);
             assertXContent(collection, randomBoolean());
         }
     }
@@ -78,15 +78,16 @@ public class AnalyticsCollectionTests extends ESTestCase {
         return parsed;
     }
 
-    private AnalyticsCollection assertTransportSerialization(AnalyticsCollection testInstance, Version version) throws IOException {
+    private AnalyticsCollection assertTransportSerialization(AnalyticsCollection testInstance, TransportVersion version)
+        throws IOException {
         AnalyticsCollection deserializedInstance = copyInstance(testInstance, version);
         assertNotSame(testInstance, deserializedInstance);
         assertThat(testInstance, equalTo(deserializedInstance));
         return deserializedInstance;
     }
 
-    private AnalyticsCollection copyInstance(AnalyticsCollection instance, Version version) throws IOException {
-        return copyWriteable(instance, namedWriteableRegistry, AnalyticsCollection::new, version.transportVersion);
+    private AnalyticsCollection copyInstance(AnalyticsCollection instance, TransportVersion version) throws IOException {
+        return copyWriteable(instance, namedWriteableRegistry, AnalyticsCollection::new, version);
     }
 
     private static AnalyticsCollection randomAnalyticsCollection() {

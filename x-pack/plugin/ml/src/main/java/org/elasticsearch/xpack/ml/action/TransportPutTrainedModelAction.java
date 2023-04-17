@@ -227,7 +227,6 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         ActionListener<Void> checkStorageIndexSizeListener = ActionListener.wrap(
             r -> trainedModelProvider.storeTrainedModel(trainedModelConfig.build(), ActionListener.wrap(bool -> {
                 TrainedModelConfig configToReturn = trainedModelConfig.clearDefinition().build();
-
                 if (modelPackageConfigHolder.get() != null) {
                     triggerModelFetchIfNecessary(
                         configToReturn.getModelId(),
@@ -238,6 +237,8 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                             listener::onFailure
                         )
                     );
+                } else {
+                    listener.onResponse(new PutTrainedModelAction.Response(configToReturn));
                 }
             }, listener::onFailure)),
             listener::onFailure

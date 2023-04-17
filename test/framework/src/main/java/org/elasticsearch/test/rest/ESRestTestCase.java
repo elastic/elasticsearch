@@ -1408,6 +1408,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
+    public static ObjectPath assertOKAndCreateObjectPath(Response response) throws IOException {
+        assertOK(response);
+        return ObjectPath.createFromResponse(response);
+    }
+
     /**
      * Assert that the index in question has the given number of documents present
      */

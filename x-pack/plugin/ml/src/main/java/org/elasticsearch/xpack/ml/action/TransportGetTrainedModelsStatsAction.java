@@ -100,7 +100,10 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
 
         ActionListener<GetDeploymentStatsAction.Response> deploymentStatsListener = ActionListener.wrap(deploymentStats -> {
             responseBuilder.setDeploymentStatsByModelId(
-                deploymentStats.getStats().results().stream().collect(Collectors.toMap(AssignmentStats::getModelId, Function.identity()))
+                deploymentStats.getStats()
+                    .results()
+                    .stream()
+                    .collect(Collectors.toMap(AssignmentStats::getDeploymentId, Function.identity()))
             );
             modelSizeStats(responseBuilder.getExpandedIdsWithAliases(), request.isAllowNoResources(), parentTaskId, modelSizeStatsListener);
         }, listener::onFailure);

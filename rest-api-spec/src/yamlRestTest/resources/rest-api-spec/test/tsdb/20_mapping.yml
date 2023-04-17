@@ -266,7 +266,7 @@ runtime field matching routing path:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim_kw": "dim", "dim": {"foo": "a"}}'
-  - match: {items.0.index.error.reason: "All fields that match routing_path must be keywords with [time_series_dimension: true] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the [script] parameter. [dim.foo] was a runtime [keyword]."}
+  - match: {items.0.index.error.reason: "All fields that match routing_path must be keywords with [time_series_dimension: true] or flattened fields with a list of dimensions in [time_series_dimensions] and without the [script] parameter. [dim.foo] was a runtime [keyword]."}
 
 ---
 "dynamic: false matches routing_path":

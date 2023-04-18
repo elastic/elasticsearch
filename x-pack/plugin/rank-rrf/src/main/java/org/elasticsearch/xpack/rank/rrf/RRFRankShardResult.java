@@ -43,7 +43,7 @@ public class RRFRankShardResult implements RankShardResult {
 
     @Override
     public String getWriteableName() {
-        return RankRRFPlugin.NAME;
+        return RRFRankPlugin.NAME;
     }
 
     @Override

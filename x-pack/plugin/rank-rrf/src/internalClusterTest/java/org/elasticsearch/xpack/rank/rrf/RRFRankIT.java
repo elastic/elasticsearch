@@ -33,7 +33,7 @@ public class RRFRankIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(RankRRFPlugin.class);
+        return List.of(RRFRankPlugin.class);
     }
 
     @Override

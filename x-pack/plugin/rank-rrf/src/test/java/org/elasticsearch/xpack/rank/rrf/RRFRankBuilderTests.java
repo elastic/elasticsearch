@@ -41,7 +41,7 @@ public class RRFRankBuilderTests extends AbstractXContentSerializingTestCase<RRF
         Assert.assertEquals(parser.currentToken(), XContentParser.Token.START_OBJECT);
         parser.nextToken();
         assertEquals(parser.currentToken(), XContentParser.Token.FIELD_NAME);
-        assertEquals(parser.currentName(), RankRRFPlugin.NAME);
+        assertEquals(parser.currentName(), RRFRankPlugin.NAME);
         RRFRankBuilder builder = RRFRankBuilder.PARSER.parse(parser, null);
         parser.nextToken();
         Assert.assertEquals(parser.currentToken(), XContentParser.Token.END_OBJECT);

@@ -43,7 +43,7 @@ public class RRFRankShardResultTests extends AbstractNamedWriteableTestCase<RRFR
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            List.of(new NamedWriteableRegistry.Entry(RRFRankShardResult.class, RankRRFPlugin.NAME, RRFRankShardResult::new))
+            List.of(new NamedWriteableRegistry.Entry(RRFRankShardResult.class, RRFRankPlugin.NAME, RRFRankShardResult::new))
         );
     }
 

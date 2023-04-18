@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.ParseField;
 
 import java.util.List;
 
-public class RankRRFPlugin extends Plugin {
+public class RRFRankPlugin extends Plugin {
 
     public static final LicensedFeature.Momentary RANK_RRF_FEATURE = LicensedFeature.momentary(
         null,

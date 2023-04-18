@@ -36,7 +36,7 @@ public class RRFRankBuilder extends RankBuilder {
 
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
-    static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>(RankRRFPlugin.NAME, args -> {
+    static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>(RRFRankPlugin.NAME, args -> {
         int windowSize = args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0];
         int rankConstant = args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1];
         if (rankConstant < 1) {
@@ -51,7 +51,7 @@ public class RRFRankBuilder extends RankBuilder {
     }
 
     public static RRFRankBuilder fromXContent(XContentParser parser) throws IOException {
-        if (RankRRFPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
+        if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
         }
         return PARSER.parse(parser, null);
@@ -81,7 +81,7 @@ public class RRFRankBuilder extends RankBuilder {
 
     @Override
     public String getWriteableName() {
-        return RankRRFPlugin.NAME;
+        return RRFRankPlugin.NAME;
     }
 
     @Override

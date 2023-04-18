@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -38,7 +39,7 @@ public class Greatest extends ArbitraryConditionalFunction {
 
     @Override
     public Object fold() {
-        Set<Object> values = new LinkedHashSet<>(children().size());
+        Set<Object> values = Sets.newLinkedHashSetWithExpectedSize(children().size());
         for (Expression e : children()) {
             values.add(SqlDataTypeConverter.convert(Foldables.valueOf(e), dataType));
         }

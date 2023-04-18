@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.async;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -130,7 +130,7 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
             DeleteByQueryRequest toDelete = new DeleteByQueryRequest(index).setQuery(
                 QueryBuilders.rangeQuery(EXPIRATION_TIME_FIELD).lte(nowInMillis)
             );
-            clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(this::scheduleNextCleanup));
+            clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.running(this::scheduleNextCleanup));
         }
     }
 

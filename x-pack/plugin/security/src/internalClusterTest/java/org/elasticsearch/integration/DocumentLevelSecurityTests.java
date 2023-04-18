@@ -7,7 +7,7 @@
 package org.elasticsearch.integration;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -25,18 +25,20 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.join.ParentJoinPlugin;
@@ -62,6 +64,7 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -72,8 +75,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
-import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
-import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -114,92 +115,80 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             CommonAnalysisPlugin.class,
             ParentJoinPlugin.class,
             InternalSettingsPlugin.class,
-            DenseVectorPlugin.class,
             SpatialPlugin.class,
-            PercolatorPlugin.class
+            PercolatorPlugin.class,
+            MapperExtrasPlugin.class
         );
-    }
-
-    @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        // a test requires the real SpatialPlugin because it utilizes the shape query
-        return false;
     }
 
     @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return super.configUsers()
-            + "user1:"
-            + usersPasswdHashed
-            + "\n"
-            + "user2:"
-            + usersPasswdHashed
-            + "\n"
-            + "user3:"
-            + usersPasswdHashed
-            + "\n"
-            + "user4:"
-            + usersPasswdHashed
-            + "\n"
-            + "user5:"
-            + usersPasswdHashed
-            + "\n";
+        return super.configUsers() + Strings.format("""
+            user1:%s
+            user2:%s
+            user3:%s
+            user4:%s
+            user5:%s
+            """, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
     }
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles()
-            + "role1:user1,user2,user3\n"
-            + "role2:user1,user3\n"
-            + "role3:user2,user3\n"
-            + "role4:user4\n"
-            + "role5:user5\n";
+        return super.configUsersRoles() + """
+            role1:user1,user2,user3
+            role2:user1,user3
+            role3:user2,user3
+            role4:user4
+            role5:user5
+            """;
     }
 
     @Override
     protected String configRoles() {
-        return super.configRoles()
-            + "\nrole1:\n"
-            + "  cluster: [ none ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ none ]\n"
-            + "\nrole2:\n"
-            + "  cluster:\n"
-            + "    - all\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges:\n"
-            + "        - all\n"
-            + "      query: \n"
-            + "        term: \n"
-            + "          field1: value1\n"
-            + "role3:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ ALL ]\n"
-            + "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n"
-            + // <-- query defined as json in a string
-            "role4:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ ALL ]\n"
-            +
-            // query that can match nested documents
-            "      query: '{\"bool\": { \"must_not\": { \"term\" : {\"field1\" : \"value2\"}}}}'\n"
-            + "role5:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "    - names: [ 'test' ]\n"
-            + "      privileges: [ read ]\n"
-            + "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n"
-            + "    - names: [ 'fls-index' ]\n"
-            + "      privileges: [ read ]\n"
-            + "      field_security:\n"
-            + "         grant: [ 'field1', 'other_field', 'suggest_field2' ]\n";
+        // <-- query defined as json in a string
+        // query that can match nested documents
+        return super.configRoles() + """
+
+            role1:
+              cluster: [ none ]
+              indices:
+                - names: '*'
+                  privileges: [ none ]
+
+            role2:
+              cluster:
+                - all
+              indices:
+                - names: '*'
+                  privileges:
+                    - all
+                  query:
+                    term:
+                      field1: value1
+            role3:
+              cluster: [ all ]
+              indices:
+                - names: '*'
+                  privileges: [ ALL ]
+                  query: '{"term" : {"field2" : "value2"}}'
+            role4:
+              cluster: [ all ]
+              indices:
+                - names: '*'
+                  privileges: [ ALL ]
+                  query: '{"bool": { "must_not": { "term" : {"field1" : "value2"}}}}'
+            role5:
+              cluster: [ all ]
+              indices:
+                - names: [ 'test' ]
+                  privileges: [ read ]
+                  query: '{"term" : {"field2" : "value2"}}'
+                - names: [ 'fls-index' ]
+                  privileges: [ read ]
+                  field_security:
+                     grant: [ 'field1', 'other_field', 'suggest_field2' ]
+            """;
     }
 
     @Override
@@ -553,10 +542,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("doc_index").setMapping("message", "type=text", "field1", "type=text"));
         client().prepareIndex("query_index")
             .setId("1")
-            .setSource(
-                "{\"field1\": \"value1\", \"field2\": \"value2\", \"query\": " + "{\"match\": {\"message\": \"bonsai tree\"}}}",
-                XContentType.JSON
-            )
+            .setSource("""
+                {"field1": "value1", "field2": "value2", "query": {"match": {"message": "bonsai tree"}}}""", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE)
             .get();
         client().prepareIndex("doc_index")
@@ -603,18 +590,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         );
         client().prepareIndex("search_index")
             .setId("1")
-            .setSource(
-                "{\"field1\": \"value1\", \"field2\": \"value2\", \"search_field\": " + "{ \"type\": \"point\", \"coordinates\":[1, 1] }}",
-                XContentType.JSON
-            )
+            .setSource("""
+                {"field1": "value1", "field2": "value2", "search_field": { "type": "point", "coordinates":[1, 1] }}""", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE)
             .get();
         client().prepareIndex("shape_index")
             .setId("1")
-            .setSource(
-                "{\"field1\": \"value1\", \"shape_field\": " + "{ \"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}}",
-                XContentType.JSON
-            )
+            .setSource("""
+                {"field1": "value1", "shape_field": { "type": "envelope", "coordinates": [[0, 2], [2, 0]]}}""", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE)
             .get();
         ShapeQueryBuilder shapeQuery = new ShapeQueryBuilder("search_field", "1").relation(ShapeRelation.WITHIN)
@@ -901,8 +884,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings).setMapping(builder));
 
         for (int i = 0; i < 5; i++) {
-            client().prepareIndex("test").setSource("field1", "value1", "vector", new float[] { i, i, i }).get();
-            client().prepareIndex("test").setSource("field2", "value2", "vector", new float[] { i, i, i }).get();
+            client().prepareIndex("test").setSource("field1", "value1", "other", "valueA", "vector", new float[] { i, i, i }).get();
+            client().prepareIndex("test").setSource("field2", "value2", "other", "valueB", "vector", new float[] { i, i, i }).get();
         }
 
         client().admin().indices().prepareRefresh("test").get();
@@ -910,7 +893,11 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         // Since there's no kNN search action at the transport layer, we just emulate
         // how the action works (it builds a kNN query under the hood)
         float[] queryVector = new float[] { 0.0f, 0.0f, 0.0f };
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 50);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 50, null);
+
+        if (randomBoolean()) {
+            query.addFilterQuery(new WildcardQueryBuilder("other", "value*"));
+        }
 
         // user1 should only be able to see docs with field1: value1
         SearchResponse response = client().filterWithHeader(

@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -116,7 +116,7 @@ public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response
         }
 
         Response(StreamInput in) throws IOException {
-            jobs = Collections.unmodifiableMap(in.readMap(StreamInput::readString, RollableIndexCaps::new));
+            jobs = in.readImmutableMap(StreamInput::readString, RollableIndexCaps::new);
         }
 
         public Map<String, RollableIndexCaps> getJobs() {

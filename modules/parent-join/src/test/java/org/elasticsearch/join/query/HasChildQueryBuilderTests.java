@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -22,6 +21,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -40,12 +40,12 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.join.ParentJoinPlugin;
+import org.elasticsearch.join.query.HasChildQueryBuilder.LateParsingQuery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -55,7 +55,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.join.query.HasChildQueryBuilder.LateParsingQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -77,7 +76,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ParentJoinPlugin.class);
     }
 
     @Override
@@ -156,6 +155,11 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     @Override
+    protected HasChildQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        return new HasChildQueryBuilder("type", queryBuilder, ScoreMode.None);
+    }
+
+    @Override
     protected void doAssertLuceneQuery(HasChildQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(LateParsingQuery.class));
         LateParsingQuery lpq = (LateParsingQuery) query;
@@ -178,7 +182,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
      * Test (de)serialization on all previous released versions
      */
     public void testSerializationBWC() throws IOException {
-        for (Version version : VersionUtils.allReleasedVersions()) {
+        for (TransportVersion version : TransportVersionUtils.allReleasedVersions()) {
             HasChildQueryBuilder testQuery = createTestQueryBuilder();
             assertSerialization(testQuery, version);
         }
@@ -208,45 +212,45 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     public void testFromJson() throws IOException {
-        String query = "{\n"
-            + "  \"has_child\" : {\n"
-            + "    \"query\" : {\n"
-            + "      \"range\" : {\n"
-            + "        \"mapped_string\" : {\n"
-            + "          \"from\" : \"agJhRET\",\n"
-            + "          \"to\" : \"zvqIq\",\n"
-            + "          \"include_lower\" : true,\n"
-            + "          \"include_upper\" : true,\n"
-            + "          \"boost\" : 1.0\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"type\" : \"child\",\n"
-            + "    \"score_mode\" : \"avg\",\n"
-            + "    \"min_children\" : 883170873,\n"
-            + "    \"max_children\" : 1217235442,\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 2.0,\n"
-            + "    \"_name\" : \"WNzYMJKRwePuRBh\",\n"
-            + "    \"inner_hits\" : {\n"
-            + "      \"name\" : \"inner_hits_name\",\n"
-            + "      \"ignore_unmapped\" : false,\n"
-            + "      \"from\" : 0,\n"
-            + "      \"size\" : 100,\n"
-            + "      \"version\" : false,\n"
-            + "      \"seq_no_primary_term\" : false,\n"
-            + "      \"explain\" : false,\n"
-            + "      \"track_scores\" : false,\n"
-            + "      \"sort\" : [ {\n"
-            + "        \"mapped_string\" : {\n"
-            + "          \"order\" : \"asc\"\n"
-            + "        }\n"
-            + "      } ]\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String query = """
+            {
+              "has_child" : {
+                "query" : {
+                  "range" : {
+                    "mapped_string" : {
+                      "gte" : "agJhRET",
+                      "lte" : "zvqIq",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "type" : "child",
+                "score_mode" : "avg",
+                "min_children" : 883170873,
+                "max_children" : 1217235442,
+                "ignore_unmapped" : false,
+                "boost" : 2.0,
+                "_name" : "WNzYMJKRwePuRBh",
+                "inner_hits" : {
+                  "name" : "inner_hits_name",
+                  "size" : 100,
+                  "sort" : [ {
+                    "mapped_string" : {
+                      "order" : "asc"
+                    }
+                  } ]
+                }
+              }
+            }""";
         HasChildQueryBuilder queryBuilder = (HasChildQueryBuilder) parseQuery(query);
-        checkGeneratedJson(query, queryBuilder);
+        checkGeneratedJson(
+            /*
+             * Ignoring unmapped is the default and we don't dump it and can't
+             * change it if we're going to use inner_hits.
+             */
+            query.replaceAll("\"ignore_unmapped\" : false,", ""),
+            queryBuilder
+        );
         assertEquals(query, queryBuilder.maxChildren(), 1217235442);
         assertEquals(query, queryBuilder.minChildren(), 883170873);
         assertEquals(query, queryBuilder.boost(), 2.0f, 0.0f);
@@ -258,6 +262,68 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             .setSize(100)
             .addSort(new FieldSortBuilder("mapped_string").order(SortOrder.ASC));
         assertEquals(query, queryBuilder.innerHit(), expected);
+    }
+
+    public void testParseDefaultsRemoved() throws IOException {
+        String query = """
+            {
+              "has_child" : {
+                "query" : {
+                  "range" : {
+                    "mapped_string" : {
+                      "gte" : "agJhRET",
+                      "lte" : "zvqIq",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "type" : "child",
+                "score_mode" : "none",
+                "min_children" : 1,
+                "max_children" : MAX_CHILDREN,
+                "ignore_unmapped" : false,
+                "boost" : 1.0,
+                "inner_hits" : {
+                  "name" : "inner_hits_name",
+                  "ignore_unmapped" : false,
+                  "from" : 0,
+                  "size" : 100,
+                  "version" : false,
+                  "seq_no_primary_term" : false,
+                  "explain" : false,
+                  "track_scores" : false,
+                  "sort" : [ {
+                    "mapped_string" : {
+                      "order" : "asc"
+                    }
+                  } ]
+                }
+              }
+            }""".replaceAll("MAX_CHILDREN", Integer.toString(Integer.MAX_VALUE));
+        checkGeneratedJson("""
+            {
+              "has_child" : {
+                "query" : {
+                  "range" : {
+                    "mapped_string" : {
+                      "gte" : "agJhRET",
+                      "lte" : "zvqIq",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "type" : "child",
+                "inner_hits" : {
+                  "name" : "inner_hits_name",
+                  "size" : 100,
+                  "sort" : [ {
+                    "mapped_string" : {
+                      "order" : "asc"
+                    }
+                  } ]
+                }
+              }
+            }""", parseQuery(query));
     }
 
     public void testToQueryInnerQueryType() throws IOException {
@@ -277,17 +343,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
         assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(TermInSetQuery.class));
         TermInSetQuery termsQuery = (TermInSetQuery) booleanQuery.clauses().get(0).getQuery();
-        Query rewrittenTermsQuery = termsQuery.rewrite(null);
-        assertThat(rewrittenTermsQuery, instanceOf(ConstantScoreQuery.class));
-        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) rewrittenTermsQuery;
-        assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
-        BooleanQuery booleanTermsQuery = (BooleanQuery) constantScoreQuery.getQuery();
-        assertThat(booleanTermsQuery.clauses().toString(), booleanTermsQuery.clauses().size(), equalTo(1));
-        assertThat(booleanTermsQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(booleanTermsQuery.clauses().get(0).getQuery(), instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) booleanTermsQuery.clauses().get(0).getQuery();
-        assertThat(termQuery.getTerm().field(), equalTo(IdFieldMapper.NAME));
-        assertThat(termQuery.getTerm().bytes(), equalTo(Uid.encodeId(id)));
+        assertEquals(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId(id)), termsQuery);
         // check the type filter
         assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.FILTER));
         assertEquals(new TermQuery(new Term("join_field", type)), booleanQuery.clauses().get(1).getQuery());

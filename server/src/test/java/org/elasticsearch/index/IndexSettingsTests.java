@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -29,6 +30,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.IndexSettings.NODE_DEFAULT_REFRESH_INTERVAL_SETTING;
+import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
+import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.StringContains.containsString;
@@ -72,8 +76,9 @@ public class IndexSettingsTests extends ESTestCase {
         Setting<Integer> integerSetting = Setting.intSetting("index.test.setting.int", -1, Property.Dynamic, Property.IndexScope);
         IndexMetadata metadata = newIndexMeta("index", theSettings);
         IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY, integerSetting);
-        settings.getScopedSettings()
-            .addSettingsUpdateConsumer(integerSetting, integer::set, (i) -> { if (i == 42) throw new AssertionError("boom"); });
+        settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, integer::set, (i) -> {
+            if (i == 42) throw new AssertionError("boom");
+        });
 
         assertEquals(version, settings.getIndexVersionCreated());
         assertEquals("0xdeadbeef", settings.getUUID());
@@ -149,6 +154,22 @@ public class IndexSettingsTests extends ESTestCase {
             fail("version has changed");
         } catch (IllegalArgumentException ex) {
             assertTrue(ex.getMessage(), ex.getMessage().startsWith("version mismatch on settings update expected: "));
+        }
+
+        try {
+            settings.updateIndexMetadata(
+                newIndexMeta(
+                    "index",
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, Version.CURRENT)
+                        .put("index.test.setting.int", 42)
+                        .build()
+                )
+            );
+            fail("version has changed");
+        } catch (IllegalArgumentException ex) {
+            assertTrue(ex.getMessage(), ex.getMessage().startsWith("compatibility version mismatch on settings update expected: "));
         }
 
         // use version number that is unknown
@@ -307,6 +328,38 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(
             TimeValue.parseTimeValue(
                 refreshInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+            ),
+            settings.getRefreshInterval()
+        );
+        String newRefreshInterval = getRandomTimeString();
+        settings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), newRefreshInterval).build())
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                newRefreshInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+            ),
+            settings.getRefreshInterval()
+        );
+    }
+
+    public void testNodeDefaultRefreshInterval() {
+        String defaultRefreshInterval = getRandomTimeString();
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
+        IndexSettings settings = new IndexSettings(
+            metadata,
+            Settings.builder().put(NODE_DEFAULT_REFRESH_INTERVAL_SETTING.getKey(), defaultRefreshInterval).build()
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                defaultRefreshInterval,
                 new TimeValue(1, TimeUnit.DAYS),
                 IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
             ),
@@ -493,7 +546,7 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testTranslogFlushSizeThreshold() {
-        ByteSizeValue translogFlushThresholdSize = new ByteSizeValue(Math.abs(randomInt()));
+        ByteSizeValue translogFlushThresholdSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(
             translogFlushThresholdSize.getBytes() + "B",
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey()
@@ -506,8 +559,8 @@ public class IndexSettingsTests extends ESTestCase {
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals(actualValue, settings.getFlushThresholdSize());
-        ByteSizeValue newTranslogFlushThresholdSize = new ByteSizeValue(Math.abs(randomInt()));
+        assertEquals(actualValue, settings.getFlushThresholdSize(ByteSizeValue.ofTb(1)));
+        ByteSizeValue newTranslogFlushThresholdSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         ByteSizeValue actualNewTranslogFlushThresholdSize = ByteSizeValue.parseBytesSizeValue(
             newTranslogFlushThresholdSize.getBytes() + "B",
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey()
@@ -520,11 +573,11 @@ public class IndexSettingsTests extends ESTestCase {
                     .build()
             )
         );
-        assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize());
+        assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize(ByteSizeValue.ofTb(1)));
     }
 
     public void testTranslogGenerationSizeThreshold() {
-        final ByteSizeValue size = new ByteSizeValue(Math.abs(randomInt()));
+        final ByteSizeValue size = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         final String key = IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey();
         final ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(size.getBytes() + "B", key);
         final IndexMetadata metadata = newIndexMeta(
@@ -533,7 +586,7 @@ public class IndexSettingsTests extends ESTestCase {
         );
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(actualValue, settings.getGenerationThresholdSize());
-        final ByteSizeValue newSize = new ByteSizeValue(Math.abs(randomInt()));
+        final ByteSizeValue newSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         final ByteSizeValue actual = ByteSizeValue.parseBytesSizeValue(newSize.getBytes() + "B", key);
         settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put(key, newSize.getBytes() + "B").build()));
         assertEquals(actual, settings.getGenerationThresholdSize());
@@ -594,15 +647,15 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testArchiveBrokenIndexSettings() {
-        Settings settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
-            Settings.EMPTY,
-            e -> { assert false : "should not have been invoked, no unknown settings"; },
-            (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; }
-        );
+        Settings settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(Settings.EMPTY, e -> {
+            assert false : "should not have been invoked, no unknown settings";
+        }, (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; });
         assertSame(settings, Settings.EMPTY);
         settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
             Settings.builder().put("index.refresh_interval", "-200").build(),
-            e -> { assert false : "should not have been invoked, no invalid settings"; },
+            e -> {
+                assert false : "should not have been invoked, no invalid settings";
+            },
             (e, ex) -> {
                 assertThat(e.getKey(), equalTo("index.refresh_interval"));
                 assertThat(e.getValue(), equalTo("-200"));
@@ -613,11 +666,9 @@ public class IndexSettingsTests extends ESTestCase {
         assertNull(settings.get("index.refresh_interval"));
 
         Settings prevSettings = settings; // no double archive
-        settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
-            prevSettings,
-            e -> { assert false : "should not have been invoked, no unknown settings"; },
-            (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; }
-        );
+        settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(prevSettings, e -> {
+            assert false : "should not have been invoked, no unknown settings";
+        }, (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; });
         assertSame(prevSettings, settings);
 
         settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
@@ -677,5 +728,99 @@ public class IndexSettingsTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
         assertThat(indexSettings.hasCustomDataPath(), is(true));
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexMetadata.INDEX_DATA_PATH_SETTING });
+    }
+
+    public void testNoTimeRange() {
+        final Settings originalSettings = Settings.builder().build();
+        IndexSettings indexSettings = new IndexSettings(newIndexMeta("test", originalSettings), Settings.EMPTY);
+        assertNull(indexSettings.getTimestampBounds());
+    }
+
+    public void testUpdateTimeSeriesTimeRange() {
+        long endTime = System.currentTimeMillis();
+        long startTime = endTime - TimeUnit.DAYS.toMillis(1);
+        final Settings originalSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .put(TIME_SERIES_START_TIME.getKey(), startTime)
+            .put(TIME_SERIES_END_TIME.getKey(), endTime)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(newIndexMeta("test", originalSettings), Settings.EMPTY);
+        assertEquals(startTime, indexSettings.getTimestampBounds().startTime());
+        assertEquals(endTime, indexSettings.getTimestampBounds().endTime());
+
+        Settings endTimeBackwards = Settings.builder()
+            .put(originalSettings)
+            .put(TIME_SERIES_END_TIME.getKey(), endTime - randomLongBetween(1, 1000))
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexSettings.updateIndexMetadata(newIndexMeta("test", endTimeBackwards))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than current value"));
+
+        long newEndTime = endTime + randomLongBetween(1, 1000);
+        Settings endTimeForwards = Settings.builder().put(originalSettings).put(TIME_SERIES_END_TIME.getKey(), newEndTime).build();
+        indexSettings.updateIndexMetadata(newIndexMeta("test", endTimeForwards));
+
+        assertEquals(startTime, indexSettings.getTimestampBounds().startTime());
+        assertEquals(newEndTime, indexSettings.getTimestampBounds().endTime());
+    }
+
+    public void testTimeSeriesTimeBoundary() {
+        long startTime = System.currentTimeMillis();
+        long endTime = startTime - randomLongBetween(1, 1000);
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .put(TIME_SERIES_START_TIME.getKey(), startTime)
+            .put(TIME_SERIES_END_TIME.getKey(), endTime)
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newIndexMeta("test", settings));
+        assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than index.time_series.start_time"));
+    }
+
+    public void testSame() {
+        final var indexSettingKey = "index.example.setting";
+        final var archivedSettingKey = "archived.example.setting";
+        final var otherSettingKey = "other.example.setting";
+
+        final var builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.put(indexSettingKey, randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            builder.put(archivedSettingKey, randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            builder.put(otherSettingKey, randomAlphaOfLength(10));
+        }
+        final var settings = builder.build();
+        assertTrue(IndexSettings.same(settings, Settings.builder().put(settings).build()));
+
+        final var differentIndexSettingBuilder = Settings.builder().put(settings);
+        if (settings.hasValue(indexSettingKey) && randomBoolean()) {
+            differentIndexSettingBuilder.putNull(indexSettingKey);
+        } else {
+            differentIndexSettingBuilder.put(indexSettingKey, randomAlphaOfLength(11));
+        }
+        assertFalse(IndexSettings.same(settings, differentIndexSettingBuilder.build()));
+
+        final var differentArchivedSettingBuilder = Settings.builder().put(settings);
+        if (settings.hasValue(archivedSettingKey) && randomBoolean()) {
+            differentArchivedSettingBuilder.putNull(archivedSettingKey);
+        } else {
+            differentArchivedSettingBuilder.put(archivedSettingKey, randomAlphaOfLength(11));
+        }
+        assertFalse(IndexSettings.same(settings, differentArchivedSettingBuilder.build()));
+
+        final var differentOtherSettingBuilder = Settings.builder().put(settings);
+        if (settings.hasValue(otherSettingKey) && randomBoolean()) {
+            differentOtherSettingBuilder.putNull(otherSettingKey);
+        } else {
+            differentOtherSettingBuilder.put(otherSettingKey, randomAlphaOfLength(11));
+        }
+        assertTrue(IndexSettings.same(settings, differentOtherSettingBuilder.build()));
     }
 }

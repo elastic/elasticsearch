@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.transform.transforms.latest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -113,7 +113,12 @@ public class Latest extends AbstractCompositeAggFunction {
     }
 
     @Override
-    public void deduceMappings(Client client, SourceConfig sourceConfig, ActionListener<Map<String, String>> listener) {
+    public void deduceMappings(
+        Client client,
+        Map<String, String> headers,
+        SourceConfig sourceConfig,
+        ActionListener<Map<String, String>> listener
+    ) {
         listener.onResponse(emptyMap());
     }
 

@@ -47,8 +47,11 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
 
     public PainlessContextConstructorInfo(PainlessConstructor painlessConstructor) {
         this(
-            painlessConstructor.javaConstructor.getDeclaringClass().getName(),
-            painlessConstructor.typeParameters.stream().map(c -> PainlessContextTypeInfo.getType(c.getName())).collect(Collectors.toList())
+            painlessConstructor.javaConstructor().getDeclaringClass().getName(),
+            painlessConstructor.typeParameters()
+                .stream()
+                .map(c -> PainlessContextTypeInfo.getType(c.getName()))
+                .collect(Collectors.toList())
         );
     }
 
@@ -59,7 +62,7 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
 
     public PainlessContextConstructorInfo(StreamInput in) throws IOException {
         declaring = in.readString();
-        parameters = Collections.unmodifiableList(in.readStringList());
+        parameters = in.readImmutableList(StreamInput::readString);
     }
 
     @Override

@@ -13,7 +13,7 @@ import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -120,14 +120,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             this.ordered = in.readBoolean();
             this.analyzer = in.readOptionalString();
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
-            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
                 this.useField = in.readOptionalString();
             } else {
                 this.useField = null;
             }
         }
 
-        private IntervalsSource intervals(
+        private static IntervalsSource intervals(
             MappedFieldType fieldType,
             String text,
             int maxGaps,
@@ -155,7 +155,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 assert fieldType != null;
             }
             if (analyzer == null) {
-                analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
+                analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
             }
             IntervalsSource source = intervals(fieldType, query, maxGaps, ordered, analyzer, context);
             if (useField != null) {
@@ -204,7 +204,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             out.writeBoolean(ordered);
             out.writeOptionalString(analyzer);
             out.writeOptionalWriteable(filter);
-            if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
                 out.writeOptionalString(useField);
             }
         }
@@ -541,7 +541,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 assert fieldType != null;
             }
             if (analyzer == null) {
-                analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
+                analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
             }
             final BytesRef prefixTerm = analyzer.normalize(fieldType.name(), prefix);
             IntervalsSource source = fieldType.prefixIntervals(prefixTerm, context);
@@ -659,7 +659,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 assert fieldType != null;
             }
             if (analyzer == null) {
-                analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
+                analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
             }
             BytesRef normalizedPattern = analyzer.normalize(fieldType.name(), pattern);
             IntervalsSource source = fieldType.wildcardIntervals(normalizedPattern, context);
@@ -786,7 +786,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 assert fieldType != null;
             }
             if (analyzer == null) {
-                analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
+                analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
             }
             // Fuzzy queries only work with unicode content so it's legal to call utf8ToString here.
             String normalizedTerm = analyzer.normalize(fieldType.name(), term).utf8ToString();
@@ -960,26 +960,17 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 return new ScriptFilterSource(input, script.getIdOrCode(), ifs);
             }
             IntervalsSource filterSource = filter.getSource(context, fieldType);
-            switch (type) {
-                case "containing":
-                    return Intervals.containing(input, filterSource);
-                case "contained_by":
-                    return Intervals.containedBy(input, filterSource);
-                case "not_containing":
-                    return Intervals.notContaining(input, filterSource);
-                case "not_contained_by":
-                    return Intervals.notContainedBy(input, filterSource);
-                case "overlapping":
-                    return Intervals.overlapping(input, filterSource);
-                case "not_overlapping":
-                    return Intervals.nonOverlapping(input, filterSource);
-                case "before":
-                    return Intervals.before(input, filterSource);
-                case "after":
-                    return Intervals.after(input, filterSource);
-                default:
-                    throw new IllegalArgumentException("Unknown filter type [" + type + "]");
-            }
+            return switch (type) {
+                case "containing" -> Intervals.containing(input, filterSource);
+                case "contained_by" -> Intervals.containedBy(input, filterSource);
+                case "not_containing" -> Intervals.notContaining(input, filterSource);
+                case "not_contained_by" -> Intervals.notContainedBy(input, filterSource);
+                case "overlapping" -> Intervals.overlapping(input, filterSource);
+                case "not_overlapping" -> Intervals.nonOverlapping(input, filterSource);
+                case "before" -> Intervals.before(input, filterSource);
+                case "after" -> Intervals.after(input, filterSource);
+                default -> throw new IllegalArgumentException("Unknown filter type [" + type + "]");
+            };
         }
 
         @Override

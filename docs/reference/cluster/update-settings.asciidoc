@@ -18,6 +18,12 @@ Configures <<dynamic-cluster-setting,dynamic cluster settings>>.
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
+[[cluster-update-settings-api-desc]]
+==== {api-description-title}
+
+:strip-api-link: true
+include::{es-repo-dir}/setup/configuration.asciidoc[tag=cluster-setting-precedence]
+
 [[cluster-update-settings-api-query-params]]
 ==== {api-query-parms-title}
 
@@ -48,9 +54,15 @@ PUT /_cluster/settings
 
 An example of a transient update:
 
-// tag::transient-settings-deprecation[]
-deprecated::[7.16,Transient settings are deprecated and will be removed in a future release. Use persistent cluster settings instead. See the <<transient-settings-migration-guide>>.]
-// end::transient-settings-deprecation[]
+// tag::transient-settings-warning[]
+[WARNING]
+====
+We no longer recommend using transient cluster settings. Use persistent cluster
+settings instead. If a cluster becomes unstable, transient settings can clear
+unexpectedly, resulting in a potentially undesired cluster configuration. See
+the <<transient-settings-migration-guide>>.
+====
+// end::transient-settings-warning[]
 
 [source,console]
 --------------------------------------------------
@@ -61,7 +73,6 @@ PUT /_cluster/settings?flat_settings=true
   }
 }
 --------------------------------------------------
-// TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]
 
 The response to an update returns the changed setting, as in this response to
 the transient example:
@@ -90,7 +101,6 @@ PUT /_cluster/settings
   }
 }
 --------------------------------------------------
-// TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]
 
 
 The response does not include settings that have been reset:
@@ -118,4 +128,3 @@ PUT /_cluster/settings
   }
 }
 --------------------------------------------------
-// TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]

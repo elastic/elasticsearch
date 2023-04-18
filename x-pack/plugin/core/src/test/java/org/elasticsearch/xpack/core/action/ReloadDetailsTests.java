@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.ReloadDetails;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -32,23 +31,16 @@ public class ReloadDetailsTests extends AbstractWireSerializingTestCase<ReloadDe
     }
 
     @Override
-    protected ReloadDetails mutateInstance(ReloadDetails instance) throws IOException {
+    protected ReloadDetails mutateInstance(ReloadDetails instance) {
         String indexName = instance.getIndexName();
         Set<String> reloadedAnalyzers = new HashSet<>(instance.getReloadedAnalyzers());
         Set<String> reloadedIndicesNodes = new HashSet<>(instance.getReloadedIndicesNodes());
         int mutate = randomIntBetween(0, 2);
         switch (mutate) {
-            case 0:
-                indexName = indexName + randomAlphaOfLength(2);
-                break;
-            case 1:
-                reloadedAnalyzers.add(randomAlphaOfLength(10));
-                break;
-            case 2:
-                reloadedIndicesNodes.add(randomAlphaOfLength(10));
-                break;
-            default:
-                throw new IllegalStateException("Requested to modify more than available parameters.");
+            case 0 -> indexName = indexName + randomAlphaOfLength(2);
+            case 1 -> reloadedAnalyzers.add(randomAlphaOfLength(10));
+            case 2 -> reloadedIndicesNodes.add(randomAlphaOfLength(10));
+            default -> throw new IllegalStateException("Requested to modify more than available parameters.");
         }
         return new ReloadDetails(indexName, reloadedIndicesNodes, reloadedAnalyzers);
     }

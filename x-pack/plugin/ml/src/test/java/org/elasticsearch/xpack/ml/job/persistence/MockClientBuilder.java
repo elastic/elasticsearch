@@ -21,10 +21,10 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
@@ -189,7 +189,8 @@ public class MockClientBuilder {
 
         SearchHit hits[] = new SearchHit[fields.size()];
         for (int i = 0; i < hits.length; i++) {
-            SearchHit hit = new SearchHit(10, null, null, fields.get(i));
+            SearchHit hit = new SearchHit(10, null);
+            hit.addDocumentFields(Map.of(), fields.get(i));
             hits[i] = hit;
         }
 

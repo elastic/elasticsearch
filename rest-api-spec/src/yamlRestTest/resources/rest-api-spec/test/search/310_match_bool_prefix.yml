@@ -17,7 +17,7 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body:
           my_field1: "brown fox jump"
           my_field2: "xylophone"
@@ -25,7 +25,7 @@ setup:
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         body:
           my_field1: "brown emu jump"
           my_field2: "xylophone"
@@ -33,7 +33,7 @@ setup:
   - do:
       index:
         index: test
-        id: 3
+        id: "3"
         body:
           my_field1: "jumparound"
           my_field2: "emu"
@@ -41,7 +41,7 @@ setup:
   - do:
       index:
         index: test
-        id: 4
+        id: "4"
         body:
           my_field1: "dog"
           my_field2: "brown fox jump lazy"

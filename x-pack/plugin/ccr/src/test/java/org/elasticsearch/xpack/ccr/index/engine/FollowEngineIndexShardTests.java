@@ -56,12 +56,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         long seqNo = -1;
         for (int i = 0; i < 8; i++) {
             final String id = Long.toString(i);
-            SourceToParse sourceToParse = new SourceToParse(
-                indexShard.shardId().getIndexName(),
-                id,
-                new BytesArray("{}"),
-                XContentType.JSON
-            );
+            SourceToParse sourceToParse = new SourceToParse(id, new BytesArray("{}"), XContentType.JSON);
             indexShard.applyIndexOperationOnReplica(
                 ++seqNo,
                 indexShard.getOperationPrimaryTerm(),
@@ -73,7 +68,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         }
         long seqNoBeforeGap = seqNo;
         seqNo += 8;
-        SourceToParse sourceToParse = new SourceToParse(indexShard.shardId().getIndexName(), "9", new BytesArray("{}"), XContentType.JSON);
+        SourceToParse sourceToParse = new SourceToParse("9", new BytesArray("{}"), XContentType.JSON);
         indexShard.applyIndexOperationOnReplica(
             seqNo,
             indexShard.getOperationPrimaryTerm(),
@@ -107,7 +102,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             releasable.close();
             latch.countDown();
         }, e -> { assert false : "expected no exception, but got [" + e.getMessage() + "]"; });
-        indexShard.acquirePrimaryOperationPermit(actionListener, ThreadPool.Names.GENERIC, "");
+        indexShard.acquirePrimaryOperationPermit(actionListener, ThreadPool.Names.GENERIC);
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(seqNoBeforeGap));
         indexShard.refresh("test");
@@ -176,7 +171,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         assertThat(target.getLocalCheckpoint(), equalTo(0L));
         assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(2L));
         assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
-        IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted());
+        IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
         assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
 
         assertDocs(target, "0", "2");

@@ -59,7 +59,8 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
         OffsetDateTime timestamp = Instant.parse("2018-01-01T00:00:01.000Z").atOffset(ZoneOffset.UTC);
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
+            String recoverQuickly = """
+                {"settings": {"index.unassigned.node_left.delayed_timeout": "100ms"}}""";
 
             Request createTargetIndex = new Request("PUT", "/target");
             createTargetIndex.setJsonEntity(recoverQuickly);
@@ -71,30 +72,32 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
 
             // create the rollup job with an old interval style
             final Request createRollupJobRequest = new Request("PUT", "_rollup/job/rollup-id-test");
-            createRollupJobRequest.setJsonEntity(
-                "{"
-                    + "\"index_pattern\":\"target\","
-                    + "\"rollup_index\":\"rollup\","
-                    + "\"cron\":\"*/1 * * * * ?\","
-                    + "\"page_size\":100,"
-                    + "\"groups\":{"
-                    + "    \"date_histogram\":{"
-                    + "        \"field\":\"timestamp\","
-                    + "        \"interval\":\"5m\""
-                    + "      },"
-                    + "\"histogram\":{"
-                    + "        \"fields\": [\"value\"],"
-                    + "        \"interval\":1"
-                    + "      },"
-                    + "\"terms\":{"
-                    + "        \"fields\": [\"value\"]"
-                    + "      }"
-                    + "},"
-                    + "\"metrics\":["
-                    + "    {\"field\":\"value\",\"metrics\":[\"min\",\"max\",\"sum\"]}"
-                    + "]"
-                    + "}"
-            );
+            createRollupJobRequest.setJsonEntity("""
+                {
+                  "index_pattern": "target",
+                  "rollup_index": "rollup",
+                  "cron": "*/1 * * * * ?",
+                  "page_size": 100,
+                  "groups": {
+                    "date_histogram": {
+                      "field": "timestamp",
+                      "interval": "5m"
+                    },
+                    "histogram": {
+                      "fields": [ "value" ],
+                      "interval": 1
+                    },
+                    "terms": {
+                      "fields": [ "value" ]
+                    }
+                  },
+                  "metrics": [
+                    {
+                      "field": "value",
+                      "metrics": [ "min", "max", "sum" ]
+                    }
+                  ]
+                }""");
 
             Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));

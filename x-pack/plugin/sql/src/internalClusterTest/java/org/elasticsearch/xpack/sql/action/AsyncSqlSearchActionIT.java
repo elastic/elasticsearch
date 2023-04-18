@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlAsyncGetResultsAction;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.junit.After;
 
 import java.io.InputStream;
@@ -180,7 +179,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
-        SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
+        SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId))
             .execute(SqlQueryAction.INSTANCE, builder.request())
             .get();
         assertThat(response.isRunning(), is(true));
@@ -234,7 +233,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
-        SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
+        SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId))
             .execute(SqlQueryAction.INSTANCE, builder.request())
             .get();
         assertThat(response.isRunning(), is(true));
@@ -305,10 +304,10 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
             if (doc.isExists()) {
                 String value = doc.getSource().get("result").toString();
                 try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
-                    final Version version = Version.readVersion(buf);
+                    TransportVersion version = TransportVersion.readVersion(buf);
                     final InputStream compressedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(buf);
                     try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(compressedIn), registry)) {
-                        in.setVersion(version);
+                        in.setTransportVersion(version);
                         return new StoredAsyncResponse<>(SqlQueryResponse::new, in);
                     }
                 }

@@ -13,6 +13,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -38,15 +39,12 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     protected Map<String, WildcardQueryBuilder> getAlternateVersions() {
         Map<String, WildcardQueryBuilder> alternateVersions = new HashMap<>();
         WildcardQueryBuilder wildcardQuery = randomWildcardQuery();
-        String contentString = "{\n"
-            + "    \"wildcard\" : {\n"
-            + "        \""
-            + wildcardQuery.fieldName()
-            + "\" : \""
-            + wildcardQuery.value()
-            + "\"\n"
-            + "    }\n"
-            + "}";
+        String contentString = Strings.format("""
+            {
+                "wildcard" : {
+                    "%s" : "%s"
+                }
+            }""", wildcardQuery.fieldName(), wildcardQuery.value());
         alternateVersions.put(contentString, wildcardQuery);
         return alternateVersions;
     }
@@ -99,10 +97,16 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     }
 
     public void testFromJson() throws IOException {
-        String json = "{    \"wildcard\" : { \"user\" : { \"wildcard\" : \"ki*y\","
-            + " \"case_insensitive\" : true,\n"
-            + " \"boost\" : 2.0"
-            + " } }}";
+        String json = """
+            {
+              "wildcard": {
+                "user": {
+                  "wildcard": "ki*y",
+                  "case_insensitive": true,
+                  "boost": 2.0
+                }
+              }
+            }""";
         WildcardQueryBuilder parsed = (WildcardQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, "ki*y", parsed.value());
@@ -110,25 +114,27 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n"
-            + "    \"wildcard\": {\n"
-            + "      \"user1\": {\n"
-            + "        \"wildcard\": \"ki*y\"\n"
-            + "      },\n"
-            + "      \"user2\": {\n"
-            + "        \"wildcard\": \"ki*y\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "}";
+        String json = """
+            {
+                "wildcard": {
+                  "user1": {
+                    "wildcard": "ki*y"
+                  },
+                  "user2": {
+                    "wildcard": "ki*y"
+                  }
+                }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[wildcard] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
 
-        String shortJson = "{\n"
-            + "    \"wildcard\": {\n"
-            + "      \"user1\": \"ki*y\",\n"
-            + "      \"user2\": \"ki*y\"\n"
-            + "    }\n"
-            + "}";
+        String shortJson = """
+            {
+                "wildcard": {
+                  "user1": "ki*y",
+                  "user2": "ki*y"
+                }
+            }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[wildcard] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }

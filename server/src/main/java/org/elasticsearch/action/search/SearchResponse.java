@@ -9,7 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -84,7 +84,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             pointInTimeId = in.readOptionalString();
         } else {
             pointInTimeId = null;
@@ -145,8 +145,19 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return internalResponse.hits();
     }
 
-    public Aggregations getAggregations() {
+    /**
+     * Aggregations in this response. "empty" aggregations could be
+     * either {@code null} or {@link InternalAggregations#EMPTY}.
+     */
+    public @Nullable Aggregations getAggregations() {
         return internalResponse.aggregations();
+    }
+
+    /**
+     * Will {@link #getAggregations()} return non-empty aggregation results?
+     */
+    public boolean hasAggregations() {
+        return getAggregations() != null && getAggregations() != InternalAggregations.EMPTY;
     }
 
     public Suggest getSuggest() {
@@ -432,7 +443,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeOptionalString(pointInTimeId);
         }
     }
@@ -536,7 +547,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
     }
 
-    static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
+    // public for tests
+    public static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
         SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
             searchHits,

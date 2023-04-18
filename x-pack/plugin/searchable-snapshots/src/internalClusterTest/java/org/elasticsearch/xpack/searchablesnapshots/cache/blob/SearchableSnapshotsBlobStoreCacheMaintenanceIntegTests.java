@@ -13,8 +13,9 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -35,7 +36,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshotsIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -233,7 +233,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
 
         // creates a backup of the system index cache to be restored later
         createRepository("backup", FsRepository.TYPE);
-        createSnapshot("backup", "backup", List.of(SNAPSHOT_BLOB_CACHE_INDEX));
+        createSnapshot("backup", "backup", Collections.emptyList(), Collections.singletonList("searchable_snapshots"));
 
         final Set<String> indicesToDelete = new HashSet<>(mountedIndices.keySet());
         indicesToDelete.add(randomFrom(otherMountedIndices.keySet()));
@@ -245,24 +245,20 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
 
         assertThat(numberOfEntriesInCache(), equalTo(0L));
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(
-                    Settings.builder()
-                        .put(
-                            BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.getKey(),
-                            TimeValue.timeValueSeconds(1L)
-                        )
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .put(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1L))
         );
         try {
             // restores the .snapshot-blob-cache index with - now obsolete - documents
             final RestoreSnapshotResponse restoreResponse = client().admin()
                 .cluster()
                 .prepareRestoreSnapshot("backup", "backup")
-                .setIndices(SNAPSHOT_BLOB_CACHE_INDEX)
+                // We only want to restore the blob cache index. Since we can't do that by name, specify an index that doesn't exist and
+                // allow no indices - this way, only the indices resolved from the feature state will be resolved.
+                .setIndices("this-index-doesnt-exist-i-know-because-#-is-illegal-in-index-names")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setFeatureStates("searchable_snapshots")
                 .setWaitForCompletion(true)
                 .get();
             assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(1));
@@ -286,16 +282,11 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             }, 30L, TimeUnit.SECONDS);
 
             // updating the retention period from 1H to immediate
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setTransientSettings(
-                        Settings.builder()
-                            .put(
-                                BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_RETENTION_PERIOD.getKey(),
-                                TimeValue.timeValueSeconds(0L)
-                            )
+            updateClusterSettings(
+                Settings.builder()
+                    .put(
+                        BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_RETENTION_PERIOD.getKey(),
+                        TimeValue.timeValueSeconds(0L)
                     )
             );
 
@@ -312,15 +303,10 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             }, 30L, TimeUnit.SECONDS);
 
         } finally {
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setTransientSettings(
-                        Settings.builder()
-                            .putNull(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.getKey())
-                            .putNull(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_RETENTION_PERIOD.getKey())
-                    )
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.getKey())
+                    .putNull(BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_RETENTION_PERIOD.getKey())
             );
         }
     }
@@ -442,7 +428,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                 ByteRange.of(i, i + length),
                 new BytesArray(bytes, 0, length),
                 creationTimeInEpochMillis,
-                ActionListener.wrap(latch::countDown)
+                ActionListener.running(latch::countDown)
             );
         }
         try {

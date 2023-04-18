@@ -22,16 +22,16 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
-import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasEntry;
@@ -44,7 +44,8 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
     @Override
-    protected void testFilter(Builder expected, Builder actual, Set<String> includes, Set<String> excludes) throws IOException {
+    protected void testFilter(Builder expected, Builder actual, Collection<String> includes, Collection<String> excludes)
+        throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
         final boolean humanReadable = randomBoolean();
 
@@ -52,13 +53,13 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         if (includes == null) {
             sourceIncludes = randomBoolean() ? Strings.EMPTY_ARRAY : null;
         } else {
-            sourceIncludes = includes.toArray(new String[includes.size()]);
+            sourceIncludes = includes.toArray(String[]::new);
         }
         String[] sourceExcludes;
         if (excludes == null) {
             sourceExcludes = randomBoolean() ? Strings.EMPTY_ARRAY : null;
         } else {
-            sourceExcludes = excludes.toArray(new String[excludes.size()]);
+            sourceExcludes = excludes.toArray(String[]::new);
         }
 
         assertMap(

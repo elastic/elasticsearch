@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.type.Schema;
 
@@ -29,7 +31,7 @@ public class PivotCursor extends CompositeAggCursor {
 
     PivotCursor(
         Map<String, Object> previousKey,
-        byte[] next,
+        SearchSourceBuilder next,
         List<BucketExtractor> exts,
         BitSet mask,
         int remainingLimit,
@@ -50,7 +52,7 @@ public class PivotCursor extends CompositeAggCursor {
         super.writeTo(out);
         if (previousKey != null) {
             out.writeBoolean(true);
-            out.writeMap(previousKey);
+            out.writeGenericMap(previousKey);
         } else {
             out.writeBoolean(false);
         }
@@ -63,11 +65,21 @@ public class PivotCursor extends CompositeAggCursor {
 
     @Override
     protected Supplier<CompositeAggRowSet> makeRowSet(SearchResponse response) {
-        return () -> new PivotRowSet(Schema.EMPTY, extractors(), mask(), response, limit(), previousKey);
+        CompositeAggregationBuilder aggregation = getCompositeBuilder(next());
+        return () -> new PivotRowSet(
+            Schema.EMPTY,
+            extractors(),
+            mask(),
+            response,
+            aggregation.size(),
+            limit(),
+            previousKey,
+            couldProducePartialPages(aggregation)
+        );
     }
 
     @Override
-    protected BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor() {
+    protected BiFunction<SearchSourceBuilder, CompositeAggRowSet, CompositeAggCursor> makeCursor() {
         return (q, r) -> {
             Map<String, Object> lastAfterKey = r instanceof PivotRowSet ? ((PivotRowSet) r).lastAfterKey() : null;
             return new PivotCursor(lastAfterKey, q, r.extractors(), r.mask(), r.remainingData(), includeFrozen(), indices());

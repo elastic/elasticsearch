@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Methods to wrap polygons at the dateline and building shapes from the data held by the
  * builder.
  */
+@SuppressWarnings("HiddenField")
 public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.geometry.Geometry, PolygonBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.POLYGON;
@@ -82,8 +83,8 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
     public PolygonBuilder(StreamInput in) throws IOException {
         shell = new LineStringBuilder(in);
         orientation = Orientation.readFrom(in);
-        int holes = in.readVInt();
-        for (int i = 0; i < holes; i++) {
+        int holesValue = in.readVInt();
+        for (int i = 0; i < holesValue; i++) {
             hole(new LineStringBuilder(in));
         }
     }
@@ -92,10 +93,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
     public void writeTo(StreamOutput out) throws IOException {
         shell.writeTo(out);
         orientation.writeTo(out);
-        out.writeVInt(holes.size());
-        for (LineStringBuilder hole : holes) {
-            hole.writeTo(out);
-        }
+        out.writeList(holes);
     }
 
     public Orientation orientation() {
@@ -720,11 +718,10 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
             minX = Math.min(minX, points[i].x);
             maxX = Math.max(maxX, points[i].x);
         }
-        if (signedArea == 0) {
-            // Points are collinear or self-intersection
-            throw new InvalidShapeException("Cannot determine orientation: signed area equal to 0");
-        }
-        boolean orientation = signedArea < 0;
+
+        // if the polygon is tiny, the computed area can result in zero. In that case
+        // we assume orientation is correct
+        boolean orientation = signedArea == 0 ? handedness != false : signedArea < 0;
 
         // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
         // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards

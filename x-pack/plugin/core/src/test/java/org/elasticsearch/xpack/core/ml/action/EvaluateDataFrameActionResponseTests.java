@@ -38,36 +38,33 @@ public class EvaluateDataFrameActionResponseTests extends AbstractWireSerializin
     @Override
     protected Response createTestInstance() {
         String evaluationName = randomFrom(OUTLIER_DETECTION, CLASSIFICATION, REGRESSION);
-        List<EvaluationMetricResult> metrics;
-        switch (evaluationName) {
-            case OUTLIER_DETECTION:
-                metrics = randomSubsetOf(List.of(AucRocResultTests.createRandom()));
-                break;
-            case CLASSIFICATION:
-                metrics = randomSubsetOf(
-                    List.of(
-                        AucRocResultTests.createRandom(),
-                        AccuracyResultTests.createRandom(),
-                        PrecisionResultTests.createRandom(),
-                        RecallResultTests.createRandom(),
-                        MulticlassConfusionMatrixResultTests.createRandom()
-                    )
-                );
-                break;
-            case REGRESSION:
-                metrics = randomSubsetOf(
-                    List.of(
-                        new MeanSquaredError.Result(randomDouble()),
-                        new MeanSquaredLogarithmicError.Result(randomDouble()),
-                        new Huber.Result(randomDouble()),
-                        new RSquared.Result(randomDouble())
-                    )
-                );
-                break;
-            default:
-                throw new AssertionError("Please add missing \"case\" variant to the \"switch\" statement");
-        }
+        List<EvaluationMetricResult> metrics = switch (evaluationName) {
+            case OUTLIER_DETECTION -> randomSubsetOf(List.of(AucRocResultTests.createRandom()));
+            case CLASSIFICATION -> randomSubsetOf(
+                List.of(
+                    AucRocResultTests.createRandom(),
+                    AccuracyResultTests.createRandom(),
+                    PrecisionResultTests.createRandom(),
+                    RecallResultTests.createRandom(),
+                    MulticlassConfusionMatrixResultTests.createRandom()
+                )
+            );
+            case REGRESSION -> randomSubsetOf(
+                List.of(
+                    new MeanSquaredError.Result(randomDouble()),
+                    new MeanSquaredLogarithmicError.Result(randomDouble()),
+                    new Huber.Result(randomDouble()),
+                    new RSquared.Result(randomDouble())
+                )
+            );
+            default -> throw new AssertionError("Please add missing \"case\" variant to the \"switch\" statement");
+        };
         return new Response(evaluationName, metrics);
+    }
+
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

@@ -22,7 +22,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Unlike index-backed service account tokens, file-backed tokens are local to the node.
@@ -67,8 +66,8 @@ public class GetServiceAccountCredentialsNodesResponse extends BaseNodesResponse
         }
         return fileTokenDistribution.entrySet()
             .stream()
-            .map(entry -> TokenInfo.fileToken(entry.getKey(), entry.getValue().stream().sorted().collect(Collectors.toUnmodifiableList())))
-            .collect(Collectors.toUnmodifiableList());
+            .map(entry -> TokenInfo.fileToken(entry.getKey(), entry.getValue().stream().sorted().toList()))
+            .toList();
     }
 
     public static class Node extends BaseNodeResponse {

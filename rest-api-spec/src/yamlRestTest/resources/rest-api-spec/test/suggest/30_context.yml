@@ -50,7 +50,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
           suggest_context:
             input: "foo red"
@@ -60,7 +60,7 @@ setup:
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:
           suggest_context:
             input: "foo blue"
@@ -92,7 +92,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
           suggest_context_with_path:
             input: "Foo red"
@@ -102,7 +102,7 @@ setup:
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:
           suggest_context_with_path: "Foo blue"
           color: "blue"
@@ -163,7 +163,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
           suggest_geo:
             input: "Marriot in Amsterdam"
@@ -175,7 +175,7 @@ setup:
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:
           suggest_geo:
             input: "Marriot in Berlin"
@@ -214,7 +214,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
           suggest_multi_contexts: "Marriot in Amsterdam"
           location:
@@ -225,7 +225,7 @@ setup:
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:
           suggest_multi_contexts: "Marriot in Berlin"
           location:
@@ -281,7 +281,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
           suggest_context:
             input: "foo"
@@ -291,7 +291,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
           suggest_context:
             input: "foo"
@@ -301,7 +301,7 @@ setup:
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         body:
           suggest_context:
             input: "foo"
@@ -334,7 +334,7 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:
           suggest_context:
             input: "foo"
@@ -349,7 +349,7 @@ setup:
       catch: /Contexts are mandatory in context enabled completion field \[suggest_context\]/
       index:
         index: test
-        id:    2
+        id:    "2"
         body:
           suggest_context:
             input: "foo"

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -46,8 +46,8 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         return new WrappedAggregator(in);
     }
 
-    protected class WrappedAggregator extends Aggregator {
-        private Aggregator in;
+    protected static class WrappedAggregator extends Aggregator {
+        private final Aggregator in;
 
         WrappedAggregator(Aggregator in) {
             this.in = in;
@@ -95,7 +95,7 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
             throw new IllegalStateException(
                 "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper."
             );

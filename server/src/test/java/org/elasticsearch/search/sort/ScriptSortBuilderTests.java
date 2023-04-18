@@ -130,9 +130,11 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         // we rely on these ordinals in serialization, so changing them breaks bwc.
         assertEquals(0, ScriptSortType.STRING.ordinal());
         assertEquals(1, ScriptSortType.NUMBER.ordinal());
+        assertEquals(2, ScriptSortType.VERSION.ordinal());
 
         assertEquals("string", ScriptSortType.STRING.toString());
         assertEquals("number", ScriptSortType.NUMBER.toString());
+        assertEquals("version", ScriptSortType.VERSION.toString());
 
         assertEquals(ScriptSortType.STRING, ScriptSortType.fromString("string"));
         assertEquals(ScriptSortType.STRING, ScriptSortType.fromString("String"));
@@ -140,6 +142,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("number"));
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("Number"));
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("NUMBER"));
+        assertEquals(ScriptSortType.VERSION, ScriptSortType.fromString("version"));
+        assertEquals(ScriptSortType.VERSION, ScriptSortType.fromString("Version"));
+        assertEquals(ScriptSortType.VERSION, ScriptSortType.fromString("VERSION"));
     }
 
     public void testScriptSortTypeNull() {
@@ -153,19 +158,20 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseJson() throws IOException {
-        String scriptSort = "{"
-            + "  \"_script\": {"
-            + "    \"type\": \"number\","
-            + "    \"script\": {"
-            + "      \"source\": \"doc['field_name'].value * factor\","
-            + "      \"params\": {"
-            + "        \"factor\": 1.1"
-            + "      }"
-            + "    },"
-            + "    \"mode\": \"max\","
-            + "    \"order\": \"asc\""
-            + "  }"
-            + "}";
+        String scriptSort = """
+            {
+              "_script": {
+                "type": "number",
+                "script": {
+                  "source": "doc['field_name'].value * factor",
+                  "params": {
+                    "factor": 1.1
+                  }
+                },
+                "mode": "max",
+                "order": "asc"
+              }
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
             parser.nextToken();
             parser.nextToken();
@@ -184,13 +190,15 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseJson_simple() throws IOException {
-        String scriptSort = "{\n"
-            + "\"_script\" : {\n"
-            + "\"type\" : \"number\",\n"
-            + "\"script\" : \"doc['field_name'].value\",\n"
-            + "\"mode\" : \"max\",\n"
-            + "\"order\" : \"asc\"\n"
-            + "} }\n";
+        String scriptSort = """
+            {
+              "_script": {
+                "type": "number",
+                "script": "doc['field_name'].value",
+                "mode": "max",
+                "order": "asc"
+              }
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
             parser.nextToken();
             parser.nextToken();
@@ -209,7 +217,8 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseBadFieldNameExceptions() throws IOException {
-        String scriptSort = "{\"_script\" : {" + "\"bad_field\" : \"number\"" + "} }";
+        String scriptSort = """
+            {"_script" : {"bad_field" : "number"} }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
             parser.nextToken();
             parser.nextToken();
@@ -221,8 +230,8 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseBadFieldNameExceptionsOnStartObject() throws IOException {
-
-        String scriptSort = "{\"_script\" : {" + "\"bad_field\" : { \"order\" : \"asc\" } } }";
+        String scriptSort = """
+            {"_script" : {"bad_field" : { "order" : "asc" } } }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
             parser.nextToken();
             parser.nextToken();
@@ -234,7 +243,8 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseUnexpectedToken() throws IOException {
-        String scriptSort = "{\"_script\" : {" + "\"script\" : [ \"order\" : \"asc\" ] } }";
+        String scriptSort = """
+            {"_script" : {"script" : [ "order" : "asc" ] } }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
             parser.nextToken();
             parser.nextToken();
@@ -296,6 +306,10 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER);
         sortField = sortBuilder.build(createMockSearchExecutionContext()).field;
         assertThat(sortField.getComparatorSource(), instanceOf(DoubleValuesComparatorSource.class));
+
+        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.VERSION);
+        sortField = sortBuilder.build(createMockSearchExecutionContext()).field;
+        assertThat(sortField.getComparatorSource(), instanceOf(BytesRefFieldComparatorSource.class));
     }
 
     /**

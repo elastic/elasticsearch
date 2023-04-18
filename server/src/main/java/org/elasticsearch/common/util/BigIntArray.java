@@ -10,12 +10,15 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
+import static org.elasticsearch.common.util.BigLongArray.writePages;
 import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
 
 /**
@@ -23,7 +26,6 @@ import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
  * configurable length.
  */
 final class BigIntArray extends AbstractBigArray implements IntArray {
-
     private static final BigIntArray ESTIMATOR = new BigIntArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
     static final VarHandle VH_PLATFORM_NATIVE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
@@ -38,6 +40,11 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
         for (int i = 0; i < pages.length; ++i) {
             pages[i] = newBytePage(i);
         }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        writePages(out, (int) size, pages, Integer.BYTES, INT_PAGE_SIZE);
     }
 
     @Override

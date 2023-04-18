@@ -77,13 +77,13 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void setExpirationTime(long expirationTimeMillis) {
-            this.expirationTimeMillis = expirationTimeMillis;
+        public void setExpirationTime(long expirationTime) {
+            this.expirationTimeMillis = expirationTime;
         }
 
         @Override
         public void cancelTask(TaskManager taskManager, Runnable runnable, String reason) {
-            taskManager.cancelTaskAndDescendants(this, reason, true, ActionListener.wrap(runnable));
+            taskManager.cancelTaskAndDescendants(this, reason, true, ActionListener.running(runnable));
         }
 
         public long getExpirationTime() {

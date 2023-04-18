@@ -19,31 +19,22 @@ public class EqlRestValidationIT extends EqlRestValidationTestCase {
     }
 
     protected void assertErrorMessageWhenAllowNoIndicesIsFalse(String reqParameter) throws IOException {
-        assertErrorMessage(
-            "inexistent1*",
-            reqParameter,
-            "\"root_cause\":[{\"type\":\"index_not_found_exception\"," + "\"reason\":\"no such index [inexistent1*]\""
-        );
-        assertErrorMessage(
-            "inexistent1*,inexistent2*",
-            reqParameter,
-            "\"root_cause\":[{\"type\":\"index_not_found_exception\"," + "\"reason\":\"no such index [inexistent1*]\""
-        );
-        assertErrorMessage(
-            "test_eql,inexistent*",
-            reqParameter,
-            "\"root_cause\":[{\"type\":\"index_not_found_exception\"," + "\"reason\":\"no such index [inexistent*]\""
-        );
-        assertErrorMessage(
-            "inexistent",
-            reqParameter,
-            "\"root_cause\":[{\"type\":\"index_not_found_exception\"," + "\"reason\":\"no such index [inexistent]\""
-        );
-        // TODO: revisit after https://github.com/elastic/elasticsearch/issues/64197 is closed
+        assertErrorMessage("inexistent1*", reqParameter, """
+            "root_cause":[{"type":"index_not_found_exception","reason":"no such index [inexistent1*]\"""");
+        assertErrorMessage("inexistent1*,inexistent2*", reqParameter, """
+            "root_cause":[{"type":"index_not_found_exception","reason":"no such index [inexistent1*]\"""");
+        assertErrorMessage("test_eql,inexistent*", reqParameter, """
+            "root_cause":[{"type":"index_not_found_exception","reason":"no such index [inexistent*]\"""");
+        assertErrorMessage("inexistent", reqParameter, """
+            "root_cause":[{"type":"index_not_found_exception","reason":"no such index [inexistent]\"""");
+        // TODO: revisit after
+        // https://github.com/elastic/elasticsearch/issues/64197
+        // is closed
         assertErrorMessage(
             "inexistent1,inexistent2",
             reqParameter,
-            "\"root_cause\":[{\"type\":\"index_not_found_exception\"," + "\"reason\":\"no such index [null]\""
+            "\"root_cause\":[{\"type\":\"index_not_found_exception\",\"reason\":\"no such index [null]\","
+                + "\"resource.type\":\"index_expression\",\"resource.id\":[\"inexistent1\",\"inexistent2\"]}]"
         );
     }
 }

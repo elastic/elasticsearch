@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.ml.process.logging;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -31,7 +31,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -40,6 +39,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Handle a stream of C++ log messages that arrive via a named pipe in JSON format.
@@ -209,7 +210,7 @@ public class CppLogMessageHandler implements Closeable {
         String copyrightMessage = getCppCopyright(timeout);
         Matcher matcher = Pattern.compile("Version (.+) \\(Build ([^)]+)\\) Copyright ").matcher(copyrightMessage);
         if (matcher.find()) {
-            Map<String, Object> info = new HashMap<>(2);
+            Map<String, Object> info = Maps.newMapWithExpectedSize(2);
             info.put("version", matcher.group(1));
             info.put("build_hash", matcher.group(2));
             return info;
@@ -347,18 +348,9 @@ public class CppLogMessageHandler implements Closeable {
             seenFatalError = true;
         } catch (IOException e) {
             if (jobId != null) {
-                LOGGER.warn(
-                    new ParameterizedMessage(
-                        "[{}] IO failure receiving C++ log message: {}",
-                        new Object[] { jobId, bytesRef.utf8ToString() }
-                    ),
-                    e
-                );
+                LOGGER.warn(() -> format("[%s] IO failure receiving C++ log message: %s", jobId, bytesRef.utf8ToString()), e);
             } else {
-                LOGGER.warn(
-                    new ParameterizedMessage("IO failure receiving C++ log message: {}", new Object[] { bytesRef.utf8ToString() }),
-                    e
-                );
+                LOGGER.warn(() -> format("IO failure receiving C++ log message: %s", bytesRef.utf8ToString()), e);
             }
         }
     }

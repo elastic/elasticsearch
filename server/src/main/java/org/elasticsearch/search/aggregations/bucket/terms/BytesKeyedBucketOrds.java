@@ -159,7 +159,15 @@ public abstract class BytesKeyedBucketOrds implements Releasable {
 
         private FromMany(BigArrays bigArrays) {
             bytesToLong = new BytesRefHash(1, bigArrays);
-            longToBucketOrds = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY);
+            boolean success = false;
+            try {
+                longToBucketOrds = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
         }
 
         @Override

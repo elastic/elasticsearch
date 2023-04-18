@@ -8,12 +8,11 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -69,7 +68,7 @@ class SelfGeneratedLicense {
             // EMPTY is safe here because we don't call namedObject
             try (
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, decryptedContent)
+                    .createParser(XContentParserConfiguration.EMPTY, decryptedContent)
             ) {
                 parser.nextToken();
                 expectedLicense = License.builder()

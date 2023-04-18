@@ -9,7 +9,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -52,7 +52,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     protected ReindexRequest buildRequest(RestRequest request, NamedWriteableRegistry namedWriteableRegistry) throws IOException {
         if (request.hasParam("pipeline")) {
             throw new IllegalArgumentException(
-                "_reindex doesn't support [pipeline] as a query parameter. " + "Specify it in the [dest] object instead."
+                "_reindex doesn't support [pipeline] as a query parameter. Specify it in the [dest] object instead."
             );
         }
 

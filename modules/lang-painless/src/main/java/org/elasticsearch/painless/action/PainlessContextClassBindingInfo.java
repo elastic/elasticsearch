@@ -56,11 +56,11 @@ public class PainlessContextClassBindingInfo implements Writeable, ToXContentObj
 
     public PainlessContextClassBindingInfo(PainlessClassBinding painlessClassBinding) {
         this(
-            painlessClassBinding.javaMethod.getDeclaringClass().getName(),
-            painlessClassBinding.javaMethod.getName(),
-            painlessClassBinding.returnType.getName(),
-            painlessClassBinding.javaConstructor.getParameterCount(),
-            painlessClassBinding.typeParameters.stream().map(Class::getName).collect(Collectors.toList())
+            painlessClassBinding.javaMethod().getDeclaringClass().getName(),
+            painlessClassBinding.javaMethod().getName(),
+            painlessClassBinding.returnType().getName(),
+            painlessClassBinding.javaConstructor().getParameterCount(),
+            painlessClassBinding.typeParameters().stream().map(Class::getName).collect(Collectors.toList())
         );
     }
 
@@ -77,7 +77,7 @@ public class PainlessContextClassBindingInfo implements Writeable, ToXContentObj
         name = in.readString();
         rtn = in.readString();
         readOnly = in.readInt();
-        parameters = Collections.unmodifiableList(in.readStringList());
+        parameters = in.readImmutableList(StreamInput::readString);
     }
 
     @Override

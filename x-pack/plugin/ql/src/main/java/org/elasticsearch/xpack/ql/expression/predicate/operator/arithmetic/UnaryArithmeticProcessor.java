@@ -63,8 +63,8 @@ public class UnaryArithmeticProcessor implements Processor {
             return null;
         }
 
-        if (input instanceof Number) {
-            return operation.apply((Number) input);
+        if (input instanceof Number number) {
+            return operation.apply(number);
         }
         throw new QlIllegalArgumentException("A number is required; received {}", input);
     }

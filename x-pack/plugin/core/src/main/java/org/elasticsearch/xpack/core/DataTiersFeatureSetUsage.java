@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,8 +41,8 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_10_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_10_0;
     }
 
     public Map<String, TierSpecificStats> getTierStats() {
@@ -58,8 +58,8 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
-        for (Map.Entry<String, TierSpecificStats> tierStats : tierStats.entrySet()) {
-            builder.field(tierStats.getKey(), tierStats.getValue());
+        for (Map.Entry<String, TierSpecificStats> entry : tierStats.entrySet()) {
+            builder.field(entry.getKey(), entry.getValue());
         }
     }
 
@@ -159,19 +159,23 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field("total_shard_count", totalShardCount);
             builder.field("primary_shard_count", primaryShardCount);
             builder.field("doc_count", docCount);
-            builder.humanReadableField("total_size_bytes", "total_size", new ByteSizeValue(totalByteCount));
-            builder.humanReadableField("primary_size_bytes", "primary_size", new ByteSizeValue(primaryByteCount));
+            builder.humanReadableField("total_size_bytes", "total_size", ByteSizeValue.ofBytes(totalByteCount));
+            builder.humanReadableField("primary_size_bytes", "primary_size", ByteSizeValue.ofBytes(primaryByteCount));
             builder.humanReadableField(
                 "primary_shard_size_avg_bytes",
                 "primary_shard_size_avg",
-                new ByteSizeValue(primaryShardCount == 0 ? 0 : (primaryByteCount / primaryShardCount))
+                ByteSizeValue.ofBytes(primaryShardCount == 0 ? 0 : (primaryByteCount / primaryShardCount))
             );
             builder.humanReadableField(
                 "primary_shard_size_median_bytes",
                 "primary_shard_size_median",
-                new ByteSizeValue(primaryByteCountMedian)
+                ByteSizeValue.ofBytes(primaryByteCountMedian)
             );
-            builder.humanReadableField("primary_shard_size_mad_bytes", "primary_shard_size_mad", new ByteSizeValue(primaryShardBytesMAD));
+            builder.humanReadableField(
+                "primary_shard_size_mad_bytes",
+                "primary_shard_size_mad",
+                ByteSizeValue.ofBytes(primaryShardBytesMAD)
+            );
             builder.endObject();
             return builder;
         }

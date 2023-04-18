@@ -2,7 +2,7 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+branch-consistency
     display-name: "elastic / elasticsearch # %BRANCH% - branch consistency"
-    description: Testing of the Elasticsearch master branch version consistency.
+    description: Testing of the Elasticsearch %BRANCH% branch version consistency.
     triggers:
       - timed: "H 7 * * *"
     builders:

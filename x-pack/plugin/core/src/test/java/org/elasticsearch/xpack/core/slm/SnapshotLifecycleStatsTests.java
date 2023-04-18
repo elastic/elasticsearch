@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
-public class SnapshotLifecycleStatsTests extends AbstractSerializingTestCase<SnapshotLifecycleStats> {
+public class SnapshotLifecycleStatsTests extends AbstractXContentSerializingTestCase<SnapshotLifecycleStats> {
     @Override
     protected SnapshotLifecycleStats doParseInstance(XContentParser parser) throws IOException {
         return SnapshotLifecycleStats.parse(parser);
@@ -33,7 +33,7 @@ public class SnapshotLifecycleStatsTests extends AbstractSerializingTestCase<Sna
 
     public static SnapshotLifecycleStats randomLifecycleStats() {
         int policies = randomIntBetween(0, 5);
-        Map<String, SnapshotLifecycleStats.SnapshotPolicyStats> policyStats = new HashMap<>(policies);
+        Map<String, SnapshotLifecycleStats.SnapshotPolicyStats> policyStats = Maps.newMapWithExpectedSize(policies);
         for (int i = 0; i < policies; i++) {
             String policy = "policy-" + randomAlphaOfLength(4);
             policyStats.put(policy, randomPolicyStats(policy));
@@ -53,7 +53,7 @@ public class SnapshotLifecycleStatsTests extends AbstractSerializingTestCase<Sna
     }
 
     @Override
-    protected SnapshotLifecycleStats mutateInstance(SnapshotLifecycleStats instance) throws IOException {
+    protected SnapshotLifecycleStats mutateInstance(SnapshotLifecycleStats instance) {
         return randomValueOtherThan(instance, () -> instance.merge(createTestInstance()));
     }
 

@@ -42,7 +42,9 @@ and one as part of the definition of the `my_webhook` action.
   "condition" : { ... },
   "transform" : { <1>
     "search" : {
-      "body" : { "query" : { "match_all" : {} } }
+      "request": {
+        "body" : { "query" : { "match_all" : {} } }
+      }
     }
   },
   "actions" : {

@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -47,7 +48,8 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
     }
 
     public void testMetaSerialization() throws IOException {
-        String configJson = "{\"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
+        String configJson = """
+            {"description": "blah", "_meta" : {"foo": "bar"}}""";
         PipelineConfiguration configuration = new PipelineConfiguration(
             "1",
             new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
@@ -85,7 +87,8 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
     public void testGetVersion() {
         {
             // missing version
-            String configJson = "{\"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
+            String configJson = """
+                {"description": "blah", "_meta" : {"foo": "bar"}}""";
             PipelineConfiguration configuration = new PipelineConfiguration(
                 "1",
                 new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
@@ -96,7 +99,9 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         {
             // null version
             int version = randomInt();
-            String configJson = "{\"version\": " + version + ", \"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
+            String configJson = Strings.format("""
+                {"version": %d, "description": "blah", "_meta" : {"foo": "bar"}}
+                """, version);
             PipelineConfiguration configuration = new PipelineConfiguration(
                 "1",
                 new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),

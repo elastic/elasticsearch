@@ -14,21 +14,18 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 
 public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<CreateIndexRequest> {
 
@@ -49,20 +46,21 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
     }
 
     public void testTopLevelKeys() {
-        String createIndex = "{\n"
-            + "  \"FOO_SHOULD_BE_ILLEGAL_HERE\": {\n"
-            + "    \"BAR_IS_THE_SAME\": 42\n"
-            + "  },\n"
-            + "  \"mappings\": {\n"
-            + "    \"test\": {\n"
-            + "      \"properties\": {\n"
-            + "        \"field1\": {\n"
-            + "          \"type\": \"text\"\n"
-            + "       }\n"
-            + "     }\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String createIndex = """
+            {
+              "FOO_SHOULD_BE_ILLEGAL_HERE": {
+                "BAR_IS_THE_SAME": 42
+              },
+              "mappings": {
+                "test": {
+                  "properties": {
+                    "field1": {
+                      "type": "text"
+                   }
+                 }
+                }
+              }
+            }""";
 
         CreateIndexRequest request = new CreateIndexRequest();
         ElasticsearchParseException e = expectThrows(
@@ -123,27 +121,40 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
         assertThat(e.getMessage(), equalTo("key [settings] must be an object"));
     }
 
-    public static void assertMappingsEqual(Map<String, String> expected, Map<String, String> actual) throws IOException {
-        assertEquals(expected.keySet(), actual.keySet());
+    public void testAlias() throws IOException {
+        XContentBuilder aliases1 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("aliases")
+            .startObject("filtered-data")
+            .startObject("bool")
+            .startObject("filter")
+            .startObject("term")
+            .field("a", "b")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new CreateIndexRequest().source(aliases1));
+        assertThat(e.getMessage(), containsString("Unknown field [bool] in alias [filtered-data]"));
 
-        for (Map.Entry<String, String> expectedEntry : expected.entrySet()) {
-            String expectedValue = expectedEntry.getValue();
-            String actualValue = actual.get(expectedEntry.getKey());
-            try (
-                XContentParser expectedJson = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE,
-                    expectedValue
-                );
-                XContentParser actualJson = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE,
-                    actualValue
-                )
-            ) {
-                assertEquals(expectedJson.map(), actualJson.map());
-            }
-        }
+        XContentBuilder aliases2 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("aliases")
+            .startObject("filtered-data")
+            .startArray("filter")
+            .startObject()
+            .startObject("term")
+            .field("a", "b")
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject();
+        e = expectThrows(IllegalArgumentException.class, () -> new CreateIndexRequest().source(aliases2));
+        assertThat(e.getMessage(), containsString("Unknown token [START_ARRAY] in alias [filtered-data]"));
     }
 
     public static void assertAliasesEqual(Set<Alias> expected, Set<Alias> actual) throws IOException {
@@ -169,5 +180,10 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
     @Override
     protected CreateIndexRequest createTestInstance() {
         return RandomCreateIndexGenerator.randomCreateIndexRequest();
+    }
+
+    @Override
+    protected CreateIndexRequest mutateInstance(CreateIndexRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

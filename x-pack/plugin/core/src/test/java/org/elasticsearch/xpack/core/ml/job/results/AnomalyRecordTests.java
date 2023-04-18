@@ -6,16 +6,16 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.client.ml.job.config.DetectorFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.job.config.DetectorFunction;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
@@ -30,11 +30,16 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecord> {
+public class AnomalyRecordTests extends AbstractXContentSerializingTestCase<AnomalyRecord> {
 
     @Override
     protected AnomalyRecord createTestInstance() {
         return createTestInstance("foo");
+    }
+
+    @Override
+    protected AnomalyRecord mutateInstance(AnomalyRecord instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public AnomalyRecord createTestInstance(String jobId) {
@@ -88,6 +93,21 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
                 causes.add(new AnomalyCauseTests().createTestInstance());
             }
             anomalyRecord.setCauses(causes);
+        }
+        if (randomBoolean()) {
+            AnomalyScoreExplanation anomalyScoreExplanation = new AnomalyScoreExplanation();
+            anomalyScoreExplanation.setAnomalyType(randomAlphaOfLength(12));
+            anomalyScoreExplanation.setAnomalyLength(randomInt());
+            anomalyScoreExplanation.setSingleBucketImpact(randomInt());
+            anomalyScoreExplanation.setMultiBucketImpact(randomInt());
+            anomalyScoreExplanation.setLowerConfidenceBound(randomDouble());
+            anomalyScoreExplanation.setTypicalValue(randomDouble());
+            anomalyScoreExplanation.setUpperConfidenceBound(randomDouble());
+            anomalyScoreExplanation.setHighVariancePenalty(randomBoolean());
+            anomalyScoreExplanation.setIncompleteBucketPenalty(randomBoolean());
+            anomalyScoreExplanation.setMultimodalDistribution(randomBoolean());
+            anomalyScoreExplanation.setByFieldFirstOccurrence(randomBoolean());
+            anomalyScoreExplanation.setByFieldRelativeRarity(randomDouble());
         }
 
         return anomalyRecord;
@@ -199,15 +219,22 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
     }
 
     public void testStrictParser_IsLenientOnTopLevelFields() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123544456, "bucket_span": 3600, "foo":"bar"}""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             AnomalyRecord.STRICT_PARSER.apply(parser, null);
         }
     }
 
     public void testStrictParser_IsStrictOnNestedFields() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\","
-            + " \"causes\":[{\"cause_foo\":\"bar\"}]}";
+        String json = """
+            {
+              "job_id": "job_1",
+              "timestamp": 123544456,
+              "bucket_span": 3600,
+              "foo": "bar",
+              "causes": [ { "cause_foo": "bar" } ]
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             XContentParseException e = expectThrows(XContentParseException.class, () -> AnomalyRecord.STRICT_PARSER.apply(parser, null));
             assertThat(e.getCause().getMessage(), containsString("[anomaly_cause] unknown field [cause_foo]"));
@@ -215,8 +242,14 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\","
-            + " \"causes\":[{\"cause_foo\":\"bar\"}]}";
+        String json = """
+            {
+              "job_id": "job_1",
+              "timestamp": 123544456,
+              "bucket_span": 3600,
+              "foo": "bar",
+              "causes": [ { "cause_foo": "bar" } ]
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             AnomalyRecord.LENIENT_PARSER.apply(parser, null);
         }

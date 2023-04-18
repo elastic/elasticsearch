@@ -9,7 +9,7 @@ type query throws exception when used:
   - do:
       index:
         index: "test1"
-        id: 1
+        id: "1"
         type: "cat"
         refresh: true
         body:

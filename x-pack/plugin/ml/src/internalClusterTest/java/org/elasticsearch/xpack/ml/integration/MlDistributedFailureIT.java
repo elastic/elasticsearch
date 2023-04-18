@@ -31,11 +31,10 @@ import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -63,12 +62,14 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -80,6 +81,8 @@ import static org.elasticsearch.persistent.PersistentTasksClusterService.needsRe
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
+import static org.elasticsearch.xpack.core.ml.MlTasks.DATAFEED_TASK_NAME;
+import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_TASK_NAME;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -105,27 +108,19 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             GetJobsStatsAction.Request request = new GetJobsStatsAction.Request("fail-over-job");
             GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
             DiscoveryNode discoveryNode = response.getResponse().results().get(0).getNode();
-            internalCluster().stopRandomNode(settings -> discoveryNode.getName().equals(settings.get("node.name")));
+            internalCluster().stopNode(discoveryNode.getName());
             ensureStableCluster();
         });
     }
 
     @Before
     public void setLogging() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put("logger.org.elasticsearch.xpack.ml.utils.persistence", "TRACE").build())
-            .get();
+        updateClusterSettings(Settings.builder().put("logger.org.elasticsearch.xpack.ml.utils.persistence", "TRACE"));
     }
 
     @After
     public void unsetLogging() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.utils.persistence").build())
-            .get();
+        updateClusterSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.utils.persistence"));
     }
 
     public void testLoseDedicatedMasterNode() throws Exception {
@@ -328,7 +323,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         // Stop the node running the failed job/stopping datafeed
         ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
-        internalCluster().stopRandomNode(settings -> jobNode.getName().equals(settings.get("node.name")));
+        internalCluster().stopNode(jobNode.getName());
         ensureStableCluster(3);
 
         // We should be allowed to force stop the unassigned datafeed even though it is stopping and its job has failed
@@ -542,7 +537,108 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
         });
+    }
 
+    public void testClusterWithTwoMlNodes_StopsDatafeed_GivenJobFailsOnReassign() throws Exception {
+        internalCluster().ensureAtMostNumDataNodes(0);
+        logger.info("Starting dedicated master node...");
+        internalCluster().startMasterOnlyNode();
+        logger.info("Starting ml and data node...");
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
+        logger.info("Starting another ml and data node...");
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
+        ensureStableCluster();
+
+        // index some datafeed data
+        client().admin().indices().prepareCreate("data").setMapping("time", "type=date").get();
+        long numDocs = 80000;
+        long now = System.currentTimeMillis();
+        long weekAgo = now - 604800000;
+        long twoWeeksAgo = weekAgo - 604800000;
+        indexDocs(logger, "data", numDocs, twoWeeksAgo, weekAgo);
+
+        String jobId = "test-node-goes-down-while-running-job";
+        String datafeedId = jobId + "-datafeed";
+
+        Job.Builder job = createScheduledJob(jobId);
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
+
+        DatafeedConfig config = createDatafeed(datafeedId, job.getId(), Collections.singletonList("data"), TimeValue.timeValueHours(1));
+        PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
+        client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).actionGet();
+
+        client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId()));
+
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(job.getId())
+            ).actionGet();
+            assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
+        }, 30, TimeUnit.SECONDS);
+
+        DiscoveryNode nodeRunningJob = client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId()))
+            .actionGet()
+            .getResponse()
+            .results()
+            .get(0)
+            .getNode();
+
+        setMlIndicesDelayedNodeLeftTimeoutToZero();
+
+        StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
+        client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
+
+        waitForJobToHaveProcessedAtLeast(jobId, 1000);
+
+        // The datafeed should be started
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Response statsResponse = client().execute(
+                GetDatafeedsStatsAction.INSTANCE,
+                new GetDatafeedsStatsAction.Request(config.getId())
+            ).actionGet();
+            assertEquals(DatafeedState.STARTED, statsResponse.getResponse().results().get(0).getDatafeedState());
+        }, 30, TimeUnit.SECONDS);
+
+        // Create a problem that will make the job fail when it restarts on a different node
+        String snapshotId = "123";
+        ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(jobId).setSnapshotId(snapshotId).setTimestamp(new Date()).build();
+        JobResultsPersister jobResultsPersister = internalCluster().getInstance(
+            JobResultsPersister.class,
+            internalCluster().getMasterName()
+        );
+        jobResultsPersister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE, () -> true);
+        UpdateJobAction.Request updateJobRequest = UpdateJobAction.Request.internal(
+            jobId,
+            new JobUpdate.Builder(jobId).setModelSnapshotId(snapshotId).build()
+        );
+        client().execute(UpdateJobAction.INSTANCE, updateJobRequest).actionGet();
+        refresh(AnomalyDetectorsIndex.resultsWriteAlias(jobId));
+
+        // Make the job move to a different node
+        internalCluster().stopNode(nodeRunningJob.getName());
+
+        // Wait for the job to fail during reassignment
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(job.getId())
+            ).actionGet();
+            assertEquals(JobState.FAILED, statsResponse.getResponse().results().get(0).getState());
+        }, 30, TimeUnit.SECONDS);
+
+        // The datafeed should then be stopped
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Response statsResponse = client().execute(
+                GetDatafeedsStatsAction.INSTANCE,
+                new GetDatafeedsStatsAction.Request(config.getId())
+            ).actionGet();
+            assertEquals(DatafeedState.STOPPED, statsResponse.getResponse().results().get(0).getDatafeedState());
+        }, 30, TimeUnit.SECONDS);
+
+        // Force close the failed job to clean up
+        client().execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId).setForce(true)).actionGet();
     }
 
     private void setupJobWithoutDatafeed(String jobId, ByteSizeValue modelMemoryLimit) throws Exception {
@@ -622,10 +718,10 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // succession, like we see in internal cluster tests of node failure scenarios
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-            PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            List<PersistentTask<?>> tasks = findTasks(clusterState, Set.of(DATAFEED_TASK_NAME, JOB_TASK_NAME));
             assertNotNull(tasks);
-            assertEquals("Expected 2 tasks, but got [" + tasks.taskMap() + "]", 2, tasks.taskMap().size());
-            for (PersistentTask<?> task : tasks.tasks()) {
+            assertEquals("Expected 2 tasks, but got [" + tasks + "]", 2, tasks.size());
+            for (PersistentTask<?> task : tasks) {
                 assertFalse(needsReassignment(task.getAssignment(), clusterState.nodes()));
             }
 
@@ -664,17 +760,10 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         }
 
         BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
-        try (
-            XContentParser parser = XContentHelper.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                source,
-                XContentType.JSON
-            )
-        ) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
             return DataCounts.PARSER.apply(parser, null);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -692,17 +781,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             assertThat(dataCounts.getProcessedRecordCount(), greaterThanOrEqualTo(numDocs));
             assertEquals(0L, dataCounts.getOutOfOrderTimeStampCount());
         }, 30, TimeUnit.SECONDS);
-    }
-
-    private void waitForJobClosed(String jobId) throws Exception {
-        assertBusy(() -> {
-            JobStats jobStats = getJobStats(jobId);
-            assertEquals(jobStats.getState(), JobState.CLOSED);
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    private void ensureStableCluster() {
-        ensureStableCluster(internalCluster().getNodeNames().length, TimeValue.timeValueSeconds(60));
     }
 
     private void indexModelSnapshotFromCurrentJobStats(String jobId) throws IOException {

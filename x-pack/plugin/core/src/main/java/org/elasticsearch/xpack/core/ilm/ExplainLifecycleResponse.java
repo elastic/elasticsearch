@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -18,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,7 +60,7 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
     public ExplainLifecycleResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>(size);
+        Map<String, IndexLifecycleExplainResponse> indexResponses = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             IndexLifecycleExplainResponse indexResponse = new IndexLifecycleExplainResponse(in);
             indexResponses.put(indexResponse.getIndex(), indexResponse);
@@ -96,10 +96,7 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(indexResponses.size());
-        for (IndexLifecycleExplainResponse e : indexResponses.values()) {
-            e.writeTo(out);
-        }
+        out.writeCollection(indexResponses.values());
     }
 
     @Override

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -46,17 +47,10 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         int maxNumSegments = instance.getMaxNumSegments();
 
         switch (between(0, 2)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                maxNumSegments += 1;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
+            case 2 -> maxNumSegments += 1;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new ForceMergeStep(key, nextKey, instance.getClient(), maxNumSegments);
@@ -176,16 +170,9 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
         ElasticsearchException stepException = failedStep.get();
         assertThat(stepException, notNullValue());
-        assertThat(
-            stepException.getMessage(),
-            is(
-                "index ["
-                    + index.getName()
-                    + "] in policy [ilmPolicy] encountered failures [{\"shard\":0,\"index\":\""
-                    + index.getName()
-                    + "\",\"status\":\"BAD_REQUEST\",\"reason\":{\"type\":\"illegal_argument_exception\","
-                    + "\"reason\":\"couldn't merge\"}}] on step [forcemerge]"
-            )
-        );
+        assertThat(stepException.getMessage(), is(Strings.format("""
+            index [%s] in policy [ilmPolicy] encountered failures [{"shard":0,"index":"%s","status":"BAD_REQUEST",\
+            "reason":{"type":"illegal_argument_exception","reason":"couldn't merge"}}] on step [forcemerge]\
+            """, index.getName(), index.getName())));
     }
 }

@@ -7,23 +7,25 @@
  */
 package org.elasticsearch.rest.action.cat;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestAliasAction extends AbstractCatAction {
 
     @Override
@@ -81,9 +83,9 @@ public class RestAliasAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, GetAliasesResponse response) {
         Table table = getTableWithHeader(request);
 
-        for (ObjectObjectCursor<String, List<AliasMetadata>> cursor : response.getAliases()) {
-            String indexName = cursor.key;
-            for (AliasMetadata aliasMetadata : cursor.value) {
+        for (Map.Entry<String, List<AliasMetadata>> cursor : response.getAliases().entrySet()) {
+            String indexName = cursor.getKey();
+            for (AliasMetadata aliasMetadata : cursor.getValue()) {
                 table.startRow();
                 table.addCell(aliasMetadata.alias());
                 table.addCell(indexName);

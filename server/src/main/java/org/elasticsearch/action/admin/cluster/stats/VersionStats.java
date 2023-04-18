@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -68,8 +66,8 @@ public final class VersionStats implements ToXContentFragment, Writeable {
         }
 
         // Loop through all indices in the metadata, building the counts as needed
-        for (ObjectObjectCursor<String, IndexMetadata> cursor : metadata.indices()) {
-            IndexMetadata indexMetadata = cursor.value;
+        for (Map.Entry<String, IndexMetadata> cursor : metadata.indices().entrySet()) {
+            IndexMetadata indexMetadata = cursor.getValue();
             // Increment version-specific index counts
             indexCounts.compute(indexMetadata.getCreationVersion(), (v, i) -> {
                 if (i == null) {
@@ -191,7 +189,7 @@ public final class VersionStats implements ToXContentFragment, Writeable {
             builder.field("version", version.toString());
             builder.field("index_count", indexCount);
             builder.field("primary_shard_count", primaryShardCount);
-            builder.humanReadableField("total_primary_bytes", "total_primary_size", new ByteSizeValue(totalPrimaryByteCount));
+            builder.humanReadableField("total_primary_bytes", "total_primary_size", ByteSizeValue.ofBytes(totalPrimaryByteCount));
             builder.endObject();
             return builder;
         }

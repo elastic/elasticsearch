@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public final class AnalyzeIndexDiskUsageResponse extends BroadcastResponse {
     private final Map<String, IndexDiskUsageStats> stats;
@@ -50,10 +49,7 @@ public final class AnalyzeIndexDiskUsageResponse extends BroadcastResponse {
 
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        final List<Map.Entry<String, IndexDiskUsageStats>> entries = stats.entrySet()
-            .stream()
-            .sorted(Map.Entry.comparingByKey())
-            .collect(Collectors.toList());
+        final List<Map.Entry<String, IndexDiskUsageStats>> entries = stats.entrySet().stream().sorted(Map.Entry.comparingByKey()).toList();
         for (Map.Entry<String, IndexDiskUsageStats> entry : entries) {
             builder.startObject(entry.getKey());
             entry.getValue().toXContent(builder, params);

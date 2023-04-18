@@ -453,10 +453,19 @@ public abstract class BucketedSort implements Releasable {
      * Superclass for implementations of {@linkplain BucketedSort} for {@code double} keys.
      */
     public abstract static class ForDoubles extends BucketedSort {
-        private DoubleArray values = bigArrays.newDoubleArray(getBucketSize(), false);
+        private DoubleArray values;
 
         public ForDoubles(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize, ExtraData extra) {
             super(bigArrays, sortOrder, format, bucketSize, extra);
+            boolean success = false;
+            try {
+                values = bigArrays.newDoubleArray(getBucketSize(), false);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
             initGatherOffsets();
         }
 
@@ -544,13 +553,22 @@ public abstract class BucketedSort implements Releasable {
          */
         public static final int MAX_BUCKET_SIZE = (int) Math.pow(2, 24);
 
-        private FloatArray values = bigArrays.newFloatArray(1, false);
+        private FloatArray values;
 
         public ForFloats(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize, ExtraData extra) {
             super(bigArrays, sortOrder, format, bucketSize, extra);
             if (bucketSize > MAX_BUCKET_SIZE) {
                 close();
                 throw new IllegalArgumentException("bucket size must be less than [2^24] but was [" + bucketSize + "]");
+            }
+            boolean success = false;
+            try {
+                values = bigArrays.newFloatArray(1, false);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
             }
             initGatherOffsets();
         }
@@ -626,10 +644,19 @@ public abstract class BucketedSort implements Releasable {
      * Superclass for implementations of {@linkplain BucketedSort} for {@code long} keys.
      */
     public abstract static class ForLongs extends BucketedSort {
-        private LongArray values = bigArrays.newLongArray(1, false);
+        private LongArray values;
 
         public ForLongs(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize, ExtraData extra) {
             super(bigArrays, sortOrder, format, bucketSize, extra);
+            boolean success = false;
+            try {
+                values = bigArrays.newLongArray(1, false);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
             initGatherOffsets();
         }
 

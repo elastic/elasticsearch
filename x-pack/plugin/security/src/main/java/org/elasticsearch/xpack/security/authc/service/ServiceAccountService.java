@@ -10,9 +10,8 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNod
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
@@ -163,9 +161,14 @@ public class ServiceAccountService {
         findIndexTokens(accountId, listener);
     }
 
+    // TODO: No production code usage
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
-        assert authentication.isAuthenticatedWithServiceAccount() : "authentication is not for service account: " + authentication;
-        final String principal = authentication.getUser().principal();
+        assert authentication.isServiceAccount() : "authentication is not for service account: " + authentication;
+        final String principal = authentication.getEffectiveSubject().getUser().principal();
+        getRoleDescriptorForPrincipal(principal, listener);
+    }
+
+    public void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
         final ServiceAccount account = ACCOUNTS.get(principal);
         if (account == null) {
             listener.onFailure(
@@ -183,17 +186,9 @@ public class ServiceAccountService {
         String nodeName
     ) {
         final User user = account.asUser();
-        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
-            ServiceAccountSettings.REALM_NAME,
-            ServiceAccountSettings.REALM_TYPE,
-            nodeName
-        );
-        return new Authentication(
+        return Authentication.newServiceAccountAuthentication(
             user,
-            authenticatedBy,
-            null,
-            Version.CURRENT,
-            Authentication.AuthenticationType.TOKEN,
+            nodeName,
             Map.of(TOKEN_NAME_FIELD, token.getTokenName(), TOKEN_SOURCE_FIELD, tokenSource.name().toLowerCase(Locale.ROOT))
         );
     }
@@ -208,10 +203,9 @@ public class ServiceAccountService {
     }
 
     private void findIndexTokens(ServiceAccountId accountId, ActionListener<GetServiceAccountCredentialsResponse> listener) {
-        indexServiceAccountTokenStore.findTokensFor(
-            accountId,
-            ActionListener.wrap(indexTokenInfos -> { findFileTokens(indexTokenInfos, accountId, listener); }, listener::onFailure)
-        );
+        indexServiceAccountTokenStore.findTokensFor(accountId, ActionListener.wrap(indexTokenInfos -> {
+            findFileTokens(indexTokenInfos, accountId, listener);
+        }, listener::onFailure));
     }
 
     private void findFileTokens(

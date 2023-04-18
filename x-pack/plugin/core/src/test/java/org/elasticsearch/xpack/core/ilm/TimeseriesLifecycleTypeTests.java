@@ -11,10 +11,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,6 +36,7 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_V
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_WARM_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_COLD_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_FROZEN_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_HOT_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_WARM_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
@@ -65,7 +62,18 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
-    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null, null);
+    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(
+        ByteSizeValue.ofBytes(1),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+    );
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
     private static final SetPriorityAction TEST_PRIORITY_ACTION = new SetPriorityAction(0);
@@ -74,13 +82,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     // keeping the migrate action disabled as otherwise it could conflict with the allocate action if both are randomly selected for the
     // same phase
     private static final MigrateAction TEST_MIGRATE_ACTION = MigrateAction.DISABLED;
-    private static final RollupILMAction TEST_ROLLUP_ACTION = new RollupILMAction(
-        new RollupActionConfig(
-            new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("field", DateHistogramInterval.DAY)),
-            Collections.singletonList(new MetricConfig("field", Collections.singletonList("max")))
-        ),
-        null
-    );
+    private static final DownsampleAction TEST_DOWNSAMPLE_ACTION = new DownsampleAction(DateHistogramInterval.DAY);
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();
@@ -174,6 +176,30 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
     }
 
+    public void testValidateFrozenPhase() {
+        LifecycleAction invalidAction = null;
+        Map<String, LifecycleAction> actions = randomSubsetOf(VALID_FROZEN_ACTIONS).stream()
+            .map(this::getTestAction)
+            .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
+        // Frozen requires the searchable snapshot action to be present
+        actions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo", randomBoolean()));
+        if (randomBoolean()) {
+            invalidAction = getTestAction(randomFrom("rollover", "delete", "forcemerge", "shrink"));
+            actions.put(invalidAction.getWriteableName(), invalidAction);
+        }
+        Map<String, Phase> frozenPhase = Collections.singletonMap("frozen", new Phase("frozen", TimeValue.ZERO, actions));
+
+        if (invalidAction != null) {
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.INSTANCE.validate(frozenPhase.values())
+            );
+            assertThat(e.getMessage(), equalTo("invalid action [" + invalidAction.getWriteableName() + "] defined in phase [frozen]"));
+        } else {
+            TimeseriesLifecycleType.INSTANCE.validate(frozenPhase.values());
+        }
+    }
+
     public void testValidateDeletePhase() {
         LifecycleAction invalidAction = null;
         Map<String, LifecycleAction> actions = VALID_DELETE_ACTIONS.stream()
@@ -227,7 +253,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT.size(), is(4));
         assertThat(
             ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT,
-            containsInAnyOrder(ShrinkAction.NAME, FreezeAction.NAME, ForceMergeAction.NAME, RollupILMAction.NAME)
+            containsInAnyOrder(ShrinkAction.NAME, FreezeAction.NAME, ForceMergeAction.NAME, DownsampleAction.NAME)
         );
     }
 
@@ -243,7 +269,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 is(
-                    "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup] actions"
+                    "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, downsample] actions"
                         + " which are not allowed after a managed index is mounted as a searchable snapshot"
                 )
             );
@@ -264,7 +290,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 is(
-                    "phases [frozen] define one or more of [forcemerge, freeze, shrink, rollup] actions"
+                    "phases [frozen] define one or more of [forcemerge, freeze, shrink, downsample] actions"
                         + " which are not allowed after a managed index is mounted as a searchable snapshot"
                 )
             );
@@ -288,7 +314,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 is(
-                    "phases [warm,frozen] define one or more of [forcemerge, freeze, shrink, rollup] actions"
+                    "phases [warm,frozen] define one or more of [forcemerge, freeze, shrink, downsample] actions"
                         + " which are not allowed after a managed index is mounted as a searchable snapshot"
                 )
             );
@@ -300,7 +326,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L),
+                    new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))
                 )
@@ -314,7 +340,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 is(
-                    "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup] actions"
+                    "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, downsample] actions"
                         + " which are not allowed after a managed index is mounted as a searchable snapshot"
                 )
             );
@@ -331,6 +357,101 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             } catch (Exception e) {
                 fail("unexpected exception while validating phase [ " + frozenPhase + " ] but got [" + e.getMessage() + "]");
             }
+        }
+    }
+
+    public void testValidateDownsamplingAction() {
+        {
+            Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, TEST_ROLLOVER_ACTION));
+            Phase warmPhase = new Phase(
+                "warm",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+            );
+            Phase coldPhase = new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+            );
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateDownsamplingIntervals(List.of(warmPhase, coldPhase, hotPhase))
+            );
+            assertThat(
+                e.getMessage(),
+                is("Downsampling interval [1h] for phase [cold] must be greater than the interval [1h] for phase [warm]")
+            );
+        }
+
+        {
+            Phase warmPhase = new Phase(
+                "warm",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+            );
+            Phase coldPhase = new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(30)))
+            );
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateDownsamplingIntervals(List.of(coldPhase, warmPhase))
+            );
+            assertThat(
+                e.getMessage(),
+                is("Downsampling interval [30m] for phase [cold] must be greater than the interval [1h] for phase [warm]")
+            );
+        }
+
+        {
+            Phase warmPhase = new Phase(
+                "warm",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+            );
+            Phase coldPhase = new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(130)))
+            );
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.validateDownsamplingIntervals(List.of(coldPhase, warmPhase))
+            );
+            assertThat(
+                e.getMessage(),
+                is("Downsampling interval [130m] for phase [cold] must be a multiple of the interval [1h] for phase [warm]")
+            );
+        }
+
+        {
+            Phase hotPhase = new Phase(
+                "hot",
+                TimeValue.ZERO,
+                Map.of(
+                    RolloverAction.NAME,
+                    TEST_ROLLOVER_ACTION,
+                    DownsampleAction.NAME,
+                    new DownsampleAction(DateHistogramInterval.minutes(10))
+                )
+            );
+            Phase warmPhase = new Phase(
+                "warm",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(30)))
+            );
+            Phase coldPhase = new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(2)))
+            );
+
+            // This is a valid interval combination
+            TimeseriesLifecycleType.validateDownsamplingIntervals(List.of(coldPhase, warmPhase, hotPhase));
         }
     }
 
@@ -358,6 +479,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     public void testUnfollowInjections() {
         assertTrue(isUnfollowInjected("hot", RolloverAction.NAME));
         assertTrue(isUnfollowInjected("warm", ShrinkAction.NAME));
+        assertTrue(isUnfollowInjected("cold", SearchableSnapshotAction.NAME));
+        assertTrue(isUnfollowInjected("frozen", SearchableSnapshotAction.NAME));
 
         assertFalse(isUnfollowInjected("hot", SetPriorityAction.NAME));
         assertFalse(isUnfollowInjected("warm", SetPriorityAction.NAME));
@@ -815,6 +938,29 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
 
+        {
+            // not inject in hot phase
+            Phase phase = new Phase(HOT_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+
+        {
+            // not inject in frozen phase
+            Phase phase = new Phase(FROZEN_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+
+        {
+            // not inject in delete phase
+            Phase phase = new Phase(DELETE_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
+
+        {
+            // return false for invalid phase
+            Phase phase = new Phase(HOT_PHASE + randomAlphaOfLength(5), TimeValue.ZERO, Collections.emptyMap());
+            assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
+        }
     }
 
     public void testValidatingSearchableSnapshotRepos() {
@@ -1058,44 +1204,38 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     private ConcurrentMap<String, LifecycleAction> convertActionNamesToActions(String... availableActionNames) {
         return Arrays.asList(availableActionNames).stream().map(n -> {
-            switch (n) {
-                case AllocateAction.NAME:
-                    return new AllocateAction(
-                        null,
-                        null,
-                        Collections.singletonMap("foo", "bar"),
-                        Collections.emptyMap(),
-                        Collections.emptyMap()
-                    );
-                case DeleteAction.NAME:
-                    return DeleteAction.WITH_SNAPSHOT_DELETE;
-                case ForceMergeAction.NAME:
-                    return new ForceMergeAction(1, null);
-                case ReadOnlyAction.NAME:
-                    return new ReadOnlyAction();
-                case RolloverAction.NAME:
-                    return new RolloverAction(
-                        ByteSizeValue.parseBytesSizeValue("0b", "test"),
-                        ByteSizeValue.parseBytesSizeValue("0b", "test"),
-                        TimeValue.ZERO,
-                        1L
-                    );
-                case ShrinkAction.NAME:
-                    return new ShrinkAction(1, null);
-                case FreezeAction.NAME:
-                    return FreezeAction.INSTANCE;
-                case SetPriorityAction.NAME:
-                    return new SetPriorityAction(0);
-                case UnfollowAction.NAME:
-                    return UnfollowAction.INSTANCE;
-                case MigrateAction.NAME:
-                    return MigrateAction.ENABLED;
-                case RollupILMAction.NAME:
-                    return TEST_ROLLUP_ACTION;
-                case SearchableSnapshotAction.NAME:
-                    return TEST_SEARCHABLE_SNAPSHOT_ACTION;
-            }
-            return DeleteAction.WITH_SNAPSHOT_DELETE;
+            return switch (n) {
+                case AllocateAction.NAME -> new AllocateAction(
+                    null,
+                    null,
+                    Collections.singletonMap("foo", "bar"),
+                    Collections.emptyMap(),
+                    Collections.emptyMap()
+                );
+                case DeleteAction.NAME -> DeleteAction.WITH_SNAPSHOT_DELETE;
+                case ForceMergeAction.NAME -> new ForceMergeAction(1, null);
+                case ReadOnlyAction.NAME -> new ReadOnlyAction();
+                case RolloverAction.NAME -> new RolloverAction(
+                    ByteSizeValue.parseBytesSizeValue("0b", "test"),
+                    ByteSizeValue.parseBytesSizeValue("0b", "test"),
+                    TimeValue.ZERO,
+                    1L,
+                    1L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                );
+                case ShrinkAction.NAME -> new ShrinkAction(1, null);
+                case FreezeAction.NAME -> FreezeAction.INSTANCE;
+                case SetPriorityAction.NAME -> new SetPriorityAction(0);
+                case UnfollowAction.NAME -> UnfollowAction.INSTANCE;
+                case MigrateAction.NAME -> MigrateAction.ENABLED;
+                case DownsampleAction.NAME -> TEST_DOWNSAMPLE_ACTION;
+                case SearchableSnapshotAction.NAME -> TEST_SEARCHABLE_SNAPSHOT_ACTION;
+                default -> DeleteAction.WITH_SNAPSHOT_DELETE;
+            };
         }).collect(Collectors.toConcurrentMap(LifecycleAction::getWriteableName, Function.identity()));
     }
 
@@ -1144,35 +1284,21 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     }
 
     private LifecycleAction getTestAction(String actionName) {
-        switch (actionName) {
-            case AllocateAction.NAME:
-                return TEST_ALLOCATE_ACTION;
-            case WaitForSnapshotAction.NAME:
-                return TEST_WAIT_FOR_SNAPSHOT_ACTION;
-            case DeleteAction.NAME:
-                return TEST_DELETE_ACTION;
-            case ForceMergeAction.NAME:
-                return TEST_FORCE_MERGE_ACTION;
-            case ReadOnlyAction.NAME:
-                return TEST_READ_ONLY_ACTION;
-            case RolloverAction.NAME:
-                return TEST_ROLLOVER_ACTION;
-            case ShrinkAction.NAME:
-                return TEST_SHRINK_ACTION;
-            case FreezeAction.NAME:
-                return FreezeAction.INSTANCE;
-            case SetPriorityAction.NAME:
-                return TEST_PRIORITY_ACTION;
-            case UnfollowAction.NAME:
-                return UnfollowAction.INSTANCE;
-            case SearchableSnapshotAction.NAME:
-                return TEST_SEARCHABLE_SNAPSHOT_ACTION;
-            case MigrateAction.NAME:
-                return TEST_MIGRATE_ACTION;
-            case RollupILMAction.NAME:
-                return TEST_ROLLUP_ACTION;
-            default:
-                throw new IllegalArgumentException("unsupported timeseries phase action [" + actionName + "]");
-        }
+        return switch (actionName) {
+            case AllocateAction.NAME -> TEST_ALLOCATE_ACTION;
+            case WaitForSnapshotAction.NAME -> TEST_WAIT_FOR_SNAPSHOT_ACTION;
+            case DeleteAction.NAME -> TEST_DELETE_ACTION;
+            case ForceMergeAction.NAME -> TEST_FORCE_MERGE_ACTION;
+            case ReadOnlyAction.NAME -> TEST_READ_ONLY_ACTION;
+            case RolloverAction.NAME -> TEST_ROLLOVER_ACTION;
+            case ShrinkAction.NAME -> TEST_SHRINK_ACTION;
+            case FreezeAction.NAME -> FreezeAction.INSTANCE;
+            case SetPriorityAction.NAME -> TEST_PRIORITY_ACTION;
+            case UnfollowAction.NAME -> UnfollowAction.INSTANCE;
+            case SearchableSnapshotAction.NAME -> TEST_SEARCHABLE_SNAPSHOT_ACTION;
+            case MigrateAction.NAME -> TEST_MIGRATE_ACTION;
+            case DownsampleAction.NAME -> TEST_DOWNSAMPLE_ACTION;
+            default -> throw new IllegalArgumentException("unsupported timeseries phase action [" + actionName + "]");
+        };
     }
 }

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -16,7 +16,7 @@ import java.util.Date;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInfluencer> {
+public class BucketInfluencerTests extends AbstractXContentSerializingTestCase<BucketInfluencer> {
 
     @Override
     protected BucketInfluencer createTestInstance() {
@@ -44,6 +44,11 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
             bucketInfluencer.setIsInterim(randomBoolean());
         }
         return bucketInfluencer;
+    }
+
+    @Override
+    protected BucketInfluencer mutateInstance(BucketInfluencer instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -148,7 +153,8 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
     }
 
     public void testStrictParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123544456, "bucket_span": 3600, "foo":"bar"}""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -160,7 +166,8 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123544456, "bucket_span": 3600, "foo":"bar"}""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             BucketInfluencer.LENIENT_PARSER.apply(parser, null);
         }

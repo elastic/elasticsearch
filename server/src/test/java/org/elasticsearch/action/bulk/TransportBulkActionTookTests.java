@@ -15,9 +15,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -114,7 +115,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                listener.onResponse((Response) new CreateIndexResponse(false, false, null));
+                CreateIndexRequest createIndexRequest = (CreateIndexRequest) request;
+                listener.onResponse((Response) new CreateIndexResponse(false, false, createIndexRequest.index()));
             }
         };
 

@@ -141,21 +141,13 @@ public class DateUtilsTests extends ESTestCase {
 
         ZonedDateTime randomDate = ZonedDateTime.of(year, month, day, hour, minute, second, nanos, ZoneOffset.UTC);
 
-        ZonedDateTime result = randomDate;
-        switch (randomChronoField) {
-            case SECOND_OF_MINUTE:
-                result = result.withNano(0);
-                break;
-            case MINUTE_OF_HOUR:
-                result = result.withNano(0).withSecond(0);
-                break;
-            case HOUR_OF_DAY:
-                result = result.withNano(0).withSecond(0).withMinute(0);
-                break;
-            case DAY_OF_MONTH:
-                result = result.withNano(0).withSecond(0).withMinute(0).withHour(0);
-                break;
-        }
+        ZonedDateTime result = switch (randomChronoField) {
+            case SECOND_OF_MINUTE -> randomDate.withNano(0);
+            case MINUTE_OF_HOUR -> randomDate.withNano(0).withSecond(0);
+            case HOUR_OF_DAY -> randomDate.withNano(0).withSecond(0).withMinute(0);
+            case DAY_OF_MONTH -> randomDate.withNano(0).withSecond(0).withMinute(0).withHour(0);
+            default -> randomDate;
+        };
 
         long rounded = DateUtils.roundFloor(randomDate.toInstant().toEpochMilli(), unitMillis);
         assertThat(rounded, is(result.toInstant().toEpochMilli()));

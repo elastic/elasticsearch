@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -23,7 +25,7 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -68,6 +70,8 @@ import static org.elasticsearch.test.ESTestCase.waitUntil;
  * A plugin that adds a cancellable blocking test task of integration testing of the task manager.
  */
 public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
+
+    private static final Logger logger = LogManager.getLogger(TestTaskPlugin.class);
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -416,7 +420,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
 
         @Override
-        protected void taskOperation(UnblockTestTasksRequest request, Task task, ActionListener<UnblockTestTaskResponse> listener) {
+        protected void taskOperation(
+            Task actionTask,
+            UnblockTestTasksRequest request,
+            Task task,
+            ActionListener<UnblockTestTaskResponse> listener
+        ) {
             ((TestTask) task).unblock();
             listener.onResponse(new UnblockTestTaskResponse());
         }

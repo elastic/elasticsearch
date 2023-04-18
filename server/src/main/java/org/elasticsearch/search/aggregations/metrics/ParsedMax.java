@@ -14,13 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class ParsedMax extends ParsedSingleValueNumericMetricsAggregation implements Max {
-
-    @Override
-    public double getValue() {
-        return value();
-    }
-
+public class ParsedMax extends ParsedSingleValueNumericMetricsAggregation {
     @Override
     public String getType() {
         return MaxAggregationBuilder.NAME;

@@ -10,6 +10,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -60,12 +61,13 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles()
-            + "role1:user1,user2,user3,user4\n"
-            + "role2:user1\n"
-            + "role3:user2\n"
-            + "role4:user3\n"
-            + "role5:user4\n";
+        return super.configUsersRoles() + """
+            role1:user1,user2,user3,user4
+            role2:user1
+            role3:user2
+            role4:user3
+            role5:user4
+            """;
     }
 
     @Override
@@ -90,43 +92,46 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
             roleFields.append("          - ").append(field).append('\n');
         }
 
-        return super.configRoles()
-            + "\nrole1:\n"
-            + "  cluster: [ none ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ none ]\n"
-            + "\nrole2:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ ALL ]\n"
-            + "      field_security:\n"
-            + "         grant:\n"
-            + roleFields.toString()
-            + "role3:\n"
-            + "  cluster:\n"
-            + "    - all\n"
-            + "  indices:\n"
-            + "    - names: test\n"
-            + "      privileges:\n"
-            + "        - all\n"
-            + "      field_security:\n"
-            + "         grant: [ id, field1 ]\n"
-            + "role4:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "    - names: test\n"
-            + "      privileges: [ ALL ]\n"
-            + "      field_security:\n"
-            + "         grant: [ id, field2 ]\n"
-            + "role5:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "    - names: test\n"
-            + "      privileges: [ ALL ]\n"
-            + "      field_security:\n"
-            + "         grant: [ id, field3 ]\n";
+        return Strings.format("""
+            %s
+            role1:
+              cluster: [ none ]
+              indices:
+                - names: '*'
+                  privileges: [ none ]
+
+            role2:
+              cluster: [ all ]
+              indices:
+                - names: '*'
+                  privileges: [ ALL ]
+                  field_security:
+                     grant:
+            %s
+            role3:
+              cluster:
+                - all
+              indices:
+                - names: test
+                  privileges:
+                    - all
+                  field_security:
+                     grant: [ id, field1 ]
+            role4:
+              cluster: [ all ]
+              indices:
+                - names: test
+                  privileges: [ ALL ]
+                  field_security:
+                     grant: [ id, field2 ]
+            role5:
+              cluster: [ all ]
+              indices:
+                - names: test
+                  privileges: [ ALL ]
+                  field_security:
+                     grant: [ id, field3 ]
+            """, super.configRoles(), roleFields);
     }
 
     @Override

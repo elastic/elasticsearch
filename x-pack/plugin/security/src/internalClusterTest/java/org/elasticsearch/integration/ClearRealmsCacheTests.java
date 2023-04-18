@@ -188,7 +188,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return SecuritySettingsSource.CONFIG_ROLE_ALLOW_ALL + "\n" + "r1:\n" + "  cluster: all\n";
+        return super.configRoles() + "\n" + "r1:\n" + "  cluster: all\n";
     }
 
     @Override

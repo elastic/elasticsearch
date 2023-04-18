@@ -6,19 +6,14 @@
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
@@ -74,31 +69,27 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
     }
 
     public void testEmptyField() throws IOException {
-        testCase(
-            new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(singleton(histogramFieldDocValues("number", new double[0]))); },
-            hdr -> { assertFalse(AggregationInspectionHelper.hasValue(hdr)); }
-        );
+        testCase(new MatchAllDocsQuery(), iw -> { iw.addDocument(singleton(histogramFieldDocValues("number", new double[0]))); }, hdr -> {
+            assertFalse(AggregationInspectionHelper.hasValue(hdr));
+        });
     }
 
     public void testSomeMatchesBinaryDocValues() throws IOException {
-        testCase(
-            new DocValuesFieldExistsQuery("number"),
-            iw -> { iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 }))); },
-            hdr -> {
-                // assertEquals(4L, hdr.state.getTotalCount());
-                double approximation = 0.05d;
-                assertEquals(15.0d, hdr.percentile(25), approximation);
-                assertEquals(30.0d, hdr.percentile(50), approximation);
-                assertEquals(50.0d, hdr.percentile(75), approximation);
-                assertEquals(60.0d, hdr.percentile(99), approximation);
-                assertTrue(AggregationInspectionHelper.hasValue(hdr));
-            }
-        );
+        testCase(new FieldExistsQuery("number"), iw -> {
+            iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 })));
+        }, hdr -> {
+            // assertEquals(4L, hdr.state.getTotalCount());
+            double approximation = 0.05d;
+            assertEquals(15.0d, hdr.percentile(25), approximation);
+            assertEquals(30.0d, hdr.percentile(50), approximation);
+            assertEquals(50.0d, hdr.percentile(75), approximation);
+            assertEquals(60.0d, hdr.percentile(99), approximation);
+            assertTrue(AggregationInspectionHelper.hasValue(hdr));
+        });
     }
 
     public void testSomeMatchesMultiBinaryDocValues() throws IOException {
-        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
+        testCase(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 })));
             iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 })));
             iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 })));
@@ -119,25 +110,9 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalTDigestPercentiles> verify
     ) throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                buildIndex.accept(indexWriter);
-            }
+        PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.TDIGEST);
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                PercentilesAggregationBuilder builder = new PercentilesAggregationBuilder("test").field("number")
-                    .method(PercentilesMethod.TDIGEST);
-
-                MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap(), null);
-                Aggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
-                aggregator.preCollection();
-                indexSearcher.search(query, aggregator);
-                aggregator.postCollection();
-                verify.accept((InternalTDigestPercentiles) aggregator.buildTopLevel());
-
-            }
-        }
+        MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap());
+        testCase(buildIndex, verify, new AggTestConfig(builder, fieldType).withQuery(query));
     }
 }

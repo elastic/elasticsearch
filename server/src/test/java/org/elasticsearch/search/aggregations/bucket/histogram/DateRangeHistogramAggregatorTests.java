@@ -12,12 +12,11 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatters;
@@ -26,6 +25,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
+import org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
@@ -56,6 +56,35 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             writer -> writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range))))),
             histo -> {
                 assertEquals(1, histo.getBuckets().size());
+                assertTrue(AggregationInspectionHelper.hasValue(histo));
+            }
+        );
+    }
+
+    public void testKeys() throws Exception {
+        RangeFieldMapper.Range range = new RangeFieldMapper.Range(
+            RangeType.DATE,
+            asLong("2019-08-01T14:35:00"),
+            asLong("2019-08-05T15:33:21"),
+            true,
+            true
+        );
+        String[] expectedBucketKeys = {
+            "2019-08-01T00:00:00.000Z",
+            "2019-08-02T00:00:00.000Z",
+            "2019-08-03T00:00:00.000Z",
+            "2019-08-04T00:00:00.000Z",
+            "2019-08-05T00:00:00.000Z" };
+        testCase(
+            new MatchAllDocsQuery(),
+            builder -> builder.calendarInterval(DateHistogramInterval.DAY),
+            writer -> writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range))))),
+            histo -> {
+                assertEquals(5, histo.getBuckets().size());
+                assertArrayEquals(
+                    expectedBucketKeys,
+                    histo.getBuckets().stream().map(InternalDateHistogram.Bucket::getKeyAsString).toArray()
+                );
                 assertTrue(AggregationInspectionHelper.hasValue(histo));
             }
         );
@@ -99,7 +128,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                expectThrows(IllegalArgumentException.class, () -> createAggregator(aggBuilder, searcher, fieldType));
+                expectThrows(IllegalArgumentException.class, () -> searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType)));
             }
         }
     }
@@ -1055,7 +1084,10 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalDateHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                InternalDateHistogram histogram = searchAndReduce(
+                    indexSearcher,
+                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
+                );
                 verify.accept(histogram);
             }
         }

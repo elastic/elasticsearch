@@ -164,9 +164,9 @@ public class MemoryUsage implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    public String documentId(String jobId) {
+    public String documentId(String _jobId) {
         assert timestamp != null;
-        return documentIdPrefix(jobId) + timestamp.toEpochMilli();
+        return documentIdPrefix(_jobId) + timestamp.toEpochMilli();
     }
 
     public static String documentIdPrefix(String jobId) {

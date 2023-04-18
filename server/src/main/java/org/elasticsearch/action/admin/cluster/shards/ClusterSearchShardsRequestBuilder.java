@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class ClusterSearchShardsRequestBuilder extends MasterNodeReadOperationRequestBuilder<
     ClusterSearchShardsRequest,

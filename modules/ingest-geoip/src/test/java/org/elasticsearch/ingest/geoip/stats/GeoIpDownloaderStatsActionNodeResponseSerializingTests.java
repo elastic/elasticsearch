@@ -28,6 +28,11 @@ public class GeoIpDownloaderStatsActionNodeResponseSerializingTests extends Abst
         return createRandomInstance();
     }
 
+    @Override
+    protected GeoIpDownloaderStatsAction.NodeResponse mutateInstance(GeoIpDownloaderStatsAction.NodeResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     static GeoIpDownloaderStatsAction.NodeResponse createRandomInstance() {
         DiscoveryNode node = new DiscoveryNode("id", buildNewFakeTransportAddress(), Version.CURRENT);
         Set<String> databases = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));

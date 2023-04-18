@@ -12,11 +12,11 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -498,7 +498,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         };
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(builder, DEFAULT_QUERY, buildIndex, verify, longField("t"), longField("v"))
+            () -> testCase(buildIndex, verify, new AggTestConfig(builder, longField("t"), longField("v")).withQuery(DEFAULT_QUERY))
         );
         assertThat(e.getMessage(), containsString("cannot be nested"));
     }
@@ -519,7 +519,9 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 List.of(),
                 true,
                 aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(2),
-                histogram -> { fail(); }
+                histogram -> {
+                    fail();
+                }
             )
         );
         assertThat(e.getMessage(), equalTo("3/4 of shard_size must be at least buckets but was [1<2] for [_name]"));
@@ -547,7 +549,9 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 List.of(),
                 true,
                 aggregation -> aggregation.field(NUMERIC_FIELD).setInitialBuffer(1),
-                histogram -> { fail(); }
+                histogram -> {
+                    fail();
+                }
             )
         );
         assertThat(e.getMessage(), equalTo("initial_buffer must be at least buckets but was [1<10] for [_name]"));
@@ -624,7 +628,10 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                     throw new IOException("Test data has an invalid type");
                 }
 
-                final InternalVariableWidthHistogram histogram = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
+                final InternalVariableWidthHistogram histogram = searchAndReduce(
+                    indexSearcher,
+                    new AggTestConfig(aggregationBuilder, fieldType).withQuery(query)
+                );
                 verify.accept(histogram);
             }
         }

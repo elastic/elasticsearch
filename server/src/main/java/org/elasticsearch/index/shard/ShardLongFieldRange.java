@@ -78,16 +78,12 @@ public class ShardLongFieldRange implements Writeable {
 
     public static ShardLongFieldRange readFrom(StreamInput in) throws IOException {
         final byte type = in.readByte();
-        switch (type) {
-            case WIRE_TYPE_UNKNOWN:
-                return UNKNOWN;
-            case WIRE_TYPE_EMPTY:
-                return EMPTY;
-            case WIRE_TYPE_OTHER:
-                return ShardLongFieldRange.of(in.readZLong(), in.readZLong());
-            default:
-                throw new IllegalStateException("type [" + type + "] not known");
-        }
+        return switch (type) {
+            case WIRE_TYPE_UNKNOWN -> UNKNOWN;
+            case WIRE_TYPE_EMPTY -> EMPTY;
+            case WIRE_TYPE_OTHER -> ShardLongFieldRange.of(in.readZLong(), in.readZLong());
+            default -> throw new IllegalStateException("type [" + type + "] not known");
+        };
     }
 
     @Override

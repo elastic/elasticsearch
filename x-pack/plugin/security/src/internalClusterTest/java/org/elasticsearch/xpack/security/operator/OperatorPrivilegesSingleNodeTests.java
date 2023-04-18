@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
@@ -38,12 +38,13 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
 
     @Override
     protected String configRoles() {
-        return super.configRoles()
-            + "limited_operator:\n"
-            + "  cluster:\n"
-            + "    - 'cluster:admin/voting_config/clear_exclusions'\n"
-            + "    - 'cluster:admin/settings/update'\n"
-            + "    - 'monitor'\n";
+        return super.configRoles() + """
+            limited_operator:
+              cluster:
+                - 'cluster:admin/voting_config/clear_exclusions'
+                - 'cluster:admin/settings/update'
+                - 'monitor'
+            """;
     }
 
     @Override

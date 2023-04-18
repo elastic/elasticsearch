@@ -10,8 +10,10 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -90,12 +92,15 @@ public class Reconfigurator {
     ) {
         assert liveNodes.contains(currentMaster) : "liveNodes = " + liveNodes + " master = " + currentMaster;
         logger.trace(
-            "{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentMaster={}",
-            this,
-            currentConfig,
-            liveNodes,
-            retiredNodeIds,
-            currentMaster
+            () -> Strings.format(
+                "%s reconfiguring %s based on liveNodes=%s, retiredNodeIds=%s, currentMaster=%s",
+                this,
+                currentConfig,
+                // Sorting the node IDs for deterministic logging until https://github.com/elastic/elasticsearch/issues/94946 is fixed
+                liveNodes.stream().map(DiscoveryNode::toString).sorted().collect(Collectors.joining(", ", "[", "]")),
+                retiredNodeIds.stream().sorted().collect(Collectors.joining(", ")),
+                currentMaster
+            )
         );
 
         final Set<String> liveNodeIds = liveNodes.stream()
@@ -139,18 +144,13 @@ public class Reconfigurator {
         }
     }
 
-    static class VotingConfigNode implements Comparable<VotingConfigNode> {
-        final String id;
-        final boolean live;
-        final boolean currentMaster;
-        final boolean inCurrentConfig;
+    public ClusterState maybeReconfigureAfterNewMasterIsElected(ClusterState clusterState) {
+        return clusterState;
+    }
 
-        VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig) {
-            this.id = id;
-            this.live = live;
-            this.currentMaster = currentMaster;
-            this.inCurrentConfig = inCurrentConfig;
-        }
+    record VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig)
+        implements
+            Comparable<VotingConfigNode> {
 
         @Override
         public int compareTo(VotingConfigNode other) {
@@ -171,21 +171,6 @@ public class Reconfigurator {
             }
             // tiebreak by node id to have stable ordering
             return id.compareTo(other.id);
-        }
-
-        @Override
-        public String toString() {
-            return "VotingConfigNode{"
-                + "id='"
-                + id
-                + '\''
-                + ", live="
-                + live
-                + ", currentMaster="
-                + currentMaster
-                + ", inCurrentConfig="
-                + inCurrentConfig
-                + '}';
         }
     }
 }

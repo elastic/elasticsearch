@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -88,6 +87,7 @@ public class BulkProcessor implements Closeable {
         private String globalIndex;
         private String globalRouting;
         private String globalPipeline;
+        private Supplier<Boolean> flushCondition = () -> true;
 
         private Builder(
             BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
@@ -188,54 +188,19 @@ public class BulkProcessor implements Closeable {
                 flushScheduler,
                 retryScheduler,
                 onClose,
-                createBulkRequestWithGlobalDefaults()
+                createBulkRequestWithGlobalDefaults(),
+                flushCondition
             );
         }
 
         private Supplier<BulkRequest> createBulkRequestWithGlobalDefaults() {
             return () -> new BulkRequest(globalIndex).pipeline(globalPipeline).routing(globalRouting);
         }
-    }
 
-    /**
-     * @param client The client that executes the bulk operations
-     * @param listener The BulkProcessor listener that gets called on bulk events
-     * @param flushScheduler The scheduler that is used to flush
-     * @param retryScheduler The scheduler that is used for retries
-     * @param onClose The runnable instance that is executed on close. Consumers are required to clean up the schedulers.
-     * @return the builder for BulkProcessor
-     */
-    public static Builder builder(Client client, Listener listener, Scheduler flushScheduler, Scheduler retryScheduler, Runnable onClose) {
-        Objects.requireNonNull(client, "client");
-        Objects.requireNonNull(listener, "listener");
-        return new Builder(client::bulk, listener, flushScheduler, retryScheduler, onClose);
-    }
-
-    /**
-     * @param client The client that executes the bulk operations
-     * @param listener The BulkProcessor listener that gets called on bulk events
-     * @return the builder for BulkProcessor
-     * @deprecated Use {@link #builder(BiConsumer, Listener, String)}
-     * with client::bulk as the first argument, or {@link #builder(org.elasticsearch.client.Client,
-     * org.elasticsearch.action.bulk.BulkProcessor.Listener, org.elasticsearch.threadpool.Scheduler,
-     * org.elasticsearch.threadpool.Scheduler, java.lang.Runnable)} and manage the flush and retry schedulers explicitly
-     */
-    @Deprecated
-    public static Builder builder(Client client, Listener listener) {
-        Objects.requireNonNull(client, "client");
-        Objects.requireNonNull(listener, "listener");
-        return new Builder(client::bulk, listener, client.threadPool(), client.threadPool(), () -> {});
-    }
-
-    /**
-     * @param consumer The consumer that is called to fulfil bulk operations
-     * @param listener The BulkProcessor listener that gets called on bulk events
-     * @return the builder for BulkProcessor
-     * @deprecated use {@link #builder(BiConsumer, Listener, String)} instead
-     */
-    @Deprecated
-    public static Builder builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener) {
-        return builder(consumer, listener, "anonymous-bulk-processor");
+        public Builder setFlushCondition(Supplier<Boolean> flushCondition) {
+            this.flushCondition = flushCondition;
+            return this;
+        }
     }
 
     /**
@@ -270,6 +235,7 @@ public class BulkProcessor implements Closeable {
 
     private BulkRequest bulkRequest;
     private final Supplier<BulkRequest> bulkRequestSupplier;
+    private final Supplier<Boolean> flushSupplier;
     private final BulkRequestHandler bulkRequestHandler;
     private final Runnable onClose;
 
@@ -287,16 +253,47 @@ public class BulkProcessor implements Closeable {
         Scheduler flushScheduler,
         Scheduler retryScheduler,
         Runnable onClose,
-        Supplier<BulkRequest> bulkRequestSupplier
+        Supplier<BulkRequest> bulkRequestSupplier,
+        Supplier<Boolean> flushSupplier
     ) {
         this.bulkActions = bulkActions;
         this.bulkSize = bulkSize.getBytes();
         this.bulkRequest = bulkRequestSupplier.get();
         this.bulkRequestSupplier = bulkRequestSupplier;
+        this.flushSupplier = flushSupplier;
         this.bulkRequestHandler = new BulkRequestHandler(consumer, backoffPolicy, listener, retryScheduler, concurrentRequests);
         // Start period flushing task after everything is setup
         this.cancellableFlushTask = startFlushTask(flushInterval, flushScheduler);
         this.onClose = onClose;
+    }
+
+    BulkProcessor(
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
+        BackoffPolicy backoffPolicy,
+        Listener listener,
+        int concurrentRequests,
+        int bulkActions,
+        ByteSizeValue bulkSize,
+        @Nullable TimeValue flushInterval,
+        Scheduler flushScheduler,
+        Scheduler retryScheduler,
+        Runnable onClose,
+        Supplier<BulkRequest> bulkRequestSupplier
+    ) {
+        this(
+            consumer,
+            backoffPolicy,
+            listener,
+            concurrentRequests,
+            bulkActions,
+            bulkSize,
+            flushInterval,
+            flushScheduler,
+            retryScheduler,
+            onClose,
+            bulkRequestSupplier,
+            () -> true
+        );
     }
 
     /**
@@ -489,11 +486,13 @@ public class BulkProcessor implements Closeable {
 
     // needs to be executed under a lock
     private void execute() {
-        final BulkRequest bulkRequest = this.bulkRequest;
-        final long executionId = executionIdGen.incrementAndGet();
+        if (flushSupplier.get()) {
+            final BulkRequest bulkRequest = this.bulkRequest;
+            final long executionId = executionIdGen.incrementAndGet();
 
-        this.bulkRequest = bulkRequestSupplier.get();
-        execute(bulkRequest, executionId);
+            this.bulkRequest = bulkRequestSupplier.get();
+            execute(bulkRequest, executionId);
+        }
     }
 
     // needs to be executed under a lock

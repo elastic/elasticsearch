@@ -9,7 +9,7 @@ package org.elasticsearch.discovery;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -128,7 +128,6 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
         try (
             BackgroundIndexer indexer = new BackgroundIndexer(
                 "test",
-                "_doc",
                 client(),
                 -1,
                 RandomizedTest.scaledRandomIntBetween(2, 5),

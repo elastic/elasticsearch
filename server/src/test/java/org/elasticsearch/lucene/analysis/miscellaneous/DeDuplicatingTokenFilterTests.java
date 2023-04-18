@@ -9,10 +9,10 @@
 package org.elasticsearch.lucene.analysis.miscellaneous;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

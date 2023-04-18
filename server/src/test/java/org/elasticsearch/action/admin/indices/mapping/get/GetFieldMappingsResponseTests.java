@@ -45,7 +45,7 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
                 GetFieldMappingsResponse serialized = new GetFieldMappingsResponse(in);
                 FieldMappingMetadata metadata = serialized.fieldMappings("index", "field");
                 assertNotNull(metadata);
-                assertEquals(new BytesArray("{}"), metadata.getSource());
+                assertEquals(new BytesArray("{}"), metadata.source());
             }
         }
     }
@@ -113,6 +113,11 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
     @Override
     protected GetFieldMappingsResponse createTestInstance() {
         return new GetFieldMappingsResponse(randomMapping());
+    }
+
+    @Override
+    protected GetFieldMappingsResponse mutateInstance(GetFieldMappingsResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

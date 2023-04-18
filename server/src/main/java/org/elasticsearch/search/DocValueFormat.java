@@ -10,7 +10,8 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +21,8 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
@@ -33,6 +36,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
@@ -76,7 +80,7 @@ public interface DocValueFormat extends NamedWriteable {
 
     /** Parse a value that was formatted with {@link #format(BytesRef)} back
      *  to the original BytesRef. */
-    default BytesRef parseBytesRef(String value) {
+    default BytesRef parseBytesRef(Object value) {
         throw new UnsupportedOperationException();
     }
 
@@ -153,8 +157,8 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(value);
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(value.toString());
         }
 
         @Override
@@ -188,14 +192,13 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(Base64.getDecoder().decode(value));
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(Base64.getDecoder().decode(value.toString()));
         }
     };
 
     static DocValueFormat withNanosecondResolution(final DocValueFormat format) {
-        if (format instanceof DateTime) {
-            DateTime dateTime = (DateTime) format;
+        if (format instanceof DateTime dateTime) {
             return new DateTime(dateTime.formatter, dateTime.timeZone, DateFieldMapper.Resolution.NANOSECONDS, dateTime.formatSortValues);
         } else {
             throw new IllegalArgumentException("trying to convert a known date time formatter to a nanosecond one, wrong field used?");
@@ -203,8 +206,7 @@ public interface DocValueFormat extends NamedWriteable {
     }
 
     static DocValueFormat enableFormatSortValues(DocValueFormat format) {
-        if (format instanceof DateTime) {
-            DateTime dateTime = (DateTime) format;
+        if (format instanceof DateTime dateTime) {
             return new DateTime(dateTime.formatter, dateTime.timeZone, dateTime.resolution, true);
         }
         throw new IllegalArgumentException("require a date_time formatter; got [" + format.getWriteableName() + "]");
@@ -239,14 +241,14 @@ public interface DocValueFormat extends NamedWriteable {
             this.formatter = DateFormatter.forPattern(formatterPattern).withZone(this.timeZone);
             this.parser = formatter.toDateMathParser();
             this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
-            if (in.getVersion().onOrAfter(Version.V_7_7_0) && in.getVersion().before(Version.V_8_0_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0) && in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                 /* when deserialising from 7.7+ nodes expect a flag indicating if a pattern is of joda style
                    This is only used to support joda style indices in 7.x, in 8 we no longer support this.
                    All indices in 8 should use java style pattern. Hence we can ignore this flag.
                 */
                 in.readBoolean();
             }
-            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
                 this.formatSortValues = in.readBoolean();
             } else {
                 this.formatSortValues = false;
@@ -263,14 +265,15 @@ public interface DocValueFormat extends NamedWriteable {
             out.writeString(formatter.pattern());
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());
-            if (out.getVersion().onOrAfter(Version.V_7_7_0) && out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0)
+                && out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                 /* when serializing to 7.7+  send out a flag indicating if a pattern is of joda style
                    This is only used to support joda style indices in 7.x, in 8 we no longer support this.
                    All indices in 8 should use java style pattern. Hence this flag is always false.
                 */
                 out.writeBoolean(false);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
                 out.writeBoolean(formatSortValues);
             }
         }
@@ -443,14 +446,14 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    DocValueFormat IP = IpDocValueFormat.INSTANCE;
+    IpDocValueFormat IP = IpDocValueFormat.INSTANCE;
 
     /**
      * Stateless, singleton formatter for IP address data
      */
     class IpDocValueFormat implements DocValueFormat {
 
-        public static final DocValueFormat INSTANCE = new IpDocValueFormat();
+        public static final IpDocValueFormat INSTANCE = new IpDocValueFormat();
 
         private IpDocValueFormat() {}
 
@@ -477,8 +480,8 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value.toString())));
         }
 
         @Override
@@ -666,6 +669,66 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public double parseDouble(String value, boolean roundUp, LongSupplier now) {
             return Double.parseDouble(value);
+        }
+    };
+
+    DocValueFormat TIME_SERIES_ID = new TimeSeriesIdDocValueFormat();
+
+    /**
+     * DocValues format for time series id.
+     */
+    class TimeSeriesIdDocValueFormat implements DocValueFormat {
+        private TimeSeriesIdDocValueFormat() {}
+
+        @Override
+        public String getWriteableName() {
+            return "tsid";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public String toString() {
+            return "tsid";
+        }
+
+        @Override
+        public Object format(BytesRef value) {
+            return TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(value).streamInput());
+        }
+
+        @Override
+        public BytesRef parseBytesRef(Object value) {
+            if (value instanceof Map<?, ?> == false) {
+                throw new IllegalArgumentException("Cannot parse tsid object [" + value + "]");
+            }
+
+            Map<?, ?> m = (Map<?, ?>) value;
+            TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder(null);
+            for (Map.Entry<?, ?> entry : m.entrySet()) {
+                String f = entry.getKey().toString();
+                Object v = entry.getValue();
+
+                if (v instanceof String s) {
+                    builder.addString(f, s);
+                } else if (v instanceof Long l) {
+                    builder.addLong(f, l);
+                } else if (v instanceof Integer i) {
+                    builder.addLong(f, i.longValue());
+                } else if (v instanceof BigInteger ul) {
+                    long ll = UNSIGNED_LONG_SHIFTED.parseLong(ul.toString(), false, () -> 0L);
+                    builder.addUnsignedLong(f, ll);
+                } else {
+                    throw new IllegalArgumentException("Unexpected value in tsid object [" + v + "]");
+                }
+            }
+
+            try {
+                return builder.build().toBytesRef();
+            } catch (IOException e) {
+                throw new IllegalArgumentException(e);
+            }
         }
     };
 }

@@ -11,8 +11,6 @@ package org.elasticsearch.plugin.discovery.gce;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.util.ClassInfo;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
@@ -23,9 +21,11 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.gce.GceSeedHostsProvider;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
@@ -83,14 +83,14 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     }
 
     @Override
-    public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
+    public NetworkService.CustomNameResolver getCustomNameResolver(Settings settingsToUse) {
         logger.debug("Register _gce_, _gce:xxx network names");
-        return new GceNameResolver(new GceMetadataService(settings));
+        return new GceNameResolver(new GceMetadataService(settingsToUse));
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        List<Setting<?>> settings = new ArrayList<>(
+        List<Setting<?>> settingList = new ArrayList<>(
             Arrays.asList(
                 // Register GCE settings
                 GceInstancesService.PROJECT_SETTING,
@@ -103,10 +103,10 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         );
 
         if (ALLOW_REROUTE_GCE_SETTINGS) {
-            settings.add(GceMetadataService.GCE_HOST);
-            settings.add(GceInstancesServiceImpl.GCE_ROOT_URL);
+            settingList.add(GceMetadataService.GCE_HOST);
+            settingList.add(GceInstancesServiceImpl.GCE_ROOT_URL);
         }
-        return Collections.unmodifiableList(settings);
+        return Collections.unmodifiableList(settingList);
     }
 
     @Override

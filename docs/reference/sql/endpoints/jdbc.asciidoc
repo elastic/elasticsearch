@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[sql-jdbc]]
 == SQL JDBC
 
@@ -148,6 +147,26 @@ will be - typically the first in natural ascending order) for fields with multip
 [discrete]
 ==== Index
 `index.include.frozen` (default `false`):: Whether to include frozen indices in the query execution or not (default).
+
+[discrete]
+==== Cluster
+`catalog`:: Default catalog (cluster) for queries. If unspecified, the
+queries execute on the data in the local cluster only.
++
+experimental:[] See <<modules-cross-cluster-search,{ccs}>>.
+
+[discrete]
+==== Error handling
+
+`allow.partial.search.results` (default `false`):: Whether to return partial results in case of shard failure or fail the query throwing
+the underlying exception (default).
+
+[discrete]
+==== Troubleshooting
+
+`debug` (default `false`):: Setting it to `true` will enable the debug logging.
+
+`debug.output` (default `err`):: The destination of the debug logs. By default, they are sent to standard error. Value `out` will redirect the logging to standard output. A file path can also be specified.
 
 [discrete]
 ==== Additional

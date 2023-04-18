@@ -17,15 +17,13 @@ import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.Reservation;
 import com.amazonaws.services.ec2.model.Tag;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -35,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.disjoint;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_DNS;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_IP;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_DNS;
@@ -96,7 +95,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
 
     protected List<TransportAddress> fetchDynamicNodes() {
 
-        final List<TransportAddress> dynamicHosts = new ArrayList<>();
+        final List<TransportAddress> dynamicHostAddresses = new ArrayList<>();
 
         final DescribeInstancesResult descInstances;
         try (AmazonEc2Reference clientReference = awsEc2Service.client()) {
@@ -109,7 +108,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
         } catch (final AmazonClientException e) {
             logger.info("Exception while retrieving instance list from AWS API: {}", e.getMessage());
             logger.debug("Full exception:", e);
-            return dynamicHosts;
+            return dynamicHostAddresses;
         }
 
         logger.trace("finding seed nodes...");
@@ -164,8 +163,8 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                     // Reading the node host from its metadata
                     final String tagName = hostType.substring(TAG_PREFIX.length());
                     logger.debug("reading hostname from [{}] instance tag", tagName);
-                    final List<Tag> tags = instance.getTags();
-                    for (final Tag tag : tags) {
+                    final List<Tag> tagList = instance.getTags();
+                    for (final Tag tag : tagList) {
                         if (tag.getKey().equals(tagName)) {
                             address = tag.getValue();
                             logger.debug("using [{}] as the instance address", address);
@@ -179,18 +178,11 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                         final TransportAddress[] addresses = transportService.addressesFromString(address);
                         for (int i = 0; i < addresses.length; i++) {
                             logger.trace("adding {}, address {}, transport_address {}", instance.getInstanceId(), address, addresses[i]);
-                            dynamicHosts.add(addresses[i]);
+                            dynamicHostAddresses.add(addresses[i]);
                         }
                     } catch (final Exception e) {
                         final String finalAddress = address;
-                        logger.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "failed to add {}, address {}",
-                                instance.getInstanceId(),
-                                finalAddress
-                            ),
-                            e
-                        );
+                        logger.warn(() -> format("failed to add %s, address %s", instance.getInstanceId(), finalAddress), e);
                     }
                 } else {
                     logger.trace("not adding {}, address is null, host_type {}", instance.getInstanceId(), hostType);
@@ -198,9 +190,9 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
             }
         }
 
-        logger.debug("using dynamic transport addresses {}", dynamicHosts);
+        logger.debug("using dynamic transport addresses {}", dynamicHostAddresses);
 
-        return dynamicHosts;
+        return dynamicHostAddresses;
     }
 
     private DescribeInstancesRequest buildDescribeInstancesRequest() {

@@ -44,15 +44,15 @@ public class QueryTranslatorSpecTests extends AbstractQueryTranslatorTestCase {
         EsQueryExec eqe = (EsQueryExec) p;
         assertEquals(0, eqe.output().size());
 
-        final String query = eqe.queryContainer().toString().replaceAll("\\s+", "");
+        final String queryWithoutWhitespace = eqe.queryContainer().toString().replaceAll("\\s+", "");
 
         // test query term
-        matchers.forEach(m -> assertThat(query, m));
+        matchers.forEach(m -> assertThat(queryWithoutWhitespace, m));
 
         // test common term
-        assertThat(query, containsString("\"term\":{\"event.category\":{\"value\":\"process\""));
+        assertThat(queryWithoutWhitespace, containsString("\"term\":{\"event.category\":{\"value\":\"process\""));
 
         // test field source extraction
-        assertThat(query, not(containsString("\"_source\":{\"includes\":[],\"excludes\":[]")));
+        assertThat(queryWithoutWhitespace, not(containsString("\"_source\":{\"includes\":[],\"excludes\":[]")));
     }
 }

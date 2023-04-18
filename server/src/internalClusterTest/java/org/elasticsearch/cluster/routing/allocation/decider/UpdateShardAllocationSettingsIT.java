@@ -29,16 +29,12 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
     /**
      * Tests that updating the {@link EnableAllocationDecider} related settings works as expected.
      */
-    public void testEnableRebalance() throws InterruptedException {
+    public void testEnableRebalance() {
         final String firstNode = internalCluster().startNode();
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+        );
         // we test with 2 shards since otherwise it's pretty fragile if there are difference in the num or shards such that
         // all shards are relocated to the second node which is not what we want here. It's solely a test for the settings to take effect
         final int numShards = 2;
@@ -58,31 +54,25 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
 
         final String secondNode = internalCluster().startNode();
         // prevent via index setting but only on index test
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(
-                Settings.builder()
-                    .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE),
+            "test"
+        );
         client().admin().cluster().prepareReroute().get();
         ensureGreen();
         assertAllShardsOnNodes("test", firstNode);
         assertAllShardsOnNodes("test_1", firstNode);
 
         // now enable the index test to relocate since index settings override cluster settings
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(
-                Settings.builder()
-                    .put(
-                        EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),
-                        randomBoolean() ? EnableAllocationDecider.Rebalance.PRIMARIES : EnableAllocationDecider.Rebalance.ALL
-                    )
-            )
-            .get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(
+                    EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),
+                    randomBoolean() ? EnableAllocationDecider.Rebalance.PRIMARIES : EnableAllocationDecider.Rebalance.ALL
+                ),
+            "test"
+        );
         logger.info("--> balance index [test]");
         client().admin().cluster().prepareReroute().get();
         ensureGreen("test");
@@ -91,17 +81,13 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
 
         // flip the cluster wide setting such that we can also balance for index
         // test_1 eventually we should have one shard of each index on each node
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .put(
-                        EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),
-                        randomBoolean() ? EnableAllocationDecider.Rebalance.PRIMARIES : EnableAllocationDecider.Rebalance.ALL
-                    )
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder()
+                .put(
+                    EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(),
+                    randomBoolean() ? EnableAllocationDecider.Rebalance.PRIMARIES : EnableAllocationDecider.Rebalance.ALL
+                )
+        );
         logger.info("--> balance index [test_1]");
         client().admin().cluster().prepareReroute().get();
         ensureGreen("test_1");
@@ -119,17 +105,9 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
         internalCluster().startNodes(2);
         // same same_host to true, since 2 nodes are started on the same host,
         // only primaries should be assigned
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true))
-            .get();
+        updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true));
         final String indexName = "idx";
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-            .get();
+        createIndex(indexName, 1, 1);
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         assertFalse(
             "replica should be unassigned",
@@ -137,11 +115,8 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
         );
         // now, update the same_host setting to allow shards to be allocated to multiple nodes on
         // the same host - the replica should get assigned
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), false))
-            .get();
+        updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), false));
+
         clusterState = client().admin().cluster().prepareState().get().getState();
         assertTrue(
             "all shards should be assigned",

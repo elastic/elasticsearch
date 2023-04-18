@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -34,24 +33,23 @@ import static org.hamcrest.Matchers.equalTo;
 public class OverrideNodeVersionCommandTests extends ESTestCase {
 
     private Environment environment;
-    private Path[] nodePaths;
+    private Path[] dataPaths;
     private String nodeId;
     private final OptionSet noOptions = new OptionParser().parse();
 
     @Before
-    public void createNodePaths() throws IOException {
+    public void createDataPaths() throws IOException {
         final Settings settings = buildEnvSettings(Settings.EMPTY);
         environment = TestEnvironment.newEnvironment(settings);
         try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, environment)) {
-            nodePaths = nodeEnvironment.nodeDataPaths();
+            dataPaths = nodeEnvironment.nodeDataPaths();
             nodeId = nodeEnvironment.nodeId();
 
             try (
                 PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
-                    nodePaths,
+                    dataPaths,
                     nodeId,
                     xContentRegistry(),
-                    BigArrays.NON_RECYCLING_INSTANCE,
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L
                 ).createWriter()
@@ -75,10 +73,9 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
         assertTrue(
             Metadata.SETTING_READ_ONLY_SETTING.get(
                 new PersistedClusterStateService(
-                    nodePaths,
+                    dataPaths,
                     nodeId,
                     xContentRegistry(),
-                    BigArrays.NON_RECYCLING_INSTANCE,
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L
                 ).loadBestOnDiskState().metadata.persistentSettings()
@@ -88,22 +85,22 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
 
     public void testFailsOnEmptyPath() {
         final Path emptyPath = createTempDir();
-        final MockTerminal mockTerminal = new MockTerminal();
+        final MockTerminal mockTerminal = MockTerminal.create();
         final ElasticsearchException elasticsearchException = expectThrows(
             ElasticsearchException.class,
-            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, new Path[] { emptyPath }, noOptions, environment)
+            () -> new OverrideNodeVersionCommand().processDataPaths(mockTerminal, new Path[] { emptyPath }, noOptions, environment)
         );
         assertThat(elasticsearchException.getMessage(), equalTo(OverrideNodeVersionCommand.NO_METADATA_MESSAGE));
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
     }
 
     public void testFailsIfUnnecessary() throws IOException {
-        final Version nodeVersion = Version.fromId(between(Version.CURRENT.minimumIndexCompatibilityVersion().id, Version.CURRENT.id));
-        PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
-        final MockTerminal mockTerminal = new MockTerminal();
+        final Version nodeVersion = Version.fromId(between(Version.CURRENT.minimumCompatibilityVersion().id, Version.CURRENT.id));
+        PersistedClusterStateService.overrideVersion(nodeVersion, dataPaths);
+        final MockTerminal mockTerminal = MockTerminal.create();
         final ElasticsearchException elasticsearchException = expectThrows(
             ElasticsearchException.class,
-            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, noOptions, environment)
+            () -> new OverrideNodeVersionCommand().processDataPaths(mockTerminal, dataPaths, noOptions, environment)
         );
         assertThat(
             elasticsearchException.getMessage(),
@@ -118,12 +115,12 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
 
     public void testWarnsIfTooOld() throws Exception {
         final Version nodeVersion = NodeMetadataTests.tooOldVersion();
-        PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
-        final MockTerminal mockTerminal = new MockTerminal();
-        mockTerminal.addTextInput("n\n");
+        PersistedClusterStateService.overrideVersion(nodeVersion, dataPaths);
+        final MockTerminal mockTerminal = MockTerminal.create();
+        mockTerminal.addTextInput("n");
         final ElasticsearchException elasticsearchException = expectThrows(
             ElasticsearchException.class,
-            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, noOptions, environment)
+            () -> new OverrideNodeVersionCommand().processDataPaths(mockTerminal, dataPaths, noOptions, environment)
         );
         assertThat(elasticsearchException.getMessage(), equalTo("aborted by user"));
         assertThat(
@@ -138,18 +135,18 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
         );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
         assertThat(nodeMetadata.nodeVersion(), equalTo(nodeVersion));
     }
 
     public void testWarnsIfTooNew() throws Exception {
         final Version nodeVersion = NodeMetadataTests.tooNewVersion();
-        PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
-        final MockTerminal mockTerminal = new MockTerminal();
+        PersistedClusterStateService.overrideVersion(nodeVersion, dataPaths);
+        final MockTerminal mockTerminal = MockTerminal.create();
         mockTerminal.addTextInput(randomFrom("yy", "Yy", "n", "yes", "true", "N", "no"));
         final ElasticsearchException elasticsearchException = expectThrows(
             ElasticsearchException.class,
-            () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, noOptions, environment)
+            () -> new OverrideNodeVersionCommand().processDataPaths(mockTerminal, dataPaths, noOptions, environment)
         );
         assertThat(elasticsearchException.getMessage(), equalTo("aborted by user"));
         assertThat(
@@ -163,16 +160,16 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
         );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
         assertThat(nodeMetadata.nodeVersion(), equalTo(nodeVersion));
     }
 
     public void testOverwritesIfTooOld() throws Exception {
         final Version nodeVersion = NodeMetadataTests.tooOldVersion();
-        PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
-        final MockTerminal mockTerminal = new MockTerminal();
+        PersistedClusterStateService.overrideVersion(nodeVersion, dataPaths);
+        final MockTerminal mockTerminal = MockTerminal.create();
         mockTerminal.addTextInput(randomFrom("y", "Y"));
-        new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, noOptions, environment);
+        new OverrideNodeVersionCommand().processDataPaths(mockTerminal, dataPaths, noOptions, environment);
         assertThat(
             mockTerminal.getOutput(),
             allOf(
@@ -186,16 +183,16 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
         );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
         assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
     }
 
     public void testOverwritesIfTooNew() throws Exception {
         final Version nodeVersion = NodeMetadataTests.tooNewVersion();
-        PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
-        final MockTerminal mockTerminal = new MockTerminal();
+        PersistedClusterStateService.overrideVersion(nodeVersion, dataPaths);
+        final MockTerminal mockTerminal = MockTerminal.create();
         mockTerminal.addTextInput(randomFrom("y", "Y"));
-        new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, noOptions, environment);
+        new OverrideNodeVersionCommand().processDataPaths(mockTerminal, dataPaths, noOptions, environment);
         assertThat(
             mockTerminal.getOutput(),
             allOf(
@@ -208,7 +205,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
         );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
         assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
     }
 }

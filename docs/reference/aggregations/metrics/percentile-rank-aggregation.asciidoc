@@ -170,8 +170,6 @@ GET latency/_search
 
 ==== HDR Histogram
 
-NOTE: This setting exposes the internal implementation of HDR Histogram and the syntax may change in the future.
-
 https://github.com/HdrHistogram/HdrHistogram[HDR Histogram] (High Dynamic Range Histogram) is an alternative implementation
 that can be useful when calculating percentile ranks for latency measurements as it can be faster than the t-digest implementation
 with the trade-off of a larger memory footprint. This implementation maintains a fixed worse-case percentage error (specified as a

@@ -15,7 +15,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.common.stats.EnumCounters;
 import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.util.List;
 
@@ -30,7 +29,7 @@ public class SpatialFeatureSetUsageTests extends AbstractWireSerializingTestCase
     }
 
     @Override
-    protected SpatialFeatureSetUsage mutateInstance(SpatialFeatureSetUsage instance) throws IOException {
+    protected SpatialFeatureSetUsage mutateInstance(SpatialFeatureSetUsage instance) {
         return null; // no mutations
     }
 

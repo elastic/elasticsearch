@@ -15,13 +15,15 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -32,6 +34,7 @@ import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestSegmentsAction extends AbstractCatAction {
 
     @Override
@@ -118,7 +121,7 @@ public class RestSegmentsAction extends AbstractCatAction {
             Map<Integer, IndexShardSegments> shards = indexSegments.getShards();
 
             for (IndexShardSegments indexShardSegments : shards.values()) {
-                ShardSegments[] shardSegments = indexShardSegments.getShards();
+                ShardSegments[] shardSegments = indexShardSegments.shards();
 
                 for (ShardSegments shardSegment : shardSegments) {
                     List<Segment> segments = shardSegment.getSegments();

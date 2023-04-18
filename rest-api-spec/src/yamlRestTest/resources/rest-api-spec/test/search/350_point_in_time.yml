@@ -5,19 +5,19 @@ setup:
   - do:
       index:
           index:  test
-          id:     1
+          id:     "1"
           body:   { id: 1, foo: bar, age: 18 }
 
   - do:
       index:
           index:  test
-          id:     42
+          id:     "42"
           body:   { id: 42, foo: bar, age: 18 }
 
   - do:
         index:
             index:  test
-            id:     172
+            id:     "172"
             body:   { id: 172, foo: bar, age: 24 }
 
   - do:
@@ -27,7 +27,7 @@ setup:
   - do:
       index:
         index:  test2
-        id:     45
+        id:     "45"
         body:   { id: 45, foo: bar, age: 19 }
 
   - do:
@@ -67,7 +67,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     100
+        id:     "100"
         body:   { id: 100, foo: bar, age: 23 }
   - do:
       indices.refresh:
@@ -148,7 +148,7 @@ setup:
       search:
         body:
           slice:
-            id: 0
+            id: "0"
             max: 2
           size: 1
           query:

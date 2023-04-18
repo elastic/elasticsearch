@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
@@ -60,6 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -369,10 +369,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             new AllocationDeciders(
                 Arrays.asList(
                     new TestAllocateDecision(Decision.YES),
-                    new SameShardAllocationDecider(
-                        Settings.EMPTY,
-                        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-                    ),
+                    new SameShardAllocationDecider(createBuiltInClusterSettings()),
                     new AllocationDecider() {
                         @Override
                         public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -563,10 +560,10 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                         UnassignedInfo.AllocationStatus.NO_ATTEMPT,
                                         Collections.emptySet(),
                                         lastAllocatedNodeId
-                                    )
+                                    ),
+                                    ShardRouting.Role.DEFAULT
                                 )
                             )
-                            .build()
                     )
             )
             .build();
@@ -577,7 +574,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             .build();
         return new RoutingAllocation(
             deciders,
-            new RoutingNodes(state, false),
+            state.mutableRoutingNodes(),
             state,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
@@ -611,7 +608,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                                     unassignedInfo
                                 )
                             )
-                            .build()
                     )
             )
             .build();
@@ -622,7 +618,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             .build();
         return new RoutingAllocation(
             deciders,
-            new RoutingNodes(state, false),
+            state.mutableRoutingNodes(),
             state,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
@@ -650,14 +646,10 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     class TestAllocator extends ReplicaShardAllocator {
 
         private Map<DiscoveryNode, TransportNodesListShardStoreMetadata.StoreFilesMetadata> data = null;
-        private AtomicBoolean fetchDataCalled = new AtomicBoolean(false);
+        private final AtomicBoolean fetchDataCalled = new AtomicBoolean(false);
 
         public void clean() {
             data = null;
-        }
-
-        public void cleanWithEmptyData() {
-            data = new HashMap<>();
         }
 
         public boolean getFetchDataCalledAndClean() {
@@ -688,7 +680,6 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             data.put(
                 node,
                 new TransportNodesListShardStoreMetadata.StoreFilesMetadata(
-                    shardId,
                     new Store.MetadataSnapshot(unmodifiableMap(filesAsMap), unmodifiableMap(commitData), randomInt()),
                     peerRecoveryRetentionLeases
                 )

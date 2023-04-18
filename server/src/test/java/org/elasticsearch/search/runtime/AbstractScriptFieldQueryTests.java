@@ -37,7 +37,7 @@ public class AbstractScriptFieldQueryTests extends ESTestCase {
         float boost = randomBoolean() ? 1.0f : randomFloat();
         String dummyDescription = randomAlphaOfLength(10);
         assertThat(
-            query.explainMatch(boost, dummyDescription),
+            AbstractScriptFieldQuery.explainMatch(boost, dummyDescription),
             equalTo(
                 Explanation.match(
                     boost,

@@ -22,6 +22,15 @@ grant codeBase "${codebase.elasticsearch-secure-sm}" {
 grant codeBase "${codebase.elasticsearch}" {
   // needed for loading plugins which may expect the context class loader to be set
   permission java.lang.RuntimePermission "setContextClassLoader";
+  // needed for the readiness service
+  permission java.net.SocketPermission "*", "listen, accept";
+
+  // for module layer
+  permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "getClassLoader";
+
+  // for plugin api dynamic settings instances
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.reflect";
 };
 
 //// Very special jar permissions:
@@ -48,9 +57,30 @@ grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
   permission java.lang.RuntimePermission "createClassLoader";
 };
 
+grant codeBase "${codebase.elasticsearch-core}" {
+  permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "getClassLoader";
+};
+
+grant codeBase "${codebase.elasticsearch-cli}" {
+  // we don't actually use write, but it is needed to get the entire property map
+  permission java.util.PropertyPermission "*", "read,write";
+};
+
 grant codeBase "${codebase.jna}" {
   // for registering native methods
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
+grant codeBase "${codebase.log4j-api}" {
+  permission java.lang.RuntimePermission "getClassLoader";
+};
+
+grant codeBase "${codebase.elasticsearch-preallocate}" {
+  // for registering native methods
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  // for accessing the file descriptor field in FileChannel
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 //// Everything else:
@@ -150,6 +180,4 @@ grant {
   permission java.io.FilePermission "/proc/self/cgroup", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/-", "read";
 
-  // system memory on Linux systems affected by JDK bug (#66629)
-  permission java.io.FilePermission "/proc/meminfo", "read";
 };

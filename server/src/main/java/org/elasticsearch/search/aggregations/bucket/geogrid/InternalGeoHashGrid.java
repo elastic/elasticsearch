@@ -40,7 +40,7 @@ public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBuck
     }
 
     @Override
-    InternalGeoGrid<InternalGeoHashGridBucket> create(
+    protected InternalGeoGrid<InternalGeoHashGridBucket> create(
         String name,
         int requiredSize,
         List<InternalGeoGridBucket> buckets,
@@ -50,12 +50,12 @@ public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBuck
     }
 
     @Override
-    InternalGeoHashGridBucket createBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
+    protected InternalGeoHashGridBucket createBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         return new InternalGeoHashGridBucket(hashAsLong, docCount, aggregations);
     }
 
     @Override
-    Reader<InternalGeoHashGridBucket> getBucketReader() {
+    protected Reader<InternalGeoHashGridBucket> getBucketReader() {
         return InternalGeoHashGridBucket::new;
     }
 

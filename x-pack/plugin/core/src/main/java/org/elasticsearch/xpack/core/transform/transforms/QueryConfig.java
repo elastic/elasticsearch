@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +40,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writeable, ToXContentObject {
+public class QueryConfig implements SimpleDiffable<QueryConfig>, Writeable, ToXContentObject {
     private static final Logger logger = LogManager.getLogger(QueryConfig.class);
 
     // we store the query in 2 formats: the raw format and the parsed format, because:
@@ -71,7 +71,7 @@ public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writea
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(source);
+        out.writeGenericMap(source);
         out.writeOptionalNamedWriteable(query);
     }
 
@@ -110,7 +110,7 @@ public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writea
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
         XContentParser sourceParser = XContentType.JSON.xContent()
             .createParser(namedXContentRegistry, deprecationHandler, BytesReference.bytes(xContentBuilder).streamInput());
-        query = AbstractQueryBuilder.parseInnerQueryBuilder(sourceParser);
+        query = AbstractQueryBuilder.parseTopLevelQuery(sourceParser);
 
         return query;
     }
@@ -147,7 +147,7 @@ public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writea
 
         try {
             queryFromXContent(source, namedXContentRegistry, deprecationLogger);
-        } catch (IOException e) {
+        } catch (Exception e) {
             onDeprecation.accept(
                 new DeprecationIssue(
                     Level.CRITICAL,

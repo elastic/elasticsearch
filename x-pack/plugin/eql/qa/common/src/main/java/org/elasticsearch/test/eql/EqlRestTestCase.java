@@ -17,6 +17,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
@@ -38,44 +39,75 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
     private static final String[][] testBadRequests = {
         { null, "request body or source parameter is required" },
         { "{}", "query is null or empty" },
-        { "{\"query\": \"\"}", "query is null or empty" },
-        { "{\"query\": \"" + validQuery + "\", \"timestamp_field\": \"\"}", "timestamp field is null or empty" },
-        { "{\"query\": \"" + validQuery + "\", \"event_category_field\": \"\"}", "event category field is null or empty" },
-        { "{\"query\": \"" + validQuery + "\", \"size\": -1}", "size must be greater than or equal to 0" },
-        { "{\"query\": \"" + validQuery + "\", \"filter\": null}", "filter doesn't support values of type: VALUE_NULL" },
-        { "{\"query\": \"" + validQuery + "\", \"filter\": {}}", "query malformed, empty clause found" } };
+        { """
+            {"query": ""}""", "query is null or empty" },
+        { String.format(Locale.ROOT, """
+            {"query": "%s", "timestamp_field": ""}
+            """, validQuery), "timestamp field is null or empty" },
+        { String.format(Locale.ROOT, """
+            {"query": "%s", "event_category_field": ""}
+            """, validQuery), "event category field is null or empty" },
+        { String.format(Locale.ROOT, """
+            {"query": "%s", "size": -1}
+            """, validQuery), "size must be greater than or equal to 0" },
+        { String.format(Locale.ROOT, """
+            {"query": "%s", "fetch_size": 1}
+            """, validQuery), "fetch size must be greater than 1" },
+        { String.format(Locale.ROOT, """
+            {"query": "%s", "filter": null}
+            """, validQuery), "filter doesn't support values of type: VALUE_NULL" },
+        { String.format(Locale.ROOT, """
+            {"query": "%s", "filter": {}}
+            """, validQuery), "query malformed, empty clause found" },
+        { String.format(Locale.ROOT, """
+            {"query": "%s", "max_samples_per_key": 0}
+            """, validQuery), "max_samples_per_key must be greater than 0" } };
 
     public void testBadRequests() throws Exception {
         createIndex(defaultValidationIndexName, (String) null);
 
-        final String contentType = "application/json";
         for (String[] test : testBadRequests) {
-            final String endpoint = "/" + indexPattern(defaultValidationIndexName) + "/_eql/search";
-            Request request = new Request("GET", endpoint);
-            request.setJsonEntity(test[0]);
-
-            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
-            Response response = e.getResponse();
-
-            assertThat(response.getHeader("Content-Type"), containsString(contentType));
-            assertThat(EntityUtils.toString(response.getEntity()), containsString(test[1]));
-            assertThat(response.getStatusLine().getStatusCode(), is(400));
+            assertBadRequest(test[0], test[1], 400);
         }
 
-        deleteIndex(defaultValidationIndexName);
+        bulkIndex("""
+            {"index": {"_index": "%s", "_id": 1}}
+            {"event":{"category":"process"},"@timestamp":"2020-01-01T12:34:56Z"}
+            """.formatted(defaultValidationIndexName));
+        assertBadRequest("""
+            {"query": "sample by event.category [any where true] [any where true]",
+             "fetch_size": 1001}
+            """, "Fetch size cannot be greater than [1000]", 500);
+
+        deleteIndexWithProvisioningClient(defaultValidationIndexName);
+    }
+
+    private void assertBadRequest(String query, String errorMessage, int errorCode) throws IOException {
+        final String endpoint = "/" + indexPattern(defaultValidationIndexName) + "/_eql/search";
+        Request request = new Request("GET", endpoint);
+        request.setJsonEntity(query);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        Response response = e.getResponse();
+
+        assertThat(response.getHeader("Content-Type"), containsString("application/json"));
+        assertThat(EntityUtils.toString(response.getEntity()), containsString(errorMessage));
+        assertThat(response.getStatusLine().getStatusCode(), is(errorCode));
     }
 
     @SuppressWarnings("unchecked")
     public void testIndexWildcardPatterns() throws Exception {
-        createIndex("test1", "\"my_alias\" : {}, \"test_alias\" : {}");
-        createIndex("test2", "\"my_alias\" : {}");
+        createIndex("test1", """
+            "my_alias" : {}, "test_alias" : {}""");
+        createIndex("test2", """
+            "my_alias" : {}""");
 
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\": {\"_index\": \"test1\", \"_id\": 1}}\n");
-        bulk.append("{\"event\":{\"category\":\"process\"},\"@timestamp\":\"2020-09-04T12:34:56Z\"}\n");
-        bulk.append("{\"index\": {\"_index\": \"test2\", \"_id\": 2}}\n");
-        bulk.append("{\"event\":{\"category\":\"process\"},\"@timestamp\":\"2020-09-05T12:34:56Z\"}\n");
-        bulkIndex(bulk.toString());
+        bulkIndex("""
+            {"index": {"_index": "test1", "_id": 1}}
+            {"event":{"category":"process"},"@timestamp":"2020-09-04T12:34:56Z"}
+            {"index": {"_index": "test2", "_id": 2}}
+            {"event":{"category":"process"},"@timestamp":"2020-09-05T12:34:56Z"}
+            """);
 
         String[] wildcardRequests = {
             "test1,test2",
@@ -92,7 +124,8 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
         for (String indexPattern : wildcardRequests) {
             String endpoint = "/" + indexPattern(indexPattern) + "/_eql/search";
             Request request = new Request("GET", endpoint);
-            request.setJsonEntity("{\"query\":\"process where true\"}");
+            request.setJsonEntity("""
+                {"query":"process where true"}""");
             Response response = client().performRequest(request);
 
             Map<String, Object> responseMap;
@@ -106,24 +139,26 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
             assertEquals("2", events.get(1).get("_id"));
         }
 
-        deleteIndex("test1");
-        deleteIndex("test2");
+        deleteIndexWithProvisioningClient("test1");
+        deleteIndexWithProvisioningClient("test2");
     }
 
     @SuppressWarnings("unchecked")
     public void testUnicodeChars() throws Exception {
         createIndex("test", (String) null);
 
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\": {\"_index\": \"test\", \"_id\": 1}}\n");
-        bulk.append("{\"event\":{\"category\":\"process\"},\"@timestamp\":\"2020-09-04T12:34:56Z\",\"log\" : \"prefix_ë_suffix\"}\n");
-        bulk.append("{\"index\": {\"_index\": \"test\", \"_id\": 2}}\n");
-        bulk.append("{\"event\":{\"category\":\"process\"},\"@timestamp\":\"2020-09-05T12:34:57Z\",\"log\" : \"prefix_𖠋_suffix\"}\n");
-        bulkIndex(bulk.toString());
+        String bulk = """
+            {"index": {"_index": "test", "_id": 1}}
+            {"event":{"category":"process"},"@timestamp":"2020-09-04T12:34:56Z","log" : "prefix_ë_suffix"}
+            {"index": {"_index": "test", "_id": 2}}
+            {"event":{"category":"process"},"@timestamp":"2020-09-05T12:34:57Z","log" : "prefix_𖠋_suffix"}
+            """;
+        bulkIndex(bulk);
 
         String endpoint = "/" + indexPattern("test") + "/_eql/search";
         Request request = new Request("GET", endpoint);
-        request.setJsonEntity("{\"query\":\"process where log==\\\"prefix_\\\\u{0eb}_suffix\\\"\"}");
+        request.setJsonEntity("""
+            {"query":"process where log==\\"prefix_\\\\u{0eb}_suffix\\""}""");
         Response response = client().performRequest(request);
 
         Map<String, Object> responseMap;
@@ -135,7 +170,8 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
         assertEquals(1, events.size());
         assertEquals("1", events.get(0).get("_id"));
 
-        request.setJsonEntity("{\"query\":\"process where log==\\\"prefix_\\\\u{01680b}_suffix\\\"\"}");
+        request.setJsonEntity("""
+            {"query":"process where log==\\"prefix_\\\\u{01680b}_suffix\\""}""");
         response = client().performRequest(request);
 
         try (InputStream content = response.getEntity().getContent()) {
@@ -146,7 +182,7 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
         assertEquals(1, events.size());
         assertEquals("2", events.get(0).get("_id"));
 
-        deleteIndex("test");
+        deleteIndexWithProvisioningClient("test");
     }
 
     private void bulkIndex(String bulk) throws IOException {

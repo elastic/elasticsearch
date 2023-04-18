@@ -14,7 +14,7 @@
   - do:
       index:
           index:  test
-          id:     1
+          id:     "1"
           body:   { field: foo bar}
 
   - do:
@@ -41,7 +41,7 @@
   - do:
       explain:
         index:  test
-        id:     1
+        id:     "1"
         q: field:bars
         analyzer: snowball
 

@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
@@ -46,6 +46,11 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         AddVotingConfigExclusionsRequest votingConfigExclusionsRequest = resolveVotingConfigExclusionsRequest(request);
         return channel -> client.execute(
@@ -55,7 +60,7 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
         );
     }
 
-    AddVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
+    static AddVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
         String nodeIds = null;
         String nodeNames = null;
 
@@ -71,11 +76,13 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
             nodeNames = request.param("node_names");
         }
 
-        return new AddVotingConfigExclusionsRequest(
+        final var resolvedRequest = new AddVotingConfigExclusionsRequest(
             Strings.splitStringByCommaToArray(nodeIds),
             Strings.splitStringByCommaToArray(nodeNames),
-            TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
+            request.paramAsTime("timeout", DEFAULT_TIMEOUT)
         );
+
+        return resolvedRequest.masterNodeTimeout(request.paramAsTime("master_timeout", resolvedRequest.masterNodeTimeout()));
     }
 
 }

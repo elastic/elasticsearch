@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
@@ -21,10 +23,11 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermState;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -38,6 +41,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -48,6 +52,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * A {@link FilterLeafReader} that exposes only a subset
@@ -100,8 +105,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         private static void verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(DirectoryReader reader) {
-            if (reader instanceof FilterDirectoryReader) {
-                FilterDirectoryReader filterDirectoryReader = (FilterDirectoryReader) reader;
+            if (reader instanceof FilterDirectoryReader filterDirectoryReader) {
                 if (filterDirectoryReader instanceof FieldSubsetDirectoryReader) {
                     throw new IllegalArgumentException(
                         LoggerMessageFormat.format("Can't wrap [{}] twice", FieldSubsetDirectoryReader.class)
@@ -123,7 +127,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     /** An automaton that only accepts authorized fields. */
     private final CharacterRunAutomaton filter;
     /** {@link Terms} cache with filtered stats for the {@link FieldNamesFieldMapper} field. */
-    private final Terms fieldNamesFilterTerms;
+    private volatile Optional<Terms> fieldNamesFilterTerms;
 
     /**
      * Wrap a single segment, exposing a subset of its fields.
@@ -138,8 +142,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
         this.filter = filter;
-        final Terms fieldNameTerms = super.terms(FieldNamesFieldMapper.NAME);
-        this.fieldNamesFilterTerms = fieldNameTerms == null ? null : new FieldNamesTerms(fieldNameTerms);
     }
 
     /** returns true if this field is allowed. */
@@ -161,6 +163,34 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         f = new FieldFilterFields(f);
         // we need to check for emptyness, so we can return null:
         return f.iterator().hasNext() ? f : null;
+    }
+
+    @Override
+    public TermVectors termVectors() throws IOException {
+        TermVectors termVectors = super.termVectors();
+        return new TermVectors() {
+            @Override
+            public Fields get(int doc) throws IOException {
+                Fields f = termVectors.get(doc);
+                if (f == null) {
+                    return null;
+                }
+                f = new FieldFilterFields(f);
+                // we need to check for emptyness, so we can return null:
+                return f.iterator().hasNext() ? f : null;
+            }
+        };
+    }
+
+    @Override
+    public StoredFields storedFields() throws IOException {
+        StoredFields storedFields = super.storedFields();
+        return new StoredFields() {
+            @Override
+            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                storedFields.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
+            }
+        };
     }
 
     /** Filter a map by a {@link CharacterRunAutomaton} that defines the fields to retain. */
@@ -188,8 +218,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 if (filteredValue.isEmpty() == false) {
                     filtered.put(key, filteredValue);
                 }
-            } else if (value instanceof Iterable) {
-                Iterable<?> iterableValue = (Iterable<?>) value;
+            } else if (value instanceof Iterable<?> iterableValue) {
                 List<Object> filteredValue = filter(iterableValue, includeAutomaton, state);
                 if (filteredValue.isEmpty() == false) {
                     filtered.put(key, filteredValue);
@@ -280,13 +309,23 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public VectorValues getVectorValues(String field) throws IOException {
-        return hasField(field) ? super.getVectorValues(field) : null;
+    public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+        return hasField(field) ? super.getFloatVectorValues(field) : null;
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
-        return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs) : null;
+    public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+        return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit) : null;
+    }
+
+    @Override
+    public ByteVectorValues getByteVectorValues(String field) throws IOException {
+        return hasField(field) ? super.getByteVectorValues(field) : null;
+    }
+
+    @Override
+    public TopDocs searchNearestVectors(String field, byte[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+        return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit) : null;
     }
 
     // we share core cache keys (for e.g. fielddata)
@@ -312,8 +351,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
-        public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
-            reader.visitDocument(docID, new FieldSubsetStoredFieldVisitor(visitor));
+        public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+            reader.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
         }
 
         @Override
@@ -431,10 +470,22 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         if (hasField(field) == false) {
             return null;
         } else if (FieldNamesFieldMapper.NAME.equals(field)) {
-            // for the _field_names field, fields for the document
-            // are encoded as postings, where term is the field.
-            // so we hide terms for fields we filter out.
-            return fieldNamesFilterTerms;
+            // For the _field_names field, fields for the document are encoded as postings, where term is the field, so we hide terms for
+            // fields we filter out.
+            // Compute this lazily so that the DirectoryReader wrapper works together with RewriteCachingDirectoryReader (used by the
+            // can match phase in the frozen tier), which does not implement the terms() method.
+            if (fieldNamesFilterTerms == null) {
+                synchronized (this) {
+                    if (fieldNamesFilterTerms == null) {
+                        assert Transports.assertNotTransportThread("resolving filter terms");
+                        final Terms fieldNameTerms = super.terms(FieldNamesFieldMapper.NAME);
+                        this.fieldNamesFilterTerms = fieldNameTerms == null
+                            ? Optional.empty()
+                            : Optional.of(new FieldNamesTerms(fieldNameTerms));
+                    }
+                }
+            }
+            return fieldNamesFilterTerms.orElse(null);
         } else {
             return terms;
         }

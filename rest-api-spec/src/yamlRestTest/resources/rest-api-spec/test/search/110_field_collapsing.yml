@@ -11,42 +11,42 @@ setup:
   - do:
       index:
           index:  test
-          id:     1
+          id:     "1"
           version_type: external
           version: 11
           body:   { numeric_group: 1, tag: A, sort: 10 }
   - do:
       index:
           index:  test
-          id:     2
+          id:     "2"
           version_type: external
           version: 22
           body:   { numeric_group: 1, tag: B, sort: 6 }
   - do:
       index:
           index:  test
-          id:     3
+          id:     "3"
           version_type: external
           version: 33
           body:   { numeric_group: 1, tag: A, sort: 24 }
   - do:
       index:
           index:  test
-          id:     4
+          id:     "4"
           version_type: external
           version: 44
           body:   { numeric_group: 25, tag: B, sort: 10 }
   - do:
       index:
           index:  test
-          id:     5
+          id:     "5"
           version_type: external
           version: 55
           body:   { numeric_group: 25, tag: A, sort: 5 }
   - do:
       index:
           index:  test
-          id:     6
+          id:     "6"
           version_type: external
           version: 66
           body:   { numeric_group: 3, tag: B, sort: 36 }
@@ -438,12 +438,12 @@ setup:
   - do:
       index:
         index:  alias-test
-        id:     1
+        id:     "1"
         body:   { other_numeric_group: 1, sort: 6 }
   - do:
       index:
         index:  alias-test
-        id:     2
+        id:     "2"
         body:   { other_numeric_group: 25, sort: 10 }
   - do:
       indices.refresh:

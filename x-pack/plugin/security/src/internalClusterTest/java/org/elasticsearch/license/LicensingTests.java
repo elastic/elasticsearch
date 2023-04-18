@@ -16,16 +16,17 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -55,7 +56,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
-import static org.elasticsearch.license.LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD;
+import static org.elasticsearch.license.LicenseSettings.LICENSE_EXPIRATION_WARNING_PERIOD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -71,35 +72,38 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     private static final SecureString HASH_PASSWD = new SecureString(Hasher.BCRYPT4.hash(new SecureString("passwd".toCharArray())));
 
-    private static final String ROLES = SecuritySettingsSource.TEST_ROLE
-        + ":\n"
-        + "  cluster: [ all ]\n"
-        + "  indices:\n"
-        + "    - names: '*'\n"
-        + "      privileges: [manage]\n"
-        + "    - names: '/.*/'\n"
-        + "      privileges: [write]\n"
-        + "    - names: 'test'\n"
-        + "      privileges: [read]\n"
-        + "    - names: 'test1'\n"
-        + "      privileges: [read]\n"
-        + "\n"
-        + "role_a:\n"
-        + "  indices:\n"
-        + "    - names: 'a'\n"
-        + "      privileges: [all]\n"
-        + "    - names: 'test-dls'\n"
-        + "      privileges: [read]\n"
-        + "      query: '{\"term\":{\"field\":\"value\"} }'\n"
-        + "\n"
-        + "role_b:\n"
-        + "  indices:\n"
-        + "    - names: 'b'\n"
-        + "      privileges: [all]\n";
+    private static final String ROLES = Strings.format("""
+        %s:
+          cluster: [ all ]
+          indices:
+            - names: '*'
+              privileges: [manage]
+            - names: '/.*/'
+              privileges: [write]
+            - names: 'test'
+              privileges: [read]
+            - names: 'test1'
+              privileges: [read]
 
-    private static final String USERS_ROLES = SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES
-        + "role_a:user_a,user_b\n"
-        + "role_b:user_b\n";
+        role_a:
+          indices:
+            - names: 'a'
+              privileges: [all]
+            - names: 'test-dls'
+              privileges: [read]
+              query: '{"term":{"field":"value"} }'
+
+        role_b:
+          indices:
+            - names: 'b'
+              privileges: [all]
+        """, SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
+
+    private static final String USERS_ROLES = """
+        superuser:test_superuser
+        role_a:user_a,user_b
+        role_b:user_b
+        """ + SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES;
 
     @Override
     protected String configRoles() {
@@ -276,7 +280,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
             // apply the disabling of the license once the cluster is stable
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(OperationMode.BASIC, false, null);
+                licenseState.update(new XPackLicenseStatus(OperationMode.BASIC, false, null));
             }
         }, 30L, TimeUnit.SECONDS);
     }
@@ -288,7 +292,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             // first update the license so we can execute monitoring actions
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, null);
+                licenseState.update(new XPackLicenseStatus(operationMode, true, null));
             }
 
             ensureGreen();
@@ -298,7 +302,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             // re-apply the update in case any node received an updated cluster state that triggered the license state
             // to change
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, null);
+                licenseState.update(new XPackLicenseStatus(operationMode, true, null));
             }
         }, 30L, TimeUnit.SECONDS);
     }
@@ -306,7 +310,7 @@ public class LicensingTests extends SecurityIntegTestCase {
     private void setLicensingExpirationDate(License.OperationMode operationMode, String expiryWarning) throws Exception {
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, expiryWarning);
+                licenseState.update(new XPackLicenseStatus(operationMode, true, expiryWarning));
             }
 
             ensureGreen();

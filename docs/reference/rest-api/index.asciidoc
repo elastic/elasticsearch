@@ -12,12 +12,15 @@ not be included yet.
 
 * <<api-conventions, API conventions>>
 * <<common-options, Common Options>>
+* <<rest-api-compatibility, REST API Compatibility>>
 * <<autoscaling-apis, Autoscaling APIs>>
+* <<behavioral-analytics-apis, Behavioral Analytics APIs>>
 * <<cat, cat APIs>>
 * <<cluster, Cluster APIs>>
 * <<features-apis,Features APIs>>
 * <<ccr-apis,{ccr-cap} APIs>>
 * <<data-stream-apis,Data stream APIs>>
+* <<data-lifecycle-management-api, Data Lifecycle Management APIs>>
 * <<docs, Document APIs>>
 * <<enrich-apis,Enrich APIs>>
 * <<eql-apis,EQL search APIs>>
@@ -30,8 +33,10 @@ not be included yet.
 * <<info-api,Info API>>
 * <<licensing-apis,Licensing APIs>>
 * <<logstash-apis,Logstash APIs>>
-* <<ml-apis,{ml-cap} {anomaly-detect} APIs>>
+* <<ml-apis,{ml-cap} APIs>>
+* <<ml-ad-apis,{ml-cap} {anomaly-detect} APIs>>
 * <<ml-df-analytics-apis,{ml-cap} {dfanalytics} APIs>>
+* <<ml-df-trained-models-apis,{ml-cap} trained model APIs>>
 * <<migration-api,Migration APIs>>
 * <<node-lifecycle-api,Node lifecycle API>>
 * <<indices-reload-analyzers,Reload search analyzers API>>
@@ -39,6 +44,7 @@ not be included yet.
 * <<rollup-apis,Rollup APIs>>
 * <<script-apis,Script APIs>>
 * <<search, Search APIs>>
+* <<search-application-apis, Search Application APIs>>
 * <<searchable-snapshots-apis, Searchable snapshots APIs>>
 * <<security-api,Security APIs>>
 * <<snapshot-restore-apis,Snapshot and restore APIs>>
@@ -51,7 +57,9 @@ not be included yet.
 
 include::{es-repo-dir}/api-conventions.asciidoc[]
 include::{es-repo-dir}/rest-api/common-options.asciidoc[]
+include::{es-repo-dir}/rest-api/rest-api-compatibility.asciidoc[]
 include::{es-repo-dir}/autoscaling/apis/autoscaling-apis.asciidoc[]
+include::{es-repo-dir}/behavioral-analytics/apis/index.asciidoc[]
 include::{es-repo-dir}/cat.asciidoc[]
 include::{es-repo-dir}/cluster.asciidoc[]
 include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
@@ -69,8 +77,10 @@ include::{es-repo-dir}/ingest/apis/index.asciidoc[]
 include::info.asciidoc[]
 include::{es-repo-dir}/licensing/index.asciidoc[]
 include::{xes-repo-dir}/rest-api/logstash/index.asciidoc[]
+include::{es-repo-dir}/ml/common/apis/index.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/index.asciidoc[]
 include::{es-repo-dir}/ml/df-analytics/apis/index.asciidoc[]
+include::{es-repo-dir}/ml/trained-models/apis/index.asciidoc[]
 include::{es-repo-dir}/migration/migration.asciidoc[]
 include::{es-repo-dir}/shutdown/apis/shutdown-api.asciidoc[]
 include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
@@ -78,6 +88,7 @@ include::{es-repo-dir}/repositories-metering-api/repositories-metering-apis.asci
 include::{es-repo-dir}/rollup/rollup-apis.asciidoc[]
 include::{es-repo-dir}/scripting/apis/script-apis.asciidoc[]
 include::{es-repo-dir}/search.asciidoc[]
+include::{es-repo-dir}/search-application/apis/index.asciidoc[]
 include::{es-repo-dir}/searchable-snapshots/apis/searchable-snapshots-apis.asciidoc[]
 include::{xes-repo-dir}/rest-api/security.asciidoc[]
 include::{es-repo-dir}/snapshot-restore/apis/snapshot-restore-apis.asciidoc[]
@@ -87,3 +98,4 @@ include::{es-repo-dir}/transform/apis/index.asciidoc[]
 include::usage.asciidoc[]
 include::{xes-repo-dir}/rest-api/watcher.asciidoc[]
 include::defs.asciidoc[]
+include::{es-repo-dir}/dlm/apis/dlm-api.asciidoc[]

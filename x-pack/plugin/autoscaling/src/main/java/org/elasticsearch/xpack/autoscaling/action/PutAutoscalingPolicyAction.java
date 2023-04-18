@@ -93,11 +93,11 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
             }
             if (in.readBoolean()) {
                 int deciderCount = in.readInt();
-                SortedMap<String, Settings> deciders = new TreeMap<>();
+                SortedMap<String, Settings> decidersMap = new TreeMap<>();
                 for (int i = 0; i < deciderCount; ++i) {
-                    deciders.put(in.readString(), Settings.readSettingsFromStream(in));
+                    decidersMap.put(in.readString(), Settings.readSettingsFromStream(in));
                 }
-                this.deciders = Collections.unmodifiableSortedMap(deciders);
+                this.deciders = Collections.unmodifiableSortedMap(decidersMap);
             } else {
                 this.deciders = null;
             }
@@ -118,7 +118,7 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
                 out.writeInt(deciders.size());
                 for (Map.Entry<String, Settings> entry : deciders.entrySet()) {
                     out.writeString(entry.getKey());
-                    Settings.writeSettingsToStream(entry.getValue(), out);
+                    entry.getValue().writeTo(out);
                 }
             } else {
                 out.writeBoolean(false);

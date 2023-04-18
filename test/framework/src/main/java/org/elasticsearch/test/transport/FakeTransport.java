@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -35,15 +36,20 @@ public class FakeTransport extends AbstractLifecycleComponent implements Transpo
     private TransportMessageListener listener;
 
     @Override
-    public void setMessageListener(TransportMessageListener listener) {
+    public void setMessageListener(TransportMessageListener messageListener) {
         if (this.listener != null) {
             throw new IllegalStateException("listener already set");
         }
-        this.listener = listener;
+        this.listener = messageListener;
     }
 
     @Override
     public BoundTransportAddress boundAddress() {
+        return null;
+    }
+
+    @Override
+    public BoundTransportAddress boundRemoteIngressAddress() {
         return null;
     }
 
@@ -63,11 +69,16 @@ public class FakeTransport extends AbstractLifecycleComponent implements Transpo
     }
 
     @Override
-    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
-        listener.onResponse(new CloseableConnection() {
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> actionListener) {
+        actionListener.onResponse(new CloseableConnection() {
             @Override
             public DiscoveryNode getNode() {
                 return node;
+            }
+
+            @Override
+            public TransportVersion getTransportVersion() {
+                return TransportVersion.CURRENT;
             }
 
             @Override

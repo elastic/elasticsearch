@@ -140,7 +140,7 @@ public class Explain extends Command {
             // check errors manually to see how far the plans work out
             else {
                 // no analysis failure, can move on
-                if (session.verifier().verifyFailures(analyzedPlan).isEmpty()) {
+                if (session.verifier().verifyFailures(analyzedPlan, session.configuration().version()).isEmpty()) {
                     session.optimizedPlan(analyzedPlan, wrap(optimizedPlan -> {
                         if (type == Type.OPTIMIZED) {
                             listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, optimizedPlan))));

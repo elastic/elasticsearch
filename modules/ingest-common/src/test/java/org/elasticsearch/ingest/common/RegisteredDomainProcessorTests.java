@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -17,6 +18,13 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Test parsing of an eTLD from a FQDN. The list of eTLDs is maintained here:
+ *   https://github.com/publicsuffix/list/blob/master/public_suffix_list.dat
+ *
+ * Effective TLDs (eTLS) are not the same as DNS TLDs. Uses for eTLDs are listed here.
+ *   https://publicsuffix.org/learn/
+ */
 public class RegisteredDomainProcessorTests extends ESTestCase {
     private Map<String, Object> buildEvent(String domain) {
         return new HashMap<>() {
@@ -33,14 +41,33 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
         testRegisteredDomainProcessor(buildEvent("."), null, null, null, null);
         testRegisteredDomainProcessor(buildEvent("$"), null, null, null, null);
         testRegisteredDomainProcessor(buildEvent("foo.bar.baz"), null, null, null, null);
+        testRegisteredDomainProcessor(buildEvent("www.books.amazon.co.uk"), "www.books.amazon.co.uk", "amazon.co.uk", "co.uk", "www.books");
+        // Verify "com" is returned as the eTLD, for that FQDN or subdomain
+        testRegisteredDomainProcessor(buildEvent("com"), "com", null, "com", null);
+        testRegisteredDomainProcessor(buildEvent("example.com"), "example.com", "example.com", "com", null);
+        testRegisteredDomainProcessor(buildEvent("googleapis.com"), "googleapis.com", "googleapis.com", "com", null);
+        testRegisteredDomainProcessor(
+            buildEvent("content-autofill.googleapis.com"),
+            "content-autofill.googleapis.com",
+            "googleapis.com",
+            "com",
+            "content-autofill"
+        );
+        // Verify "ssl.fastly.net" is returned as the eTLD, for that FQDN or subdomain
+        testRegisteredDomainProcessor(
+            buildEvent("global.ssl.fastly.net"),
+            "global.ssl.fastly.net",
+            "global.ssl.fastly.net",
+            "ssl.fastly.net",
+            null
+        );
         testRegisteredDomainProcessor(
             buildEvent("1.www.global.ssl.fastly.net"),
             "1.www.global.ssl.fastly.net",
-            "www.global.ssl.fastly.net",
             "global.ssl.fastly.net",
-            "1"
+            "ssl.fastly.net",
+            "1.www"
         );
-        testRegisteredDomainProcessor(buildEvent("www.books.amazon.co.uk"), "www.books.amazon.co.uk", "amazon.co.uk", "co.uk", "www.books");
     }
 
     public void testUseRoot() throws Exception {
@@ -53,7 +80,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
 
         var processor = new RegisteredDomainProcessor(null, null, "domain", "", false);
 
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
 
         String domain = output.getFieldValue(domainField, String.class);
@@ -104,7 +131,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
 
         var processor = new RegisteredDomainProcessor(null, null, "domain", "url", ignoreMissing);
 
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
 
         String domain = output.getFieldValue(domainField, String.class, expectedDomain == null);

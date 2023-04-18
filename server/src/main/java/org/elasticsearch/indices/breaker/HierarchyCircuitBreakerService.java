@@ -10,7 +10,6 @@ package org.elasticsearch.indices.breaker;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -31,16 +30,16 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING;
 import static org.elasticsearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING;
 
@@ -60,6 +59,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<Boolean> USE_REAL_MEMORY_USAGE_SETTING = Setting.boolSetting(
         "indices.breaker.total.use_real_memory",
         true,
+        Property.Dynamic,
         Property.NodeScope
     );
 
@@ -136,13 +136,14 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         Property.NodeScope
     );
 
-    private final boolean trackRealMemoryUsage;
+    private volatile boolean trackRealMemoryUsage;
     private volatile BreakerSettings parentSettings;
 
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
 
-    private final OverLimitStrategy overLimitStrategy;
+    private final Function<Boolean, OverLimitStrategy> overLimitStrategyFactory;
+    private volatile OverLimitStrategy overLimitStrategy;
 
     public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
         this(settings, customBreakers, clusterSettings, HierarchyCircuitBreakerService::createOverLimitStrategy);
@@ -202,7 +203,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             }
             childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(breakerSettings));
         }
-        this.breakers = Collections.unmodifiableMap(childCircuitBreakers);
+        this.breakers = Map.copyOf(childCircuitBreakers);
         this.parentSettings = new BreakerSettings(
             CircuitBreaker.PARENT,
             TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -210,14 +211,14 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             CircuitBreaker.Type.PARENT,
             null
         );
-        logger.trace(() -> new ParameterizedMessage("parent circuit breaker with settings {}", this.parentSettings));
+        logger.trace(() -> format("parent circuit breaker with settings %s", this.parentSettings));
 
         this.trackRealMemoryUsage = USE_REAL_MEMORY_USAGE_SETTING.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(
             TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
             this::setTotalCircuitBreakerLimit,
-            this::validateTotalCircuitBreakerLimit
+            HierarchyCircuitBreakerService::validateTotalCircuitBreakerLimit
         );
         clusterSettings.addSettingsUpdateConsumer(
             FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
@@ -240,7 +241,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             (name, updatedValues) -> updateCircuitBreakerSettings(name, updatedValues.v1(), updatedValues.v2()),
             (s, t) -> {}
         );
+        clusterSettings.addSettingsUpdateConsumer(USE_REAL_MEMORY_USAGE_SETTING, this::updateUseRealMemorySetting);
 
+        this.overLimitStrategyFactory = overLimitStrategyFactory;
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
     }
 
@@ -252,7 +255,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    private void validateTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
+    private static void validateTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
         BreakerSettings newParentSettings = new BreakerSettings(
             CircuitBreaker.PARENT,
             byteSizeValue.getBytes(),
@@ -265,6 +268,20 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     private void setTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
         this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT, byteSizeValue.getBytes(), 1.0, CircuitBreaker.Type.PARENT, null);
+    }
+
+    public void updateUseRealMemorySetting(boolean trackRealMemoryUsage) {
+        this.trackRealMemoryUsage = trackRealMemoryUsage;
+
+        this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
+    }
+
+    public boolean isTrackRealMemoryUsage() {
+        return trackRealMemoryUsage;
+    }
+
+    public OverLimitStrategy getOverLimitStrategy() {
+        return overLimitStrategy;
     }
 
     /**
@@ -380,47 +397,78 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         long parentLimit = this.parentSettings.getLimit();
         if (memoryUsed.totalUsage > parentLimit && overLimitStrategy.overLimit(memoryUsed).totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
-            final StringBuilder message = new StringBuilder(
-                "[parent] Data too large, data for ["
-                    + label
-                    + "]"
-                    + " would be ["
-                    + memoryUsed.totalUsage
-                    + "/"
-                    + new ByteSizeValue(memoryUsed.totalUsage)
-                    + "]"
-                    + ", which is larger than the limit of ["
-                    + parentLimit
-                    + "/"
-                    + new ByteSizeValue(parentLimit)
-                    + "]"
+            final String messageString = buildParentTripMessage(
+                newBytesReserved,
+                label,
+                memoryUsed,
+                parentLimit,
+                this.trackRealMemoryUsage,
+                this.breakers
             );
-            if (this.trackRealMemoryUsage) {
-                final long realUsage = memoryUsed.baseUsage;
-                message.append(", real usage: [");
-                message.append(realUsage);
-                message.append("/");
-                message.append(new ByteSizeValue(realUsage));
-                message.append("], new bytes reserved: [");
-                message.append(newBytesReserved);
-                message.append("/");
-                message.append(new ByteSizeValue(newBytesReserved));
-                message.append("]");
-            }
-            message.append(", usages [");
-            message.append(this.breakers.entrySet().stream().map(e -> {
-                final CircuitBreaker breaker = e.getValue();
-                final long breakerUsed = (long) (breaker.getUsed() * breaker.getOverhead());
-                return e.getKey() + "=" + breakerUsed + "/" + new ByteSizeValue(breakerUsed);
-            }).collect(Collectors.joining(", ")));
-            message.append("]");
             // derive durability of a tripped parent breaker depending on whether the majority of memory tracked by
             // child circuit breakers is categorized as transient or permanent.
             CircuitBreaker.Durability durability = memoryUsed.transientChildUsage >= memoryUsed.permanentChildUsage
                 ? CircuitBreaker.Durability.TRANSIENT
                 : CircuitBreaker.Durability.PERMANENT;
-            logger.debug(() -> new ParameterizedMessage("{}", message.toString()));
-            throw new CircuitBreakingException(message.toString(), memoryUsed.totalUsage, parentLimit, durability);
+            logger.debug(() -> format("%s", messageString));
+            throw new CircuitBreakingException(messageString, memoryUsed.totalUsage, parentLimit, durability);
+        }
+    }
+
+    // exposed for tests
+    static String buildParentTripMessage(
+        long newBytesReserved,
+        String label,
+        MemoryUsage memoryUsed,
+        long parentLimit,
+        boolean trackRealMemoryUsage,
+        Map<String, CircuitBreaker> breakers
+    ) {
+        final var message = new StringBuilder();
+        message.append("[parent] Data too large, data for [");
+        message.append(label);
+        message.append("] would be [");
+        appendBytesSafe(message, memoryUsed.totalUsage);
+        message.append("], which is larger than the limit of [");
+        appendBytesSafe(message, parentLimit);
+        message.append("]");
+        if (trackRealMemoryUsage) {
+            final long realUsage = memoryUsed.baseUsage;
+            message.append(", real usage: [");
+            appendBytesSafe(message, realUsage);
+            message.append("], new bytes reserved: [");
+            appendBytesSafe(message, newBytesReserved);
+            message.append("]");
+        }
+        message.append(", usages [");
+        breakers.forEach(new BiConsumer<>() {
+            private boolean first = true;
+
+            @Override
+            public void accept(String key, CircuitBreaker breaker) {
+                if (first) {
+                    first = false;
+                } else {
+                    message.append(", ");
+                }
+                message.append(key).append("=");
+                appendBytesSafe(message, (long) (breaker.getUsed() * breaker.getOverhead()));
+            }
+        });
+        message.append("]");
+        return message.toString();
+    }
+
+    static void appendBytesSafe(StringBuilder stringBuilder, long bytes) {
+        stringBuilder.append(bytes);
+        if (-1L <= bytes) {
+            stringBuilder.append("/");
+            stringBuilder.append(ByteSizeValue.ofBytes(bytes));
+        } else {
+            // Something's definitely wrong, maybe a breaker was freed twice? Still, we're just creating an exception message here, so we
+            // should keep going if we're running in production.
+            logger.error("negative value in circuit breaker: {}", stringBuilder);
+            assert permitNegativeValues : stringBuilder.toString();
         }
     }
 
@@ -463,7 +511,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         List<GarbageCollectorMXBean> youngBeans = ManagementFactory.getGarbageCollectorMXBeans()
             .stream()
             .filter(mxBean -> GcNames.getByGcName(mxBean.getName(), mxBean.getName()).equals(GcNames.YOUNG))
-            .collect(Collectors.toList());
+            .toList();
         assert youngBeans.size() == 1;
         assert youngBeans.get(0).getCollectionCount() != -1 : "G1 must support getting collection count";
 
@@ -619,4 +667,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             return lockTimeout;
         }
     }
+
+    // exposed for testing
+    static boolean permitNegativeValues = false;
 }

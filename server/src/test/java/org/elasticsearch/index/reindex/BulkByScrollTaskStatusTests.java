@@ -8,9 +8,9 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -31,7 +31,7 @@ import java.util.stream.IntStream;
 
 import static java.lang.Math.abs;
 import static java.util.stream.Collectors.toList;
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkByScrollTask.Status> {
@@ -44,14 +44,14 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
         BytesStreamOutput out = new BytesStreamOutput();
         status.writeTo(out);
         BulkByScrollTask.Status tripped = new BulkByScrollTask.Status(out.bytes().streamInput());
-        assertTaskStatusEquals(out.getVersion(), status, tripped);
+        assertTaskStatusEquals(out.getTransportVersion(), status, tripped);
     }
 
     /**
      * Assert that two task statuses are equal after serialization.
      * @param version the version at which expected was serialized
      */
-    public static void assertTaskStatusEquals(Version version, BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
+    public static void assertTaskStatusEquals(TransportVersion version, BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
         assertEquals(expected.getTotal(), actual.getTotal());
         assertEquals(expected.getUpdated(), actual.getUpdated());
         assertEquals(expected.getCreated(), actual.getCreated());

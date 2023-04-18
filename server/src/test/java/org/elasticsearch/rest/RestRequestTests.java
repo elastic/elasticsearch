@@ -198,7 +198,7 @@ public class RestRequestTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getMessage(), equalTo("invalid media-type [" + type + "]"));
-        assertThat(e.getMessage(), equalTo("Invalid media-type value on header [Content-Type]"));
+        assertThat(e.getMessage(), equalTo("Invalid media-type value on headers [Content-Type]"));
     }
 
     public void testNoContentTypeHeader() {
@@ -215,7 +215,7 @@ public class RestRequestTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf((IllegalArgumentException.class)));
         assertThat(e.getCause().getMessage(), equalTo("Incorrect header [Content-Type]. Only one value should be provided"));
-        assertThat(e.getMessage(), equalTo("Invalid media-type value on header [Content-Type]"));
+        assertThat(e.getMessage(), equalTo("Invalid media-type value on headers [Content-Type]"));
     }
 
     public void testRequiredContent() {
@@ -236,7 +236,7 @@ public class RestRequestTests extends ESTestCase {
         assertEquals("unknown content type", e.getMessage());
     }
 
-    private static RestRequest contentRestRequest(String content, Map<String, String> params) {
+    public static RestRequest contentRestRequest(String content, Map<String, String> params) {
         Map<String, List<String>> headers = new HashMap<>();
         headers.put("Content-Type", Collections.singletonList("application/json"));
         return contentRestRequest(content, params, headers);
@@ -250,7 +250,7 @@ public class RestRequestTests extends ESTestCase {
         return new ContentRestRequest(builder.build());
     }
 
-    private static final class ContentRestRequest extends RestRequest {
+    public static final class ContentRestRequest extends RestRequest {
 
         private final RestRequest restRequest;
 

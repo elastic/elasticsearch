@@ -9,21 +9,21 @@
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
-public class SearchProfileResultsTests extends AbstractSerializingTestCase<SearchProfileResults> {
+public class SearchProfileResultsTests extends AbstractXContentSerializingTestCase<SearchProfileResults> {
     public static SearchProfileResults createTestItem() {
         int size = rarely() ? 0 : randomIntBetween(1, 2);
-        Map<String, SearchProfileShardResult> shards = new HashMap<>(size);
+        Map<String, SearchProfileShardResult> shards = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             SearchProfileQueryPhaseResult searchResult = SearchProfileQueryPhaseResultTests.createTestItem();
             ProfileResult fetchResult = randomBoolean() ? null : ProfileResultTests.createTestItem(2);
@@ -35,6 +35,11 @@ public class SearchProfileResultsTests extends AbstractSerializingTestCase<Searc
     @Override
     protected SearchProfileResults createTestInstance() {
         return createTestItem();
+    }
+
+    @Override
+    protected SearchProfileResults mutateInstance(SearchProfileResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

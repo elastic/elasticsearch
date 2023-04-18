@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -183,9 +182,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
-            controller,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
             searchRequest,
@@ -221,18 +219,18 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             }
         }
         SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
-        assertThat(phase.numReducePhases, greaterThanOrEqualTo(1));
+        assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
         if (withScroll) {
-            assertThat(phase.totalHits.value, equalTo((long) numShards));
-            assertThat(phase.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(phase.totalHits().value, equalTo((long) numShards));
+            assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
         } else {
-            assertThat(phase.totalHits.value, equalTo(2L));
-            assertThat(phase.totalHits.relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+            assertThat(phase.totalHits().value, equalTo(2L));
+            assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
         }
-        assertThat(phase.sortedTopDocs.scoreDocs.length, equalTo(1));
-        assertThat(phase.sortedTopDocs.scoreDocs[0], instanceOf(FieldDoc.class));
-        assertThat(((FieldDoc) phase.sortedTopDocs.scoreDocs[0]).fields.length, equalTo(1));
-        assertThat(((FieldDoc) phase.sortedTopDocs.scoreDocs[0]).fields[0], equalTo(0));
+        assertThat(phase.sortedTopDocs().scoreDocs().length, equalTo(1));
+        assertThat(phase.sortedTopDocs().scoreDocs()[0], instanceOf(FieldDoc.class));
+        assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields.length, equalTo(1));
+        assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields[0], equalTo(0));
     }
 
     public void testMinimumVersionSameAsNewVersion() throws Exception {
@@ -272,7 +270,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ShardId(new Index("idx", "_na_"), 0),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+            ShardRouting.Role.DEFAULT
         );
         routingNewVersionShard = routingNewVersionShard.initialize(newVersionNode.getId(), "p0", 0);
         routingNewVersionShard.started();
@@ -282,7 +281,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ShardId(new Index("idx", "_na_"), 1),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+            ShardRouting.Role.DEFAULT
         );
         routingOldVersionShard = routingOldVersionShard.initialize(oldVersionNode.getId(), "p1", 0);
         routingOldVersionShard.started();
@@ -313,9 +313,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
-            controller,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
             searchRequest,
@@ -371,7 +370,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ShardId(new Index("idx", "_na_"), 0),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+            ShardRouting.Role.DEFAULT
         );
         routingNewVersionShard = routingNewVersionShard.initialize(newVersionNode.getId(), "p0", 0);
         routingNewVersionShard.started();
@@ -381,7 +381,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ShardId(new Index("idx", "_na_"), 1),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+            ShardRouting.Role.DEFAULT
         );
         routingOldVersionShard = routingOldVersionShard.initialize(oldVersionNode.getId(), "p1", 0);
         routingOldVersionShard.started();
@@ -455,9 +456,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
-            controller,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
             searchRequest,
@@ -483,9 +483,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         latch.await();
         assertThat(successfulOps.get(), equalTo(2));
         SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
-        assertThat(phase.numReducePhases, greaterThanOrEqualTo(1));
-        assertThat(phase.totalHits.value, equalTo(2L));
-        assertThat(phase.totalHits.relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+        assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
+        assertThat(phase.totalHits().value, equalTo(2L));
+        assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
     }
 
     public void testMinimumVersionShardDuringPhaseExecution() throws Exception {
@@ -514,7 +514,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ShardId(new Index("idx", "_na_"), 0),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+            ShardRouting.Role.DEFAULT
         );
         routingNewVersionShard1 = routingNewVersionShard1.initialize(newVersionNode1.getId(), "p0", 0);
         routingNewVersionShard1.started();
@@ -524,7 +525,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ShardId(new Index("idx", "_na_"), 1),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+            ShardRouting.Role.DEFAULT
         );
         routingNewVersionShard2 = routingNewVersionShard2.initialize(newVersionNode2.getId(), "p1", 0);
         routingNewVersionShard2.started();
@@ -598,9 +600,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
-            controller,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
             searchRequest,
@@ -625,7 +626,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ShardId(new Index("idx", "_na_"), 2),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+            ShardRouting.Role.DEFAULT
         );
         SearchShardIterator shardIt = new SearchShardIterator(
             null,
@@ -639,9 +641,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         latch.await();
         assertThat(successfulOps.get(), equalTo(2));
         SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
-        assertThat(phase.numReducePhases, greaterThanOrEqualTo(1));
-        assertThat(phase.totalHits.value, equalTo(2L));
-        assertThat(phase.totalHits.relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+        assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));
+        assertThat(phase.totalHits().value, equalTo(2L));
+        assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
 
         SearchShardTarget searchShardTarget = new SearchShardTarget("node3", shardIt.shardId(), null);
         SearchActionListener<SearchPhaseResult> listener = new SearchActionListener<SearchPhaseResult>(searchShardTarget, 0) {

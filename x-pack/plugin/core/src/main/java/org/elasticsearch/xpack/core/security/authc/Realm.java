@@ -8,10 +8,13 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -19,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * An authentication mechanism to which the default authentication org.elasticsearch.xpack.security.authc.AuthenticationService
@@ -29,7 +33,8 @@ public abstract class Realm implements Comparable<Realm> {
 
     protected final Logger logger = LogManager.getLogger(getClass());
 
-    protected RealmConfig config;
+    protected final RealmConfig config;
+    private final SetOnce<RealmRef> realmRef = new SetOnce<>();
 
     public Realm(RealmConfig config) {
         this.config = config;
@@ -53,7 +58,7 @@ public abstract class Realm implements Comparable<Realm> {
      * @return The order of this realm within the executing realm chain.
      */
     public int order() {
-        return config.order;
+        return config.order();
     }
 
     /**
@@ -71,11 +76,11 @@ public abstract class Realm implements Comparable<Realm> {
     }
 
     @Override
-    public int compareTo(Realm other) {
-        int result = Integer.compare(config.order, other.config.order);
+    public final int compareTo(Realm other) {
+        int result = Integer.compare(order(), other.order());
         if (result == 0) {
             // If same order, compare based on the realm name
-            result = config.name().compareTo(other.config.name());
+            result = name().compareTo(other.name());
         }
         return result;
     }
@@ -140,13 +145,30 @@ public abstract class Realm implements Comparable<Realm> {
         listener.onResponse(stats);
     }
 
+    public void initRealmRef(Map<RealmIdentifier, RealmRef> realmRefs) {
+        final RealmRef realmRef = Objects.requireNonNull(realmRefs.get(new RealmIdentifier(type(), name())), "realmRef must not be null");
+        this.realmRef.set(realmRef);
+    }
+
+    public RealmRef realmRef() {
+        RealmRef realmRef = this.realmRef.get();
+        if (realmRef == null) {
+            throw new IllegalStateException("Realm [" + this + "] not fully configured");
+        }
+        return realmRef;
+    }
+
     @Override
     public String toString() {
-        return config.type() + "/" + config.name();
+        if (realmRef.get() != null && realmRef.get().getDomain() != null) {
+            return config.type() + "/" + config.name() + "/" + realmRef.get().getDomain().name();
+        } else {
+            return config.type() + "/" + config.name();
+        }
     }
 
     /**
-     * This is no-op in the base class, but allows realms to be aware of what other realms are configured
+     * This allows realms to be aware of what other realms are configured.
      *
      * @see DelegatedAuthorizationSettings
      */

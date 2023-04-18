@@ -9,6 +9,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.TemplateScript;
@@ -23,7 +24,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -41,21 +41,52 @@ public class MustacheTests extends ESTestCase {
     private ScriptEngine engine = new MustacheScriptEngine();
 
     public void testBasics() {
-        String template = "GET _search {\"query\": "
-            + "{\"boosting\": {"
-            + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
-            + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}"
-            + "}}, \"negative_boost\": {{boost_val}} } }}";
+        String template = """
+            GET _search
+            {
+              "query": {
+                "boosting": {
+                  "positive": {
+                    "match": {
+                      "body": "gift"
+                    }
+                  },
+                  "negative": {
+                    "term": {
+                      "body": {
+                        "value": "solr"
+                      }
+                    }
+                  },
+                  "negative_boost": {{boost_val}}
+                }
+              }
+            }""";
         Map<String, Object> params = singletonMap("boost_val", "0.2");
 
         TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
         TemplateScript result = factory.newInstance(params);
-        assertEquals(
-            "Mustache templating broken",
-            "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
-                + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.2 } }}",
-            result.execute()
-        );
+        assertEquals("Mustache templating broken", """
+            GET _search
+            {
+              "query": {
+                "boosting": {
+                  "positive": {
+                    "match": {
+                      "body": "gift"
+                    }
+                  },
+                  "negative": {
+                    "term": {
+                      "body": {
+                        "value": "solr"
+                      }
+                    }
+                  },
+                  "negative_boost": 0.2
+                }
+              }
+            }""", result.execute());
     }
 
     public void testArrayAccess() throws Exception {
@@ -119,7 +150,7 @@ public class MustacheTests extends ESTestCase {
         data.put("list", randomList);
         Map<String, Object> vars = new HashMap<>();
         vars.put("data", data);
-        String expectedString = String.format(Locale.ROOT, "%s %s", randomArrayValues.length, randomList.size());
+        String expectedString = Strings.format("%s %s", randomArrayValues.length, randomList.size());
         assertThat(factory.newInstance(vars).execute(), equalTo(expectedString));
     }
 
@@ -151,8 +182,20 @@ public class MustacheTests extends ESTestCase {
 
         Map<String, Object> ctx = singletonMap("ctx", human0);
 
-        assertScript("{{#toJson}}.{{/toJson}}", ctx, equalTo("{\"ctx\":{\"name\":\"John Smith\",\"age\":42,\"height\":1.84}}"));
-        assertScript("{{#toJson}}ctx{{/toJson}}", ctx, equalTo("{\"name\":\"John Smith\",\"age\":42,\"height\":1.84}"));
+        assertScript("{{#toJson}}.{{/toJson}}", ctx, equalTo(XContentHelper.stripWhitespace("""
+            {
+              "ctx": {
+                "name": "John Smith",
+                "age": 42,
+                "height": 1.84
+              }
+            }""")));
+        assertScript("{{#toJson}}ctx{{/toJson}}", ctx, equalTo(XContentHelper.stripWhitespace("""
+            {
+              "name": "John Smith",
+              "age": 42,
+              "height": 1.84
+            }""")));
         assertScript("{{#toJson}}ctx.name{{/toJson}}", ctx, equalTo("John Smith"));
     }
 
@@ -173,34 +216,49 @@ public class MustacheTests extends ESTestCase {
 
         Map<String, Object> ctx = singletonMap("ctx", humans);
 
-        assertScript(
-            "{{#toJson}}.{{/toJson}}",
-            ctx,
-            equalTo(
-                "{\"ctx\":{\"first\":{\"name\":\"John Smith\",\"age\":42,\"height\":1.84},\"second\":"
-                    + "{\"name\":\"Dave Smith\",\"age\":27,\"height\":1.71}}}"
-            )
-        );
+        assertScript("{{#toJson}}.{{/toJson}}", ctx, equalTo(XContentHelper.stripWhitespace("""
+            {
+              "ctx": {
+                "first": {
+                  "name": "John Smith",
+                  "age": 42,
+                  "height": 1.84
+                },
+                "second": {
+                  "name": "Dave Smith",
+                  "age": 27,
+                  "height": 1.71
+                }
+              }
+            }""")));
 
-        assertScript(
-            "{{#toJson}}ctx{{/toJson}}",
-            ctx,
-            equalTo(
-                "{\"first\":{\"name\":\"John Smith\",\"age\":42,\"height\":1.84},\"second\":"
-                    + "{\"name\":\"Dave Smith\",\"age\":27,\"height\":1.71}}"
-            )
-        );
+        assertScript("{{#toJson}}ctx{{/toJson}}", ctx, equalTo(XContentHelper.stripWhitespace("""
+            {
+              "first": {
+                "name": "John Smith",
+                "age": 42,
+                "height": 1.84
+              },
+              "second": {
+                "name": "Dave Smith",
+                "age": 27,
+                "height": 1.71
+              }
+            }""")));
 
-        assertScript("{{#toJson}}ctx.first{{/toJson}}", ctx, equalTo("{\"name\":\"John Smith\",\"age\":42,\"height\":1.84}"));
+        assertScript("{{#toJson}}ctx.first{{/toJson}}", ctx, equalTo("""
+            {"name":"John Smith","age":42,"height":1.84}"""));
 
-        assertScript("{{#toJson}}ctx.second{{/toJson}}", ctx, equalTo("{\"name\":\"Dave Smith\",\"age\":27,\"height\":1.71}"));
+        assertScript("{{#toJson}}ctx.second{{/toJson}}", ctx, equalTo("""
+            {"name":"Dave Smith","age":27,"height":1.71}"""));
     }
 
     public void testSimpleArrayToJSON() throws Exception {
         String[] array = new String[] { "one", "two", "three" };
         Map<String, Object> ctx = singletonMap("array", array);
 
-        assertScript("{{#toJson}}.{{/toJson}}", ctx, equalTo("{\"array\":[\"one\",\"two\",\"three\"]}"));
+        assertScript("{{#toJson}}.{{/toJson}}", ctx, equalTo("""
+            {"array":["one","two","three"]}"""));
         assertScript("{{#toJson}}array{{/toJson}}", ctx, equalTo("[\"one\",\"two\",\"three\"]"));
         assertScript("{{#toJson}}array.0{{/toJson}}", ctx, equalTo("one"));
         assertScript("{{#toJson}}array.1{{/toJson}}", ctx, equalTo("two"));
@@ -212,7 +270,8 @@ public class MustacheTests extends ESTestCase {
         List<String> list = Arrays.asList("one", "two", "three");
         Map<String, Object> ctx = singletonMap("ctx", list);
 
-        assertScript("{{#toJson}}.{{/toJson}}", ctx, equalTo("{\"ctx\":[\"one\",\"two\",\"three\"]}"));
+        assertScript("{{#toJson}}.{{/toJson}}", ctx, equalTo("""
+            {"ctx":["one","two","three"]}"""));
         assertScript("{{#toJson}}ctx{{/toJson}}", ctx, equalTo("[\"one\",\"two\",\"three\"]"));
         assertScript("{{#toJson}}ctx.0{{/toJson}}", ctx, equalTo("one"));
         assertScript("{{#toJson}}ctx.1{{/toJson}}", ctx, equalTo("two"));
@@ -255,11 +314,9 @@ public class MustacheTests extends ESTestCase {
             XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2()
         );
 
-        assertScript(
-            "{{#ctx.bulks}}{{#toJson}}.{{/toJson}}{{/ctx.bulks}}",
-            ctx,
-            equalTo("{\"index\":\"index-1\",\"id\":1,\"type\":\"type-1\"}{\"index\":\"index-2\",\"id\":2,\"type\":\"type-2\"}")
-        );
+        assertScript("{{#ctx.bulks}}{{#toJson}}.{{/toJson}}{{/ctx.bulks}}", ctx, equalTo("""
+            {"index":"index-1","id":1,"type":"type-1"}\
+            {"index":"index-2","id":2,"type":"type-2"}"""));
 
         assertScript("{{#ctx.bulks}}<{{#toJson}}id{{/toJson}}>{{/ctx.bulks}}", ctx, equalTo("<1><2>"));
     }

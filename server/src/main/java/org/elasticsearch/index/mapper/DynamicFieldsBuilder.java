@@ -18,7 +18,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.time.format.DateTimeParseException;
+import java.time.DateTimeException;
 import java.util.Map;
 
 /**
@@ -44,7 +44,8 @@ final class DynamicFieldsBuilder {
      * delegates to the appropriate strategy which depends on the current dynamic mode.
      * The strategy defines if fields are going to be mapped as ordinary or runtime fields.
      */
-    void createDynamicFieldFromValue(final DocumentParserContext context, XContentParser.Token token, String name) throws IOException {
+    void createDynamicFieldFromValue(final DocumentParserContext context, String name) throws IOException {
+        XContentParser.Token token = context.parser().currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             String text = context.parser().text();
 
@@ -84,8 +85,8 @@ final class DynamicFieldsBuilder {
                 // `epoch_millis` or `YYYY`
                 for (DateFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                     try {
-                        dateTimeFormatter.parse(text);
-                    } catch (ElasticsearchParseException | DateTimeParseException | IllegalArgumentException e) {
+                        dateTimeFormatter.parseMillis(text);
+                    } catch (DateTimeException | ElasticsearchParseException | IllegalArgumentException e) {
                         // failure to parse this, continue
                         continue;
                     }
@@ -157,24 +158,27 @@ final class DynamicFieldsBuilder {
     /**
      * Returns a dynamically created object mapper, eventually based on a matching dynamic template.
      */
-    Mapper createDynamicObjectMapper(DocumentParserContext context, String name) {
+    static Mapper createDynamicObjectMapper(DocumentParserContext context, String name) {
         Mapper mapper = createObjectMapperFromTemplate(context, name);
-        return mapper != null ? mapper : new ObjectMapper.Builder(name).enabled(true).build(MapperBuilderContext.forPath(context.path()));
+        return mapper != null
+            ? mapper
+            : new ObjectMapper.Builder(name, ObjectMapper.Defaults.SUBOBJECTS).enabled(ObjectMapper.Defaults.ENABLED)
+                .build(context.createDynamicMapperBuilderContext());
     }
 
     /**
      * Returns a dynamically created object mapper, based exclusively on a matching dynamic template, null otherwise.
      */
-    Mapper createObjectMapperFromTemplate(DocumentParserContext context, String name) {
+    static Mapper createObjectMapperFromTemplate(DocumentParserContext context, String name) {
         Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
-        return templateBuilder == null ? null : templateBuilder.build(MapperBuilderContext.forPath(context.path()));
+        return templateBuilder == null ? null : templateBuilder.build(context.createDynamicMapperBuilderContext());
     }
 
     /**
      * Creates a dynamic string field based on a matching dynamic template.
      * No field is created in case there is no matching dynamic template.
      */
-    void createDynamicStringFieldFromTemplate(DocumentParserContext context, String name) throws IOException {
+    static void createDynamicStringFieldFromTemplate(DocumentParserContext context, String name) throws IOException {
         createDynamicField(context, name, DynamicTemplate.XContentFieldType.STRING, () -> {});
     }
 
@@ -302,7 +306,7 @@ final class DynamicFieldsBuilder {
         }
 
         void createDynamicField(Mapper.Builder builder, DocumentParserContext context) throws IOException {
-            Mapper mapper = builder.build(MapperBuilderContext.forPath(context.path()));
+            Mapper mapper = builder.build(context.createDynamicMapperBuilderContext());
             context.addDynamicMapper(mapper);
             parseField.accept(context, mapper);
         }
@@ -311,7 +315,7 @@ final class DynamicFieldsBuilder {
         public void newDynamicStringField(DocumentParserContext context, String name) throws IOException {
             createDynamicField(
                 new TextFieldMapper.Builder(name, context.indexAnalyzers()).addMultiField(
-                    new KeywordFieldMapper.Builder("keyword").ignoreAbove(256)
+                    new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
                 ),
                 context
             );
@@ -324,7 +328,9 @@ final class DynamicFieldsBuilder {
                     name,
                     NumberFieldMapper.NumberType.LONG,
                     ScriptCompiler.NONE,
-                    context.indexSettings().getSettings()
+                    context.indexSettings().getSettings(),
+                    context.indexSettings().getIndexVersionCreated(),
+                    context.indexSettings().getMode()
                 ),
                 context
             );
@@ -340,7 +346,9 @@ final class DynamicFieldsBuilder {
                     name,
                     NumberFieldMapper.NumberType.FLOAT,
                     ScriptCompiler.NONE,
-                    context.indexSettings().getSettings()
+                    context.indexSettings().getSettings(),
+                    context.indexSettings().getIndexVersionCreated(),
+                    context.indexSettings().getMode()
                 ),
                 context
             );
@@ -348,7 +356,17 @@ final class DynamicFieldsBuilder {
 
         @Override
         public void newDynamicBooleanField(DocumentParserContext context, String name) throws IOException {
-            createDynamicField(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE), context);
+            Settings settings = context.indexSettings().getSettings();
+            boolean ignoreMalformed = FieldMapper.IGNORE_MALFORMED_SETTING.get(settings);
+            createDynamicField(
+                new BooleanFieldMapper.Builder(
+                    name,
+                    ScriptCompiler.NONE,
+                    ignoreMalformed,
+                    context.indexSettings().getIndexVersionCreated()
+                ),
+                context
+            );
         }
 
         @Override
@@ -410,7 +428,9 @@ final class DynamicFieldsBuilder {
         @Override
         public void newDynamicDateField(DocumentParserContext context, String name, DateFormatter dateFormatter) {
             String fullName = context.path().pathAsText(name);
-            createDynamicField(DateScriptFieldType.sourceOnly(fullName, dateFormatter), context);
+            MappingParserContext parserContext = context.dynamicTemplateParserContext(dateFormatter);
+
+            createDynamicField(DateScriptFieldType.sourceOnly(fullName, dateFormatter, parserContext.indexVersionCreated()), context);
         }
     }
 }

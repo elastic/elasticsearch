@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -406,10 +407,7 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     private ScriptContextStats getByContext(ScriptStats stats, String context) {
-        List<ScriptContextStats> maybeContextStats = stats.getContextStats()
-            .stream()
-            .filter(c -> c.getContext().equals(context))
-            .collect(Collectors.toList());
+        List<ScriptContextStats> maybeContextStats = stats.getContextStats().stream().filter(c -> c.getContext().equals(context)).toList();
         assertEquals(1, maybeContextStats.size());
         return maybeContextStats.get(0);
     }
@@ -431,20 +429,16 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testDeleteScript() throws Exception {
-        ScriptMetadata scriptMetadata = ScriptMetadata.putStoredScript(
-            null,
-            "_id",
-            StoredScriptSource.parse(new BytesArray("{\"script\": {\"lang\": \"_lang\", \"source\": \"abc\"} }"), XContentType.JSON)
-        );
+        ScriptMetadata scriptMetadata = ScriptMetadata.putStoredScript(null, "_id", StoredScriptSource.parse(new BytesArray("""
+            {"script": {"lang": "_lang", "source": "abc"} }"""), XContentType.JSON));
         scriptMetadata = ScriptMetadata.deleteStoredScript(scriptMetadata, "_id");
         assertNotNull(scriptMetadata);
         assertNull(scriptMetadata.getStoredScript("_id"));
 
         ScriptMetadata errorMetadata = scriptMetadata;
-        ResourceNotFoundException e = expectThrows(
-            ResourceNotFoundException.class,
-            () -> { ScriptMetadata.deleteStoredScript(errorMetadata, "_id"); }
-        );
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> {
+            ScriptMetadata.deleteStoredScript(errorMetadata, "_id");
+        });
         assertEquals("stored script [_id] does not exist and cannot be deleted", e.getMessage());
     }
 
@@ -455,44 +449,32 @@ public class ScriptServiceTests extends ESTestCase {
                 Metadata.builder()
                     .putCustom(
                         ScriptMetadata.TYPE,
-                        new ScriptMetadata.Builder(null).storeScript(
-                            "_id",
-                            StoredScriptSource.parse(
-                                new BytesArray("{\"script\": {\"lang\": \"_lang\", \"source\": \"abc\"} }"),
-                                XContentType.JSON
-                            )
-                        ).build()
+                        new ScriptMetadata.Builder(null).storeScript("_id", StoredScriptSource.parse(new BytesArray("""
+                            {"script": {"lang": "_lang", "source": "abc"} }"""), XContentType.JSON)).build()
                     )
             )
             .build();
 
-        assertEquals("abc", scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")).getSource());
+        assertEquals("abc", ScriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")).getSource());
 
         cs = ClusterState.builder(new ClusterName("_name")).build();
-        assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")));
+        assertNull(ScriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")));
     }
 
     public void testMaxSizeLimit() throws Exception {
         buildScriptService(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 4).build());
         scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> {
-                scriptService.compile(
-                    new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()),
-                    randomFrom(contexts.values())
-                );
-            }
-        );
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
+            scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
+        });
         assertEquals("exceeded max allowed inline script size in bytes [4] with size [5] for script [10+10]", iae.getMessage());
         clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 6).build());
         scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
         clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 5).build());
         scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));
-        iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> { clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 2).build()); }
-        );
+        iae = expectThrows(IllegalArgumentException.class, () -> {
+            clusterSettings.applySettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 2).build());
+        });
         assertEquals(
             "script.max_size_in_bytes cannot be set to [2], stored script [test1] exceeds the new value with a size of [3]",
             iae.getMessage()
@@ -500,45 +482,44 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testConflictContextSettings() throws IOException {
+        String fieldCacheKey = ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace("field").getKey();
         IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
             buildScriptService(
-                Settings.builder()
-                    .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "10/1m")
-                    .put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace("field").getKey(), 123)
-                    .build()
+                Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "10/1m").put(fieldCacheKey, 123).build()
             );
         });
         assertEquals(
-            "Context cache settings [script.context.field.cache_max_size] requires " + "[script.max_compilations_rate] to be [use-context]",
+            "Context cache settings [script.context.field.cache_max_size] are incompatible with [script.max_compilations_rate]"
+                + " set to non-default value [10/1m]. Either remove the incompatible settings (recommended) or set"
+                + " [script.max_compilations_rate] to [use-context] to use per-context settings",
             illegal.getMessage()
         );
 
+        String ingestExpireKey = ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("ingest").getKey();
         illegal = expectThrows(IllegalArgumentException.class, () -> {
             buildScriptService(
-                Settings.builder()
-                    .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "10/1m")
-                    .put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace("ingest").getKey(), "5m")
-                    .build()
+                Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "10/1m").put(ingestExpireKey, "5m").build()
             );
         });
 
         assertEquals(
-            "Context cache settings [script.context.ingest.cache_expire] requires " + "[script.max_compilations_rate] to be [use-context]",
+            "Context cache settings [script.context.ingest.cache_expire] are incompatible with [script.max_compilations_rate]"
+                + " set to non-default value [10/1m]. Either remove the incompatible settings (recommended) or set"
+                + " [script.max_compilations_rate] to [use-context] to use per-context settings",
             illegal.getMessage()
         );
 
+        String scoreCompileKey = ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("score").getKey();
         illegal = expectThrows(IllegalArgumentException.class, () -> {
             buildScriptService(
-                Settings.builder()
-                    .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "10/1m")
-                    .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("score").getKey(), "50/5m")
-                    .build()
+                Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), "10/1m").put(scoreCompileKey, "50/5m").build()
             );
         });
 
         assertEquals(
-            "Context cache settings [script.context.score.max_compilations_rate] requires "
-                + "[script.max_compilations_rate] to be [use-context]",
+            "Context cache settings [script.context.score.max_compilations_rate] are incompatible with [script.max_compilations_rate]"
+                + " set to non-default value [10/1m]. Either remove the incompatible settings (recommended) or set"
+                + " [script.max_compilations_rate] to [use-context] to use per-context settings",
             illegal.getMessage()
         );
 
@@ -556,8 +537,17 @@ public class ScriptServiceTests extends ESTestCase {
         );
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { ingestExpire, fieldSize, scoreCompilation },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
+            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE),
+            new DeprecationWarning(Level.WARN, implicitContextCacheMessage(fieldCacheKey)),
+            new DeprecationWarning(Level.WARN, implicitContextCacheMessage(ingestExpireKey)),
+            new DeprecationWarning(Level.WARN, implicitContextCacheMessage(scoreCompileKey))
         );
+    }
+
+    protected static String implicitContextCacheMessage(String... settings) {
+        return "Implicitly using the script context cache is deprecated, remove settings ["
+            + Arrays.stream(settings).sorted().collect(Collectors.joining(", "))
+            + "] to use the script general cache.";
     }
 
     public void testFallbackContextSettings() {
@@ -595,10 +585,9 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertEquals(ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.get(s), ScriptService.USE_CONTEXT_RATE_VALUE);
 
-        IllegalArgumentException illegal = expectThrows(
-            IllegalArgumentException.class,
-            () -> { ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getAsMap(s); }
-        );
+        IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
+            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getAsMap(s);
+        });
 
         assertEquals("parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [use-context]", illegal.getMessage());
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { contextMaxCompilationRate });
@@ -640,6 +629,53 @@ public class ScriptServiceTests extends ESTestCase {
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { aSetting, bSetting },
             new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
+        );
+    }
+
+    public void testImplicitContextCache() throws IOException {
+        String a = randomFrom(rateLimitedContexts.keySet());
+        String b = randomValueOtherThan(a, () -> randomFrom(rateLimitedContexts.keySet()));
+        String aCompilationRate = "77/5m";
+        String bCompilationRate = "78/6m";
+
+        Setting<?> aSetting = SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(a);
+        Setting<?> bSetting = SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(b);
+        buildScriptService(Settings.builder().put(aSetting.getKey(), aCompilationRate).put(bSetting.getKey(), bCompilationRate).build());
+
+        assertNull(scriptService.cacheHolder.get().general);
+        assertNotNull(scriptService.cacheHolder.get().contextCache);
+        assertEquals(contexts.keySet(), scriptService.cacheHolder.get().contextCache.keySet());
+
+        assertEquals(new ScriptCache.CompilationRate(aCompilationRate), scriptService.cacheHolder.get().contextCache.get(a).get().rate);
+        assertEquals(new ScriptCache.CompilationRate(bCompilationRate), scriptService.cacheHolder.get().contextCache.get(b).get().rate);
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { aSetting, bSetting },
+            new DeprecationWarning(Level.WARN, implicitContextCacheMessage(aSetting.getKey(), bSetting.getKey()))
+        );
+    }
+
+    public void testImplicitContextCacheWithoutCompilationRate() throws IOException {
+        String a = randomFrom(rateLimitedContexts.keySet());
+        String b = randomValueOtherThan(a, () -> randomFrom(rateLimitedContexts.keySet()));
+        String aExpire = "20m";
+        int bSize = 2000;
+
+        Setting<?> aSetting = SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(a);
+        Setting<?> bSetting = SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(b);
+        buildScriptService(Settings.builder().put(aSetting.getKey(), aExpire).put(bSetting.getKey(), bSize).build());
+
+        assertNull(scriptService.cacheHolder.get().general);
+        assertNotNull(scriptService.cacheHolder.get().contextCache);
+        assertEquals(contexts.keySet(), scriptService.cacheHolder.get().contextCache.keySet());
+
+        assertEquals(
+            TimeValue.parseTimeValue("20m", aSetting.getKey()),
+            scriptService.cacheHolder.get().contextCache.get(a).get().cacheExpire
+        );
+        assertEquals(bSize, scriptService.cacheHolder.get().contextCache.get(b).get().cacheSize);
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { aSetting, bSetting },
+            new DeprecationWarning(Level.WARN, implicitContextCacheMessage(aSetting.getKey(), bSetting.getKey()))
         );
     }
 

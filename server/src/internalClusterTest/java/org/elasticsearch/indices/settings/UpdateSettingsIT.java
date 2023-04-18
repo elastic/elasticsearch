@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -112,11 +114,9 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         @Override
         public void onIndexModule(IndexModule indexModule) {
-            indexModule.addSettingsUpdateConsumer(
-                DUMMY_SETTING,
-                (s) -> {},
-                (s) -> { if (s.equals("boom")) throw new IllegalArgumentException("this setting goes boom"); }
-            );
+            indexModule.addSettingsUpdateConsumer(DUMMY_SETTING, (s) -> {}, (s) -> {
+                if (s.equals("boom")) throw new IllegalArgumentException("this setting goes boom");
+            });
         }
 
         @Override
@@ -218,11 +218,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             );
             assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.acc.test.pw").putNull("cluster.acc.test.user"))
-                .get();
+            updateClusterSettings(Settings.builder().putNull("cluster.acc.test.pw").putNull("cluster.acc.test.user"));
         }
     }
 
@@ -341,7 +337,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             IndexService indexService = service.indexService(resolveIndex("test"));
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), -1);
-                assertEquals(indexService.getIndexSettings().getFlushThresholdSize().getBytes(), 1024);
+                assertEquals(indexService.getIndexSettings().getFlushThresholdSize(new ByteSizeValue(1, ByteSizeUnit.TB)).getBytes(), 1024);
                 assertEquals(indexService.getIndexSettings().getGenerationThresholdSize().getBytes(), 4096);
             }
         }
@@ -357,7 +353,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             IndexService indexService = service.indexService(resolveIndex("test"));
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), 1000);
-                assertEquals(indexService.getIndexSettings().getFlushThresholdSize().getBytes(), 1024);
+                assertEquals(indexService.getIndexSettings().getFlushThresholdSize(new ByteSizeValue(1, ByteSizeUnit.TB)).getBytes(), 1024);
                 assertEquals(indexService.getIndexSettings().getGenerationThresholdSize().getBytes(), 4096);
             }
         }
@@ -812,7 +808,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
     public void testNoopUpdate() {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+        final ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
         assertAcked(
             client().admin()
                 .indices()
@@ -879,6 +875,49 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().putNull(SETTING_BLOCKS_READ)));
         assertNotSame(currentState, clusterService.state());
+    }
+
+    public void testAllSettingStringInterned() {
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+
+        final String index1 = "index-1";
+        final String index2 = "index-2";
+        createIndex(index1, index2);
+        final ClusterService clusterServiceMaster = internalCluster().getInstance(ClusterService.class, masterNode);
+        final ClusterService clusterServiceData = internalCluster().getInstance(ClusterService.class, dataNode);
+        final Settings index1SettingsMaster = clusterServiceMaster.state().metadata().index(index1).getSettings();
+        final Settings index1SettingsData = clusterServiceData.state().metadata().index(index1).getSettings();
+        assertNotSame(index1SettingsMaster, index1SettingsData);
+        assertSame(index1SettingsMaster.get(IndexMetadata.SETTING_INDEX_UUID), index1SettingsData.get(IndexMetadata.SETTING_INDEX_UUID));
+
+        // Create a list of not interned strings to make sure interning setting values works
+        final List<String> queryFieldsSetting = List.of(new String("foo"), new String("bar"), new String("bla"));
+        assertAcked(
+            admin().indices()
+                .prepareUpdateSettings(index1, index2)
+                .setSettings(Settings.builder().putList("query.default_field", queryFieldsSetting))
+        );
+        final Settings updatedIndex1SettingsMaster = clusterServiceMaster.state().metadata().index(index1).getSettings();
+        final Settings updatedIndex1SettingsData = clusterServiceData.state().metadata().index(index1).getSettings();
+        assertNotSame(updatedIndex1SettingsMaster, updatedIndex1SettingsData);
+        assertEqualsAndStringsInterned(queryFieldsSetting, updatedIndex1SettingsMaster);
+        assertEqualsAndStringsInterned(queryFieldsSetting, updatedIndex1SettingsData);
+        assertEqualsAndStringsInterned(queryFieldsSetting, clusterServiceMaster.state().metadata().index(index2).getSettings());
+        assertEqualsAndStringsInterned(queryFieldsSetting, clusterServiceData.state().metadata().index(index2).getSettings());
+    }
+
+    private void assertEqualsAndStringsInterned(List<String> queryFieldsSetting, Settings settings) {
+        final List<String> defaultFields = settings.getAsList("index.query.default_field");
+        assertEquals(queryFieldsSetting, defaultFields);
+        assertNotSame(queryFieldsSetting, defaultFields);
+        // all setting strings should be interned
+        assertSame("foo", defaultFields.get(0));
+        assertSame("bar", defaultFields.get(1));
+        assertSame("bla", defaultFields.get(2));
+        for (String key : settings.keySet()) {
+            assertSame(key, key.intern());
+        }
     }
 
 }

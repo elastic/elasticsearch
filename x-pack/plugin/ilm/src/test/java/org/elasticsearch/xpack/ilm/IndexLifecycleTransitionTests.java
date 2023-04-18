@@ -9,13 +9,15 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -25,14 +27,15 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.AbstractStepTestCase;
+import org.elasticsearch.xpack.core.ilm.DataTierMigrationRoutedStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.MockAction;
 import org.elasticsearch.xpack.core.ilm.MockStep;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -53,7 +56,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.eligibleToCheckForRefresh;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.refreshPhaseDefinition;
 import static org.elasticsearch.xpack.ilm.IndexLifecycleRunnerTests.createOneStepPolicyStepRegistry;
@@ -105,9 +108,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(currentStep.getPhase());
-        lifecycleState.setAction(currentStep.getAction());
-        lifecycleState.setStep(currentStep.getName());
+        lifecycleState.setPhase(currentStep.phase());
+        lifecycleState.setAction(currentStep.action());
+        lifecycleState.setStep(currentStep.name());
         // test going from set currentStep settings to nextStep
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy.getName());
         if (randomBoolean()) {
@@ -137,9 +140,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             indexName,
             Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy.getName()),
             LifecycleExecutionState.builder()
-                .setPhase(currentStep.getPhase())
-                .setAction(currentStep.getAction())
-                .setStep(currentStep.getName())
+                .setPhase(currentStep.phase())
+                .setAction(currentStep.action())
+                .setStep(currentStep.name())
                 .build(),
             policyMetadatas
         );
@@ -156,9 +159,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(currentStep.getPhase());
-        lifecycleState.setAction(currentStep.getAction());
-        lifecycleState.setStep(currentStep.getName());
+        lifecycleState.setPhase(currentStep.phase());
+        lifecycleState.setAction(currentStep.action());
+        lifecycleState.setStep(currentStep.name());
         if (randomBoolean()) {
             lifecycleState.setStepInfo(randomAlphaOfLength(20));
         }
@@ -188,9 +191,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             indexName,
             Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy.getName()),
             LifecycleExecutionState.builder()
-                .setPhase(currentStep.getPhase())
-                .setAction(currentStep.getAction())
-                .setStep(currentStep.getName())
+                .setPhase(currentStep.phase())
+                .setAction(currentStep.action())
+                .setStep(currentStep.name())
                 .build(),
             policyMetadatas
         );
@@ -207,9 +210,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(currentStep.getPhase());
-        lifecycleState.setAction(currentStep.getAction());
-        lifecycleState.setStep(currentStep.getName());
+        lifecycleState.setPhase(currentStep.phase());
+        lifecycleState.setAction(currentStep.action());
+        lifecycleState.setStep(currentStep.name());
         if (randomBoolean()) {
             lifecycleState.setStepInfo(randomAlphaOfLength(20));
         }
@@ -244,9 +247,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(currentStepKey.getPhase());
-        lifecycleState.setAction(currentStepKey.getAction());
-        lifecycleState.setStep(currentStepKey.getName());
+        lifecycleState.setPhase(currentStepKey.phase());
+        lifecycleState.setAction(currentStepKey.action());
+        lifecycleState.setStep(currentStepKey.name());
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName);
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
@@ -273,9 +276,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, randomBoolean() ? "" : null);
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(currentStepKey.getPhase());
-        lifecycleState.setAction(currentStepKey.getAction());
-        lifecycleState.setStep(currentStepKey.getName());
+        lifecycleState.setPhase(currentStepKey.phase());
+        lifecycleState.setAction(currentStepKey.action());
+        lifecycleState.setStep(currentStepKey.name());
 
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), Collections.emptyList());
         Index index = clusterState.metadata().index(indexName).getIndex();
@@ -297,9 +300,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName);
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(currentStepKey.getPhase());
-        lifecycleState.setAction(currentStepKey.getAction());
-        lifecycleState.setStep(currentStepKey.getName());
+        lifecycleState.setPhase(currentStepKey.phase());
+        lifecycleState.setAction(currentStepKey.action());
+        lifecycleState.setStep(currentStepKey.name());
 
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), Collections.emptyList());
         Index index = clusterState.metadata().index(indexName).getIndex();
@@ -307,13 +310,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> IndexLifecycleTransition.moveClusterStateToStep(index, clusterState, nextStepKey, () -> now, stepRegistry, true)
         );
-        assertThat(
-            exception.getMessage(),
-            equalTo(
-                "step [{\"phase\":\"next_phase\",\"action\":\"next_action\",\"name\":\"next_step\"}] "
-                    + "for index [my_index] with policy [my_policy] does not exist"
-            )
-        );
+        assertThat(exception.getMessage(), equalTo("""
+            step [{"phase":"next_phase","action":"next_action","name":"next_step"}] \
+            for index [my_index] with policy [my_policy] does not exist"""));
     }
 
     public void testMoveClusterStateToErrorStep() throws IOException {
@@ -324,9 +323,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         Exception cause = new ElasticsearchException("THIS IS AN EXPECTED CAUSE");
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(currentStep.getPhase());
-        lifecycleState.setAction(currentStep.getAction());
-        lifecycleState.setStep(currentStep.getName());
+        lifecycleState.setPhase(currentStep.phase());
+        lifecycleState.setAction(currentStep.action());
+        lifecycleState.setStep(currentStep.name());
         ClusterState clusterState = buildClusterState(indexName, Settings.builder(), lifecycleState.build(), Collections.emptyList());
         Index index = clusterState.metadata().index(indexName).getIndex();
 
@@ -337,14 +336,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             () -> now,
             (idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey)
         );
-        assertClusterStateOnErrorStep(
-            clusterState,
-            index,
-            currentStep,
-            newClusterState,
-            now,
-            "{\"type\":\"exception\",\"reason\":\"THIS IS AN EXPECTED CAUSE\""
-        );
+        assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, now, """
+            {"type":"exception","reason":"THIS IS AN EXPECTED CAUSE\"""");
 
         cause = new IllegalArgumentException("non elasticsearch-exception");
         newClusterState = IndexLifecycleTransition.moveClusterStateToErrorStep(
@@ -354,14 +347,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             () -> now,
             (idxMeta, stepKey) -> new MockStep(stepKey, nextStepKey)
         );
-        assertClusterStateOnErrorStep(
-            clusterState,
-            index,
-            currentStep,
-            newClusterState,
-            now,
-            "{\"type\":\"illegal_argument_exception\",\"reason\":\"non elasticsearch-exception\",\"stack_trace\":\""
-        );
+        assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, now, """
+            {"type":"illegal_argument_exception","reason":"non elasticsearch-exception\"""");
     }
 
     public void testAddStepInfoToClusterState() throws IOException {
@@ -370,9 +357,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         RandomStepInfo stepInfo = new RandomStepInfo(() -> randomAlphaOfLength(10));
 
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(currentStep.getPhase());
-        lifecycleState.setAction(currentStep.getAction());
-        lifecycleState.setStep(currentStep.getName());
+        lifecycleState.setPhase(currentStep.phase());
+        lifecycleState.setAction(currentStep.action());
+        lifecycleState.setStep(currentStep.name());
         ClusterState clusterState = buildClusterState(indexName, Settings.builder(), lifecycleState.build(), Collections.emptyList());
         Index index = clusterState.metadata().index(indexName).getIndex();
         ClusterState newClusterState = IndexLifecycleTransition.addStepInfoToClusterState(index, clusterState, stepInfo);
@@ -388,9 +375,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         LifecyclePolicy oldPolicy = createPolicy(oldPolicyName, currentStep, null);
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName);
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(currentStep.getPhase());
-        lifecycleState.setAction(currentStep.getAction());
-        lifecycleState.setStep(currentStep.getName());
+        lifecycleState.setPhase(currentStep.phase());
+        lifecycleState.setAction(currentStep.action());
+        lifecycleState.setStep(currentStep.name());
         List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
         policyMetadatas.add(
             new LifecyclePolicyMetadata(oldPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
@@ -432,9 +419,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         Step.StepKey currentStep = AbstractStepTestCase.randomStepKey();
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName);
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(currentStep.getPhase());
-        lifecycleState.setAction(currentStep.getAction());
-        lifecycleState.setStep(currentStep.getName());
+        lifecycleState.setPhase(currentStep.phase());
+        lifecycleState.setAction(currentStep.action());
+        lifecycleState.setStep(currentStep.name());
         List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
         policyMetadatas.add(
             new LifecyclePolicyMetadata(oldPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
@@ -458,9 +445,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         LifecyclePolicy oldPolicy = createPolicy(oldPolicyName, null, currentStep);
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName);
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(currentStep.getPhase());
-        lifecycleState.setAction(currentStep.getAction());
-        lifecycleState.setStep(currentStep.getName());
+        lifecycleState.setPhase(currentStep.phase());
+        lifecycleState.setAction(currentStep.action());
+        lifecycleState.setStep(currentStep.name());
         List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
         policyMetadatas.add(
             new LifecyclePolicyMetadata(oldPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
@@ -485,9 +472,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .put(LifecycleSettings.LIFECYCLE_NAME, oldPolicyName)
             .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true);
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(currentStep.getPhase());
-        lifecycleState.setAction(currentStep.getAction());
-        lifecycleState.setStep(currentStep.getName());
+        lifecycleState.setPhase(currentStep.phase());
+        lifecycleState.setAction(currentStep.action());
+        lifecycleState.setStep(currentStep.name());
         List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
         policyMetadatas.add(
             new LifecyclePolicyMetadata(oldPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
@@ -585,41 +572,44 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setPhase("hot")
             .setAction("rollover")
             .setStep("check-rollover-ready")
-            .setPhaseDefinition(
-                "{\n"
-                    + "        \"policy\" : \"my-policy\",\n"
-                    + "        \"phase_definition\" : {\n"
-                    + "          \"min_age\" : \"20m\",\n"
-                    + "          \"actions\" : {\n"
-                    + "            \"rollover\" : {\n"
-                    + "              \"max_age\" : \"5s\"\n"
-                    + "            },\n"
-                    + "            \"set_priority\" : {\n"
-                    + "              \"priority\" : 150\n"
-                    + "            }\n"
-                    + "          }\n"
-                    + "        },\n"
-                    + "        \"version\" : 1,\n"
-                    + "        \"modified_date_in_millis\" : 1578521007076\n"
-                    + "      }"
-            );
+            .setPhaseDefinition("""
+                {
+                  "policy" : "my-policy",
+                  "phase_definition" : {
+                    "min_age" : "20m",
+                    "actions" : {
+                      "rollover" : {
+                        "max_age" : "5s"
+                      },
+                      "set_priority" : {
+                        "priority" : 150
+                      }
+                    }
+                  },
+                  "version" : 1,
+                  "modified_date_in_millis" : 1578521007076
+                }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
 
-        Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
-        Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
-        Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
-        LifecyclePolicy policyWithoutRollover = new LifecyclePolicy("my-policy", phases);
-        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policyWithoutRollover, Collections.emptyMap(), 2L, 2L);
-
-        ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta, false).build())
-            .build();
         try (Client client = new NoOpClient(getTestName())) {
             Step.StepKey currentStepKey = new Step.StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME);
             Step.StepKey nextStepKey = new Step.StepKey("hot", RolloverAction.NAME, RolloverStep.NAME);
-            Step currentStep = new WaitForRolloverReadyStep(currentStepKey, nextStepKey, client, null, null, null, 1L);
+            Step currentStep = new WaitForRolloverReadyStep(
+                currentStepKey,
+                nextStepKey,
+                client,
+                null,
+                null,
+                null,
+                1L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
             try {
                 IndexLifecycleTransition.validateTransition(
                     meta,
@@ -634,12 +624,132 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         }
     }
 
+    public void testValidateTransitionToCachedStepWhenMissingPhaseFromPolicy() {
+        // we'll test the case when the warm phase was deleted and the next step is the phase complete one
+
+        LifecycleExecutionState.Builder executionState = LifecycleExecutionState.builder()
+            .setPhase("warm")
+            .setAction("migrate")
+            .setStep("check-migration")
+            .setPhaseDefinition("""
+                {
+                  "policy" : "my-policy",
+                  "phase_definition" : {
+                    "min_age" : "20m",
+                    "actions" : {
+                      "set_priority" : {
+                        "priority" : 150
+                      }
+                    }
+                  },
+                  "version" : 1,
+                  "modified_date_in_millis" : 1578521007076
+                }""");
+
+        IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
+
+        try (Client client = new NoOpClient(getTestName())) {
+            Step.StepKey currentStepKey = new Step.StepKey("warm", MigrateAction.NAME, DataTierMigrationRoutedStep.NAME);
+            Step.StepKey nextStepKey = new Step.StepKey("warm", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
+
+            Step.StepKey waitForRolloverStepKey = new Step.StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME);
+            Step.StepKey rolloverStepKey = new Step.StepKey("hot", RolloverAction.NAME, RolloverStep.NAME);
+            Step waitForRolloverReadyStep = new WaitForRolloverReadyStep(
+                waitForRolloverStepKey,
+                rolloverStepKey,
+                client,
+                null,
+                null,
+                null,
+                1L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
+
+            try {
+                IndexLifecycleTransition.validateTransition(
+                    meta,
+                    currentStepKey,
+                    nextStepKey,
+                    createOneStepPolicyStepRegistry("my-policy", waitForRolloverReadyStep)
+                );
+            } catch (Exception e) {
+                logger.error(e.getMessage(), e);
+                fail("validateTransition should not throw exception on valid transitions");
+            }
+        }
+    }
+
+    public void testValidateTransitionToInjectedMissingStep() {
+        // we'll test the case when the warm phase was deleted and the next step is an injected one
+
+        LifecycleExecutionState.Builder executionState = LifecycleExecutionState.builder()
+            .setPhase("warm")
+            .setAction("migrate")
+            .setStep("migrate")
+            .setPhaseDefinition("""
+                {
+                  "policy" : "my-policy",
+                  "phase_definition" : {
+                    "min_age" : "20m",
+                    "actions" : {
+                      "set_priority" : {
+                        "priority" : 150
+                      }
+                    }
+                  },
+                  "version" : 1,
+                  "modified_date_in_millis" : 1578521007076
+                }""");
+
+        IndexMetadata meta = buildIndexMetadata("my-policy", executionState);
+
+        try (Client client = new NoOpClient(getTestName())) {
+            Step.StepKey currentStepKey = new Step.StepKey("warm", MigrateAction.NAME, MigrateAction.NAME);
+            Step.StepKey nextStepKey = new Step.StepKey("warm", MigrateAction.NAME, DataTierMigrationRoutedStep.NAME);
+
+            Step.StepKey waitForRolloverStepKey = new Step.StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME);
+            Step.StepKey rolloverStepKey = new Step.StepKey("hot", RolloverAction.NAME, RolloverStep.NAME);
+            Step waitForRolloverReadyStep = new WaitForRolloverReadyStep(
+                waitForRolloverStepKey,
+                rolloverStepKey,
+                client,
+                null,
+                null,
+                null,
+                1L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
+
+            try {
+                IndexLifecycleTransition.validateTransition(
+                    meta,
+                    currentStepKey,
+                    nextStepKey,
+                    createOneStepPolicyStepRegistry("my-policy", waitForRolloverReadyStep)
+                );
+            } catch (Exception e) {
+                logger.error(e.getMessage(), e);
+                fail("validateTransition should not throw exception on valid transitions");
+            }
+        }
+    }
+
     public void testMoveClusterStateToFailedStep() {
         String indexName = "my_index";
         String policyName = "my_policy";
         long now = randomNonNegativeLong();
         Step.StepKey failedStepKey = new Step.StepKey("current_phase", MockAction.NAME, "current_step");
-        Step.StepKey errorStepKey = new Step.StepKey(failedStepKey.getPhase(), failedStepKey.getAction(), ErrorStep.NAME);
+        Step.StepKey errorStepKey = new Step.StepKey(failedStepKey.phase(), failedStepKey.action(), ErrorStep.NAME);
         Step step = new MockStep(failedStepKey, null);
         LifecyclePolicy policy = createPolicy(policyName, failedStepKey, null);
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(
@@ -652,13 +762,13 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         PolicyStepsRegistry policyRegistry = createOneStepPolicyStepRegistry(policyName, step);
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName);
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(errorStepKey.getPhase());
+        lifecycleState.setPhase(errorStepKey.phase());
         lifecycleState.setPhaseTime(now);
-        lifecycleState.setAction(errorStepKey.getAction());
+        lifecycleState.setAction(errorStepKey.action());
         lifecycleState.setActionTime(now);
-        lifecycleState.setStep(errorStepKey.getName());
+        lifecycleState.setStep(errorStepKey.name());
         lifecycleState.setStepTime(now);
-        lifecycleState.setFailedStep(failedStepKey.getName());
+        lifecycleState.setFailedStep(failedStepKey.name());
         ClusterState clusterState = buildClusterState(
             indexName,
             indexSettingsBuilder,
@@ -674,8 +784,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             false
         );
         IndexLifecycleRunnerTests.assertClusterStateOnNextStep(clusterState, index, errorStepKey, failedStepKey, nextClusterState, now);
-        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(nextClusterState.metadata().index(indexName));
-        assertThat("manual move to failed step should not count as a retry", executionState.getFailedStepRetryCount(), is(nullValue()));
+        LifecycleExecutionState executionState = nextClusterState.metadata().index(indexName).getLifecycleExecutionState();
+        assertThat("manual move to failed step should not count as a retry", executionState.failedStepRetryCount(), is(nullValue()));
     }
 
     public void testMoveClusterStateToFailedStepWithUnknownStep() {
@@ -683,9 +793,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         String policyName = "my_policy";
         long now = randomNonNegativeLong();
         Step.StepKey failedStepKey = new Step.StepKey("current_phase", MockAction.NAME, "current_step");
-        Step.StepKey errorStepKey = new Step.StepKey(failedStepKey.getPhase(), failedStepKey.getAction(), ErrorStep.NAME);
+        Step.StepKey errorStepKey = new Step.StepKey(failedStepKey.phase(), failedStepKey.action(), ErrorStep.NAME);
 
-        Step.StepKey registeredStepKey = new Step.StepKey(randomFrom(failedStepKey.getPhase(), "other"), MockAction.NAME, "different_step");
+        Step.StepKey registeredStepKey = new Step.StepKey(randomFrom(failedStepKey.phase(), "other"), MockAction.NAME, "different_step");
         Step step = new MockStep(registeredStepKey, null);
         LifecyclePolicy policy = createPolicy(policyName, failedStepKey, null);
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(
@@ -698,13 +808,13 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         PolicyStepsRegistry policyRegistry = createOneStepPolicyStepRegistry(policyName, step);
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName);
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(errorStepKey.getPhase());
+        lifecycleState.setPhase(errorStepKey.phase());
         lifecycleState.setPhaseTime(now);
-        lifecycleState.setAction(errorStepKey.getAction());
+        lifecycleState.setAction(errorStepKey.action());
         lifecycleState.setActionTime(now);
-        lifecycleState.setStep(errorStepKey.getName());
+        lifecycleState.setStep(errorStepKey.name());
         lifecycleState.setStepTime(now);
-        lifecycleState.setFailedStep(failedStepKey.getName());
+        lifecycleState.setFailedStep(failedStepKey.name());
         ClusterState clusterState = buildClusterState(
             indexName,
             indexSettingsBuilder,
@@ -742,15 +852,15 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         String policyName = "my_policy";
         long now = randomNonNegativeLong();
         Step.StepKey failedStepKey = new Step.StepKey("current_phase", "current_action", "current_step");
-        Step.StepKey errorStepKey = new Step.StepKey(failedStepKey.getPhase(), failedStepKey.getAction(), ErrorStep.NAME);
+        Step.StepKey errorStepKey = new Step.StepKey(failedStepKey.phase(), failedStepKey.action(), ErrorStep.NAME);
         Step step = new MockStep(failedStepKey, null);
         PolicyStepsRegistry policyRegistry = createOneStepPolicyStepRegistry(policyName, step);
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, (String) null);
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(errorStepKey.getPhase());
-        lifecycleState.setAction(errorStepKey.getAction());
-        lifecycleState.setStep(errorStepKey.getName());
-        lifecycleState.setFailedStep(failedStepKey.getName());
+        lifecycleState.setPhase(errorStepKey.phase());
+        lifecycleState.setAction(errorStepKey.action());
+        lifecycleState.setStep(errorStepKey.name());
+        lifecycleState.setFailedStep(failedStepKey.name());
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), Collections.emptyList());
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -768,9 +878,9 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         PolicyStepsRegistry policyRegistry = createOneStepPolicyStepRegistry(policyName, step);
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, (String) null);
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(failedStepKey.getPhase());
-        lifecycleState.setAction(failedStepKey.getAction());
-        lifecycleState.setStep(failedStepKey.getName());
+        lifecycleState.setPhase(failedStepKey.phase());
+        lifecycleState.setAction(failedStepKey.action());
+        lifecycleState.setStep(failedStepKey.name());
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), Collections.emptyList());
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -789,7 +899,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         String policyName = "my_policy";
         long now = randomNonNegativeLong();
         Step.StepKey failedStepKey = new Step.StepKey("current_phase", MockAction.NAME, "current_step");
-        Step.StepKey errorStepKey = new Step.StepKey(failedStepKey.getPhase(), failedStepKey.getAction(), ErrorStep.NAME);
+        Step.StepKey errorStepKey = new Step.StepKey(failedStepKey.phase(), failedStepKey.action(), ErrorStep.NAME);
         Step retryableStep = new IndexLifecycleRunnerTests.RetryableMockStep(failedStepKey, null);
         LifecyclePolicy policy = createPolicy(policyName, failedStepKey, null);
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(
@@ -802,13 +912,13 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         PolicyStepsRegistry policyRegistry = createOneStepPolicyStepRegistry(policyName, retryableStep);
         Settings.Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName);
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        lifecycleState.setPhase(errorStepKey.getPhase());
+        lifecycleState.setPhase(errorStepKey.phase());
         lifecycleState.setPhaseTime(now);
-        lifecycleState.setAction(errorStepKey.getAction());
+        lifecycleState.setAction(errorStepKey.action());
         lifecycleState.setActionTime(now);
-        lifecycleState.setStep(errorStepKey.getName());
+        lifecycleState.setStep(errorStepKey.name());
         lifecycleState.setStepTime(now);
-        lifecycleState.setFailedStep(failedStepKey.getName());
+        lifecycleState.setFailedStep(failedStepKey.name());
         ClusterState clusterState = buildClusterState(
             indexName,
             indexSettingsBuilder,
@@ -824,39 +934,105 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             true
         );
         IndexLifecycleRunnerTests.assertClusterStateOnNextStep(clusterState, index, errorStepKey, failedStepKey, nextClusterState, now);
-        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(nextClusterState.metadata().index(indexName));
-        assertThat(executionState.getFailedStepRetryCount(), is(1));
+        LifecycleExecutionState executionState = nextClusterState.metadata().index(indexName).getLifecycleExecutionState();
+        assertThat(executionState.failedStepRetryCount(), is(1));
     }
 
-    public void testRefreshPhaseJson() {
+    public void testMoveToFailedStepDoesntRefreshCachedPhaseWhenUnsafe() {
+        String initialPhaseDefinition = """
+            {
+              "policy" : "my-policy",
+              "phase_definition" : {
+                "min_age" : "20m",
+                "actions" : {
+                  "rollover" : {
+                    "max_age" : "5s"
+                  },
+                  "set_priority" : {
+                    "priority" : 150
+                  }
+                }
+              },
+              "version" : 1,
+              "modified_date_in_millis" : 1578521007076
+            }""";
+        String failedStep = "check-rollover-ready";
+        LifecycleExecutionState.Builder currentExecutionState = LifecycleExecutionState.builder()
+            .setPhase("hot")
+            .setAction("rollover")
+            .setStep(ErrorStep.NAME)
+            .setFailedStep(failedStep)
+            // the phase definition contains the rollover action, but the actual policy does not contain rollover anymore
+            .setPhaseDefinition(initialPhaseDefinition);
+
+        IndexMetadata meta = buildIndexMetadata("my-policy", currentExecutionState);
+        String indexName = meta.getIndex().getName();
+
+        Map<String, LifecycleAction> actions = new HashMap<>();
+        actions.put("set_priority", new SetPriorityAction(100));
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
+        Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
+        LifecyclePolicy currentPolicy = new LifecyclePolicy("my-policy", phases);
+
+        List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
+        policyMetadatas.add(
+            new LifecyclePolicyMetadata(currentPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+        );
+
+        Step.StepKey errorStepKey = new Step.StepKey("hot", RolloverAction.NAME, ErrorStep.NAME);
+        PolicyStepsRegistry stepsRegistry = createOneStepPolicyStepRegistry("my-policy", new ErrorStep(errorStepKey));
+
+        ClusterState clusterState = buildClusterState(
+            indexName,
+            Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "my-policy"),
+            currentExecutionState.build(),
+            policyMetadatas
+        );
+        ClusterState newState = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
+            clusterState,
+            indexName,
+            ESTestCase::randomNonNegativeLong,
+            stepsRegistry,
+            false
+        );
+
+        LifecycleExecutionState nextLifecycleExecutionState = newState.metadata().index(indexName).getLifecycleExecutionState();
+        assertThat(
+            "we musn't refresh the cache definition if the failed step is not part of the real policy anymore",
+            nextLifecycleExecutionState.phaseDefinition(),
+            is(initialPhaseDefinition)
+        );
+        assertThat(nextLifecycleExecutionState.step(), is(failedStep));
+    }
+
+    public void testRefreshPhaseJson() throws IOException {
         LifecycleExecutionState.Builder exState = LifecycleExecutionState.builder()
             .setPhase("hot")
             .setAction("rollover")
             .setStep("check-rollover-ready")
-            .setPhaseDefinition(
-                "{\n"
-                    + "        \"policy\" : \"my-policy\",\n"
-                    + "        \"phase_definition\" : {\n"
-                    + "          \"min_age\" : \"20m\",\n"
-                    + "          \"actions\" : {\n"
-                    + "            \"rollover\" : {\n"
-                    + "              \"max_age\" : \"5s\"\n"
-                    + "            },\n"
-                    + "            \"set_priority\" : {\n"
-                    + "              \"priority\" : 150\n"
-                    + "            }\n"
-                    + "          }\n"
-                    + "        },\n"
-                    + "        \"version\" : 1,\n"
-                    + "        \"modified_date_in_millis\" : 1578521007076\n"
-                    + "      }"
-            );
+            .setPhaseDefinition("""
+                {
+                  "policy" : "my-policy",
+                  "phase_definition" : {
+                    "min_age" : "20m",
+                    "actions" : {
+                      "rollover" : {
+                        "max_age" : "5s"
+                      },
+                      "set_priority" : {
+                        "priority" : 150
+                      }
+                    }
+                  },
+                  "version" : 1,
+                  "modified_date_in_millis" : 1578521007076
+                }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", exState);
         String index = meta.getIndex().getName();
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, null, 1L));
+        actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         actions.put("set_priority", new SetPriorityAction(100));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -870,7 +1046,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         ClusterState changedState = refreshPhaseDefinition(existingState, index, policyMetadata);
 
         IndexMetadata newIdxMeta = changedState.metadata().index(index);
-        LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
+        LifecycleExecutionState afterExState = newIdxMeta.getLifecycleExecutionState();
         Map<String, String> beforeState = new HashMap<>(exState.build().asMap());
         beforeState.remove("phase_definition");
         Map<String, String> afterState = new HashMap<>(afterExState.asMap());
@@ -879,23 +1055,32 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertThat(beforeState, equalTo(afterState));
 
         // Check that the phase definition has been refreshed
-        assertThat(
-            afterExState.getPhaseDefinition(),
-            equalTo(
-                "{\"policy\":\"my-policy\",\"phase_definition\":{\"min_age\":\"0ms\",\"actions\":{\"rollover\":{\"max_docs\":1},"
-                    + "\"set_priority\":{\"priority\":100}}},\"version\":2,\"modified_date_in_millis\":2}"
-            )
-        );
+        assertThat(afterExState.phaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
+            {
+              "policy": "my-policy",
+              "phase_definition": {
+                "min_age": "0ms",
+                "actions": {
+                  "rollover": {
+                    "max_docs": 1
+                  },
+                  "set_priority": {
+                    "priority": 100
+                  }
+                }
+              },
+              "version": 2,
+              "modified_date_in_millis": 2
+            }""")));
     }
 
     public void testEligibleForRefresh() {
         IndexMetadata meta = IndexMetadata.builder("index")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    randomAlphaOfLength(5)
+                )
             )
             .build();
         assertFalse(eligibleToCheckForRefresh(meta));
@@ -903,11 +1088,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         LifecycleExecutionState state = LifecycleExecutionState.builder().build();
         meta = IndexMetadata.builder("index")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    randomAlphaOfLength(5)
+                )
             )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
@@ -916,11 +1100,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    randomAlphaOfLength(5)
+                )
             )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
@@ -929,11 +1112,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhaseDefinition("{}").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    randomAlphaOfLength(5)
+                )
             )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
@@ -947,11 +1129,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .build();
         meta = IndexMetadata.builder("index")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    randomAlphaOfLength(5)
+                )
             )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
@@ -960,11 +1141,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").setPhaseDefinition("{}").build();
         meta = IndexMetadata.builder("index")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5))
+                indexSettings(Version.CURRENT, randomIntBetween(1, 10), randomIntBetween(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    randomAlphaOfLength(5)
+                )
             )
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
@@ -976,29 +1156,28 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .setPhase("hot")
             .setAction("rollover")
             .setStep("check-rollover-ready")
-            .setPhaseDefinition(
-                "{\n"
-                    + "        \"policy\" : \"my-policy\",\n"
-                    + "        \"phase_definition\" : {\n"
-                    + "          \"min_age\" : \"20m\",\n"
-                    + "          \"actions\" : {\n"
-                    + "            \"rollover\" : {\n"
-                    + "              \"max_age\" : \"5s\"\n"
-                    + "            },\n"
-                    + "            \"set_priority\" : {\n"
-                    + "              \"priority\" : 150\n"
-                    + "            }\n"
-                    + "          }\n"
-                    + "        },\n"
-                    + "        \"version\" : 1,\n"
-                    + "        \"modified_date_in_millis\" : 1578521007076\n"
-                    + "      }"
-            );
+            .setPhaseDefinition("""
+                {
+                  "policy" : "my-policy",
+                  "phase_definition" : {
+                    "min_age" : "20m",
+                    "actions" : {
+                      "rollover" : {
+                        "max_age" : "5s"
+                      },
+                      "set_priority" : {
+                        "priority" : 150
+                      }
+                    }
+                  },
+                  "version" : 1,
+                  "modified_date_in_millis" : 1578521007076
+                }""");
 
         IndexMetadata meta = buildIndexMetadata("my-policy", currentExecutionState);
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, null, 1L));
+        actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         actions.put("set_priority", new SetPriorityAction(100));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -1022,7 +1201,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             try (Client client = new NoOpClient(getTestName())) {
                 LifecycleExecutionState newState = moveStateToNextActionAndUpdateCachedPhase(
                     meta,
-                    LifecycleExecutionState.fromIndexMetadata(meta),
+                    meta.getLifecycleExecutionState(),
                     System::currentTimeMillis,
                     currentPolicy,
                     updatedPolicyMetadata,
@@ -1031,11 +1210,11 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
                 );
 
                 Step.StepKey hotPhaseCompleteStepKey = PhaseCompleteStep.finalStep("hot").getKey();
-                assertThat(newState.getAction(), is(hotPhaseCompleteStepKey.getAction()));
-                assertThat(newState.getStep(), is(hotPhaseCompleteStepKey.getName()));
+                assertThat(newState.action(), is(hotPhaseCompleteStepKey.action()));
+                assertThat(newState.step(), is(hotPhaseCompleteStepKey.name()));
                 assertThat(
                     "the cached phase should not contain rollover anymore",
-                    newState.getPhaseDefinition(),
+                    newState.phaseDefinition(),
                     not(containsString(RolloverAction.NAME))
                 );
             }
@@ -1046,7 +1225,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             // the expected new state is that the index is moved into the next action (could be the complete one) and the cached phase
             // definition is updated
             Map<String, LifecycleAction> actionsWitoutSetPriority = new HashMap<>();
-            actionsWitoutSetPriority.put("rollover", new RolloverAction(null, null, null, 1L));
+            actionsWitoutSetPriority.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
             Phase hotPhaseNoSetPriority = new Phase("hot", TimeValue.ZERO, actionsWitoutSetPriority);
             Map<String, Phase> phasesWithoutSetPriority = Collections.singletonMap("hot", hotPhaseNoSetPriority);
             LifecyclePolicyMetadata updatedPolicyMetadata = new LifecyclePolicyMetadata(
@@ -1059,7 +1238,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             try (Client client = new NoOpClient(getTestName())) {
                 LifecycleExecutionState newState = moveStateToNextActionAndUpdateCachedPhase(
                     meta,
-                    LifecycleExecutionState.fromIndexMetadata(meta),
+                    meta.getLifecycleExecutionState(),
                     System::currentTimeMillis,
                     currentPolicy,
                     updatedPolicyMetadata,
@@ -1070,12 +1249,12 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
                 Step.StepKey hotPhaseCompleteStepKey = PhaseCompleteStep.finalStep("hot").getKey();
                 // the state was still moved into the next action, even if the updated policy still contained the action the index was
                 // currently executing
-                assertThat(newState.getAction(), is(hotPhaseCompleteStepKey.getAction()));
-                assertThat(newState.getStep(), is(hotPhaseCompleteStepKey.getName()));
-                assertThat(newState.getPhaseDefinition(), containsString(RolloverAction.NAME));
+                assertThat(newState.action(), is(hotPhaseCompleteStepKey.action()));
+                assertThat(newState.step(), is(hotPhaseCompleteStepKey.name()));
+                assertThat(newState.phaseDefinition(), containsString(RolloverAction.NAME));
                 assertThat(
                     "the cached phase should not contain set_priority anymore",
-                    newState.getPhaseDefinition(),
+                    newState.phaseDefinition(),
                     not(containsString(SetPriorityAction.NAME))
                 );
             }
@@ -1085,23 +1264,23 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
     private static LifecyclePolicy createPolicy(String policyName, Step.StepKey safeStep, Step.StepKey unsafeStep) {
         Map<String, Phase> phases = new HashMap<>();
         if (safeStep != null) {
-            assert MockAction.NAME.equals(safeStep.getAction()) : "The safe action needs to be MockAction.NAME";
-            assert unsafeStep == null || safeStep.getPhase().equals(unsafeStep.getPhase()) == false
+            assert MockAction.NAME.equals(safeStep.action()) : "The safe action needs to be MockAction.NAME";
+            assert unsafeStep == null || safeStep.phase().equals(unsafeStep.phase()) == false
                 : "safe and unsafe actions must be in different phases";
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<Step> steps = Collections.singletonList(new MockStep(safeStep, null));
             MockAction safeAction = new MockAction(steps, true);
             actions.put(safeAction.getWriteableName(), safeAction);
-            Phase phase = new Phase(safeStep.getPhase(), TimeValue.timeValueMillis(0), actions);
+            Phase phase = new Phase(safeStep.phase(), TimeValue.timeValueMillis(0), actions);
             phases.put(phase.getName(), phase);
         }
         if (unsafeStep != null) {
-            assert MockAction.NAME.equals(unsafeStep.getAction()) : "The unsafe action needs to be MockAction.NAME";
+            assert MockAction.NAME.equals(unsafeStep.action()) : "The unsafe action needs to be MockAction.NAME";
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<Step> steps = Collections.singletonList(new MockStep(unsafeStep, null));
             MockAction unsafeAction = new MockAction(steps, false);
             actions.put(unsafeAction.getWriteableName(), unsafeAction);
-            Phase phase = new Phase(unsafeStep.getPhase(), TimeValue.timeValueMillis(0), actions);
+            Phase phase = new Phase(unsafeStep.phase(), TimeValue.timeValueMillis(0), actions);
             phases.put(phase.getName(), phase);
         }
         return newTestLifecyclePolicy(policyName, phases);
@@ -1136,8 +1315,12 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
     public static void assertIndexNotManagedByILM(ClusterState clusterState, Index index) {
         Metadata metadata = clusterState.metadata();
         assertNotNull(metadata);
+
         IndexMetadata indexMetadata = metadata.getIndexSafe(index);
         assertNotNull(indexMetadata);
+
+        assertNull(indexMetadata.getLifecyclePolicyName());
+
         Settings indexSettings = indexMetadata.getSettings();
         assertNotNull(indexSettings);
         assertFalse(LifecycleSettings.LIFECYCLE_NAME_SETTING.exists(indexSettings));
@@ -1158,33 +1341,33 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertNotSame(oldClusterState.metadata(), newMetadata);
         IndexMetadata newIndexMetadata = newMetadata.getIndexSafe(index);
         assertNotSame(oldClusterState.metadata().index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(index));
-        LifecycleExecutionState oldLifecycleState = LifecycleExecutionState.fromIndexMetadata(oldClusterState.metadata().index(index));
+        LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
-        assertEquals(nextStep.getPhase(), newLifecycleState.getPhase());
-        assertEquals(nextStep.getAction(), newLifecycleState.getAction());
-        assertEquals(nextStep.getName(), newLifecycleState.getStep());
-        if (currentStep.getPhase().equals(nextStep.getPhase())) {
+        assertEquals(nextStep.phase(), newLifecycleState.phase());
+        assertEquals(nextStep.action(), newLifecycleState.action());
+        assertEquals(nextStep.name(), newLifecycleState.step());
+        if (currentStep.phase().equals(nextStep.phase())) {
             assertEquals(
                 "expected phase times to be the same but they were different",
-                oldLifecycleState.getPhaseTime(),
-                newLifecycleState.getPhaseTime()
+                oldLifecycleState.phaseTime(),
+                newLifecycleState.phaseTime()
             );
         } else {
-            assertEquals(now, newLifecycleState.getPhaseTime().longValue());
+            assertEquals(now, newLifecycleState.phaseTime().longValue());
         }
-        if (currentStep.getAction().equals(nextStep.getAction())) {
+        if (currentStep.action().equals(nextStep.action())) {
             assertEquals(
                 "expected action times to be the same but they were different",
-                oldLifecycleState.getActionTime(),
-                newLifecycleState.getActionTime()
+                oldLifecycleState.actionTime(),
+                newLifecycleState.actionTime()
             );
         } else {
-            assertEquals(now, newLifecycleState.getActionTime().longValue());
+            assertEquals(now, newLifecycleState.actionTime().longValue());
         }
-        assertEquals(now, newLifecycleState.getStepTime().longValue());
-        assertEquals(null, newLifecycleState.getFailedStep());
-        assertEquals(null, newLifecycleState.getStepInfo());
+        assertEquals(now, newLifecycleState.stepTime().longValue());
+        assertEquals(null, newLifecycleState.failedStep());
+        assertEquals(null, newLifecycleState.stepInfo());
     }
 
     private IndexMetadata buildIndexMetadata(String policy, LifecycleExecutionState.Builder lifecycleState) {
@@ -1209,17 +1392,17 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertNotSame(oldClusterState.metadata(), newMetadata);
         IndexMetadata newIndexMetadata = newMetadata.getIndexSafe(index);
         assertNotSame(oldClusterState.metadata().index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(index));
-        LifecycleExecutionState oldLifecycleState = LifecycleExecutionState.fromIndexMetadata(oldClusterState.metadata().index(index));
+        LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
-        assertEquals(currentStep.getPhase(), newLifecycleState.getPhase());
-        assertEquals(currentStep.getAction(), newLifecycleState.getAction());
-        assertEquals(ErrorStep.NAME, newLifecycleState.getStep());
-        assertEquals(currentStep.getName(), newLifecycleState.getFailedStep());
-        assertThat(newLifecycleState.getStepInfo(), containsString(expectedCauseValue));
-        assertEquals(oldLifecycleState.getPhaseTime(), newLifecycleState.getPhaseTime());
-        assertEquals(oldLifecycleState.getActionTime(), newLifecycleState.getActionTime());
-        assertEquals(now, newLifecycleState.getStepTime().longValue());
+        assertEquals(currentStep.phase(), newLifecycleState.phase());
+        assertEquals(currentStep.action(), newLifecycleState.action());
+        assertEquals(ErrorStep.NAME, newLifecycleState.step());
+        assertEquals(currentStep.name(), newLifecycleState.failedStep());
+        assertThat(newLifecycleState.stepInfo(), containsString(expectedCauseValue));
+        assertEquals(oldLifecycleState.phaseTime(), newLifecycleState.phaseTime());
+        assertEquals(oldLifecycleState.actionTime(), newLifecycleState.actionTime());
+        assertEquals(now, newLifecycleState.stepTime().longValue());
     }
 
     private void assertClusterStateStepInfo(
@@ -1237,15 +1420,15 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertNotSame(oldClusterState.metadata(), newMetadata);
         IndexMetadata newIndexMetadata = newMetadata.getIndexSafe(index);
         assertNotSame(oldClusterState.metadata().index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(index));
-        LifecycleExecutionState oldLifecycleState = LifecycleExecutionState.fromIndexMetadata(oldClusterState.metadata().index(index));
+        LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
-        assertEquals(currentStep.getPhase(), newLifecycleState.getPhase());
-        assertEquals(currentStep.getAction(), newLifecycleState.getAction());
-        assertEquals(currentStep.getName(), newLifecycleState.getStep());
-        assertEquals(expectedstepInfoValue, newLifecycleState.getStepInfo());
-        assertEquals(oldLifecycleState.getPhaseTime(), newLifecycleState.getPhaseTime());
-        assertEquals(oldLifecycleState.getActionTime(), newLifecycleState.getActionTime());
-        assertEquals(newLifecycleState.getStepTime(), newLifecycleState.getStepTime());
+        assertEquals(currentStep.phase(), newLifecycleState.phase());
+        assertEquals(currentStep.action(), newLifecycleState.action());
+        assertEquals(currentStep.name(), newLifecycleState.step());
+        assertEquals(expectedstepInfoValue, newLifecycleState.stepInfo());
+        assertEquals(oldLifecycleState.phaseTime(), newLifecycleState.phaseTime());
+        assertEquals(oldLifecycleState.actionTime(), newLifecycleState.actionTime());
+        assertEquals(newLifecycleState.stepTime(), newLifecycleState.stepTime());
     }
 }

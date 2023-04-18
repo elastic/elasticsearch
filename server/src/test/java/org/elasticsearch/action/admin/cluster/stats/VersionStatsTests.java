@@ -27,13 +27,11 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,41 +51,36 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
     }
 
     @Override
-    protected VersionStats mutateInstance(VersionStats instance) throws IOException {
+    protected VersionStats mutateInstance(VersionStats instance) {
         return new VersionStats(instance.versionStats().stream().map(svs -> {
-            switch (randomIntBetween(1, 4)) {
-                case 1:
-                    return new VersionStats.SingleVersionStats(
-                        Version.V_7_3_0,
-                        svs.indexCount,
-                        svs.primaryShardCount,
-                        svs.totalPrimaryByteCount
-                    );
-                case 2:
-                    return new VersionStats.SingleVersionStats(
-                        svs.version,
-                        svs.indexCount + 1,
-                        svs.primaryShardCount,
-                        svs.totalPrimaryByteCount
-                    );
-                case 3:
-                    return new VersionStats.SingleVersionStats(
-                        svs.version,
-                        svs.indexCount,
-                        svs.primaryShardCount + 1,
-                        svs.totalPrimaryByteCount
-                    );
-                case 4:
-                    return new VersionStats.SingleVersionStats(
-                        svs.version,
-                        svs.indexCount,
-                        svs.primaryShardCount,
-                        svs.totalPrimaryByteCount + 1
-                    );
-                default:
-                    throw new IllegalArgumentException("unexpected branch");
-            }
-        }).collect(Collectors.toList()));
+            return switch (randomIntBetween(1, 4)) {
+                case 1 -> new VersionStats.SingleVersionStats(
+                    Version.V_7_3_0,
+                    svs.indexCount,
+                    svs.primaryShardCount,
+                    svs.totalPrimaryByteCount
+                );
+                case 2 -> new VersionStats.SingleVersionStats(
+                    svs.version,
+                    svs.indexCount + 1,
+                    svs.primaryShardCount,
+                    svs.totalPrimaryByteCount
+                );
+                case 3 -> new VersionStats.SingleVersionStats(
+                    svs.version,
+                    svs.indexCount,
+                    svs.primaryShardCount + 1,
+                    svs.totalPrimaryByteCount
+                );
+                case 4 -> new VersionStats.SingleVersionStats(
+                    svs.version,
+                    svs.indexCount,
+                    svs.primaryShardCount,
+                    svs.totalPrimaryByteCount + 1
+                );
+                default -> throw new IllegalArgumentException("unexpected branch");
+            };
+        }).toList());
     }
 
     public void testCreation() {
@@ -109,8 +102,9 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             shardId,
             true,
-            RecoverySource.PeerRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message")
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
+            ShardRouting.Role.DEFAULT
         );
         Path path = createTempDir().resolve("indices")
             .resolve(shardRouting.shardId().getIndex().getUUID())
@@ -121,7 +115,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         ShardStats shardStats = new ShardStats(
             shardRouting,
             new ShardPath(false, path, path, shardRouting.shardId()),
-            new CommonStats(null, indexShard, new CommonStatsFlags(CommonStatsFlags.Flag.Store)),
+            CommonStats.getShardLevelStats(null, indexShard, new CommonStatsFlags(CommonStatsFlags.Flag.Store)),
             null,
             null,
             null
@@ -131,7 +125,8 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
             ClusterHealthStatus.GREEN,
             null,
             null,
-            new ShardStats[] { shardStats }
+            new ShardStats[] { shardStats },
+            null
         );
 
         stats = VersionStats.of(metadata, Collections.singletonList(nodeResponse));

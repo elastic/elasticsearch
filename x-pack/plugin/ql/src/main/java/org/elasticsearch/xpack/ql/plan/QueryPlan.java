@@ -62,6 +62,10 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         return transformPropertiesOnly(Object.class, e -> doTransformExpression(e, exp -> exp.transformDown(typeToken, rule)));
     }
 
+    public <E extends Expression> PlanType transformExpressionsOnlyUp(Class<E> typeToken, Function<E, ? extends Expression> rule) {
+        return transformPropertiesOnly(Object.class, e -> doTransformExpression(e, exp -> exp.transformUp(typeToken, rule)));
+    }
+
     public PlanType transformExpressionsDown(Function<Expression, ? extends Expression> rule) {
         return transformExpressionsDown(Expression.class, rule);
     }
@@ -89,8 +93,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         // preserving the type information is hacky and weird (a lot of context needs to be passed around and the lambda itself
         // has no type info so it's difficult to have automatic checking without having base classes).
 
-        if (arg instanceof Collection) {
-            Collection<?> c = (Collection<?>) arg;
+        if (arg instanceof Collection<?> c) {
             List<Object> transformed = new ArrayList<>(c.size());
             boolean hasChanged = false;
             for (Object e : c) {
@@ -138,8 +141,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     private void doForEachExpression(Object arg, Consumer<Expression> traversal) {
         if (arg instanceof Expression) {
             traversal.accept((Expression) arg);
-        } else if (arg instanceof Collection) {
-            Collection<?> c = (Collection<?>) arg;
+        } else if (arg instanceof Collection<?> c) {
             for (Object o : c) {
                 doForEachExpression(o, traversal);
             }

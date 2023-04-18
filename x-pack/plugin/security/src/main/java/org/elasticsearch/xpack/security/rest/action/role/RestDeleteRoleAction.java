@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.security.rest.action.role;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -56,7 +55,7 @@ public class RestDeleteRoleAction extends SecurityBaseRestHandler {
             .execute(new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(DeleteRoleResponse response, XContentBuilder builder) throws Exception {
-                    return new BytesRestResponse(
+                    return new RestResponse(
                         response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,
                         builder.startObject().field("found", response.found()).endObject()
                     );

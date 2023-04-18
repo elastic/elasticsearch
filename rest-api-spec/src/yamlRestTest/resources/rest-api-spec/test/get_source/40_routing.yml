@@ -12,23 +12,18 @@
            index:
              number_of_shards: 5
              number_of_routing_shards: 5
-             number_of_replicas: 0
-
- - do:
-      cluster.health:
-          wait_for_status: green
 
  - do:
       index:
           index:   test_1
-          id:      1
+          id:      "1"
           routing: "5"
           body:    { foo: bar }
 
  - do:
       get_source:
           index:   test_1
-          id:      1
+          id:      "1"
           routing: "5"
 
  - match:   { '': {foo: bar}}
@@ -37,4 +32,4 @@
       catch: missing
       get_source:
           index:   test_1
-          id:      1
+          id:      "1"

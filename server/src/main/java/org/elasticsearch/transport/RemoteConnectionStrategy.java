@@ -10,7 +10,6 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -43,6 +42,8 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
@@ -139,7 +140,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         connectionManager.addListener(this);
     }
 
-    static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings) {
+    static ConnectionProfile buildConnectionProfile(String clusterAlias, Settings settings, boolean credentialsProtected) {
+        final String transportProfile = credentialsProtected
+            ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
+            : TransportSettings.DEFAULT_PROFILE;
+
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder().setConnectTimeout(
             TransportSettings.CONNECT_TIMEOUT.get(settings)
@@ -157,7 +162,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                 TransportRequestOptions.Type.RECOVERY,
                 TransportRequestOptions.Type.PING
             )
-            .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG);
+            .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG)
+            .setTransportProfile(transportProfile);
         return builder.build();
     }
 
@@ -168,14 +174,10 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         Settings settings
     ) {
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
-        switch (mode) {
-            case SNIFF:
-                return new SniffConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
-            case PROXY:
-                return new ProxyConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
-            default:
-                throw new AssertionError("Invalid connection strategy" + mode);
-        }
+        return switch (mode) {
+            case SNIFF -> new SniffConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
+            case PROXY -> new ProxyConnectionStrategy(clusterAlias, transportService, connectionManager, settings);
+        };
     }
 
     static Set<String> getRemoteClusters(Settings settings) {
@@ -341,10 +343,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             connect(
                 ActionListener.wrap(
                     ignore -> logger.trace("[{}] successfully connected after disconnect of {}", clusterAlias, node),
-                    e -> logger.debug(
-                        () -> new ParameterizedMessage("[{}] failed to connect after disconnect of {}", clusterAlias, node),
-                        e
-                    )
+                    e -> logger.debug(() -> format("[%s] failed to connect after disconnect of %s", clusterAlias, node), e)
                 )
             );
         }
@@ -396,7 +395,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         return result;
     }
 
-    private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
+    private static boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
         return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
             || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false
             || Objects.equals(oldProfile.getCompressionScheme(), newProfile.getCompressionScheme()) == false;
@@ -431,15 +430,14 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             ConnectionStrategy modeType = (ConnectionStrategy) settings.get(concrete);
             if (isPresent && modeType.equals(expectedStrategy) == false) {
                 throw new IllegalArgumentException(
-                    "Setting \""
-                        + key
-                        + "\" cannot be used with the configured \""
-                        + concrete.getKey()
-                        + "\" [required="
-                        + expectedStrategy.name()
-                        + ", configured="
-                        + modeType.name()
-                        + "]"
+                    String.format(
+                        Locale.ROOT,
+                        "Setting \"%s\" cannot be used with the configured \"%s\" [required=%s, configured=%s]",
+                        key,
+                        concrete.getKey(),
+                        expectedStrategy.name(),
+                        modeType.name()
+                    )
                 );
             }
         }

@@ -11,10 +11,11 @@ package org.elasticsearch.gradle.internal.conventions.precommit;
 import com.diffplug.gradle.spotless.SpotlessExtension;
 import com.diffplug.gradle.spotless.SpotlessPlugin;
 
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
-import java.util.List;
+import java.io.File;
 
 /**
  * This plugin configures formatting for Java source using Spotless
@@ -43,51 +44,41 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        final boolean shouldFormatProject = PROJECT_PATHS_TO_EXCLUDE.contains(project.getPath()) == false
-            || project.getProviders().systemProperty("es.format.everything").forUseAtConfigurationTime().isPresent();
-
-        if (shouldFormatProject) {
+        project.getPluginManager().withPlugin("java-base", javaBasePlugin -> {
             project.getPlugins().apply(PrecommitTaskPlugin.class);
             project.getPlugins().apply(SpotlessPlugin.class);
 
+            // Spotless resolves required dependencies from project repositories, so we need maven central
+            project.getRepositories().mavenCentral();
+
             project.getExtensions().getByType(SpotlessExtension.class).java(java -> {
+                File elasticsearchWorkspace = Util.locateElasticsearchWorkspace(project.getGradle());
                 String importOrderPath = "build-conventions/elastic.importorder";
                 String formatterConfigPath = "build-conventions/formatterConfig.xml";
 
-                // When applied to e.g. `:build-tools`, we need to modify the path to our config files
-                if (project.getRootProject().file(importOrderPath).exists() == false) {
-                    importOrderPath = "../" + importOrderPath;
-                    formatterConfigPath = "../" + formatterConfigPath;
-                }
-
                 java.target("src/**/*.java");
-
-                // Use `@formatter:off` and `@formatter:on` to toggle formatting - ONLY IF STRICTLY NECESSARY
-                java.toggleOffOn("@formatter:off", "@formatter:on");
-
                 java.removeUnusedImports();
 
                 // We enforce a standard order for imports
-                java.importOrderFile(project.getRootProject().file(importOrderPath));
+                java.importOrderFile(new File(elasticsearchWorkspace, importOrderPath));
 
                 // Most formatting is done through the Eclipse formatter
-                java.eclipse().configFile(project.getRootProject().file(formatterConfigPath));
+                java.eclipse().configFile(new File(elasticsearchWorkspace, formatterConfigPath));
 
                 // Ensure blank lines are actually empty. Since formatters are applied in
                 // order, apply this one last, otherwise non-empty blank lines can creep
                 // in.
                 java.trimTrailingWhitespace();
+
+                // When running build benchmarks we alter the source in some scenarios.
+                // The gradle-profiler unfortunately does not generate compliant formatted
+                // sources so we ignore that altered file when running build benchmarks
+                if(Boolean.getBoolean("BUILD_PERFORMANCE_TEST") && project.getPath().equals(":server")) {
+                    java.targetExclude("src/main/java/org/elasticsearch/bootstrap/BootstrapInfo.java");
+                }
             });
 
             project.getTasks().named("precommit").configure(precommitTask -> precommitTask.dependsOn("spotlessJavaCheck"));
-        }
+        });
     }
-
-    // Do not add new sub-projects here!
-    private static final List<String> PROJECT_PATHS_TO_EXCLUDE = List.of(
-        ":distribution:bwc:bugfix",
-        ":distribution:bwc:maintenance",
-        ":distribution:bwc:minor",
-        ":distribution:bwc:staged"
-    );
 }

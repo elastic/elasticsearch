@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.
@@ -147,6 +147,11 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
 
     public IndicesStatsRequestBuilder setIncludeSegmentFileSizes(boolean includeSegmentFileSizes) {
         request.includeSegmentFileSizes(includeSegmentFileSizes);
+        return this;
+    }
+
+    public IndicesStatsRequestBuilder setIncludeUnloadedSegments(boolean includeUnloadedSegments) {
+        request.includeUnloadedSegments(includeUnloadedSegments);
         return this;
     }
 }

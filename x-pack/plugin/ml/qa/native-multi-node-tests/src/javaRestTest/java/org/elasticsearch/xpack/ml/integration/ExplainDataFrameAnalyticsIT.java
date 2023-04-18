@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -209,7 +208,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         List<ActionFuture<ExplainDataFrameAnalyticsAction.Response>> futures = new ArrayList<>();
 
         for (int i = 0; i < simultaneousInvocationCount; ++i) {
-            futures.add(client().execute(ExplainDataFrameAnalyticsAction.INSTANCE, new PutDataFrameAnalyticsAction.Request(config)));
+            futures.add(client().execute(ExplainDataFrameAnalyticsAction.INSTANCE, new ExplainDataFrameAnalyticsAction.Request(config)));
         }
 
         ExplainDataFrameAnalyticsAction.Response previous = null;
@@ -230,19 +229,20 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
 
     public void testRuntimeFields() {
         String sourceIndex = "test-explain-runtime-fields";
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"mapped_field\": {\n"
-            + "          \"type\": \"double\"\n"
-            + "        }\n"
-            + "      },\n"
-            + "      \"runtime\": {\n"
-            + "        \"mapped_runtime_field\": {\n"
-            + "          \"type\": \"double\"\n,"
-            + "          \"script\": \"emit(doc['mapped_field'].value + 10.0)\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "mapped_field": {
+                      "type": "double"
+                    }
+                  },
+                  "runtime": {
+                    "mapped_runtime_field": {
+                      "type": "double",
+                      "script": "emit(doc['mapped_field'].value + 10.0)"
+                    }
+                  }
+                }""";
         client().admin().indices().prepareCreate(sourceIndex).setMapping(mapping).get();
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10; i++) {

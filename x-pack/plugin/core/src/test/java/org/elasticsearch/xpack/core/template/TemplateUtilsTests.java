@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.core.template;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -27,39 +27,32 @@ public class TemplateUtilsTests extends ESTestCase {
     private static final String SIMPLE_TEST_TEMPLATE = "/monitoring-%s.json";
     private static final String TEST_TEMPLATE_WITH_VARIABLES = "/template_with_variables-test.json";
 
-    public void testLoadTemplate() {
+    public void testLoadTemplate() throws IOException {
         final int version = randomIntBetween(0, 10_000);
-        String resource = String.format(Locale.ROOT, SIMPLE_TEST_TEMPLATE, "test");
+        String resource = Strings.format(SIMPLE_TEST_TEMPLATE, "test");
         String source = TemplateUtils.loadTemplate(resource, String.valueOf(version), "monitoring.template.version");
 
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
-        assertTemplate(
-            source,
-            equalTo(
-                "{\n"
-                    + "  \"index_patterns\": \".monitoring-data-"
-                    + version
-                    + "\",\n"
-                    + "  \"mappings\": {\n"
-                    + "    \"doc\": {\n"
-                    + "      \"_meta\": {\n"
-                    + "        \"template.version\": \""
-                    + version
-                    + "\"\n"
-                    + "      }\n"
-                    + "    }\n"
-                    + "  }\n"
-                    + "}\n"
-            )
-        );
+        assertTemplate(XContentHelper.stripWhitespace(source), equalTo(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "index_patterns": ".monitoring-data-%s",
+              "mappings": {
+                "doc": {
+                  "_meta": {
+                    "template.version": "%s"
+                  }
+                }
+              }
+            }""", version, version))));
     }
 
-    public void testLoadTemplate_GivenTemplateWithVariables() {
+    public void testLoadTemplate_GivenTemplateWithVariables() throws IOException {
         final int version = randomIntBetween(0, 10_000);
         Map<String, String> variables = new HashMap<>();
         variables.put("test.template.field_1", "test_field_1");
-        variables.put("test.template.field_2", "\"test_field_2\": {\"type\": \"long\"}");
+        variables.put("test.template.field_2", """
+            "test_field_2": {"type": "long"}""");
 
         String source = TemplateUtils.loadTemplate(
             TEST_TEMPLATE_WITH_VARIABLES,
@@ -70,33 +63,29 @@ public class TemplateUtilsTests extends ESTestCase {
 
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
-        assertTemplate(
-            source,
-            equalTo(
-                "{\n"
-                    + "  \"index_patterns\": \".test-"
-                    + version
-                    + "\",\n"
-                    + "  \"mappings\": {\n"
-                    + "    \"doc\": {\n"
-                    + "      \"_meta\": {\n"
-                    + "        \"template.version\": \""
-                    + version
-                    + "\"\n"
-                    + "      },\n"
-                    + "      \"properties\": {\n"
-                    + "        \"test_field_1\": {\"type\": \"keyword\"},\n"
-                    + "        \"test_field_2\": {\"type\": \"long\"}\n"
-                    + "      }\n"
-                    + "    }\n"
-                    + "  }\n"
-                    + "}\n"
-            )
-        );
+        assertTemplate(XContentHelper.stripWhitespace(source), equalTo(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "index_patterns": ".test-%s",
+              "mappings": {
+                "doc": {
+                  "_meta": {
+                    "template.version": "%s"
+                  },
+                  "properties": {
+                    "test_field_1": {
+                      "type": "keyword"
+                    },
+                    "test_field_2": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            }""", version, version))));
     }
 
     public void testLoad() throws IOException {
-        String resource = String.format(Locale.ROOT, SIMPLE_TEST_TEMPLATE, "test");
+        String resource = Strings.format(SIMPLE_TEST_TEMPLATE, "test");
         String source = TemplateUtils.load(resource);
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
@@ -121,7 +110,7 @@ public class TemplateUtilsTests extends ESTestCase {
     }
 
     public void testValidate() throws IOException {
-        String resource = String.format(Locale.ROOT, SIMPLE_TEST_TEMPLATE, "test");
+        String resource = Strings.format(SIMPLE_TEST_TEMPLATE, "test");
         TemplateUtils.validate(TemplateUtils.load(resource));
     }
 
@@ -136,23 +125,17 @@ public class TemplateUtilsTests extends ESTestCase {
             equalTo("{\"template\": \"2-test\"}")
         );
         assertTemplate(
-            TemplateUtils.replaceVariable(
-                "{\"template\": \"test-${monitoring.template.version}-test\"}",
-                "monitoring.template.version",
-                "3"
-            ),
+            TemplateUtils.replaceVariable("""
+                {"template": "test-${monitoring.template.version}-test"}""", "monitoring.template.version", "3"),
             equalTo("{\"template\": \"test-3-test\"}")
         );
 
         final int version = randomIntBetween(0, 100);
-        assertTemplate(
-            TemplateUtils.replaceVariable(
-                "{\"foo-${monitoring.template.version}\": " + "\"bar-${monitoring.template.version}\"}",
-                "monitoring.template.version",
-                String.valueOf(version)
-            ),
-            equalTo("{\"foo-" + version + "\": \"bar-" + version + "\"}")
-        );
+        assertTemplate(TemplateUtils.replaceVariable("""
+            {"foo-${monitoring.template.version}": "bar-${monitoring.template.version}"}
+            """, "monitoring.template.version", String.valueOf(version)), equalTo(Strings.format("""
+            {"foo-%s": "bar-%s"}
+            """, version, version)));
     }
 
     public static void assertTemplate(String actual, Matcher<? super String> matcher) {

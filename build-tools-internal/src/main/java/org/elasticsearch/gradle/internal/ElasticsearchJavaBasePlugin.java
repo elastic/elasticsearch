@@ -38,8 +38,8 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     public void apply(Project project) {
         // make sure the global build info plugin is applied to the root project
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        // common repositories setup
         project.getPluginManager().apply(JavaBasePlugin.class);
+        // common repositories setup
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(PrecommitTaskPlugin.class);
@@ -106,11 +106,12 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
      */
     public static void configureCompile(Project project) {
         project.getExtensions().getExtraProperties().set("compactProfile", "full");
-
         JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
+        if (BuildParams.getJavaToolChainSpec().isPresent()) {
+            java.toolchain(BuildParams.getJavaToolChainSpec().get());
+        }
         java.setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
         java.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
-
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
             CompileOptions compileOptions = compileTask.getOptions();
             /*
@@ -123,7 +124,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             // TODO Discuss moving compileOptions.getCompilerArgs() to use provider api with Gradle team.
             List<String> compilerArgs = compileOptions.getCompilerArgs();
             compilerArgs.add("-Werror");
-            compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try");
+            compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try,-removal");
             compilerArgs.add("-Xdoclint:all");
             compilerArgs.add("-Xdoclint:-missing");
             compileOptions.setEncoding("UTF-8");
@@ -145,6 +146,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
      */
     public static void configureInputNormalization(Project project) {
         project.getNormalization().getRuntimeClasspath().ignore("META-INF/MANIFEST.MF");
+        project.getNormalization().getRuntimeClasspath().ignore("IMPL-JARS/**/META-INF/MANIFEST.MF");
     }
 
     private static Provider<Integer> releaseVersionProviderFromCompileTask(Project project, AbstractCompile compileTask) {

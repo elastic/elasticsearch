@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsRes
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
 import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySIDUtil.TOKEN_GROUPS;
@@ -72,7 +71,7 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
                     Math.toIntExact(timeout.seconds()),
                     ignoreReferralErrors,
                     ActionListener.wrap((results) -> {
-                        List<String> groups = results.stream().map(SearchResultEntry::getDN).collect(Collectors.toUnmodifiableList());
+                        List<String> groups = results.stream().map(SearchResultEntry::getDN).toList();
                         listener.onResponse(groups);
                     }, listener::onFailure),
                     SearchRequest.NO_ATTRIBUTES
@@ -108,7 +107,7 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
                     final byte[][] tokenGroupSIDBytes = entry.getAttributeValueByteArrays(TOKEN_GROUPS);
                     List<Filter> orFilters = Arrays.stream(tokenGroupSIDBytes)
                         .map((sidBytes) -> Filter.createEqualityFilter("objectSid", convertToString(sidBytes)))
-                        .collect(Collectors.toList());
+                        .toList();
                     listener.onResponse(Filter.createORFilter(orFilters));
                 }
             }, listener::onFailure),

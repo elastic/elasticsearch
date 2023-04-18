@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -73,7 +74,7 @@ public abstract class AbstractTransportGetResourcesAction<
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
     }
 
-    protected void searchResources(AbstractGetResourcesRequest request, ActionListener<QueryPage<Resource>> listener) {
+    protected void searchResources(AbstractGetResourcesRequest request, TaskId parentTaskId, ActionListener<QueryPage<Resource>> listener) {
         String[] tokens = Strings.tokenizeToStringArray(request.getResourceId(), ",");
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().sort(
             SortBuilders.fieldSort(request.getResourceIdField())
@@ -96,6 +97,7 @@ public abstract class AbstractTransportGetResourcesAction<
                 indicesOptions
             )
         ).source(customSearchOptions(sourceBuilder));
+        searchRequest.setParentTask(parentTaskId);
 
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),

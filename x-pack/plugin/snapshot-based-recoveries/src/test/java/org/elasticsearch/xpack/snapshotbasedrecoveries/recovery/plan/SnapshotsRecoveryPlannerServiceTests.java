@@ -15,8 +15,8 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NoMergeScheduler;
-import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -25,7 +25,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -72,7 +72,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build()
     );
-    private static final ByteSizeValue PART_SIZE = new ByteSizeValue(Long.MAX_VALUE);
+    private static final ByteSizeValue PART_SIZE = ByteSizeValue.ofBytes(Long.MAX_VALUE);
     private static final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
 
     private String shardHistoryUUID;
@@ -105,7 +105,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                         assert false : "Unexpected call";
                     }
                 },
-                false
+                false,
+                randomBoolean()
             );
             assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
             assertAllSourceFilesAreAvailableInSource(shardRecoveryPlan, sourceMetadata);
@@ -143,7 +144,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                         }
                     }
                 },
-                true
+                true,
+                randomBoolean()
             );
 
             assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
@@ -183,7 +185,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                         listener.onResponse(Optional.of(shardSnapshotData));
                     }
                 },
-                true
+                true,
+                randomBoolean()
             );
 
             assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
@@ -245,7 +248,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                         listener.onResponse(Optional.of(latestSnapshot));
                     }
                 },
-                true
+                true,
+                randomBoolean()
             );
 
             if (shareFilesWithSource || compatibleVersion == false) {
@@ -313,7 +317,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                         }
                     }
                 },
-                true
+                true,
+                randomBoolean()
             );
 
             assertPlanIsValid(shardRecoveryPlan, latestSourceMetadata);
@@ -365,7 +370,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                         listener.onResponse(Optional.of(availableSnapshots.get(availableSnapshots.size() - 1)));
                     }
                 },
-                true
+                true,
+                randomBoolean()
             );
 
             assertPlanIsValid(shardRecoveryPlan, latestSourceMetadata);
@@ -403,7 +409,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                     }
                 },
                 true,
-                Version.V_7_14_0 // Unsupported version
+                Version.V_7_14_0, // Unsupported version,
+                randomBoolean()
             );
 
             assertPlanIsValid(shardRecoveryPlan, sourceMetadata);
@@ -424,7 +431,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         long startingSeqNo,
         int translogOps,
         ShardSnapshotsService shardSnapshotsService,
-        boolean snapshotRecoveriesEnabled
+        boolean snapshotRecoveriesEnabled,
+        boolean primaryRelocation
     ) throws Exception {
         return computeShardRecoveryPlan(
             shardIdentifier,
@@ -434,7 +442,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             translogOps,
             shardSnapshotsService,
             snapshotRecoveriesEnabled,
-            Version.CURRENT
+            Version.CURRENT,
+            primaryRelocation
         );
     }
 
@@ -446,7 +455,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
         int translogOps,
         ShardSnapshotsService shardSnapshotsService,
         boolean snapshotRecoveriesEnabled,
-        Version version
+        Version version,
+        boolean primaryRelocation
     ) throws Exception {
         SnapshotsRecoveryPlannerService recoveryPlannerService = new SnapshotsRecoveryPlannerService(shardSnapshotsService, () -> true);
 
@@ -460,6 +470,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             translogOps,
             version,
             snapshotRecoveriesEnabled,
+            primaryRelocation,
             planFuture
         );
         final ShardRecoveryPlan shardRecoveryPlan = planFuture.get();
@@ -515,8 +526,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     }
 
     private void assertUsesExpectedSnapshot(ShardRecoveryPlan shardRecoveryPlan, ShardSnapshot expectedSnapshotToUse) {
-        assertThat(shardRecoveryPlan.getSnapshotFilesToRecover().getIndexId(), equalTo(expectedSnapshotToUse.getIndexId()));
-        assertThat(shardRecoveryPlan.getSnapshotFilesToRecover().getRepository(), equalTo(expectedSnapshotToUse.getRepository()));
+        assertThat(shardRecoveryPlan.getSnapshotFilesToRecover().indexId(), equalTo(expectedSnapshotToUse.getIndexId()));
+        assertThat(shardRecoveryPlan.getSnapshotFilesToRecover().repository(), equalTo(expectedSnapshotToUse.getRepository()));
 
         final Store.MetadataSnapshot shardSnapshotMetadataSnapshot = expectedSnapshotToUse.getMetadataSnapshot();
         for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : shardRecoveryPlan.getSnapshotFilesToRecover()) {

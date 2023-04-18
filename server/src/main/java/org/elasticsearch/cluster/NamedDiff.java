@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 
 /**
@@ -18,8 +18,6 @@ public interface NamedDiff<T extends Diffable<T>> extends Diff<T>, NamedWriteabl
     /**
      * The minimal version of the recipient this custom object can be sent to
      */
-    default Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumIndexCompatibilityVersion();
-    }
+    TransportVersion getMinimalSupportedVersion();
 
 }

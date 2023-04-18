@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserResponse;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
 public class TransportDeleteUserAction extends HandledTransportAction<DeleteUserRequest, DeleteUserResponse> {
@@ -44,13 +43,9 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
         if (ClientReservedRealm.isReserved(username, settings)) {
             if (AnonymousUser.isAnonymousUsername(username, settings)) {
                 listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be deleted"));
-                return;
             } else {
                 listener.onFailure(new IllegalArgumentException("user [" + username + "] is reserved and cannot be deleted"));
-                return;
             }
-        } else if (User.isInternalUsername(username)) {
-            listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
             return;
         }
 

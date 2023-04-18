@@ -20,14 +20,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.RemoveCorruptedShardDataCommand;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -46,13 +45,8 @@ import java.util.TreeSet;
 public class TruncateTranslogAction {
 
     protected static final Logger logger = LogManager.getLogger(TruncateTranslogAction.class);
-    private final NamedXContentRegistry namedXContentRegistry;
 
-    public TruncateTranslogAction(NamedXContentRegistry namedXContentRegistry) {
-        this.namedXContentRegistry = namedXContentRegistry;
-    }
-
-    public Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(
+    public static Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(
         ShardPath shardPath,
         ClusterState clusterState,
         Directory indexDirectory
@@ -94,7 +88,7 @@ public class TruncateTranslogAction {
         return Tuple.tuple(RemoveCorruptedShardDataCommand.CleanStatus.CORRUPTED, details);
     }
 
-    public void execute(Terminal terminal, ShardPath shardPath, Directory indexDirectory) throws IOException {
+    public static void execute(Terminal terminal, ShardPath shardPath, Directory indexDirectory) throws IOException {
         final Path indexPath = shardPath.resolveIndex();
         final Path translogPath = shardPath.resolveTranslog();
 
@@ -154,7 +148,7 @@ public class TruncateTranslogAction {
         IOUtils.fsync(translogPath, true);
     }
 
-    private boolean isTranslogClean(ShardPath shardPath, ClusterState clusterState, String translogUUID) throws IOException {
+    private static boolean isTranslogClean(ShardPath shardPath, ClusterState clusterState, String translogUUID) throws IOException {
         // perform clean check of translog instead of corrupted marker file
         try {
             final Path translogPath = shardPath.resolveTranslog();
@@ -221,7 +215,7 @@ public class TruncateTranslogAction {
     }
 
     /** Show a warning about deleting files, asking for a confirmation if {@code batchMode} is false */
-    private String deletingFilesDetails(Path translogPath, Set<Path> files) {
+    private static String deletingFilesDetails(Path translogPath, Set<Path> files) {
         StringBuilder builder = new StringBuilder();
 
         builder.append("Documents inside of translog files will be lost.\n")

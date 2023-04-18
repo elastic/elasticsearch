@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.core.Nullable;
@@ -42,6 +41,7 @@ import java.util.stream.IntStream;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 import static org.apache.lucene.util.RamUsageEstimator.sizeOf;
 import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
@@ -111,8 +111,8 @@ public class TreeInferenceModel implements InferenceModel {
         this.highOrderCategory = maxLeafValue();
         int leafSize = 1;
         for (Node node : this.nodes) {
-            if (node instanceof LeafNode) {
-                leafSize = ((LeafNode) node).leafValue.length;
+            if (node instanceof LeafNode leafNode) {
+                leafSize = leafNode.leafValue.length;
                 break;
             }
         }
@@ -333,7 +333,7 @@ public class TreeInferenceModel implements InferenceModel {
 
     @Override
     public void rewriteFeatureIndices(Map<String, Integer> newFeatureIndexMapping) {
-        LOGGER.debug(() -> new ParameterizedMessage("rewriting features {}", newFeatureIndexMapping));
+        LOGGER.debug(() -> format("rewriting features %s", newFeatureIndexMapping));
         if (preparedForInference) {
             return;
         }
@@ -372,8 +372,7 @@ public class TreeInferenceModel implements InferenceModel {
         }
         double max = 0.0;
         for (Node node : this.nodes) {
-            if (node instanceof LeafNode) {
-                LeafNode leafNode = (LeafNode) node;
+            if (node instanceof LeafNode leafNode) {
                 if (leafNode.leafValue.length > 1) {
                     return leafNode.leafValue.length;
                 } else {

@@ -1,7 +1,0 @@
-pr: 77231
-summary: Auto configure TLS for new nodes of new clusters
-area: Security
-type: feature
-issues:
- - 75144
- - 75704

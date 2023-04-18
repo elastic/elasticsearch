@@ -13,6 +13,7 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -27,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -40,6 +40,11 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
     @Override
     protected CloseIndexResponse createTestInstance() {
         return randomResponse();
+    }
+
+    @Override
+    protected CloseIndexResponse mutateInstance(CloseIndexResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -102,8 +107,8 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
                             // Serialising and deserialising an exception seems to remove the "java.base/" part from the stack trace
                             // in the `reason` property, so we don't compare it directly. Instead, check that the first lines match,
                             // and that the stack trace has the same number of lines.
-                            List<String> expectedReasonLines = expectedFailure.reason().lines().collect(Collectors.toList());
-                            List<String> actualReasonLines = actualFailure.reason().lines().collect(Collectors.toList());
+                            List<String> expectedReasonLines = expectedFailure.reason().lines().toList();
+                            List<String> actualReasonLines = actualFailure.reason().lines().toList();
                             assertThat(actualReasonLines.get(0), equalTo(expectedReasonLines.get(0)));
                             assertThat(
                                 "Exceptions have a different number of lines",
@@ -139,10 +144,8 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
         Index index = new Index("test", "uuid");
         IndexResult indexResult = new CloseIndexResponse.IndexResult(index);
         CloseIndexResponse closeIndexResponse = new CloseIndexResponse(true, true, Collections.singletonList(indexResult));
-        assertEquals(
-            "{\"acknowledged\":true,\"shards_acknowledged\":true,\"indices\":{\"test\":{\"closed\":true}}}",
-            Strings.toString(closeIndexResponse)
-        );
+        assertEquals("""
+            {"acknowledged":true,"shards_acknowledged":true,"indices":{"test":{"closed":true}}}""", Strings.toString(closeIndexResponse));
 
         CloseIndexResponse.ShardResult[] shards = new CloseIndexResponse.ShardResult[1];
         shards[0] = new CloseIndexResponse.ShardResult(
@@ -152,14 +155,32 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
         );
         indexResult = new CloseIndexResponse.IndexResult(index, shards);
         closeIndexResponse = new CloseIndexResponse(true, true, Collections.singletonList(indexResult));
-        assertEquals(
-            "{\"acknowledged\":true,\"shards_acknowledged\":true,"
-                + "\"indices\":{\"test\":{\"closed\":false,\"failedShards\":{\"0\":{"
-                + "\"failures\":[{\"node\":\"nodeId\",\"shard\":0,\"index\":\"test\",\"status\":\"INTERNAL_SERVER_ERROR\","
-                + "\"reason\":{\"type\":\"action_not_found_transport_exception\","
-                + "\"reason\":\"No handler for action [test]\"}}]}}}}}",
-            Strings.toString(closeIndexResponse)
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "acknowledged": true,
+              "shards_acknowledged": true,
+              "indices": {
+                "test": {
+                  "closed": false,
+                  "failedShards": {
+                    "0": {
+                      "failures": [
+                        {
+                          "node": "nodeId",
+                          "shard": 0,
+                          "index": "test",
+                          "status": "INTERNAL_SERVER_ERROR",
+                          "reason": {
+                            "type": "action_not_found_transport_exception",
+                            "reason": "No handler for action [test]"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }"""), Strings.toString(closeIndexResponse));
     }
 
     private CloseIndexResponse randomResponse() {

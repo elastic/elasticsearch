@@ -63,14 +63,15 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
     }
 
     public void testParsingRangeStrict() throws IOException {
-        final String rangeAggregation = "{\n"
-            + "\"field\" : \"location\",\n"
-            + "\"origin\" : \"52.3760, 4.894\",\n"
-            + "\"unit\" : \"m\",\n"
-            + "\"ranges\" : [\n"
-            + "    { \"from\" : 10000, \"to\" : 20000, \"badField\" : \"abcd\" }\n"
-            + "]\n"
-            + "}";
+        final String rangeAggregation = """
+            {
+            "field" : "location",
+            "origin" : "52.3760, 4.894",
+            "unit" : "m",
+            "ranges" : [
+                { "from" : 10000, "to" : 20000, "badField" : "abcd" }
+            ]
+            }""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
         XContentParseException ex = expectThrows(
             XContentParseException.class,
@@ -84,14 +85,15 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
      * We never render "null" values to xContent, but we should test that we can parse them (and they return correct defaults)
      */
     public void testParsingNull() throws IOException {
-        final String rangeAggregation = "{\n"
-            + "\"field\" : \"location\",\n"
-            + "\"origin\" : \"52.3760, 4.894\",\n"
-            + "\"unit\" : \"m\",\n"
-            + "\"ranges\" : [\n"
-            + "    { \"from\" : null, \"to\" : null }\n"
-            + "]\n"
-            + "}";
+        final String rangeAggregation = """
+            {
+            "field" : "location",
+            "origin" : "52.3760, 4.894",
+            "unit" : "m",
+            "ranges" : [
+                { "from" : null, "to" : null }
+            ]
+            }""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
         GeoDistanceAggregationBuilder aggregationBuilder = (GeoDistanceAggregationBuilder) GeoDistanceAggregationBuilder.parse(
             "aggregationName",

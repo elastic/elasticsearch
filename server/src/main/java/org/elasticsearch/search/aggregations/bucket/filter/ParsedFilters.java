@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -18,7 +19,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -41,7 +41,7 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
     @Override
     public ParsedBucket getBucketByKey(String key) {
         if (bucketMap == null) {
-            bucketMap = new HashMap<>(buckets.size());
+            bucketMap = Maps.newMapWithExpectedSize(buckets.size());
             for (ParsedBucket bucket : buckets) {
                 bucketMap.put(bucket.getKey(), bucket);
             }
@@ -69,9 +69,10 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
         if (aggregation.keyed == false) {
             int i = 0;
             for (ParsedBucket bucket : aggregation.buckets) {
-                assert bucket.key == null;
-                bucket.key = String.valueOf(i);
-                i++;
+                if (bucket.key == null) {
+                    bucket.key = String.valueOf(i);
+                    i++;
+                }
             }
         }
         return aggregation;
@@ -80,6 +81,8 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
     public static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements Filters.Bucket {
 
         private String key;
+
+        private boolean keyedBucket = true;
 
         @Override
         public String getKey() {
@@ -97,6 +100,9 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
                 builder.startObject(key);
             } else {
                 builder.startObject();
+            }
+            if (isKeyed() == false && keyedBucket == false) {
+                builder.field(CommonFields.KEY.getPreferredName(), key);
             }
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
             getAggregations().toXContentInternal(builder, params);
@@ -122,6 +128,9 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
                 } else if (token.isValue()) {
                     if (CommonFields.DOC_COUNT.getPreferredName().equals(currentFieldName)) {
                         bucket.setDocCount(parser.longValue());
+                    } else if (CommonFields.KEY.getPreferredName().equals(currentFieldName)) {
+                        bucket.key = parser.text();
+                        bucket.keyedBucket = false;
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     XContentParserUtils.parseTypedKeysObject(

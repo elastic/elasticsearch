@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -25,33 +25,43 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAllocationAction;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
-import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
-import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationService;
-import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.Collections;
@@ -60,24 +70,26 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction.MAX_NUM_NATIVE_DEFINITION_PARTS;
 
 public class TransportStartTrainedModelDeploymentAction extends TransportMasterNodeAction<
     StartTrainedModelDeploymentAction.Request,
-    CreateTrainedModelAllocationAction.Response> {
+    CreateTrainedModelAssignmentAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportStartTrainedModelDeploymentAction.class);
 
     private final XPackLicenseState licenseState;
     private final Client client;
-    private final TrainedModelAllocationService trainedModelAllocationService;
+    private final TrainedModelAssignmentService trainedModelAssignmentService;
     private final NamedXContentRegistry xContentRegistry;
     private final MlMemoryTracker memoryTracker;
-    protected volatile int maxLazyMLNodes;
+    private final InferenceAuditor auditor;
 
     @Inject
     public TransportStartTrainedModelDeploymentAction(
@@ -88,10 +100,10 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ActionFilters actionFilters,
         XPackLicenseState licenseState,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Settings settings,
-        TrainedModelAllocationService trainedModelAllocationService,
+        TrainedModelAssignmentService trainedModelAssignmentService,
         NamedXContentRegistry xContentRegistry,
-        MlMemoryTracker memoryTracker
+        MlMemoryTracker memoryTracker,
+        InferenceAuditor auditor
     ) {
         super(
             StartTrainedModelDeploymentAction.NAME,
@@ -101,20 +113,15 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             actionFilters,
             StartTrainedModelDeploymentAction.Request::new,
             indexNameExpressionResolver,
-            CreateTrainedModelAllocationAction.Response::new,
+            CreateTrainedModelAssignmentAction.Response::new,
             ThreadPool.Names.SAME
         );
         this.licenseState = Objects.requireNonNull(licenseState);
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ML_ORIGIN);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
-        this.trainedModelAllocationService = Objects.requireNonNull(trainedModelAllocationService);
-        this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
-    }
-
-    private void setMaxLazyMLNodes(int value) {
-        this.maxLazyMLNodes = value;
+        this.trainedModelAssignmentService = Objects.requireNonNull(trainedModelAssignmentService);
+        this.auditor = Objects.requireNonNull(auditor);
     }
 
     @Override
@@ -122,29 +129,87 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         Task task,
         StartTrainedModelDeploymentAction.Request request,
         ClusterState state,
-        ActionListener<CreateTrainedModelAllocationAction.Response> listener
+        ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) throws Exception {
-        logger.trace(() -> new ParameterizedMessage("[{}] received deploy request", request.getModelId()));
+        logger.debug(() -> "[" + request.getDeploymentId() + "] received deploy request for model [" + request.getModelId() + "]");
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
 
-        ActionListener<CreateTrainedModelAllocationAction.Response> waitForDeploymentToStart = ActionListener.wrap(
-            modelAllocation -> waitForDeploymentState(request.getModelId(), request.getTimeout(), request.getWaitForState(), listener),
+        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot start a new model deployment as not all nodes are on version {}. All nodes must be the same version",
+                    RestStatus.FORBIDDEN,
+                    state.getNodes().getMaxNodeVersion()
+                )
+            );
+            return;
+        }
+
+        var assignments = TrainedModelAssignmentMetadata.fromState(state);
+        if (assignments.allAssignments().size() >= MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Could not start model deployment because existing deployments reached the limit of [{}]",
+                    RestStatus.TOO_MANY_REQUESTS,
+                    MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS
+                )
+            );
+            return;
+        }
+
+        if (assignments.getDeploymentAssignment(request.getDeploymentId()) != null) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Could not start model deployment because an existing deployment with the same id [{}] exist",
+                    RestStatus.BAD_REQUEST,
+                    request.getDeploymentId()
+                )
+            );
+            return;
+        }
+
+        ActionListener<CreateTrainedModelAssignmentAction.Response> waitForDeploymentToStart = ActionListener.wrap(
+            modelAssignment -> waitForDeploymentState(request.getDeploymentId(), request.getTimeout(), request.getWaitForState(), listener),
             e -> {
-                logger.warn(() -> new ParameterizedMessage("[{}] creating new allocation failed", request.getModelId()), e);
+                logger.warn(
+                    () -> "[" + request.getDeploymentId() + "] creating new assignment for model [" + request.getModelId() + "] failed",
+                    e
+                );
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
                         "Cannot start deployment [{}] because it has already been started",
                         RestStatus.CONFLICT,
                         e,
-                        request.getModelId()
+                        request.getDeploymentId()
                     );
                 }
                 listener.onFailure(e);
             }
         );
+
+        ActionListener<Tuple<String, Long>> modelSizeListener = ActionListener.wrap(modelIdAndSizeInBytes -> {
+            TaskParams taskParams = new TaskParams(
+                modelIdAndSizeInBytes.v1(),
+                request.getDeploymentId(),
+                modelIdAndSizeInBytes.v2(),
+                request.getNumberOfAllocations(),
+                request.getThreadsPerAllocation(),
+                request.getQueueCapacity(),
+                Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelIdAndSizeInBytes.v2())),
+                request.getPriority()
+            );
+            PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            memoryTracker.refresh(
+                persistentTasks,
+                ActionListener.wrap(
+                    aVoid -> trainedModelAssignmentService.createNewModelAssignment(taskParams, waitForDeploymentToStart),
+                    listener::onFailure
+                )
+            );
+        }, listener::onFailure);
 
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
             if (getModelResponse.getResources().results().size() > 1) {
@@ -175,25 +240,35 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return;
             }
 
-            getModelBytes(trainedModelConfig, ActionListener.wrap(modelBytes -> {
-                TaskParams taskParams = new TaskParams(
-                    trainedModelConfig.getModelId(),
-                    modelBytes,
-                    request.getInferenceThreads(),
-                    request.getModelThreads(),
-                    request.getQueueCapacity()
-                );
-                PersistentTasksCustomMetadata persistentTasks = clusterService.state()
-                    .getMetadata()
-                    .custom(PersistentTasksCustomMetadata.TYPE);
-                memoryTracker.refresh(
-                    persistentTasks,
+            // If the model id isn't the same id as the deployment id
+            // check there isn't another model with deployment id
+            if (request.getModelId().equals(request.getDeploymentId()) == false) {
+                GetTrainedModelsAction.Request getModelWithDeploymentId = new GetTrainedModelsAction.Request(request.getDeploymentId());
+                client.execute(
+                    GetTrainedModelsAction.INSTANCE,
+                    getModelWithDeploymentId,
                     ActionListener.wrap(
-                        aVoid -> trainedModelAllocationService.createNewModelAllocation(taskParams, waitForDeploymentToStart),
-                        listener::onFailure
+                        response -> listener.onFailure(
+                            ExceptionsHelper.badRequestException(
+                                "Deployment id [{}] is the same as an another model which is not the model being deployed. "
+                                    + "Deployment id can be the same as the model being deployed but cannot match a different model",
+                                request.getDeploymentId(),
+                                request.getModelId()
+                            )
+                        ),
+                        error -> {
+                            if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                                // no name clash, continue with the deployment
+                                validateModelDefinition(trainedModelConfig, modelSizeListener);
+                            } else {
+                                listener.onFailure(error);
+                            }
+                        }
                     )
                 );
-            }, listener::onFailure));
+            } else {
+                validateModelDefinition(trainedModelConfig, modelSizeListener);
+            }
 
         }, listener::onFailure);
 
@@ -201,45 +276,25 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
     }
 
-    private void getModelBytes(TrainedModelConfig trainedModelConfig, ActionListener<Long> listener) {
-        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(
-            trainedModelConfig.getModelId(),
-            client,
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
-            xContentRegistry
-        );
-        restorer.setSearchIndex(trainedModelConfig.getLocation().getResourceName());
-        restorer.setSearchSize(1);
-        restorer.restoreModelDefinition(doc -> {
-            // The in-memory size of the model was found to be approximately equal
-            // to the size of the model on disk in experiments for BERT models. However,
-            // this might not always be the case.
-            // TODO Improve heuristic for in-memory model size.
-            listener.onResponse(doc.getTotalDefinitionLength());
-
-            // Return false to stop the restorer as we only need the first doc
-            return false;
-        }, success -> { /* nothing to do */ }, listener::onFailure);
-    }
-
     private void waitForDeploymentState(
-        String modelId,
+        String deploymentId,
         TimeValue timeout,
         AllocationStatus.State state,
-        ActionListener<CreateTrainedModelAllocationAction.Response> listener
+        ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
-        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId, state, maxLazyMLNodes);
-        trainedModelAllocationService.waitForAllocationCondition(
-            modelId,
+        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(deploymentId, state);
+        trainedModelAssignmentService.waitForAssignmentCondition(
+            deploymentId,
             predicate,
             timeout,
-            new TrainedModelAllocationService.WaitForAllocationListener() {
+            new TrainedModelAssignmentService.WaitForAssignmentListener() {
                 @Override
-                public void onResponse(TrainedModelAllocation allocation) {
+                public void onResponse(TrainedModelAssignment assignment) {
                     if (predicate.exception != null) {
-                        deleteFailedDeployment(modelId, predicate.exception, listener);
+                        deleteFailedDeployment(deploymentId, predicate.exception, listener);
                     } else {
-                        listener.onResponse(new CreateTrainedModelAllocationAction.Response(allocation));
+                        auditor.info(assignment.getDeploymentId(), Messages.INFERENCE_DEPLOYMENT_STARTED);
+                        listener.onResponse(new CreateTrainedModelAssignmentAction.Response(assignment));
                     }
                 }
 
@@ -252,15 +307,16 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
     }
 
     private void deleteFailedDeployment(
-        String modelId,
+        String deploymentId,
         Exception exception,
-        ActionListener<CreateTrainedModelAllocationAction.Response> listener
+        ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
-        trainedModelAllocationService.deleteModelAllocation(modelId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
+        logger.trace(() -> format("[%s] Deleting failed deployment", deploymentId), exception);
+        trainedModelAssignmentService.deleteModelAssignment(deploymentId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
             logger.error(
-                new ParameterizedMessage(
-                    "[{}] Failed to delete model allocation that had failed with the reason [{}]",
-                    modelId,
+                () -> format(
+                    "[%s] Failed to delete model allocation that had failed with the reason [%s]",
+                    deploymentId,
                     exception.getMessage()
                 ),
                 e
@@ -268,6 +324,109 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             listener.onFailure(exception);
         }));
 
+    }
+
+    private void validateModelDefinition(TrainedModelConfig config, ActionListener<Tuple<String, Long>> listener) {
+        if (config.getLocation() instanceof IndexLocation == false) {
+            listener.onResponse(null);
+            return;
+        }
+        final String modelId = config.getModelId();
+        final String[] requiredSourceFields = new String[] {
+            TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName(),
+            TrainedModelDefinitionDoc.DOC_NUM.getPreferredName(),
+            TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName(),
+            TrainedModelDefinitionDoc.EOS.getPreferredName() };
+        final Set<String> requiredSet = Set.of(requiredSourceFields);
+        String index = ((IndexLocation) config.getLocation()).getIndexName();
+        client.prepareSearch(index)
+            .setQuery(
+                QueryBuilders.constantScoreQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
+                        .filter(
+                            QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelDefinitionDoc.NAME)
+                        )
+                )
+            )
+            .setFetchSource(requiredSourceFields, new String[0])
+            .setSize(MAX_NUM_NATIVE_DEFINITION_PARTS)
+            .setTrackTotalHits(true)
+            .addSort(SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName()).order(SortOrder.ASC).unmappedType("long"))
+            .execute(ActionListener.wrap(response -> {
+                SearchHit[] hits = response.getHits().getHits();
+                if (hits.length == 0) {
+                    listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
+                    return;
+                }
+                long firstTotalLength = ((Number) hits[0].getSourceAsMap()
+                    .get(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName())).longValue();
+
+                long summedLengths = 0;
+                for (SearchHit hit : hits) {
+                    Map<String, Object> fields = hit.getSourceAsMap();
+                    if (fields == null) {
+                        listener.onFailure(
+                            ExceptionsHelper.badRequestException(
+                                "[{}] model definition [{}] is missing required fields {}. {}",
+                                modelId,
+                                TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
+                                List.of(requiredSourceFields),
+                                Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS
+                            )
+                        );
+                        return;
+                    }
+                    Set<String> diff = Sets.difference(fields.keySet(), requiredSet);
+                    if (diff.isEmpty() == false) {
+                        listener.onFailure(
+                            ExceptionsHelper.badRequestException(
+                                "[{}] model definition [{}] is missing required fields {}. {}",
+                                modelId,
+                                TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
+                                diff,
+                                Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS
+                            )
+                        );
+                        return;
+                    }
+                    summedLengths += ((Number) fields.get(TrainedModelDefinitionDoc.DEFINITION_LENGTH.getPreferredName())).longValue();
+                    long totalLength = ((Number) fields.get(TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName()))
+                        .longValue();
+                    if (totalLength != firstTotalLength) {
+                        listener.onFailure(
+                            ExceptionsHelper.badRequestException(
+                                "[{}] [total_definition_length] must be the same in all model definition parts. "
+                                    + "The value [{}] in model definition part [{}] does not match the value [{}] in part [{}]. "
+                                    + Messages.UNABLE_TO_DEPLOY_MODEL_BAD_PARTS,
+                                modelId,
+                                totalLength,
+                                TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hit.getId())),
+                                firstTotalLength,
+                                TrainedModelDefinitionDoc.docNum(modelId, Objects.requireNonNull(hits[0].getId()))
+                            )
+                        );
+                        return;
+                    }
+
+                }
+                Boolean eos = (Boolean) hits[hits.length - 1].getSourceAsMap().get(TrainedModelDefinitionDoc.EOS.getPreferredName());
+                if (summedLengths != firstTotalLength || eos == null || eos == false) {
+                    listener.onFailure(
+                        ExceptionsHelper.badRequestException(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId))
+                    );
+                    return;
+                }
+                listener.onResponse(new Tuple<>(modelId, summedLengths));
+            }, e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                    Exception ex = new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId));
+                    ex.addSuppressed(e);
+                    listener.onFailure(ex);
+                    return;
+                }
+                listener.onFailure(e);
+            }));
     }
 
     @Override
@@ -283,35 +442,36 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         private volatile Exception exception;
 
         // for logging
-        private final String modelId;
+        private final String deploymentId;
         private final AllocationStatus.State waitForState;
-        private final int maxLazyMLNodes;
 
-        DeploymentStartedPredicate(String modelId, AllocationStatus.State waitForState, int maxLazyMLNodes) {
-            this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
+        DeploymentStartedPredicate(String deploymentId, AllocationStatus.State waitForState) {
+            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, "deployment_id");
             this.waitForState = waitForState;
-            this.maxLazyMLNodes = maxLazyMLNodes;
         }
 
         @Override
         public boolean test(ClusterState clusterState) {
-            TrainedModelAllocation trainedModelAllocation = TrainedModelAllocationMetadata.allocationForModelId(clusterState, modelId)
-                .orElse(null);
-            if (trainedModelAllocation == null) {
+            TrainedModelAssignment trainedModelAssignment = TrainedModelAssignmentMetadata.assignmentForDeploymentId(
+                clusterState,
+                deploymentId
+            ).orElse(null);
+            if (trainedModelAssignment == null) {
                 // Something weird happened, it should NEVER be null...
+                logger.trace(() -> format("[%s] assignment was null while waiting for state [%s]", deploymentId, waitForState));
                 return true;
             }
 
-            final Set<Map.Entry<String, RoutingStateAndReason>> nodesAndState = trainedModelAllocation.getNodeRoutingTable().entrySet();
+            final Set<Map.Entry<String, RoutingInfo>> nodeIdsAndRouting = trainedModelAssignment.getNodeRoutingTable().entrySet();
 
             Map<String, String> nodeFailuresAndReasons = new HashMap<>();
             Set<String> nodesStillInitializing = new LinkedHashSet<>();
-            for (Map.Entry<String, RoutingStateAndReason> nodeIdAndState : nodesAndState) {
-                if (RoutingState.FAILED.equals(nodeIdAndState.getValue().getState())) {
-                    nodeFailuresAndReasons.put(nodeIdAndState.getKey(), nodeIdAndState.getValue().getReason());
+            for (Map.Entry<String, RoutingInfo> nodeIdAndRouting : nodeIdsAndRouting) {
+                if (RoutingState.FAILED.equals(nodeIdAndRouting.getValue().getState())) {
+                    nodeFailuresAndReasons.put(nodeIdAndRouting.getKey(), nodeIdAndRouting.getValue().getReason());
                 }
-                if (RoutingState.STARTING.equals(nodeIdAndState.getValue().getState())) {
-                    nodesStillInitializing.add(nodeIdAndState.getKey());
+                if (RoutingState.STARTING.equals(nodeIdAndRouting.getValue().getState())) {
+                    nodesStillInitializing.add(nodeIdAndRouting.getKey());
                 }
             }
 
@@ -325,28 +485,12 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             }
             Set<String> nodesShuttingDown = nodesShuttingDown(clusterState);
             List<DiscoveryNode> nodes = clusterState.nodes()
-                .getAllNodes()
                 .stream()
                 .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
-                .filter(TaskParams::mayAllocateToNode)
-                .collect(Collectors.toList());
+                .filter(TaskParams::mayAssignToNode)
+                .toList();
 
-            // No nodes allocated at all!
-            if (nodesAndState.isEmpty() && maxLazyMLNodes <= nodes.size()) {
-                String msg = "Could not start deployment because no suitable nodes were found, allocation explanation ["
-                    + trainedModelAllocation.getReason()
-                    + "]";
-                logger.warn("[{}] {}", modelId, msg);
-                Exception detail = new IllegalStateException(msg);
-                exception = new ElasticsearchStatusException(
-                    "Could not start deployment because no ML nodes with sufficient capacity were found",
-                    RestStatus.TOO_MANY_REQUESTS,
-                    detail
-                );
-                return true;
-            }
-
-            AllocationStatus allocationStatus = trainedModelAllocation.calculateAllocationStatus(nodes).orElse(null);
+            AllocationStatus allocationStatus = trainedModelAssignment.calculateAllocationStatus().orElse(null);
             if (allocationStatus == null || allocationStatus.calculateState().compareTo(waitForState) >= 0) {
                 return true;
             }
@@ -355,10 +499,10 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return true;
             }
             logger.trace(
-                () -> new ParameterizedMessage(
-                    "[{}] tested with state [{}] and nodes {} still initializing",
-                    modelId,
-                    trainedModelAllocation.getAllocationState(),
+                () -> format(
+                    "[%s] tested with state [%s] and nodes %s still initializing",
+                    deploymentId,
+                    trainedModelAssignment.getAssignmentState(),
                     nodesStillInitializing
                 )
             );

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.sql.common.io;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,22 +25,35 @@ import java.util.Base64;
  */
 public class SqlStreamInput extends NamedWriteableAwareStreamInput {
 
-    private final ZoneId zoneId;
-
-    public SqlStreamInput(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
-        this(Base64.getDecoder().decode(base64encoded), namedWriteableRegistry, version);
+    public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, TransportVersion version)
+        throws IOException {
+        byte[] bytes = Base64.getDecoder().decode(base64encoded);
+        StreamInput in = StreamInput.wrap(bytes);
+        TransportVersion inVersion = TransportVersion.readVersion(in);
+        validateStreamVersion(version, inVersion);
+        InputStreamStreamInput uncompressingIn = new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(in));
+        return new SqlStreamInput(uncompressingIn, namedWriteableRegistry, inVersion);
     }
 
-    public SqlStreamInput(byte[] input, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
-        super(StreamInput.wrap(input), namedWriteableRegistry);
-
-        // version check first
-        Version ver = Version.readVersion(delegate);
-        if (version.compareTo(ver) != 0) {
-            throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", ver, version);
+    /**
+     * Prior to 8.8.0, we only allow cursors to be deserialized with the same node version they were created.
+     * <p>
+     * In 8.8.0 and after, we are relaxing this constraint so we don't need to map between Version and TransportVersion.
+     * If there is any future work that needs specific cursor compatibility checks, this needs to be implemented appropriately
+     * using TransportVersion.
+     */
+    private static void validateStreamVersion(TransportVersion version, TransportVersion cursorVersion) {
+        if (cursorVersion.before(TransportVersion.V_8_8_0) && version.equals(cursorVersion) == false) {
+            throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", cursorVersion, version);
         }
-        delegate.setVersion(version);
-        // configuration settings
+    }
+
+    private final ZoneId zoneId;
+
+    private SqlStreamInput(StreamInput input, NamedWriteableRegistry namedWriteableRegistry, TransportVersion version) throws IOException {
+        super(input, namedWriteableRegistry);
+
+        delegate.setTransportVersion(version);
         zoneId = delegate.readZoneId();
     }
 

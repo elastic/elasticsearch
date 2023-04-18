@@ -33,6 +33,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
@@ -46,11 +47,13 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -214,12 +217,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         super(in);
         field = in.readString();
         name = in.readOptionalString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String documentType = in.readOptionalString();
             assert documentType == null;
         }
         indexedDocumentIndex = in.readOptionalString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String indexedDocumentType = in.readOptionalString();
             assert indexedDocumentType == null;
         }
@@ -231,7 +234,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         } else {
             indexedDocumentVersion = null;
         }
-        documents = in.readList(StreamInput::readBytesReference);
+        documents = in.readImmutableList(StreamInput::readBytesReference);
         if (documents.isEmpty() == false) {
             documentXContentType = in.readEnum(XContentType.class);
         } else {
@@ -256,12 +259,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         out.writeString(field);
         out.writeOptionalString(name);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // In 7x, typeless percolate queries are represented by null documentType values
             out.writeOptionalString(null);
         }
         out.writeOptionalString(indexedDocumentIndex);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // In 7x, typeless percolate queries are represented by null indexedDocumentType values
             out.writeOptionalString(null);
         }
@@ -274,10 +277,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         } else {
             out.writeBoolean(false);
         }
-        out.writeVInt(documents.size());
-        for (BytesReference document : documents) {
-            out.writeBytesReference(document);
-        }
+        out.writeCollection(documents, StreamOutput::writeBytesReference);
         if (documents.isEmpty() == false) {
             XContentHelper.writeTo(out, documentXContentType);
         }
@@ -326,7 +326,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 builder.field(INDEXED_DOCUMENT_FIELD_VERSION.getPreferredName(), indexedDocumentVersion);
             }
         }
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -443,7 +443,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (indexedDocumentVersion != null) {
             getRequest.version(indexedDocumentVersion);
         }
-        SetOnce<BytesReference> documentSupplier = new SetOnce<>();
+        SetOnce<BytesReference> docSupplier = new SetOnce<>();
         queryRewriteContext.registerAsyncAction((client, listener) -> {
             client.get(getRequest, ActionListener.wrap(getResponse -> {
                 if (getResponse.isExists() == false) {
@@ -458,12 +458,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         "indexed document [" + indexedDocumentIndex + "/" + indexedDocumentId + "] source disabled"
                     );
                 }
-                documentSupplier.set(getResponse.getSourceAsBytesRef());
+                docSupplier.set(getResponse.getSourceAsBytesRef());
                 listener.onResponse(null);
             }, listener::onFailure));
         });
 
-        PercolateQueryBuilder rewritten = new PercolateQueryBuilder(field, documentSupplier::get);
+        PercolateQueryBuilder rewritten = new PercolateQueryBuilder(field, docSupplier::get);
         if (name != null) {
             rewritten.setName(name);
         }
@@ -503,7 +503,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
         final List<ParsedDocument> docs = new ArrayList<>();
         for (BytesReference document : documents) {
-            docs.add(context.parseDocument(new SourceToParse(context.index().getName(), "_temp_id", document, documentXContentType)));
+            docs.add(context.parseDocument(new SourceToParse("_temp_id", document, documentXContentType)));
         }
 
         // We need this custom analyzer because the default index analyzer is strict and the percolator sometimes isn't when
@@ -517,9 +517,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         final IndexSearcher docSearcher;
         final boolean excludeNestedDocuments;
         if (docs.size() > 1 || docs.get(0).docs().size() > 1) {
-            assert docs.size() != 1 || context.hasNested();
+            assert docs.size() != 1 || context.nestedLookup() != NestedLookup.EMPTY;
             docSearcher = createMultiDocumentSearcher(analyzer, docs);
-            excludeNestedDocuments = context.hasNested()
+            excludeNestedDocuments = context.nestedLookup() != NestedLookup.EMPTY
                 && docs.stream().map(ParsedDocument::docs).mapToInt(List::size).anyMatch(size -> size > 1);
         } else {
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(docs.get(0).rootDoc(), analyzer, true, false);
@@ -529,13 +529,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
 
         PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) fieldType;
-        String name = this.name != null ? this.name : pft.name();
+        String queryName = this.name != null ? this.name : pft.name();
         SearchExecutionContext percolateShardContext = wrap(context);
         PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);
-        ;
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext);
 
-        return pft.percolateQuery(name, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
+        return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
     }
 
     public String getField() {
@@ -584,28 +583,34 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             return docId -> {
                 if (binaryDocValues.advanceExact(docId)) {
                     BytesRef qbSource = binaryDocValues.binaryValue();
-                    try (InputStream in = new ByteArrayInputStream(qbSource.bytes, qbSource.offset, qbSource.length)) {
-                        try (
-                            StreamInput input = new NamedWriteableAwareStreamInput(
-                                new InputStreamStreamInput(in, qbSource.length),
-                                registry
-                            )
-                        ) {
-                            input.setVersion(indexVersion);
-                            // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
-                            // to encode multiple binary values into a single binary doc values field.
-                            // This is the reason we need to first need to read the number of values and
-                            // then the length of the field value in bytes.
-                            int numValues = input.readVInt();
-                            assert numValues == 1;
-                            int valueLength = input.readVInt();
-                            assert valueLength > 0;
-                            QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                            assert in.read() == -1;
-                            queryBuilder = Rewriteable.rewrite(queryBuilder, context);
-                            return queryBuilder.toQuery(context);
+                    try (
+                        InputStream in = new ByteArrayInputStream(qbSource.bytes, qbSource.offset, qbSource.length);
+                        StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in, qbSource.length), registry)
+                    ) {
+                        // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
+                        // to encode multiple binary values into a single binary doc values field.
+                        // This is the reason we need to first read the number of values and
+                        // then the length of the field value in bytes.
+                        int numValues = input.readVInt();
+                        assert numValues == 1;
+                        int valueLength = input.readVInt();
+                        assert valueLength > 0;
+
+                        TransportVersion transportVersion;
+                        if (indexVersion.before(Version.V_8_8_0)) {
+                            transportVersion = TransportVersion.fromId(indexVersion.id);
+                        } else {
+                            transportVersion = TransportVersion.readVersion(input);
                         }
+                        // set the transportversion here - only read vints so far, so can change the version freely at this point
+                        input.setTransportVersion(transportVersion);
+
+                        QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
+                        assert in.read() == -1;
+                        queryBuilder = Rewriteable.rewrite(queryBuilder, context);
+                        return queryBuilder.toQuery(context);
                     }
+
                 } else {
                     return null;
                 }
@@ -642,12 +647,27 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
             @Override
             @SuppressWarnings("unchecked")
-            public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-                IndexFieldData.Builder builder = fieldType.fielddataBuilder(delegate.getFullyQualifiedIndex().getName(), delegate::lookup);
+            public <IFD extends IndexFieldData<?>> IFD getForField(
+                MappedFieldType fieldType,
+                MappedFieldType.FielddataOperation fielddataOperation
+            ) {
+                IndexFieldData.Builder builder = fieldType.fielddataBuilder(
+                    new FieldDataContext(
+                        delegate.getFullyQualifiedIndex().getName(),
+                        delegate::lookup,
+                        this::sourcePath,
+                        fielddataOperation
+                    )
+                );
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
                 return (IFD) builder.build(cache, circuitBreaker);
             }
         };
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

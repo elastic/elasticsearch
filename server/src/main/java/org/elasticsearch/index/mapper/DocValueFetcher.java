@@ -12,7 +12,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,14 +24,22 @@ import static java.util.Collections.emptyList;
 /**
  * Value fetcher that loads from doc values.
  */
+// TODO rename this? It doesn't load from doc values, it loads from fielddata
+// Which might be doc values, but might not be...
 public final class DocValueFetcher implements ValueFetcher {
     private final DocValueFormat format;
     private final IndexFieldData<?> ifd;
     private FormattedDocValues formattedDocValues;
+    private final StoredFieldsSpec storedFieldsSpec;
 
-    public DocValueFetcher(DocValueFormat format, IndexFieldData<?> ifd) {
+    public DocValueFetcher(DocValueFormat format, IndexFieldData<?> ifd, StoredFieldsSpec storedFieldsSpec) {
         this.format = format;
         this.ifd = ifd;
+        this.storedFieldsSpec = storedFieldsSpec;
+    }
+
+    public DocValueFetcher(DocValueFormat format, IndexFieldData<?> ifd) {
+        this(format, ifd, StoredFieldsSpec.NO_REQUIREMENTS);
     }
 
     @Override
@@ -39,8 +48,8 @@ public final class DocValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) throws IOException {
-        if (false == formattedDocValues.advanceExact(lookup.docId())) {
+    public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
+        if (false == formattedDocValues.advanceExact(doc)) {
             return emptyList();
         }
         List<Object> result = new ArrayList<>(formattedDocValues.docValueCount());
@@ -50,4 +59,8 @@ public final class DocValueFetcher implements ValueFetcher {
         return result;
     }
 
+    @Override
+    public StoredFieldsSpec storedFieldsSpec() {
+        return storedFieldsSpec;
+    }
 }

@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.BaseMergePolicyTestCase;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -23,6 +22,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.BaseMergePolicyTestCase;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -34,6 +34,8 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
     public void testDiagnostics() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
+            // Disable merging on flush.
+            iwc.setMaxFullFlushMergeWaitMillis(0L);
             MergePolicy mp = new ShuffleForcedMergePolicy(newTieredMergePolicy());
             iwc.setMergePolicy(mp);
             boolean sorted = random().nextBoolean();
@@ -53,6 +55,8 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
                     writer.addDocument(doc);
                 }
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    // We expect at least three segments since that is a more meaningful setup for
+                    // testing ShuffleForcedMergePolicy (interleaving old and new segments).
                     assertThat(reader.leaves().size(), greaterThan(2));
                     assertSegmentReaders(reader, leaf -> assertFalse(ShuffleForcedMergePolicy.isInterleavedSegment(leaf)));
                 }

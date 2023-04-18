@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -106,24 +107,30 @@ public class FakeRestRequest extends RestRequest {
 
         @Override
         public HttpRequest removeHeader(String header) {
-            headers.remove(header);
-            return this;
+            final var filteredHeaders = new HashMap<>(headers);
+            filteredHeaders.remove(header);
+            return new FakeHttpRequest(method, uri, content, filteredHeaders, inboundException);
         }
 
         @Override
-        public HttpResponse createResponse(RestStatus status, BytesReference content) {
-            Map<String, String> headers = new HashMap<>();
+        public HttpResponse createResponse(RestStatus status, BytesReference unused) {
+            Map<String, String> responseHeaders = new HashMap<>();
             return new HttpResponse() {
                 @Override
                 public void addHeader(String name, String value) {
-                    headers.put(name, value);
+                    responseHeaders.put(name, value);
                 }
 
                 @Override
                 public boolean containsHeader(String name) {
-                    return headers.containsKey(name);
+                    return responseHeaders.containsKey(name);
                 }
             };
+        }
+
+        @Override
+        public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content) {
+            return createResponse(status, BytesArray.EMPTY);
         }
 
         @Override
@@ -151,7 +158,7 @@ public class FakeRestRequest extends RestRequest {
 
         @Override
         public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-
+            closeFuture.addListener(listener);
         }
 
         @Override
@@ -212,8 +219,8 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
-        public Builder withContent(BytesReference content, XContentType xContentType) {
-            this.content = content;
+        public Builder withContent(BytesReference contentBytes, XContentType xContentType) {
+            this.content = contentBytes;
             if (xContentType != null) {
                 headers.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
             }
@@ -230,8 +237,8 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
-        public Builder withRemoteAddress(InetSocketAddress address) {
-            this.address = address;
+        public Builder withRemoteAddress(InetSocketAddress remoteAddress) {
+            this.address = remoteAddress;
             return this;
         }
 

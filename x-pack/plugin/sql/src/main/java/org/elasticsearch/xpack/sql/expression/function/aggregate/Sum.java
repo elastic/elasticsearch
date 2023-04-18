@@ -16,6 +16,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
 /**
  * Sum all values of a field in matching documents.
@@ -38,7 +39,8 @@ public class Sum extends NumericAggregate implements EnclosedAgg {
 
     @Override
     public DataType dataType() {
-        return field().dataType().isInteger() ? LONG : DOUBLE;
+        DataType dt = field().dataType();
+        return dt.isInteger() == false || dt == UNSIGNED_LONG ? DOUBLE : LONG;
     }
 
     @Override

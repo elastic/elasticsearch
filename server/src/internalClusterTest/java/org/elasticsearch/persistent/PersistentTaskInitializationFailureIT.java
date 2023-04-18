@@ -8,9 +8,9 @@
 
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -25,6 +25,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -53,11 +55,12 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         startPersistentTaskFuture.actionGet();
 
         assertBusy(() -> {
-            final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
-            final PersistentTasksCustomMetadata persistentTasks = clusterService.state()
-                .metadata()
-                .custom(PersistentTasksCustomMetadata.TYPE);
-            assertThat(persistentTasks.tasks().toString(), persistentTasks.tasks(), empty());
+            final ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
+            List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(
+                clusterService.state(),
+                FailingInitializationPersistentTaskExecutor.TASK_NAME
+            );
+            assertThat(tasks.toString(), tasks, empty());
         });
     }
 
@@ -85,6 +88,20 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
                 )
             );
         }
+
+        @Override
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
+            return List.of(
+                new NamedXContentRegistry.Entry(
+                    PersistentTaskParams.class,
+                    new ParseField(FailingInitializationPersistentTaskExecutor.TASK_NAME),
+                    p -> {
+                        p.skipChildren();
+                        return new FailingInitializationTaskParams();
+                    }
+                )
+            );
+        }
     }
 
     public static class FailingInitializationTaskParams implements PersistentTaskParams {
@@ -98,8 +115,8 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.CURRENT;
         }
 
         @Override

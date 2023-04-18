@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.ConnectionClosedException;
+import org.apache.http.ContentTooLongException;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -46,6 +47,7 @@ import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.nio.client.HttpAsyncClient;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
@@ -118,6 +120,7 @@ public class RestClient implements Closeable {
     private volatile NodeTuple<List<Node>> nodeTuple;
     private final WarningsHandler warningsHandler;
     private final boolean compressionEnabled;
+    private final boolean metaHeaderEnabled;
 
     RestClient(
         CloseableHttpAsyncClient client,
@@ -127,7 +130,8 @@ public class RestClient implements Closeable {
         FailureListener failureListener,
         NodeSelector nodeSelector,
         boolean strictDeprecationMode,
-        boolean compressionEnabled
+        boolean compressionEnabled,
+        boolean metaHeaderEnabled
     ) {
         this.client = client;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
@@ -136,6 +140,7 @@ public class RestClient implements Closeable {
         this.nodeSelector = nodeSelector;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         this.compressionEnabled = compressionEnabled;
+        this.metaHeaderEnabled = metaHeaderEnabled;
         setNodes(nodes);
     }
 
@@ -208,6 +213,13 @@ public class RestClient implements Closeable {
         }
         List<Node> nodes = Arrays.stream(hosts).map(Node::new).collect(Collectors.toList());
         return new RestClientBuilder(nodes);
+    }
+
+    /**
+     * Get the underlying HTTP client.
+     */
+    public HttpAsyncClient getHttpClient() {
+        return this.client;
     }
 
     /**
@@ -287,7 +299,7 @@ public class RestClient implements Closeable {
             onFailure(context.node);
             Exception cause = extractAndWrapCause(e);
             addSuppressedException(previousException, cause);
-            if (tuple.nodes.hasNext()) {
+            if (isRetryableException(e) && tuple.nodes.hasNext()) {
                 return performRequest(tuple, request, cause);
             }
             if (cause instanceof IOException) {
@@ -403,7 +415,7 @@ public class RestClient implements Closeable {
                     try {
                         RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, failure);
                         onFailure(context.node);
-                        if (tuple.nodes.hasNext()) {
+                        if (isRetryableException(failure) && tuple.nodes.hasNext()) {
                             listener.trackFailure(failure);
                             performRequestAsync(tuple, request, listener);
                         } else {
@@ -501,9 +513,7 @@ public class RestClient implements Closeable {
                 return singletonList(Collections.min(selectedDeadNodes).node);
             }
         }
-        throw new IOException(
-            "NodeSelector [" + nodeSelector + "] rejected all nodes, " + "living " + livingNodes + " and dead " + deadNodes
-        );
+        throw new IOException("NodeSelector [" + nodeSelector + "] rejected all nodes, living " + livingNodes + " and dead " + deadNodes);
     }
 
     /**
@@ -552,6 +562,19 @@ public class RestClient implements Closeable {
         return statusCode < 300;
     }
 
+    /**
+     * Should an exception cause retrying the request?
+     */
+    private static boolean isRetryableException(Throwable e) {
+        if (e instanceof ExecutionException) {
+            e = e.getCause();
+        }
+        if (e instanceof ContentTooLongException) {
+            return false;
+        }
+        return true;
+    }
+
     private static boolean isRetryStatus(int statusCode) {
         switch (statusCode) {
             case 502:
@@ -563,7 +586,7 @@ public class RestClient implements Closeable {
     }
 
     private static void addSuppressedException(Exception suppressedException, Exception currentException) {
-        if (suppressedException != null) {
+        if (suppressedException != null && suppressedException != currentException) {
             currentException.addSuppressed(suppressedException);
         }
     }
@@ -784,6 +807,13 @@ public class RestClient implements Closeable {
             }
             if (compressionEnabled) {
                 req.addHeader("Accept-Encoding", "gzip");
+            }
+            if (metaHeaderEnabled) {
+                if (req.containsHeader(RestClientBuilder.META_HEADER_NAME) == false) {
+                    req.setHeader(RestClientBuilder.META_HEADER_NAME, RestClientBuilder.META_HEADER_VALUE);
+                }
+            } else {
+                req.removeHeaders(RestClientBuilder.META_HEADER_NAME);
             }
         }
 

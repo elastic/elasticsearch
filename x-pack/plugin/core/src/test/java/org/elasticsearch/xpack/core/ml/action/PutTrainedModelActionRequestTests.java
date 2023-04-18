@@ -24,8 +24,14 @@ public class PutTrainedModelActionRequestTests extends AbstractWireSerializingTe
             TrainedModelConfigTests.createTestInstance(modelId, false)
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .build(),
+            randomBoolean(),
             randomBoolean()
         );
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

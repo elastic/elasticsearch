@@ -26,6 +26,8 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
 
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -51,7 +53,7 @@ public class TransportGetServiceAccountCredentialsActionTests extends ESTestCase
         if (randomBoolean()) {
             builder.put("xpack.security.http.ssl.enabled", true);
         } else {
-            builder.put("discovery.type", "single-node");
+            builder.put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE);
         }
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
         final Settings settings = builder.build();

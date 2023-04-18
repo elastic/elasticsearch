@@ -11,7 +11,6 @@ setup:
                 # to be relocated or being initialized between the test
                 # set up and the test execution
                 index.number_of_shards: 3
-                index.number_of_replicas: 0
               mappings:
                   properties:
                       bar:
@@ -34,13 +33,13 @@ setup:
   - do:
       index:
           index: test1
-          id:    1
+          id:    "1"
           body:  { "bar": "bar", "baz": "baz" }
 
   - do:
       index:
           index: test1
-          id:    2
+          id:    "2"
           body:  { "bar": "foo", "baz": "foo" }
 
   - do:

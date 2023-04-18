@@ -8,17 +8,22 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -40,26 +45,20 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
         super(settings, clusterService, threadPool, client);
     }
 
-    public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction) {
-        this.diskUsageFunction = diskUsageFunction;
+    public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFn) {
+        this.diskUsageFunction = diskUsageFn;
         ClusterInfoServiceUtils.refresh(this);
     }
 
-    public void setShardSizeFunctionAndRefresh(Function<ShardRouting, Long> shardSizeFunction) {
-        this.shardSizeFunction = shardSizeFunction;
+    public void setShardSizeFunctionAndRefresh(Function<ShardRouting, Long> shardSizeFn) {
+        this.shardSizeFunction = shardSizeFn;
         ClusterInfoServiceUtils.refresh(this);
-    }
-
-    @Override
-    public ClusterInfo getClusterInfo() {
-        final ClusterInfo clusterInfo = super.getClusterInfo();
-        return new SizeFakingClusterInfo(clusterInfo);
     }
 
     @Override
     List<NodeStats> adjustNodesStats(List<NodeStats> nodesStats) {
-        final BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction = this.diskUsageFunction;
-        if (diskUsageFunction == null) {
+        var diskUsageFunctionCopy = this.diskUsageFunction;
+        if (diskUsageFunctionCopy == null) {
             return nodesStats;
         }
 
@@ -78,7 +77,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                     oldFsInfo.getTimestamp(),
                     oldFsInfo.getIoStats(),
                     StreamSupport.stream(oldFsInfo.spliterator(), false)
-                        .map(fsInfoPath -> diskUsageFunction.apply(discoveryNode, fsInfoPath))
+                        .map(fsInfoPath -> diskUsageFunctionCopy.apply(discoveryNode, fsInfoPath))
                         .toArray(FsInfo.Path[]::new)
                 ),
                 nodeStats.getTransport(),
@@ -94,27 +93,35 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
         }).collect(Collectors.toList());
     }
 
-    class SizeFakingClusterInfo extends ClusterInfo {
-        SizeFakingClusterInfo(ClusterInfo delegate) {
-            super(
-                delegate.getNodeLeastAvailableDiskUsages(),
-                delegate.getNodeMostAvailableDiskUsages(),
-                delegate.shardSizes,
-                delegate.shardDataSetSizes,
-                delegate.routingToDataPath,
-                delegate.reservedSpace
+    @Override
+    ShardStats[] adjustShardStats(ShardStats[] shardsStats) {
+        var shardSizeFunctionCopy = this.shardSizeFunction;
+        if (shardSizeFunctionCopy == null) {
+            return shardsStats;
+        }
+
+        return Arrays.stream(shardsStats).map(shardStats -> {
+
+            var shardRouting = shardStats.getShardRouting();
+            var storeStats = new StoreStats(
+                shardSizeFunctionCopy.apply(shardRouting),
+                shardSizeFunctionCopy.apply(shardRouting),
+                shardStats.getStats().store.getReservedSize().getBytes()
             );
-        }
+            var commonStats = new CommonStats(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
+            commonStats.store = storeStats;
 
-        @Override
-        public Long getShardSize(ShardRouting shardRouting) {
-            final Function<ShardRouting, Long> shardSizeFunction = MockInternalClusterInfoService.this.shardSizeFunction;
-            if (shardSizeFunction == null) {
-                return super.getShardSize(shardRouting);
-            }
-
-            return shardSizeFunction.apply(shardRouting);
-        }
+            return new ShardStats(
+                shardRouting,
+                commonStats,
+                shardStats.getCommitStats(),
+                shardStats.getSeqNoStats(),
+                shardStats.getRetentionLeaseStats(),
+                shardStats.getDataPath(),
+                shardStats.getStatePath(),
+                shardStats.isCustomDataPath()
+            );
+        }).toArray(ShardStats[]::new);
     }
 
     @Override

@@ -11,7 +11,7 @@ package org.elasticsearch.cluster.allocation;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
@@ -35,17 +35,15 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLogAppender;
 
 import java.nio.file.Path;
@@ -219,7 +217,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
             .build();
         logger.info("--> starting 4 nodes");
-        String node_1 = internalCluster().startNode(commonSettings);
+        String node1 = internalCluster().startNode(commonSettings);
         internalCluster().startNode(commonSettings);
         internalCluster().startNode(commonSettings);
         internalCluster().startNode(commonSettings);
@@ -247,7 +245,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         ensureGreen(TimeValue.timeValueMinutes(1));
 
         logger.info("--> stopping node1");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_1));
+        internalCluster().stopNode(node1);
 
         // This might run slowly on older hardware
         ensureGreen(TimeValue.timeValueMinutes(2));
@@ -370,10 +368,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> create an index with 1 shard");
-        createIndex(
-            "test",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
+        createIndex("test", 1, 0);
 
         if (randomBoolean()) {
             assertAcked(client().admin().indices().prepareClose("test"));
@@ -381,8 +376,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         ensureGreen("test");
 
         logger.info("--> disable allocation");
-        Settings newSettings = Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name()).build();
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(newSettings).execute().actionGet();
+        updateClusterSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name()));
 
         logger.info("--> starting a second node");
         String node_2 = internalCluster().startNode(commonSettings);
@@ -403,7 +397,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(explanation.decisions().type(), equalTo(Decision.Type.YES));
     }
 
-    public void testMessageLogging() throws Exception {
+    public void testMessageLogging() {
         final Settings settings = Settings.builder()
             .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name())
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE.name())
@@ -432,10 +426,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             .execute()
             .actionGet();
 
-        Logger actionLogger = LogManager.getLogger(TransportClusterRerouteAction.class);
-
         MockLogAppender dryRunMockLog = new MockLogAppender();
-        dryRunMockLog.start();
         dryRunMockLog.addExpectation(
             new MockLogAppender.UnseenEventExpectation(
                 "no completed message logged on dry run",
@@ -444,28 +435,26 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 "allocated an empty primary*"
             )
         );
-        Loggers.addAppender(actionLogger, dryRunMockLog);
 
-        AllocationCommand dryRunAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
-        ClusterRerouteResponse dryRunResponse = client().admin()
-            .cluster()
-            .prepareReroute()
-            .setExplain(randomBoolean())
-            .setDryRun(true)
-            .add(dryRunAllocation)
-            .execute()
-            .actionGet();
+        try (var ignored = dryRunMockLog.capturing(TransportClusterRerouteAction.class)) {
+            AllocationCommand dryRunAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
+            ClusterRerouteResponse dryRunResponse = client().admin()
+                .cluster()
+                .prepareReroute()
+                .setExplain(randomBoolean())
+                .setDryRun(true)
+                .add(dryRunAllocation)
+                .execute()
+                .actionGet();
 
-        // during a dry run, messages exist but are not logged or exposed
-        assertThat(dryRunResponse.getExplanations().getYesDecisionMessages(), hasSize(1));
-        assertThat(dryRunResponse.getExplanations().getYesDecisionMessages().get(0), containsString("allocated an empty primary"));
+            // during a dry run, messages exist but are not logged or exposed
+            assertThat(dryRunResponse.getExplanations().getYesDecisionMessages(), hasSize(1));
+            assertThat(dryRunResponse.getExplanations().getYesDecisionMessages().get(0), containsString("allocated an empty primary"));
 
-        dryRunMockLog.assertAllExpectationsMatched();
-        dryRunMockLog.stop();
-        Loggers.removeAppender(actionLogger, dryRunMockLog);
+            dryRunMockLog.assertAllExpectationsMatched();
+        }
 
         MockLogAppender allocateMockLog = new MockLogAppender();
-        allocateMockLog.start();
         allocateMockLog.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "message for first allocate empty primary",
@@ -482,36 +471,32 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 "allocated an empty primary*" + nodeName2 + "*"
             )
         );
-        Loggers.addAppender(actionLogger, allocateMockLog);
+        try (var ignored = allocateMockLog.capturing(TransportClusterRerouteAction.class)) {
 
-        AllocationCommand yesDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
-        AllocationCommand noDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand("noexist", 1, nodeName2, true);
-        ClusterRerouteResponse response = client().admin()
-            .cluster()
-            .prepareReroute()
-            .setExplain(true) // so we get a NO decision back rather than an exception
-            .add(yesDecisionAllocation)
-            .add(noDecisionAllocation)
-            .execute()
-            .actionGet();
+            AllocationCommand yesDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
+            AllocationCommand noDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand("noexist", 1, nodeName2, true);
+            ClusterRerouteResponse response = client().admin()
+                .cluster()
+                .prepareReroute()
+                .setExplain(true) // so we get a NO decision back rather than an exception
+                .add(yesDecisionAllocation)
+                .add(noDecisionAllocation)
+                .execute()
+                .actionGet();
 
-        assertThat(response.getExplanations().getYesDecisionMessages(), hasSize(1));
-        assertThat(response.getExplanations().getYesDecisionMessages().get(0), containsString("allocated an empty primary"));
-        assertThat(response.getExplanations().getYesDecisionMessages().get(0), containsString(nodeName1));
+            assertThat(response.getExplanations().getYesDecisionMessages(), hasSize(1));
+            assertThat(response.getExplanations().getYesDecisionMessages().get(0), containsString("allocated an empty primary"));
+            assertThat(response.getExplanations().getYesDecisionMessages().get(0), containsString(nodeName1));
 
-        allocateMockLog.assertAllExpectationsMatched();
-        allocateMockLog.stop();
-        Loggers.removeAppender(actionLogger, allocateMockLog);
+            allocateMockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testClusterRerouteWithBlocks() {
         List<String> nodesIds = internalCluster().startNodes(2);
 
         logger.info("--> create an index with 1 shard and 0 replicas");
-        createIndex(
-            "test-blocks",
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
-        );
+        createIndex("test-blocks", 1, 0);
 
         if (randomBoolean()) {
             assertAcked(client().admin().indices().prepareClose("test-blocks"));

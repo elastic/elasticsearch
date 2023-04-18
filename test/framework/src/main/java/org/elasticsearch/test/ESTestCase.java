@@ -9,6 +9,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
@@ -31,15 +32,16 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.apache.lucene.util.TestRuleMarkFailure;
-import org.apache.lucene.util.TestUtil;
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.TestRuleMarkFailure;
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.tests.util.TimeUnits;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,17 +50,22 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.HeaderWarningAppender;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -67,6 +74,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -75,16 +83,15 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -93,7 +100,7 @@ import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -112,18 +119,27 @@ import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.Provider;
+import java.security.SecureRandom;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -134,6 +150,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -143,13 +161,20 @@ import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -158,6 +183,7 @@ import static org.hamcrest.Matchers.hasItem;
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class })
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
 // assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
@@ -187,7 +213,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
     private static final Collection<String> loggedLeaks = new ArrayList<>();
-    public static final int MIN_PRIVATE_PORT = 13301;
 
     private HeaderWarningAppender headerWarningAppender;
 
@@ -205,10 +230,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static final String FIPS_SYSPROP = "tests.fips.enabled";
 
+    private static final SetOnce<Boolean> WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC = new SetOnce<>();
+
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
         setTestSysProps();
+        // TODO: consolidate logging initialization for tests so it all occurs in logconfigurator
         LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging();
 
         for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
             Logger leakLogger = LogManager.getLogger(leakLoggerName);
@@ -278,13 +307,9 @@ public abstract class ESTestCase extends LuceneTestCase {
             .filter(unsupportedTZIdsPredicate.negate())
             .filter(unsupportedZoneIdsPredicate.negate())
             .sorted()
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
 
-        JAVA_ZONE_IDS = ZoneId.getAvailableZoneIds()
-            .stream()
-            .filter(unsupportedZoneIdsPredicate.negate())
-            .sorted()
-            .collect(Collectors.toUnmodifiableList());
+        JAVA_ZONE_IDS = ZoneId.getAvailableZoneIds().stream().filter(unsupportedZoneIdsPredicate.negate()).sorted().toList();
     }
 
     @SuppressForbidden(reason = "force log4j and netty sysprops")
@@ -348,6 +373,34 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** called after a test is finished, but only if successful */
     protected void afterIfSuccessful() throws Exception {}
 
+    /**
+     * Marks a test suite or a test method that should run without security manager enabled.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ ElementType.TYPE })
+    @Inherited
+    public @interface WithoutSecurityManager {
+    }
+
+    private static Closeable securityManagerRestorer;
+
+    // disable security manager if test is annotated to run without it
+
+    @BeforeClass
+    public static void maybeStashClassSecurityManager() {
+        if (getTestClass().isAnnotationPresent(WithoutSecurityManager.class)) {
+            securityManagerRestorer = BootstrapForTesting.disableTestSecurityManager();
+        }
+    }
+
+    @AfterClass
+    public static void maybeRestoreClassSecurityManager() throws IOException {
+        if (securityManagerRestorer != null) {
+            securityManagerRestorer.close();
+            securityManagerRestorer = null;
+        }
+    }
+
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
 
@@ -365,13 +418,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @BeforeClass
     public static void setContentType() throws Exception {
-        Requests.CONTENT_TYPE = randomFrom(XContentType.values());
         Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
     }
 
     @AfterClass
     public static void restoreContentType() {
-        Requests.CONTENT_TYPE = XContentType.SMILE;
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
 
@@ -473,9 +524,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
         filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
         filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
-        if (JvmInfo.jvmInfo().getBundledJdk() == false) {
-            filtered.add("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
-        }
         return filtered;
     }
 
@@ -488,8 +536,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertWarnings(true, Stream.concat(Arrays.stream(settings).map(setting -> {
             String warningMessage = String.format(
                 Locale.ROOT,
-                "[%s] setting was deprecated in Elasticsearch and will be "
-                    + "removed in a future release! See the breaking changes documentation for the next major version.",
+                "[%s] setting was deprecated in Elasticsearch and will be removed in a future release.",
                 setting.getKey()
             );
             return new DeprecationWarning(
@@ -600,6 +647,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         });
     }
 
+    // Tolerate the absence or otherwise denial of these specific lookup classes.
+    // At some future time, we should require the JDNI warning.
+    private static final List<String> LOG_4J_MSG_PREFIXES = List.of(
+        "JNDI lookup class is not available because this JRE does not support JNDI. "
+            + "JNDI string lookups will not be available, continuing configuration.",
+        "JMX runtime input lookup class is not available because this JRE does not support JMX. "
+            + "JMX lookups will not be available, continuing configuration. "
+    );
+
     // separate method so that this can be checked again after suite scoped cluster is shut down
     protected static void checkStaticState() throws Exception {
         LeakTracker.INSTANCE.reportLeak();
@@ -613,7 +669,11 @@ public abstract class ESTestCase extends LuceneTestCase {
                 // StatusData instances to Strings as otherwise their toString output is useless
                 assertThat(
                     statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
-                    empty()
+                    anyOf(
+                        emptyCollectionOf(String.class),
+                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(0)), startsWith(LOG_4J_MSG_PREFIXES.get(1))),
+                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(1)))
+                    )
                 );
             } finally {
                 // we clear the list so that status data from other tests do not interfere with tests within the same JVM
@@ -746,12 +806,26 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextInt();
     }
 
+    public static IntStream randomInts() {
+        return random().ints();
+    }
+
+    public static IntStream randomInts(long streamSize) {
+        return random().ints(streamSize);
+    }
+
     /**
      * @return a <code>long</code> between <code>0</code> and <code>Long.MAX_VALUE</code> (inclusive) chosen uniformly at random.
      */
     public static long randomNonNegativeLong() {
-        long randomLong = randomLong();
-        return randomLong == Long.MIN_VALUE ? 0 : Math.abs(randomLong);
+        return randomLong() & Long.MAX_VALUE;
+    }
+
+    /**
+     * @return an <code>int</code> between <code>0</code> and <code>Integer.MAX_VALUE</code> (inclusive) chosen uniformly at random.
+     */
+    public static int randomNonNegativeInt() {
+        return randomInt() & Integer.MAX_VALUE;
     }
 
     public static float randomFloat() {
@@ -760,6 +834,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static double randomDouble() {
         return random().nextDouble();
+    }
+
+    public static DoubleStream randomDoubles() {
+        return random().doubles();
+    }
+
+    public static DoubleStream randomDoubles(long streamSize) {
+        return random().doubles(streamSize);
     }
 
     /**
@@ -795,6 +877,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextLong();
     }
 
+    public static LongStream randomLongs() {
+        return random().longs();
+    }
+
+    public static LongStream randomLongs(long streamSize) {
+        return random().longs(streamSize);
+    }
+
     /**
      * Returns a random BigInteger uniformly distributed over the range 0 to (2^64 - 1) inclusive
      * Currently BigIntegers are only used for unsigned_long field type, where the max value is 2^64 - 1.
@@ -808,6 +898,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** A random integer from 0..max (inclusive). */
     public static int randomInt(int max) {
         return RandomizedTest.randomInt(max);
+    }
+
+    /** A random byte size value. */
+    public static ByteSizeValue randomByteSizeValue() {
+        return ByteSizeValue.ofBytes(randomLongBetween(0L, Long.MAX_VALUE >> 16));
     }
 
     /** Pick a random object from the given array. The array must not be empty. */
@@ -853,6 +948,13 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomAlphaOfLength(int codeUnits) {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
+    }
+
+    /**
+     * Creates a valid random identifier such as node id or index name
+     */
+    public static String randomIdentifier() {
+        return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
     }
 
     public static String randomUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
@@ -937,12 +1039,16 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static <K, V> Map<K, V> randomMap(int minMapSize, int maxMapSize, Supplier<Tuple<K, V>> entryConstructor) {
         final int size = randomIntBetween(minMapSize, maxMapSize);
-        Map<K, V> list = new HashMap<>(size);
+        Map<K, V> list = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             Tuple<K, V> entry = entryConstructor.get();
             list.put(entry.v1(), entry.v2());
         }
         return list;
+    }
+
+    public static <T> Set<T> randomSet(int minSetSize, int maxSetSize, Supplier<T> valueConstructor) {
+        return new HashSet<>(randomList(minSetSize, maxSetSize, valueConstructor));
     }
 
     private static final String[] TIME_SUFFIXES = new String[] { "d", "h", "ms", "s", "m", "micros", "nanos" };
@@ -966,7 +1072,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * generate a random epoch millis in a range 1 to 9999-12-31T23:59:59.999
      */
-    public long randomMillisUpToYear9999() {
+    public static long randomMillisUpToYear9999() {
         return randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
     }
 
@@ -1174,8 +1280,13 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Return consistent index settings for the provided index version. */
     public static Settings.Builder settings(Version version) {
-        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
-        return builder;
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version);
+    }
+
+    /** Return consistent index settings for the provided index version, shard- and replica-count. */
+    public static Settings.Builder indexSettings(Version indexVersionCreated, int shards, int replicas) {
+        return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
     }
 
     /**
@@ -1195,18 +1306,29 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomSubsetOf(randomInt(collection.size()), collection);
     }
 
+    public static <T> List<T> randomNonEmptySubsetOf(Collection<T> collection) {
+        if (collection.isEmpty()) {
+            throw new IllegalArgumentException("Can't pick non-empty subset of an empty collection");
+        }
+        return randomSubsetOf(randomIntBetween(1, collection.size()), collection);
+    }
+
     /**
      * Returns size random values
      */
     public static <T> List<T> randomSubsetOf(int size, Collection<T> collection) {
         if (size > collection.size()) {
             throw new IllegalArgumentException(
-                "Can\'t pick " + size + " random objects from a collection of " + collection.size() + " objects"
+                "Can't pick " + size + " random objects from a collection of " + collection.size() + " objects"
             );
         }
         List<T> tempList = new ArrayList<>(collection);
         Collections.shuffle(tempList, random());
         return tempList.subList(0, size);
+    }
+
+    public static <T> List<T> shuffledList(List<T> list) {
+        return randomSubsetOf(list.size(), list);
     }
 
     /**
@@ -1231,11 +1353,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static String getTestTransportType() {
-        return MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME;
+        return Netty4Plugin.NETTY_TRANSPORT_NAME;
     }
 
     public static Class<? extends Plugin> getTestTransportPlugin() {
-        return MockNioTransportPlugin.class;
+        return Netty4Plugin.class;
     }
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
@@ -1366,18 +1488,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<T> reader
     ) throws IOException {
-        return copyWriteable(original, namedWriteableRegistry, reader, Version.CURRENT);
+        return copyWriteable(original, namedWriteableRegistry, reader, TransportVersion.CURRENT);
     }
 
     /**
      * Same as {@link #copyWriteable(Writeable, NamedWriteableRegistry, Writeable.Reader)} but also allows to provide
-     * a {@link Version} argument which will be used to write and read back the object.
+     * a {@link TransportVersion} argument which will be used to write and read back the object.
      */
     public static <T extends Writeable> T copyWriteable(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<T> reader,
-        Version version
+        TransportVersion version
     ) throws IOException {
         return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out), reader, version);
     }
@@ -1386,28 +1508,30 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a copy of an original {@link NamedWriteable} object by running it through a {@link BytesStreamOutput} and
      * reading it in again using a provided {@link Writeable.Reader}.
      */
-    public static <T extends NamedWriteable> T copyNamedWriteable(
+    public static <C extends NamedWriteable, T extends C> C copyNamedWriteable(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
-        Class<T> categoryClass
+        Class<C> categoryClass
     ) throws IOException {
-        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, Version.CURRENT);
+        return copyNamedWriteable(original, namedWriteableRegistry, categoryClass, TransportVersion.CURRENT);
     }
 
     /**
      * Same as {@link #copyNamedWriteable(NamedWriteable, NamedWriteableRegistry, Class)} but also allows to provide
-     * a {@link Version} argument which will be used to write and read back the object.
+     * a {@link TransportVersion} argument which will be used to write and read back the object.
+     * @return
      */
-    public static <T extends NamedWriteable> T copyNamedWriteable(
+    @SuppressWarnings("unchecked")
+    public static <C extends NamedWriteable, T extends C> C copyNamedWriteable(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
-        Class<T> categoryClass,
-        Version version
+        Class<C> categoryClass,
+        TransportVersion version
     ) throws IOException {
         return copyInstance(
             original,
             namedWriteableRegistry,
-            (out, value) -> out.writeNamedWriteable(value),
+            StreamOutput::writeNamedWriteable,
             in -> in.readNamedWriteable(categoryClass),
             version
         );
@@ -1418,13 +1542,13 @@ public abstract class ESTestCase extends LuceneTestCase {
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Writer<T> writer,
         Writeable.Reader<T> reader,
-        Version version
+        TransportVersion version
     ) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
+            output.setTransportVersion(version);
             writer.write(output, original);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(version);
+                in.setTransportVersion(version);
                 return reader.read(in);
             }
         }
@@ -1488,7 +1612,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     private static final NamedXContentRegistry DEFAULT_NAMED_X_CONTENT_REGISTRY = new NamedXContentRegistry(
-        ClusterModule.getNamedXWriteables()
+        CollectionUtils.concatLists(ClusterModule.getNamedXWriteables(), IndicesModule.getNamedXContents())
     );
 
     /**
@@ -1557,11 +1681,12 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Creates an IndexAnalyzers with a single default analyzer
      */
     protected IndexAnalyzers createDefaultIndexAnalyzers() {
-        return new IndexAnalyzers(
-            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            Map.of(),
-            Map.of()
-        );
+        return (type, name) -> {
+            if (type == IndexAnalyzers.AnalyzerType.ANALYZER && "default".equals(name)) {
+                return Lucene.STANDARD_ANALYZER;
+            }
+            return null;
+        };
     }
 
     /**
@@ -1587,7 +1712,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static TestAnalysis createTestAnalysis(IndexSettings indexSettings, Settings nodeSettings, AnalysisPlugin... analysisPlugins)
         throws IOException {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins));
+        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins), new StablePluginsRegistry());
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         return new TestAnalysis(
             analysisRegistry.build(indexSettings),
@@ -1633,38 +1758,71 @@ public abstract class ESTestCase extends LuceneTestCase {
         return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
     }
 
-    /**
-     * Returns a unique port range for this JVM starting from the computed base port
+    /*
+     * [NOTE: Port ranges for tests]
+     *
+     * Some tests involve interactions over the localhost interface of the machine running the tests. The tests run concurrently in multiple
+     * JVMs, but all have access to the same network, so there's a risk that different tests will interact with each other in unexpected
+     * ways and trigger spurious failures. Gradle numbers its workers sequentially starting at 1 and each worker can determine its own
+     * identity from the {@link #TEST_WORKER_SYS_PROPERTY} system property. We use this to try and assign disjoint port ranges to each test
+     * worker, avoiding any unexpected interactions, although if we spawn enough test workers then we will wrap around to the beginning
+     * again.
      */
-    public static String getPortRange() {
-        return getBasePort() + "-" + (getBasePort() + 99); // upper bound is inclusive
+
+    /**
+     * Defines the size of the port range assigned to each worker, which must be large enough to supply enough ports to run the tests, but
+     * not so large that we run out of ports. See also [NOTE: Port ranges for tests].
+     */
+    private static final int PORTS_PER_WORKER = 30;
+
+    /**
+     * Defines the minimum port that test workers should use. See also [NOTE: Port ranges for tests].
+     */
+    protected static final int MIN_PRIVATE_PORT = 13301;
+
+    /**
+     * Defines the maximum port that test workers should use. See also [NOTE: Port ranges for tests].
+     */
+    private static final int MAX_PRIVATE_PORT = 32767;
+
+    /**
+     * Wrap around after reaching this worker ID.
+     */
+    private static final int MAX_EFFECTIVE_WORKER_ID = (MAX_PRIVATE_PORT - MIN_PRIVATE_PORT - PORTS_PER_WORKER + 1) / PORTS_PER_WORKER - 1;
+
+    static {
+        assert getWorkerBasePort(MAX_EFFECTIVE_WORKER_ID) + PORTS_PER_WORKER - 1 <= MAX_PRIVATE_PORT;
     }
 
-    protected static int getBasePort() {
-        // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
-        // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
-        // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
-        // a different default port range per JVM unless the incoming settings override it
-        // use a non-default base port otherwise some cluster in this JVM might reuse a port
+    /**
+     * Returns a port range for this JVM according to its Gradle worker ID. See also [NOTE: Port ranges for tests].
+     */
+    public static String getPortRange() {
+        final var firstPort = getWorkerBasePort();
+        final var lastPort = firstPort + PORTS_PER_WORKER - 1; // upper bound is inclusive
+        assert MIN_PRIVATE_PORT <= firstPort && lastPort <= MAX_PRIVATE_PORT;
+        return firstPort + "-" + lastPort;
+    }
 
-        // We rely on Gradle implementation details here, the worker IDs are long values incremented by one for the
-        // lifespan of the daemon this means that they can get larger than the allowed port range.
-        // Ephemeral ports on Linux start at 32768 so we modulo to make sure that we don't exceed that.
-        // This is safe as long as we have fewer than 224 Gradle workers running in parallel
-        // See also: https://github.com/elastic/elasticsearch/issues/44134
-        final String workerIdStr = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
-        final int startAt;
+    /**
+     * Returns the start of the port range for this JVM according to its Gradle worker ID. See also [NOTE: Port ranges for tests].
+     */
+    protected static int getWorkerBasePort() {
+        final var workerIdStr = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
         if (workerIdStr == null) {
-            startAt = 0; // IDE
-        } else {
-            // we adjust the gradle worker id with mod so as to not go over the ephemoral port ranges, but gradle continually
-            // increases this value, so the mod can eventually become zero, thus we shift on both sides by 1
-            final long workerId = Long.valueOf(workerIdStr);
-            assert workerId >= 1 : "Non positive gradle worker id: " + workerIdStr;
-            startAt = Math.floorMod(workerId - 1, 223) + 1;
+            // running in IDE
+            return MIN_PRIVATE_PORT;
         }
-        assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
-        return MIN_PRIVATE_PORT + (startAt * 100);
+
+        final var workerId = Integer.parseInt(workerIdStr);
+        assert workerId >= 1 : "Non positive gradle worker id: " + workerIdStr;
+        return getWorkerBasePort(workerId % (MAX_EFFECTIVE_WORKER_ID + 1));
+    }
+
+    private static int getWorkerBasePort(int effectiveWorkerId) {
+        assert 0 <= effectiveWorkerId && effectiveWorkerId <= MAX_EFFECTIVE_WORKER_ID;
+        // the range [MIN_PRIVATE_PORT, MIN_PRIVATE_PORT+PORTS_PER_WORKER) is only for running outside of Gradle
+        return MIN_PRIVATE_PORT + PORTS_PER_WORKER + effectiveWorkerId * PORTS_PER_WORKER;
     }
 
     protected static InetAddress randomIp(boolean v4) {
@@ -1684,7 +1842,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static final class DeprecationWarning {
-        private final Level level;
+        private final Level level; // Intentionally ignoring level for the sake of equality for now
         private final String message;
 
         public DeprecationWarning(Level level, String message) {
@@ -1694,7 +1852,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         @Override
         public int hashCode() {
-            return Objects.hash(level, message);
+            return Objects.hash(message);
         }
 
         @Override
@@ -1702,12 +1860,126 @@ public abstract class ESTestCase extends LuceneTestCase {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DeprecationWarning that = (DeprecationWarning) o;
-            return Objects.equals(level, that.level) && Objects.equals(message, that.message);
+            return Objects.equals(message, that.message);
         }
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "%s (%s): %s", level.name(), level.intLevel(), message);
+            return Strings.format("%s: %s", level.name(), message);
+        }
+    }
+
+    /**
+     * Call method at the beginning of a test to disable its execution
+     * until a given Lucene version is released and integrated into Elasticsearch
+     * @param luceneVersionWithFix the lucene release to wait for
+     * @param message an additional message or link with information on the fix
+     */
+    protected void skipTestWaitingForLuceneFix(org.apache.lucene.util.Version luceneVersionWithFix, String message) {
+        final boolean currentVersionHasFix = Version.CURRENT.luceneVersion.onOrAfter(luceneVersionWithFix);
+        assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
+        fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
+    }
+
+    /**
+     * In non-FIPS mode, get a deterministic SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * In FIPS mode, get a non-deterministic SecureRandom DEFAULT/BCFIPS instance seeded by deterministic LuceneTestCase.random().
+     * @return SecureRandom SHA1PRNG instance.
+     * @throws NoSuchAlgorithmException SHA1PRNG or DEFAULT algorithm not found.
+     * @throws NoSuchProviderException BCFIPS algorithm not found.
+     */
+    public static SecureRandom secureRandom() throws NoSuchAlgorithmException, NoSuchProviderException {
+        return secureRandom(randomByteArrayOfLength(32));
+    }
+
+    /**
+     * In non-FIPS mode, get a deterministic SecureRandom SHA1PRNG/SUN instance seeded by the input value.
+     * In FIPS mode, get a non-deterministic SecureRandom DEFAULT/BCFIPS instance seeded by the input value.
+     * @param seed Byte array to use for seeding the SecureRandom instance.
+     * @return SecureRandom SHA1PRNG or DEFAULT/BCFIPS instance, depending on FIPS mode.
+     * @throws NoSuchAlgorithmException SHA1PRNG or DEFAULT algorithm not found.
+     * @throws NoSuchProviderException BCFIPS algorithm not found.
+     */
+    public static SecureRandom secureRandom(final byte[] seed) throws NoSuchAlgorithmException, NoSuchProviderException {
+        return inFipsJvm() ? secureRandomFips(seed) : secureRandomNonFips(seed);
+    }
+
+    /**
+     * Returns deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @return Deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @throws NoSuchAlgorithmException Exception if SHA1PRNG algorithm not found, such as missing SUN provider (unlikely).
+     */
+    protected static SecureRandom secureRandomNonFips() throws NoSuchAlgorithmException {
+        return secureRandomNonFips(randomByteArrayOfLength(32));
+    }
+
+    /**
+     * Returns non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @return Non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @throws NoSuchAlgorithmException Exception if DEFAULT algorithm not found, such as missing BCFIPS provider.
+     */
+    protected static SecureRandom secureRandomFips() throws NoSuchAlgorithmException {
+        return secureRandomFips(randomByteArrayOfLength(32));
+    }
+
+    /**
+     * Returns deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @return Deterministic non-FIPS SecureRandom SHA1PRNG/SUN instance seeded by deterministic LuceneTestCase.random().
+     * @throws NoSuchAlgorithmException Exception if SHA1PRNG algorithm not found, such as missing SUN provider (unlikely).
+     */
+    protected static SecureRandom secureRandomNonFips(final byte[] seed) throws NoSuchAlgorithmException {
+        final SecureRandom secureRandomNonFips = SecureRandom.getInstance("SHA1PRNG"); // SHA1PRNG/SUN
+        secureRandomNonFips.setSeed(seed); // SHA1PRNG/SUN setSeed() is deterministic
+        return secureRandomNonFips;
+    }
+
+    /**
+     * Returns non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @return Non-deterministic FIPS SecureRandom DEFAULT/BCFIPS instance. Seeded.
+     * @throws NoSuchAlgorithmException Exception if DEFAULT algorithm not found, such as missing BCFIPS provider.
+     */
+    protected static SecureRandom secureRandomFips(final byte[] seed) throws NoSuchAlgorithmException {
+        final SecureRandom secureRandomFips = SecureRandom.getInstance("DEFAULT"); // DEFAULT/BCFIPS
+        if (WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC.get() == null) {
+            WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC.set(Boolean.TRUE);
+            final Provider provider = secureRandomFips.getProvider();
+            final String providerName = provider.getName();
+            final Logger logger = LogManager.getLogger(ESTestCase.class);
+            logger.warn(
+                "Returning a non-deterministic secureRandom for use with FIPS. "
+                    + "This may result in difficulty reproducing test failures with from a given a seed."
+            );
+        }
+        secureRandomFips.setSeed(seed); // DEFAULT/BCFIPS setSeed() is non-deterministic
+        return secureRandomFips;
+    }
+
+    public static void safeAwait(CyclicBarrier barrier) {
+        try {
+            barrier.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("unexpected", e);
+        } catch (Exception e) {
+            throw new AssertionError("unexpected", e);
+        }
+    }
+
+    public static void safeAwait(CountDownLatch countDownLatch) {
+        try {
+            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("unexpected", e);
+        }
+    }
+
+    public static void safeSleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("unexpected", e);
         }
     }
 }

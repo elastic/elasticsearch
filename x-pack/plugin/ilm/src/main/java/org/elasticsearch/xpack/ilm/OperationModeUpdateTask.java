@@ -8,14 +8,22 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 
 /**
  * This task updates the operation mode state for ILM.
@@ -30,6 +38,19 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     @Nullable
     private final OperationMode slmMode;
 
+    public static AckedClusterStateUpdateTask wrap(
+        OperationModeUpdateTask task,
+        AckedRequest request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return new AckedClusterStateUpdateTask(task.priority(), request, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return task.execute(currentState);
+            }
+        };
+    }
+
     private OperationModeUpdateTask(Priority priority, OperationMode ilmMode, OperationMode slmMode) {
         super(priority);
         this.ilmMode = ilmMode;
@@ -37,15 +58,19 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     }
 
     public static OperationModeUpdateTask ilmMode(OperationMode mode) {
-        return ilmMode(Priority.NORMAL, mode);
-    }
-
-    public static OperationModeUpdateTask ilmMode(Priority priority, OperationMode mode) {
-        return new OperationModeUpdateTask(priority, mode, null);
+        return new OperationModeUpdateTask(getPriority(mode), mode, null);
     }
 
     public static OperationModeUpdateTask slmMode(OperationMode mode) {
-        return new OperationModeUpdateTask(Priority.NORMAL, null, mode);
+        return new OperationModeUpdateTask(getPriority(mode), null, mode);
+    }
+
+    private static Priority getPriority(OperationMode mode) {
+        if (mode == OperationMode.STOPPED || mode == OperationMode.STOPPING) {
+            return Priority.IMMEDIATE;
+        } else {
+            return Priority.NORMAL;
+        }
     }
 
     OperationMode getILMOperationMode() {
@@ -68,27 +93,26 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         if (ilmMode == null) {
             return currentState;
         }
-        IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (currentMetadata != null && currentMetadata.getOperationMode().isValidChange(ilmMode) == false) {
+
+        final OperationMode currentMode = currentILMMode(currentState);
+        if (currentMode.equals(ilmMode)) {
+            // No need for a new state
             return currentState;
-        } else if (currentMetadata == null) {
-            currentMetadata = IndexLifecycleMetadata.EMPTY;
         }
 
         final OperationMode newMode;
-        if (currentMetadata.getOperationMode().isValidChange(ilmMode)) {
+        if (currentMode.isValidChange(ilmMode)) {
             newMode = ilmMode;
         } else {
-            newMode = currentMetadata.getOperationMode();
+            // The transition is invalid, return the current state
+            return currentState;
         }
 
-        if (newMode.equals(ilmMode) == false) {
-            logger.info("updating ILM operation mode to {}", newMode);
-        }
+        logger.info("updating ILM operation mode to {}", newMode);
         return ClusterState.builder(currentState)
             .metadata(
                 Metadata.builder(currentState.metadata())
-                    .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(currentMetadata.getPolicyMetadatas(), newMode))
+                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(newMode, currentSLMMode(currentState)))
             )
             .build();
     }
@@ -97,36 +121,61 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         if (slmMode == null) {
             return currentState;
         }
-        SnapshotLifecycleMetadata currentMetadata = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
-        if (currentMetadata != null && currentMetadata.getOperationMode().isValidChange(slmMode) == false) {
+
+        final OperationMode currentMode = currentSLMMode(currentState);
+        if (currentMode.equals(slmMode)) {
+            // No need for a new state
             return currentState;
-        } else if (currentMetadata == null) {
-            currentMetadata = SnapshotLifecycleMetadata.EMPTY;
         }
 
         final OperationMode newMode;
-        if (currentMetadata.getOperationMode().isValidChange(slmMode)) {
+        if (currentMode.isValidChange(slmMode)) {
             newMode = slmMode;
         } else {
-            newMode = currentMetadata.getOperationMode();
+            // The transition is invalid, return the current state
+            return currentState;
         }
 
-        if (newMode.equals(slmMode) == false) {
-            logger.info("updating SLM operation mode to {}", newMode);
-        }
+        logger.info("updating SLM operation mode to {}", newMode);
         return ClusterState.builder(currentState)
             .metadata(
                 Metadata.builder(currentState.metadata())
-                    .putCustom(
-                        SnapshotLifecycleMetadata.TYPE,
-                        new SnapshotLifecycleMetadata(currentMetadata.getSnapshotConfigurations(), newMode, currentMetadata.getStats())
-                    )
+                    .putCustom(LifecycleOperationMetadata.TYPE, new LifecycleOperationMetadata(currentILMMode(currentState), newMode))
             )
             .build();
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
+    public void onFailure(Exception e) {
         logger.error("unable to update lifecycle metadata with new ilm mode [" + ilmMode + "], slm mode [" + slmMode + "]", e);
+    }
+
+    @Override
+    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+        if (ilmMode != null) {
+            logger.info("ILM operation mode updated to {}", ilmMode);
+        }
+        if (slmMode != null) {
+            logger.info("SLM operation mode updated to {}", slmMode);
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), ilmMode, slmMode);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (obj.getClass() != getClass()) {
+            return false;
+        }
+        OperationModeUpdateTask other = (OperationModeUpdateTask) obj;
+        return Objects.equals(priority(), other.priority())
+            && Objects.equals(ilmMode, other.ilmMode)
+            && Objects.equals(slmMode, other.slmMode);
     }
 }

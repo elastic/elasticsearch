@@ -11,15 +11,15 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
 
-public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTranslateRequest> {
+public class SqlTranslateRequestTests extends AbstractXContentSerializingTestCase<TestSqlTranslateRequest> {
 
     public Mode testMode;
 
@@ -37,8 +37,14 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
     }
 
     @Override
-    protected SqlTranslateRequest createTestInstance() {
-        return new SqlTranslateRequest(
+    protected TestSqlTranslateRequest createXContextTestInstance(XContentType xContentType) {
+        SqlTestUtils.assumeXContentJsonOrCbor(xContentType);
+        return super.createXContextTestInstance(xContentType);
+    }
+
+    @Override
+    protected TestSqlTranslateRequest createTestInstance() {
+        return new TestSqlTranslateRequest(
             randomAlphaOfLength(10),
             emptyList(),
             randomFilterOrNull(random()),
@@ -52,8 +58,8 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
     }
 
     @Override
-    protected Writeable.Reader<SqlTranslateRequest> instanceReader() {
-        return SqlTranslateRequest::new;
+    protected Writeable.Reader<TestSqlTranslateRequest> instanceReader() {
+        return TestSqlTranslateRequest::new;
     }
 
     private TimeValue randomTV() {
@@ -73,12 +79,12 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
     }
 
     @Override
-    protected SqlTranslateRequest doParseInstance(XContentParser parser) {
-        return SqlTranslateRequest.fromXContent(parser);
+    protected TestSqlTranslateRequest doParseInstance(XContentParser parser) {
+        return SqlTestUtils.clone(TestSqlTranslateRequest.fromXContent(parser), instanceReader(), getNamedWriteableRegistry());
     }
 
     @Override
-    protected SqlTranslateRequest mutateInstance(SqlTranslateRequest instance) throws IOException {
+    protected TestSqlTranslateRequest mutateInstance(TestSqlTranslateRequest instance) {
         @SuppressWarnings("unchecked")
         Consumer<SqlTranslateRequest> mutator = randomFrom(
             request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
@@ -94,7 +100,7 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
             ),
             request -> request.runtimeMappings(randomValueOtherThan(request.runtimeMappings(), () -> randomRuntimeMappings()))
         );
-        SqlTranslateRequest newRequest = new SqlTranslateRequest(
+        TestSqlTranslateRequest newRequest = new TestSqlTranslateRequest(
             instance.query(),
             instance.params(),
             instance.filter(),

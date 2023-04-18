@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.VersionProperties
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.authenticated-testclusters'
 
 dependencies {
@@ -10,4 +10,5 @@ dependencies {
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 4
+  readinessEnabled = true
 }

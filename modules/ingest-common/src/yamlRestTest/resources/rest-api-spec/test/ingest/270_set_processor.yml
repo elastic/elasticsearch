@@ -27,7 +27,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "1"
         body: {
           foo: "hello"
@@ -35,7 +35,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         pipeline: "1"
         body: {
           foo: "hello",
@@ -45,13 +45,13 @@ teardown:
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.foo: "hello" }
 
   - do:
       get:
         index: test
-        id: 2
+        id: "2"
   - match: { _source.foo: "hello" }
 ---
 "Test set processor with index change and require_alias":
@@ -154,7 +154,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "1"
         body: {
           foo_object: {
@@ -170,10 +170,60 @@ teardown:
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.copied_foo_object.hello: "world" }
   - match: { _source.copied_foo_array.0: 1 }
   - match: { _source.copied_foo_string: "bla bla" }
   - match: { _source.copied_foo_number: 3 }
   - is_true:  _source.copied_foo_boolean
   - match: { _source.foo_nochange: "no change" }
+
+---
+"Test set processor with reflection attempts":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors" : [
+              {
+                "script": {
+                  "description": "Set a reference to a proper java object so we can attempt reflection",
+                  "lang": "painless",
+                  "source": "ctx.t = metadata().now"
+                }
+              },
+              {
+                "set": {
+                  "description": "Attempting to call a method (ZonedDateTime#getHour()) is ignored",
+                  "field": "method_call_is_ignored",
+                  "value": "{{t.hour}}"
+                }
+              },
+              {
+                "set": {
+                  "description": "Attempting to call a method that doesn't exist is ignored",
+                  "field": "missing_method_is_ignored",
+                  "value": "{{t.nothing}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          foo: "hello"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.foo: "hello" }
+  - match: { _source.method_call_is_ignored: "" }
+  - match: { _source.missing_method_is_ignored: "" }

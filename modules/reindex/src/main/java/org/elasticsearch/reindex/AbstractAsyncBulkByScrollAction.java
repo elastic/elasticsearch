@@ -9,7 +9,6 @@
 package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -23,18 +22,14 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -42,21 +37,20 @@ import org.elasticsearch.index.reindex.ClientScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.script.CtxMap;
+import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.UpdateScript;
+import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -64,6 +58,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.LongSupplier;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -177,20 +172,50 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
-        scrollSource = buildScrollableResultSource(backoffPolicy);
+        scrollSource = buildScrollableResultSource(
+            backoffPolicy,
+            prepareSearchRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm)
+        );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
+    }
+
+    /**
+     * Prepares a search request to be used in a ScrollableHitSource.
+     * Preparation might set a sort order (if not set already) and disable scroll if max docs is small enough.
+     */
+    // Visible for testing
+    static <Request extends AbstractBulkByScrollRequest<Request>> SearchRequest prepareSearchRequest(
+        Request mainRequest,
+        boolean needsSourceDocumentVersions,
+        boolean needsSourceDocumentSeqNoAndPrimaryTerm
+    ) {
+        var preparedSearchRequest = new SearchRequest(mainRequest.getSearchRequest());
+
         /*
          * Default to sorting by doc. We can't do this in the request itself because it is normal to *add* to the sorts rather than replace
          * them and if we add _doc as the first sort by default then sorts will never work.... So we add it here, only if there isn't
          * another sort.
+         *
+         * This modifies the original request!
          */
-        final SearchSourceBuilder sourceBuilder = mainRequest.getSearchRequest().source();
+        final SearchSourceBuilder sourceBuilder = preparedSearchRequest.source();
         List<SortBuilder<?>> sorts = sourceBuilder.sorts();
         if (sorts == null || sorts.isEmpty()) {
             sourceBuilder.sort(fieldSort("_doc"));
         }
         sourceBuilder.version(needsSourceDocumentVersions);
         sourceBuilder.seqNoAndPrimaryTerm(needsSourceDocumentSeqNoAndPrimaryTerm);
+
+        /*
+         * Do not open scroll if max docs <= scroll size and not resuming on version conflicts
+         */
+        if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES
+            && mainRequest.getMaxDocs() <= preparedSearchRequest.source().size()
+            && mainRequest.isAbortOnVersionConflict()) {
+            preparedSearchRequest.scroll((Scroll) null);
+        }
+
+        return preparedSearchRequest;
     }
 
     /**
@@ -255,7 +280,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         return bulkRequest;
     }
 
-    protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
+    protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
         return new ClientScrollableHitSource(
             logger,
             backoffPolicy,
@@ -264,7 +289,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             this::onScrollResponse,
             this::finishHim,
             searchClient,
-            mainRequest.getSearchRequest()
+            searchRequest
         );
     }
 
@@ -311,10 +336,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
     /**
      * Process a scroll response.
      * @param lastBatchStartTimeNS the time when the last batch started. Used to calculate the throttling delay.
-     * @param lastBatchSize the size of the last batch. Used to calculate the throttling delay.
+     * @param lastBatchSizeToUse the size of the last batch. Used to calculate the throttling delay.
      * @param asyncResponse the response to process from ScrollableHitSource
      */
-    void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSize, ScrollConsumableHitsResponse asyncResponse) {
+    void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, ScrollConsumableHitsResponse asyncResponse) {
         ScrollableHitSource.Response response = asyncResponse.response();
         logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), asyncResponse.remainingHits());
         if (task.isCancelled()) {
@@ -350,7 +375,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             }
         };
         prepareBulkRequestRunnable = (AbstractRunnable) threadPool.getThreadContext().preserveContext(prepareBulkRequestRunnable);
-        worker.delayPrepareBulkRequest(threadPool, lastBatchStartTimeNS, lastBatchSize, prepareBulkRequestRunnable);
+        worker.delayPrepareBulkRequest(threadPool, lastBatchStartTimeNS, lastBatchSizeToUse, prepareBulkRequestRunnable);
     }
 
     /**
@@ -405,7 +430,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 "[{}]: sending [{}] entry, [{}] bulk request",
                 task.getId(),
                 requestSize,
-                new ByteSizeValue(request.estimatedSizeInBytes())
+                ByteSizeValue.ofBytes(request.estimatedSizeInBytes())
             );
         }
         if (task.isCancelled()) {
@@ -478,6 +503,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 return;
             }
 
+            if (scrollSource.hasScroll() == false) {
+                // Index contains fewer matching docs than max_docs (found < max_docs <= scroll size)
+                refreshAndFinish(emptyList(), emptyList(), false);
+                return;
+            }
+
             onSuccess.run();
         } catch (Exception t) {
             finishHim(t);
@@ -499,7 +530,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
         } else {
             onScrollResponse(asyncResponse);
         }
-
     }
 
     private void recordFailure(Failure failure, List<Failure> failures) {
@@ -543,7 +573,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * @param failure if non null then the request failed catastrophically with this exception
      */
     protected void finishHim(Exception failure) {
-        logger.debug(() -> new ParameterizedMessage("[{}]: finishing with a catastrophic failure", task.getId()), failure);
+        logger.debug(() -> "[" + task.getId() + "]: finishing with a catastrophic failure", failure);
         finishHim(failure, emptyList(), emptyList(), false);
     }
 
@@ -556,7 +586,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     protected void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
-        scrollSource.close(() -> {
+        scrollSource.close(threadPool.getThreadContext().preserveContext(() -> {
             if (failure == null) {
                 BulkByScrollResponse response = buildResponse(
                     timeValueNanos(System.nanoTime() - startTime.get()),
@@ -568,7 +598,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             } else {
                 listener.onFailure(failure);
             }
-        });
+        }));
     }
 
     /**
@@ -784,148 +814,72 @@ public abstract class AbstractAsyncBulkByScrollAction<
     /**
      * Apply a {@link Script} to a {@link RequestWrapper}
      */
-    public abstract static class ScriptApplier implements BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
+    public abstract static class ScriptApplier<T extends Metadata>
+        implements
+            BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
+
+        // "index" is the default operation
+        protected static final String INDEX = "index";
 
         private final WorkerBulkByScrollTaskState taskWorker;
-        private final ScriptService scriptService;
-        private final Script script;
-        private final Map<String, Object> params;
+        protected final ScriptService scriptService;
+        protected final Script script;
+        protected final Map<String, Object> params;
+        protected final LongSupplier nowInMillisSupplier;
 
         public ScriptApplier(
             WorkerBulkByScrollTaskState taskWorker,
             ScriptService scriptService,
             Script script,
-            Map<String, Object> params
+            Map<String, Object> params,
+            LongSupplier nowInMillisSupplier
         ) {
             this.taskWorker = taskWorker;
             this.scriptService = scriptService;
             this.script = script;
             this.params = params;
+            this.nowInMillisSupplier = nowInMillisSupplier;
         }
 
         @Override
-        @SuppressWarnings("unchecked")
         public RequestWrapper<?> apply(RequestWrapper<?> request, ScrollableHitSource.Hit doc) {
             if (script == null) {
                 return request;
             }
 
-            Map<String, Object> context = new HashMap<>();
-            context.put(IndexFieldMapper.NAME, doc.getIndex());
-            context.put(IdFieldMapper.NAME, doc.getId());
-            Long oldVersion = doc.getVersion();
-            context.put(VersionFieldMapper.NAME, oldVersion);
-            String oldRouting = doc.getRouting();
-            context.put(RoutingFieldMapper.NAME, oldRouting);
-            context.put(SourceFieldMapper.NAME, request.getSource());
+            CtxMap<T> ctxMap = execute(doc, request.getSource());
 
-            OpType oldOpType = OpType.INDEX;
-            context.put("op", oldOpType.toString());
+            T metadata = ctxMap.getMetadata();
 
-            UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
-            UpdateScript updateScript = factory.newInstance(params, context);
-            updateScript.execute();
+            request.setSource(ctxMap.getSource());
 
-            String newOp = (String) context.remove("op");
-            if (newOp == null) {
-                throw new IllegalArgumentException("Script cleared operation type");
-            }
+            updateRequest(request, metadata);
 
-            /*
-             * It'd be lovely to only set the source if we know its been modified
-             * but it isn't worth keeping two copies of it around just to check!
-             */
-            request.setSource((Map<String, Object>) context.remove(SourceFieldMapper.NAME));
-
-            Object newValue = context.remove(IndexFieldMapper.NAME);
-            if (false == doc.getIndex().equals(newValue)) {
-                scriptChangedIndex(request, newValue);
-            }
-            newValue = context.remove(IdFieldMapper.NAME);
-            if (false == doc.getId().equals(newValue)) {
-                scriptChangedId(request, newValue);
-            }
-            newValue = context.remove(VersionFieldMapper.NAME);
-            if (false == Objects.equals(oldVersion, newValue)) {
-                scriptChangedVersion(request, newValue);
-            }
-            /*
-             * Its important that routing comes after parent in case you want to
-             * change them both.
-             */
-            newValue = context.remove(RoutingFieldMapper.NAME);
-            if (false == Objects.equals(oldRouting, newValue)) {
-                scriptChangedRouting(request, newValue);
-            }
-
-            OpType newOpType = OpType.fromString(newOp);
-            if (newOpType != oldOpType) {
-                return scriptChangedOpType(request, oldOpType, newOpType);
-            }
-
-            if (false == context.isEmpty()) {
-                throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", context.keySet()) + ']');
-            }
-            return request;
+            return requestFromOp(request, metadata.getOp());
         }
 
-        protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, OpType oldOpType, OpType newOpType) {
-            switch (newOpType) {
-                case NOOP:
+        protected abstract CtxMap<T> execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
+
+        protected abstract void updateRequest(RequestWrapper<?> request, T metadata);
+
+        protected RequestWrapper<?> requestFromOp(RequestWrapper<?> request, String op) {
+            switch (op) {
+                case "noop" -> {
                     taskWorker.countNoop();
                     return null;
-                case DELETE:
+                }
+                case "delete" -> {
                     RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getId()));
                     delete.setVersion(request.getVersion());
                     delete.setVersionType(VersionType.INTERNAL);
                     delete.setRouting(request.getRouting());
                     return delete;
-                default:
-                    throw new IllegalArgumentException("Unsupported operation type change from [" + oldOpType + "] to [" + newOpType + "]");
+                }
+                case INDEX -> {
+                    return request;
+                }
+                default -> throw new IllegalArgumentException("Unsupported operation type change from [" + INDEX + "] to [" + op + "]");
             }
-        }
-
-        protected abstract void scriptChangedIndex(RequestWrapper<?> request, Object to);
-
-        protected abstract void scriptChangedId(RequestWrapper<?> request, Object to);
-
-        protected abstract void scriptChangedVersion(RequestWrapper<?> request, Object to);
-
-        protected abstract void scriptChangedRouting(RequestWrapper<?> request, Object to);
-
-    }
-
-    public enum OpType {
-
-        NOOP("noop"),
-        INDEX("index"),
-        DELETE("delete");
-
-        private final String id;
-
-        OpType(String id) {
-            this.id = id;
-        }
-
-        public static OpType fromString(String opType) {
-            String lowerOpType = opType.toLowerCase(Locale.ROOT);
-            switch (lowerOpType) {
-                case "noop":
-                    return OpType.NOOP;
-                case "index":
-                    return OpType.INDEX;
-                case "delete":
-                    return OpType.DELETE;
-                default:
-                    throw new IllegalArgumentException(
-                        "Operation type [" + lowerOpType + "] not allowed, only " + Arrays.toString(values()) + " are allowed"
-                    );
-            }
-        }
-
-        @Override
-        public String toString() {
-            return id.toLowerCase(Locale.ROOT);
         }
     }
 

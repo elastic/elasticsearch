@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -18,11 +19,14 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 
 import java.util.function.Consumer;
 
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.xpack.autoscaling.existence.FrozenExistenceDeciderService.isFrozenPhase;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -80,5 +84,42 @@ public class FrozenExistenceDeciderServiceTests extends AutoscalingTestCase {
         assertThat(capacity.total().storage(), equalTo(ByteSizeValue.ZERO));
         assertThat(capacity.node(), is(nullValue()));
         assertThat(result.reason().summary(), equalTo("indices []"));
+    }
+
+    public void testIsFrozenPhase() {
+        assertThat(TimeseriesLifecycleType.ORDERED_VALID_PHASES, hasItem(FrozenExistenceDeciderService.FROZEN_PHASE));
+
+        IndexMetadata meta0 = IndexMetadata.builder("index")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        assertFalse(isFrozenPhase(meta0));
+
+        LifecycleExecutionState.Builder hot = LifecycleExecutionState.builder()
+            .setPhase("hot")
+            .setAction(randomAlphaOfLengthBetween(5, 20))
+            .setAction(randomAlphaOfLengthBetween(5, 20));
+
+        IndexMetadata meta1 = IndexMetadata.builder("index")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, hot.build().asMap())
+            .build();
+        assertFalse(isFrozenPhase(meta1));
+
+        LifecycleExecutionState.Builder frozen = LifecycleExecutionState.builder()
+            .setPhase(FrozenExistenceDeciderService.FROZEN_PHASE)
+            .setAction(randomAlphaOfLengthBetween(5, 20))
+            .setAction(randomAlphaOfLengthBetween(5, 20));
+
+        IndexMetadata meta2 = IndexMetadata.builder("index")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, frozen.build().asMap())
+            .build();
+        assertTrue(isFrozenPhase(meta2));
     }
 }

@@ -149,9 +149,11 @@ public class MlStandardTokenizerTests extends ESTestCase {
     }
 
     public void testTokenizeWithUrl() throws IOException {
-        String testData = "10.8.0.12 - - [29/Nov/2020:21:34:55 +0000] \"POST /intake/v2/events HTTP/1.1\" 202 0 \"-\" "
-            + "\"elasticapm-dotnet/1.5.1 System.Net.Http/4.6.28208.02 .NET_Core/2.2.8\" 27821 0.002 [default-apm-apm-server-8200] "
-            + "[] 10.8.1.19:8200 0 0.001 202 f961c776ff732f5c8337530aa22c7216\n";
+        String testData = """
+            10.8.0.12 - - [29/Nov/2020:21:34:55 +0000] "POST /intake/v2/events HTTP/1.1" 202 0 "-" \
+            "elasticapm-dotnet/1.5.1 System.Net.Http/4.6.28208.02 .NET_Core/2.2.8" 27821 0.002 [default-apm-apm-server-8200] [] \
+            10.8.1.19:8200 0 0.001 202 f961c776ff732f5c8337530aa22c7216
+            """;
         try (Tokenizer tokenizer = new MlStandardTokenizer()) {
             tokenizer.setReader(new StringReader(testData));
             tokenizer.reset();

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -20,7 +21,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrinkIndexName;
 
 /**
@@ -44,7 +44,7 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
     public Result isConditionMet(Index index, ClusterState clusterState) {
         IndexMetadata idxMeta = clusterState.getMetadata().index(index);
         if (idxMeta == null) {
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             // Index must have been since deleted, ignore it
             return new Result(false, null);
         }
@@ -53,7 +53,7 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
             throw new IllegalStateException("step[" + NAME + "] is checking an un-shrunken index[" + index.getName() + "]");
         }
 
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(idxMeta);
+        LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         String targetIndexName = getShrinkIndexName(shrunkenIndexSource, lifecycleState);
         boolean isConditionMet = index.getName().equals(targetIndexName) && clusterState.metadata().index(shrunkenIndexSource) == null;
         if (isConditionMet) {

@@ -22,13 +22,17 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.execution.search.extractor.CompositeKeyExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
+import org.elasticsearch.xpack.eql.querydsl.container.CompositeAggRef;
 import org.elasticsearch.xpack.eql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.eql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
+import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.HitExtractorInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.ReferenceInput;
@@ -42,6 +46,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueSupport.FULL;
 
 public final class RuntimeUtils {
 
@@ -124,14 +129,24 @@ public final class RuntimeUtils {
         return extractors;
     }
 
+    public static BucketExtractor createBucketExtractor(FieldExtraction ref) {
+        if (ref instanceof CompositeAggRef aggRef) {
+            return new CompositeKeyExtractor(aggRef.key(), false);
+        } else if (ref instanceof ComputedRef computedRef) {
+            Pipe proc = computedRef.processor();
+            String hitName = Expressions.name(proc.expression());
+            return new ComputingExtractor(proc.asProcessor(), hitName);
+        }
+        throw new EqlIllegalArgumentException("Unexpected value reference {}", ref.getClass());
+    }
+
     public static HitExtractor createExtractor(FieldExtraction ref, EqlConfiguration cfg) {
-        if (ref instanceof SearchHitFieldRef) {
-            SearchHitFieldRef f = (SearchHitFieldRef) ref;
-            return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), false);
+        if (ref instanceof SearchHitFieldRef f) {
+            return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), FULL);
         }
 
-        if (ref instanceof ComputedRef) {
-            Pipe proc = ((ComputedRef) ref).processor();
+        if (ref instanceof ComputedRef computedRef) {
+            Pipe proc = computedRef.processor();
             // collect hitNames
             Set<String> hitNames = new LinkedHashSet<>();
             proc = proc.transformDown(ReferenceInput.class, l -> {
@@ -175,8 +190,8 @@ public final class RuntimeUtils {
         BoolQueryBuilder bool = null;
         QueryBuilder query = source.query();
 
-        if (query instanceof BoolQueryBuilder) {
-            bool = (BoolQueryBuilder) query;
+        if (query instanceof BoolQueryBuilder boolQueryBuilder) {
+            bool = boolQueryBuilder;
             if (filter != null && bool.filter().contains(filter) == false) {
                 bool.filter(filter);
             }
@@ -202,8 +217,8 @@ public final class RuntimeUtils {
         BoolQueryBuilder bool = null;
         QueryBuilder query = source.query();
 
-        if (query instanceof BoolQueryBuilder) {
-            bool = (BoolQueryBuilder) query;
+        if (query instanceof BoolQueryBuilder boolQueryBuilder) {
+            bool = boolQueryBuilder;
             if (oldFilters != null) {
                 bool.filter().removeAll(oldFilters);
             }
@@ -224,6 +239,17 @@ public final class RuntimeUtils {
 
             source.query(bool);
         }
+        return source;
+    }
+
+    public static SearchSourceBuilder wrapAsFilter(SearchSourceBuilder source) {
+        QueryBuilder query = source.query();
+        BoolQueryBuilder bool = boolQuery();
+        if (query != null) {
+            bool.filter(query);
+        }
+
+        source.query(bool);
         return source;
     }
 }

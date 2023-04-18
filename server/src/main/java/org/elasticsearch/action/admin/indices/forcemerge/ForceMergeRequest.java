@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.UUIDs;
@@ -28,8 +28,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * to force merge down to. Defaults to simply checking if a merge needs
  * to execute, and if so, executes it
  *
- * @see org.elasticsearch.client.Requests#forceMergeRequest(String...)
- * @see org.elasticsearch.client.IndicesAdminClient#forceMerge(ForceMergeRequest)
+ * @see org.elasticsearch.client.internal.IndicesAdminClient#forceMerge(ForceMergeRequest)
  * @see ForceMergeResponse
  */
 public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
@@ -43,8 +42,12 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
+    /**
+     * Should this task store its result?
+     */
+    private boolean shouldStoreResult;
 
-    private static final Version FORCE_MERGE_UUID_SIMPLE_VERSION = Version.V_8_0_0;
+    private static final TransportVersion FORCE_MERGE_UUID_SIMPLE_VERSION = TransportVersion.V_8_0_0;
 
     /**
      * Force merge UUID to store in the live commit data of a shard under
@@ -67,7 +70,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        if (in.getVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
             forceMergeUUID = in.readString();
         } else {
             forceMergeUUID = in.readOptionalString();
@@ -131,6 +134,19 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         return this;
     }
 
+    /**
+     * Should this task store its result after it has finished?
+     */
+    public ForceMergeRequest setShouldStoreResult(boolean shouldStoreResult) {
+        this.shouldStoreResult = shouldStoreResult;
+        return this;
+    }
+
+    @Override
+    public boolean getShouldStoreResult() {
+        return shouldStoreResult;
+    }
+
     @Override
     public String getDescription() {
         return "Force-merge indices "
@@ -150,7 +166,7 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        if (out.getVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(FORCE_MERGE_UUID_SIMPLE_VERSION)) {
             out.writeString(forceMergeUUID);
         } else {
             out.writeOptionalString(forceMergeUUID);

@@ -7,11 +7,10 @@
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -137,7 +136,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
                     }
                 }
                 builder.endObject();
-                return new BytesRestResponse(response.status(), builder);
+                return new RestResponse(response.status(), builder);
             }
         };
     }

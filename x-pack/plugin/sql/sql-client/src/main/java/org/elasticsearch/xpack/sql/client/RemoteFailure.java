@@ -145,7 +145,7 @@ public class RemoteFailure {
         RemoteFailure exception = null;
 
         /* It'd be lovely to use the high level constructs that we have in core like ObjectParser
-        * but, alas, we aren't going to modularize those out any time soon. */
+         * but, alas, we aren't going to modularize those out any time soon. */
         JsonToken token = parser.nextToken();
         if (token != JsonToken.START_OBJECT) {
             throw new IllegalArgumentException(

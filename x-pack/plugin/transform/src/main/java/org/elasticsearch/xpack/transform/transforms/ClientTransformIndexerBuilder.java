@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -52,7 +52,10 @@ class ClientTransformIndexerBuilder {
             initialStats,
             transformConfig,
             progress,
-            TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? TransformCheckpoint.EMPTY : lastCheckpoint,
+            // If there already exists at least one checkpoint, the "from" setting is effectively ignored.
+            TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
+                ? (context.from() != null ? TransformCheckpoint.createEmpty(context.from().toEpochMilli()) : TransformCheckpoint.EMPTY)
+                : lastCheckpoint,
             TransformCheckpoint.isNullOrEmpty(nextCheckpoint) ? TransformCheckpoint.EMPTY : nextCheckpoint,
             seqNoPrimaryTermAndIndex,
             context,

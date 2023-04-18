@@ -28,7 +28,7 @@ public class GrokPatternCreatorTests extends ESTestCase {
         assertEquals("field3", GrokPatternCreator.buildFieldName(fieldNameCountStore, "field"));
         assertEquals("timestamp", GrokPatternCreator.buildFieldName(fieldNameCountStore, "timestamp"));
         assertEquals("field4", GrokPatternCreator.buildFieldName(fieldNameCountStore, "field"));
-        assertEquals("uri", GrokPatternCreator.buildFieldName(fieldNameCountStore, "uri"));
+        assertEquals("url.original", GrokPatternCreator.buildFieldName(fieldNameCountStore, "url.original"));
         assertEquals("timestamp2", GrokPatternCreator.buildFieldName(fieldNameCountStore, "timestamp"));
         assertEquals("field5", GrokPatternCreator.buildFieldName(fieldNameCountStore, "field"));
     }
@@ -85,7 +85,7 @@ public class GrokPatternCreatorTests extends ESTestCase {
             mustMatchStrings
         );
 
-        assertEquals(".+?%{TIMESTAMP_ISO8601:timestamp}.+?%{LOGLEVEL:loglevel}.+?", overallGrokPatternBuilder.toString());
+        assertEquals(".+?%{TIMESTAMP_ISO8601:timestamp}.+?%{LOGLEVEL:log.level}.+?", overallGrokPatternBuilder.toString());
     }
 
     public void testAppendBestGrokMatchForStringsGivenTomcatDatestamps() {
@@ -110,7 +110,7 @@ public class GrokPatternCreatorTests extends ESTestCase {
             mustMatchStrings
         );
 
-        assertEquals(".*?%{TOMCAT_DATESTAMP:timestamp}.+?%{LOGLEVEL:loglevel}.+?", overallGrokPatternBuilder.toString());
+        assertEquals(".*?%{TOMCATLEGACY_DATESTAMP:timestamp}.+?%{LOGLEVEL:log.level}.+?", overallGrokPatternBuilder.toString());
     }
 
     public void testAppendBestGrokMatchForStringsGivenTrappyFloatCandidates() {
@@ -252,7 +252,7 @@ public class GrokPatternCreatorTests extends ESTestCase {
             mustMatchStrings
         );
 
-        assertEquals(".*?%{URI:uri}.*?", overallGrokPatternBuilder.toString());
+        assertEquals(".*?%{URI:url.original}.*?", overallGrokPatternBuilder.toString());
     }
 
     public void testAppendBestGrokMatchForStringsGivenPaths() {
@@ -310,6 +310,29 @@ public class GrokPatternCreatorTests extends ESTestCase {
         assertEquals(
             ".*?%{CATALINA_DATESTAMP:timestamp}.+?org\\.apache\\.tomcat\\.util\\.http\\.Parameters.+?processParameters.+?"
                 + "WARNING.+?Parameters.+?Invalid.+?chunk.+?ignored.*",
+            GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples)
+        );
+    }
+
+    public void testFindBestGrokMatchFromExamplesGivenCatalina8Logs() {
+
+        String regex = ".*?WARNING.+?org\\.apache\\.tomcat\\.util\\.http\\.Parameters.+?processParameters.+?Parameters.+?"
+            + "Invalid.+?chunk.+?ignored.*";
+        // The embedded newline ensures the regular expressions we're using are compiled with Pattern.DOTALL
+        Collection<String> examples = Arrays.asList(
+            "29-Aug-2009 12:03:33 WARNING [main] org.apache.tomcat.util.http.Parameters processParameters: Parameters: \n"
+                + "Invalid chunk ignored.",
+            "29-Aug-2009 12:03:33 WARNING [main] org.apache.tomcat.util.http.Parameters processParameters: Parameters: \n"
+                + "Invalid chunk ignored.",
+            "29-Aug-2009 12:03:33 WARNING [main] org.apache.tomcat.util.http.Parameters processParameters: Parameters: \n"
+                + "Invalid chunk ignored.",
+            "29-Aug-2009 12:03:33 WARNING [main] org.apache.tomcat.util.http.Parameters processParameters: Parameters: \n"
+                + "Invalid chunk ignored."
+        );
+
+        assertEquals(
+            ".*?%{CATALINA_DATESTAMP:timestamp}.+?WARNING.+?org\\.apache\\.tomcat\\.util\\.http\\.Parameters.+?processParameters.+?"
+                + "Parameters.+?Invalid.+?chunk.+?ignored.*",
             GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples)
         );
     }
@@ -418,31 +441,29 @@ public class GrokPatternCreatorTests extends ESTestCase {
             + "integer.+?integer.+?integer.+?line.+?at.+?SQL.+?statement.+?SQL.+?statement.+?SELECT.+?"
             + "probable_cause_list_common.+?evidenceIdIn.+?linkGroupId.+?timeSpanSeconds.+?PL.+?pgSQL.+?function.+?"
             + "probable_cause_list.+?integer.+?integer.+?line.+?at.+?PERFORM.*";
-        Collection<String> examples = Collections.singletonList(
-            "2013-05-16 12:13:45 BST:192.168.61.59(51438):dave:@bank3:[19084]: "
-                + "CONTEXT:  SQL statement \"SELECT\n"
-                + "                    time_series_ids_tmp.evidence_id,\n"
-                + "                    time_series_ids_tmp.time_series_id,\n"
-                + "                    is_delta,\n"
-                + "                    GREATEST(usual_interval, 1)\n"
-                + "                FROM\n"
-                + "                    time_series_ids_tmp\n"
-                + "                WHERE\n"
-                + "                    found_peak_value = FALSE\n"
-                + "                ORDER BY\n"
-                + "                    \n"
-                + "                    \n"
-                + "                    \n"
-                + "                    time_series_ids_tmp.magnitude DESC,\n"
-                + "                    time_series_ids_tmp.scaling_factor DESC,\n"
-                + "                    time_series_ids_tmp.significance DESC,\n"
-                + "                    time_series_ids_tmp.evidence_id DESC\n"
-                + "                LIMIT\n"
-                + "                    1\"\n"
-                + "        PL/pgSQL function probable_cause_list_common(integer,integer,integer) line 255 at SQL statement\n"
-                + "        SQL statement \"SELECT probable_cause_list_common(evidenceIdIn, linkGroupId, timeSpanSeconds)\"\n"
-                + "        PL/pgSQL function probable_cause_list..."
-        );
+        Collection<String> examples = Collections.singletonList("""
+            2013-05-16 12:13:45 BST:192.168.61.59(51438):dave:@bank3:[19084]: CONTEXT:  SQL statement "SELECT
+                                time_series_ids_tmp.evidence_id,
+                                time_series_ids_tmp.time_series_id,
+                                is_delta,
+                                GREATEST(usual_interval, 1)
+                            FROM
+                                time_series_ids_tmp
+                            WHERE
+                                found_peak_value = FALSE
+                            ORDER BY
+                               \s
+                               \s
+                               \s
+                                time_series_ids_tmp.magnitude DESC,
+                                time_series_ids_tmp.scaling_factor DESC,
+                                time_series_ids_tmp.significance DESC,
+                                time_series_ids_tmp.evidence_id DESC
+                            LIMIT
+                                1"
+                    PL/pgSQL function probable_cause_list_common(integer,integer,integer) line 255 at SQL statement
+                    SQL statement "SELECT probable_cause_list_common(evidenceIdIn, linkGroupId, timeSpanSeconds)"
+                    PL/pgSQL function probable_cause_list...""");
         // Our algorithm for converting examples to Grok patterns that pick out useful fields doesn't work in
         // this case because the regex doesn't match the example (because the example has been truncated and
         // the regex contains pieces that would match parts of the original message beyond the truncation point)

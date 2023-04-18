@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-functions-search]]
 === Full-Text Search Functions
 

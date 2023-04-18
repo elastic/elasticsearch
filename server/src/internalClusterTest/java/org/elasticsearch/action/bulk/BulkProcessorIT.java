@@ -14,8 +14,8 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -30,9 +30,9 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -93,6 +93,42 @@ public class BulkProcessorIT extends ESIntegTestCase {
             processor.flush();
             latch.await();
 
+            assertThat(listener.beforeCounts.get(), equalTo(1));
+            assertThat(listener.afterCounts.get(), equalTo(1));
+            assertThat(listener.bulkFailures.size(), equalTo(0));
+            assertResponseItems(listener.bulkItems, numDocs);
+            assertMultiGetResponse(multiGetRequestBuilder.get(), numDocs);
+        }
+    }
+
+    public void testBulkProcessorFlushDisabled() throws Exception {
+        final CountDownLatch latch = new CountDownLatch(1);
+        BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
+
+        int numDocs = randomIntBetween(10, 100);
+
+        AtomicBoolean flushEnabled = new AtomicBoolean(false);
+        try (
+            BulkProcessor processor = BulkProcessor.builder(client()::bulk, listener, "BulkProcessorIT")
+                // let's make sure that this bulk won't be automatically flushed
+                .setConcurrentRequests(randomIntBetween(0, 10))
+                .setBulkActions(numDocs + randomIntBetween(1, 100))
+                .setFlushInterval(TimeValue.timeValueHours(24))
+                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .setFlushCondition(flushEnabled::get)
+                .build()
+        ) {
+
+            MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
+            assertThat(latch.await(randomInt(500), TimeUnit.MILLISECONDS), equalTo(false));
+            // no documents will be indexed here
+            processor.flush();
+
+            flushEnabled.set(true);
+            processor.flush();
+            latch.await();
+
+            // disabled flush resulted in listener being triggered only once
             assertThat(listener.beforeCounts.get(), equalTo(1));
             assertThat(listener.afterCounts.get(), equalTo(1));
             assertThat(listener.bulkFailures.size(), equalTo(0));
@@ -189,12 +225,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
 
     public void testBulkProcessorConcurrentRequestsReadOnlyIndex() throws Exception {
         createIndex("test-ro");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test-ro")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true))
-        );
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true), "test-ro");
         ensureGreen();
 
         int bulkActions = randomIntBetween(10, 100);

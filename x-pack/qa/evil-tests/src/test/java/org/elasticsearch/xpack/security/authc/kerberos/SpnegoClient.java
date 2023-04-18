@@ -247,8 +247,7 @@ class SpnegoClient implements AutoCloseable {
 
         public void handle(final Callback[] callbacks) throws IOException, UnsupportedCallbackException {
             for (Callback callback : callbacks) {
-                if (callback instanceof PasswordCallback) {
-                    PasswordCallback pc = (PasswordCallback) callback;
+                if (callback instanceof PasswordCallback pc) {
                     if (pc.getPrompt().contains(principal)) {
                         pc.setPassword(password.getChars());
                         break;

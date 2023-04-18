@@ -23,13 +23,6 @@ public final class XPackRestTestConstants {
     public static final String STATE_INDEX_PREFIX = ".ml-state";
     public static final String RESULTS_INDEX_DEFAULT = "shared";
 
-    public static final List<String> ML_POST_V660_TEMPLATES = List.of(
-        ML_META_INDEX_NAME,
-        STATE_INDEX_PREFIX,
-        RESULTS_INDEX_PREFIX,
-        CONFIG_INDEX
-    );
-
     public static final List<String> ML_POST_V7120_TEMPLATES = List.of(STATE_INDEX_PREFIX, RESULTS_INDEX_PREFIX);
 
     // Transform constants:

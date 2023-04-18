@@ -17,7 +17,7 @@ import org.elasticsearch.index.IndexSettings;
 public class MyFilterTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public MyFilterTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, Settings.EMPTY);
+        super(name, Settings.EMPTY);
     }
 
     @Override

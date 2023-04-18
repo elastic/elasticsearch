@@ -509,7 +509,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                         new InnerHitBuilder("remark")
                     ),
                     ScoreMode.Avg
-                ).innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false)))
+                ).innerHit(new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE))
             )
             .get();
         assertNoFailures(response);
@@ -610,7 +610,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         SearchResponse resp1 = client().prepareSearch("articles")
             .setQuery(
                 nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(true))
+                    new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.FETCH_SOURCE)
                 )
             )
             .get();
@@ -626,7 +626,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("articles")
             .setQuery(
                 nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false))
+                    new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
                 )
             )
             .get();
@@ -648,7 +648,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         response = client().prepareSearch("articles")
             .setQuery(
                 nestedQuery("comments.messages", matchQuery("comments.messages.message", "bear"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false))
+                    new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
                 )
             )
             .get();
@@ -683,7 +683,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         response = client().prepareSearch("articles")
             .setQuery(
                 nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false))
+                    new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
                 )
             )
             .get();
@@ -851,7 +851,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch()
             .setQuery(
                 nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(true, new String[] { "comments.message" }, null))
+                    new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.of(true, new String[] { "comments.message" }, null))
                 )
             )
             .get();
@@ -894,7 +894,7 @@ public class InnerHitsIT extends ESIntegTestCase {
             .setQuery(
                 nestedQuery("comments", matchQuery("comments.message", "away"), ScoreMode.None).innerHit(
                     new InnerHitBuilder().setFetchSourceContext(
-                        new FetchSourceContext(true, new String[] { "comments.missing_field" }, null)
+                        FetchSourceContext.of(true, new String[] { "comments.missing_field" }, null)
                     )
                 )
             )
@@ -937,11 +937,10 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testUseMaxDocInsteadOfSize() throws Exception {
         assertAcked(prepareCreate("index2").setMapping("nested", "type=nested"));
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("index2")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH))
-            .get();
+        updateIndexSettings(
+            Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH),
+            "index2"
+        );
         client().prepareIndex("index2")
             .setId("1")
             .setSource(
@@ -1006,11 +1005,7 @@ public class InnerHitsIT extends ESIntegTestCase {
             containsString("the inner hit definition's [_name]'s from + size must be less than or equal to: [100] but was [110]")
         );
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("index2")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "index2");
         response = client().prepareSearch("index2")
             .setQuery(
                 nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(

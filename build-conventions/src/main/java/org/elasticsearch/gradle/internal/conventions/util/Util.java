@@ -12,12 +12,15 @@ import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.initialization.IncludedBuild;
+import org.gradle.api.invocation.Gradle;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.util.PatternFilterable;
 
 import javax.annotation.Nullable;
+import java.io.File;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -116,4 +119,21 @@ public class Util {
         return project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
     }
 
+    public static File locateElasticsearchWorkspace(Gradle project) {
+        if (project.getParent() == null) {
+            // See if any of these included builds is the Elasticsearch project
+            for (IncludedBuild includedBuild : project.getIncludedBuilds()) {
+                File versionProperties = new File(includedBuild.getProjectDir(), "build-tools-internal/version.properties");
+                if (versionProperties.exists()) {
+                    return includedBuild.getProjectDir();
+                }
+            }
+
+            // Otherwise assume this project is the root elasticsearch workspace
+            return project.getRootProject().getRootDir();
+        } else {
+            // We're an included build, so keep looking
+            return locateElasticsearchWorkspace(project.getParent());
+        }
+    }
 }

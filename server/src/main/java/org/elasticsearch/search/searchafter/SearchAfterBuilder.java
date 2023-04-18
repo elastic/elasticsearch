@@ -12,7 +12,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,7 +26,6 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -57,10 +56,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(sortValues.length);
-        for (Object fieldValue : sortValues) {
-            out.writeGenericValue(fieldValue);
-        }
+        out.writeArray(StreamOutput::writeGenericValue, sortValues);
     }
 
     public SearchAfterBuilder setSortValues(Object[] values) {
@@ -105,7 +101,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             );
         }
 
-        if (collapseField != null && (sortFields.length > 1 || sortFields[0].getField().equals(collapseField) == false)) {
+        if (collapseField != null && (sortFields.length > 1 || Objects.equals(sortFields[0].getField(), collapseField) == false)) {
             throw new IllegalArgumentException(
                 "Cannot use [collapse] in conjunction with ["
                     + SEARCH_AFTER.getPreferredName()
@@ -199,7 +195,12 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
                 case STRING_VAL:
                 case STRING:
-                    return format.parseBytesRef(value.toString());
+                    if (value instanceof BytesRef bytesRef) {
+                        // _tsid is stored and ordered as BytesRef. We should not format it
+                        return bytesRef;
+                    } else {
+                        return format.parseBytesRef(value);
+                    }
 
                 default:
                     throw new IllegalArgumentException(
@@ -234,30 +235,14 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 if (token == XContentParser.Token.VALUE_NUMBER) {
                     switch (parser.numberType()) {
-                        case INT:
-                            values.add(parser.intValue());
-                            break;
-
-                        case LONG:
-                            values.add(parser.longValue());
-                            break;
-
-                        case DOUBLE:
-                            values.add(parser.doubleValue());
-                            break;
-
-                        case FLOAT:
-                            values.add(parser.floatValue());
-                            break;
-
-                        case BIG_INTEGER:
-                            values.add(parser.text());
-                            break;
-
-                        default:
-                            throw new IllegalArgumentException(
-                                "[search_after] does not accept numbers of type [" + parser.numberType() + "], got " + parser.text()
-                            );
+                        case INT -> values.add(parser.intValue());
+                        case LONG -> values.add(parser.longValue());
+                        case DOUBLE -> values.add(parser.doubleValue());
+                        case FLOAT -> values.add(parser.floatValue());
+                        case BIG_INTEGER -> values.add(parser.text());
+                        default -> throw new IllegalArgumentException(
+                            "[search_after] does not accept numbers of type [" + parser.numberType() + "], got " + parser.text()
+                        );
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     values.add(parser.text());
@@ -314,13 +299,6 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.prettyPrint();
-            toXContent(builder, EMPTY_PARAMS);
-            return Strings.toString(builder);
-        } catch (Exception e) {
-            throw new ElasticsearchException("Failed to build xcontent.", e);
-        }
+        return Strings.toString(this, true, true);
     }
 }

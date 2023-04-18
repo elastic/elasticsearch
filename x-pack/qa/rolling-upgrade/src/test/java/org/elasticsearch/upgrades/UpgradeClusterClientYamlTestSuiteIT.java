@@ -9,7 +9,7 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -73,6 +73,11 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         } catch (AssertionError e) {
             throw new AssertionError("Failure in test setup: Failed to initialize at least 3 watcher nodes", e);
         }
+    }
+
+    @Override
+    protected boolean resetFeatureStates() {
+        return false;
     }
 
     @Override

@@ -15,10 +15,10 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
@@ -29,8 +29,6 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
-import org.junit.After;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -61,22 +59,12 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
             .build();
     }
 
-    @After
-    public void cleanup() {
-        try {
-            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { index })).get();
-        } catch (Exception e) {
-            // Okay to ignore this
-            logger.info("failed to clean up data stream", e);
-        }
-    }
-
     public void testShrinkOnTiers() throws Exception {
         startHotOnlyNode();
         startWarmOnlyNode();
         ensureGreen();
 
-        RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L);
+        RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L, null, null, null, null, null, null);
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.singletonMap(rolloverAction.getWriteableName(), rolloverAction));
         ShrinkAction shrinkAction = new ShrinkAction(1, null);
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.singletonMap(shrinkAction.getWriteableName(), shrinkAction));

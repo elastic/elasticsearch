@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:
@@ -11,6 +11,9 @@ setup:
               index:
                 mode: time_series
                 routing_path: [metricset, k8s.pod.uid]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
             mappings:
               properties:
                 "@timestamp":
@@ -60,8 +63,8 @@ setup:
 ---
 query a dimension:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -76,8 +79,8 @@ query a dimension:
 ---
 query a metric:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -90,13 +93,26 @@ query a metric:
 
   - match: {hits.total.value: 1}
 
-# TODO add test showing that quering _tsid fails
+---
+"query tsid fails":
+  - skip:
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      catch: /\[_tsid\] is not searchable/
+      search:
+        index: test
+        body:
+          query:
+            term:
+              _tsid: wont't work
 
 ---
 fetch a dimension:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -114,8 +130,8 @@ fetch a dimension:
 ---
 fetch a metric:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -134,8 +150,8 @@ fetch a metric:
 ---
 fetch a tag:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -151,13 +167,30 @@ fetch a tag:
   - match: {hits.hits.0.fields.k8s\.pod\.ip: ['10.10.55.2']}
   - is_false: hits.hits.0.fields._tsid   # tsid isn't fetched by default
 
-# TODO add test to fetch the tsid
+---
+"fetch the tsid":
+  - skip:
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - field: _tsid
+          query:
+            query_string:
+              query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
 
 ---
 aggregate a dimension:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -178,8 +211,8 @@ aggregate a dimension:
 ---
 aggregate a metric:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -206,8 +239,8 @@ aggregate a metric:
 ---
 aggregate a tag:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       search:
@@ -229,34 +262,63 @@ aggregate a tag:
   - match: {aggregations.ips.buckets.2.key: 10.10.55.3}
   - match: {aggregations.ips.buckets.2.doc_count: 4}
 
-
-# TODO add a test aggregating the _tsid
-
 ---
-field capabilities:
+"aggregate the tsid":
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
-      field_caps:
+      search:
         index: test
-        fields: [k8s.pod.uid, k8s.pod.network.rx, k8s.pod.ip, _tsid]
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
 
-  # TODO assert time_series_metric and time_series_dimension
-  - match: {fields.k8s\.pod\.uid.keyword.searchable:          true}
-  - match: {fields.k8s\.pod\.uid.keyword.aggregatable:        true}
-  - is_false: fields.k8s\.pod\.uid.keyword.indices
-  - is_false: fields.k8s\.pod\.uid.keyword.non_searchable_indices
-  - is_false: fields.k8s\.pod\.uid.keyword.non_aggregatable_indices
-  - match: {fields.k8s\.pod\.network\.rx.long.searchable:     true}
-  - match: {fields.k8s\.pod\.network\.rx.long.aggregatable:   true}
-  - is_false: fields.k8s\.pod\.network\.rx.long.indices
-  - is_false: fields.k8s\.pod\.network\.rx.long.non_searchable_indices
-  - is_false: fields.k8s\.pod\.network\.rx.long.non_aggregatable_indices
-  - match: {fields.k8s\.pod\.ip.ip.searchable:                true}
-  - match: {fields.k8s\.pod\.ip.ip.aggregatable:              true}
-  - is_false: fields.k8s\.pod\.ip.ip.indices
-  - is_false: fields.k8s\.pod\.ip.ip.non_searchable_indices
-  - is_false: fields.k8s\.pod\.ip.ip.non_aggregatable_indices
-  # TODO assert tsid once we build it:
+  - match: {hits.total.value: 8}
+  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.doc_count: 4}
+  - match: {aggregations.tsids.buckets.1.key: {k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset: pod}}
+  - match: {aggregations.tsids.buckets.1.doc_count: 4}
+
+---
+"aggregate filter the tsid fails":
+  - skip:
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      catch: /\[_tsid\] is not searchable/
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              filter:
+                term:
+                  _tsid: wont't work
+
+
+---
+sort by tsid:
+  - skip:
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      search:
+        index: test
+        body:
+          sort:   [ "_tsid", "@timestamp" ]
+
+  - match: {hits.total.value: 8}
+  - match: {hits.hits.0.sort: [{ "k8s.pod.uid" : "947e4ced-1786-4e53-9e0c-5c447e959507", "metricset" : "pod"}, 1619635804467]}
+  - match: {hits.hits.1.sort: [{ "k8s.pod.uid" : "947e4ced-1786-4e53-9e0c-5c447e959507", "metricset" : "pod"}, 1619635824467]}
+  - match: {hits.hits.4.sort: [{ "k8s.pod.uid" : "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "metricset" : "pod"}, 1619635803142]}
+  - match: {hits.hits.7.sort: [{ "k8s.pod.uid" : "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "metricset" : "pod"}, 1619635863142]}

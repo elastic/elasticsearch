@@ -40,8 +40,10 @@ The following snippet shows a simple `index` action definition:
 |======
 |Name                     |Required    | Default    | Description
 
-| `index`                 | yes        | -          | The index, alias, or data stream to index into.
+| `index`                 | yes^*^     | -         a| The index, alias, or data stream to index into.
 
+^*^If you dynamically set an `_index` value, this parameter isn't required. See
+<<anatomy-actions-index-multi-doc-support>>.
 
 | `doc_id`                | no         | -          | The optional `_id` of the document.
 

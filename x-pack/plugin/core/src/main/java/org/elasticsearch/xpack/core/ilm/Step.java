@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -23,6 +25,32 @@ import java.util.Objects;
  * Represents one part of the execution of a {@link LifecycleAction}.
  */
 public abstract class Step {
+
+    /**
+     * Retrieves the current {@link Step.StepKey} from the lifecycle state. Note that
+     * it is illegal for the step to be set with the phase and/or action unset,
+     * or for the step to be unset with the phase and/or action set. All three
+     * settings must be either present or missing.
+     *
+     * @param lifecycleState the index custom data to extract the {@link Step.StepKey} from.
+     */
+    @Nullable
+    public static Step.StepKey getCurrentStepKey(LifecycleExecutionState lifecycleState) {
+        Objects.requireNonNull(lifecycleState, "cannot determine current step key as lifecycle state is null");
+        String currentPhase = lifecycleState.phase();
+        String currentAction = lifecycleState.action();
+        String currentStep = lifecycleState.step();
+        if (Strings.isNullOrEmpty(currentStep)) {
+            assert Strings.isNullOrEmpty(currentPhase) : "Current phase is not empty: " + currentPhase;
+            assert Strings.isNullOrEmpty(currentAction) : "Current action is not empty: " + currentAction;
+            return null;
+        } else {
+            assert Strings.isNullOrEmpty(currentPhase) == false;
+            assert Strings.isNullOrEmpty(currentAction) == false;
+            return new Step.StepKey(currentPhase, currentAction, currentStep);
+        }
+    }
+
     private final StepKey key;
     private final StepKey nextStepKey;
 
@@ -66,10 +94,7 @@ public abstract class Step {
         return key + " => " + nextStepKey;
     }
 
-    public static final class StepKey implements Writeable, ToXContentObject {
-        private final String phase;
-        private final String action;
-        private final String name;
+    public record StepKey(String phase, String action, String name) implements Writeable, ToXContentObject {
 
         public static final ParseField PHASE_FIELD = new ParseField("phase");
         public static final ParseField ACTION_FIELD = new ParseField("action");
@@ -84,16 +109,8 @@ public abstract class Step {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
         }
 
-        public StepKey(String phase, String action, String name) {
-            this.phase = phase;
-            this.action = action;
-            this.name = name;
-        }
-
-        public StepKey(StreamInput in) throws IOException {
-            this.phase = in.readString();
-            this.action = in.readString();
-            this.name = in.readString();
+        public static StepKey readFrom(StreamInput in) throws IOException {
+            return new StepKey(in.readString(), in.readString(), in.readString());
         }
 
         public static StepKey parse(XContentParser parser) {
@@ -107,38 +124,9 @@ public abstract class Step {
             out.writeString(name);
         }
 
-        public String getPhase() {
-            return phase;
-        }
-
-        public String getAction() {
-            return action;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(phase, action, name);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            StepKey other = (StepKey) obj;
-            return Objects.equals(phase, other.phase) && Objects.equals(action, other.action) && Objects.equals(name, other.name);
-        }
-
         @Override
         public String toString() {
-            return Strings.toString(this);
+            return "{\"phase\":\"" + phase + "\",\"action\":\"" + action + "\",\"name\":\"" + name + "\"}";
         }
 
         @Override

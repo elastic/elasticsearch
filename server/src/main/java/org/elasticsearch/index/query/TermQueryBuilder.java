@@ -11,7 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -86,7 +86,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
      */
     public TermQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             caseInsensitive = in.readBoolean();
         }
     }
@@ -94,7 +94,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         super.doWriteTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeBoolean(caseInsensitive);
         }
     }
@@ -120,6 +120,13 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                         if (TERM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             value = maybeConvertToBytesRef(parser.objectBytes());
                         } else if (VALUE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "[term] query does not support arrays for value - use a bool query with multiple term "
+                                        + "clauses in the should section or use a Terms query if scoring is not required"
+                                );
+                            }
                             value = maybeConvertToBytesRef(parser.objectBytes());
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
@@ -217,4 +224,8 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         return super.doEquals(other) && Objects.equals(caseInsensitive, other.caseInsensitive);
     }
 
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
+    }
 }

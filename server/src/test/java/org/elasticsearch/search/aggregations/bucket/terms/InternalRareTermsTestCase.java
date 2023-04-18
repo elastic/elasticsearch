@@ -36,6 +36,11 @@ public abstract class InternalRareTermsTestCase extends InternalMultiBucketAggre
         return createTestInstance(name, metadata, aggregations, maxDocCount);
     }
 
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
     protected abstract InternalRareTerms<?, ?> createTestInstance(
         String name,
         Map<String, Object> metadata,

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
+import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -26,9 +27,6 @@ import java.util.Map;
 public class CategorizeTextAggregatorFactory extends AggregatorFactory {
 
     private final MappedFieldType fieldType;
-    private final String indexedFieldName;
-    private final int maxUniqueTokens;
-    private final int maxMatchTokens;
     private final int similarityThreshold;
     private final CategorizationAnalyzerConfig categorizationAnalyzerConfig;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
@@ -36,8 +34,6 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
     public CategorizeTextAggregatorFactory(
         String name,
         String fieldName,
-        int maxUniqueTokens,
-        int maxMatchTokens,
         int similarityThreshold,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
         CategorizationAnalyzerConfig categorizationAnalyzerConfig,
@@ -48,13 +44,6 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
     ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.fieldType = context.getFieldType(fieldName);
-        if (fieldType != null) {
-            this.indexedFieldName = fieldType.name();
-        } else {
-            this.indexedFieldName = null;
-        }
-        this.maxUniqueTokens = maxUniqueTokens;
-        this.maxMatchTokens = maxMatchTokens;
         this.similarityThreshold = similarityThreshold;
         this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
         this.bucketCountThresholds = bucketCountThresholds;
@@ -65,8 +54,6 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
             name,
             bucketCountThresholds.getRequiredSize(),
             bucketCountThresholds.getMinDocCount(),
-            maxUniqueTokens,
-            maxMatchTokens,
             similarityThreshold,
             metadata
         );
@@ -84,13 +71,20 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
         if (fieldType == null) {
             return createUnmapped(parent, metadata);
         }
-        // TODO add support for Keyword && KeywordScriptFieldType
+        // Most of the text and keyword family of fields use a bespoke TextSearchInfo that doesn't match any
+        // of the static final ones created in the TextSearchInfo class definition. KeywordScriptFieldType is
+        // the exception that we do want to support, so we need to check for that separately. (It's not a
+        // complete disaster if we end up analyzing an inappropriate field, for example if the user has added
+        // a new field type via a plugin that also creates a bespoke TextSearchInfo member - it will just get
+        // converted to a string and then likely the analyzer won't create any tokens, so the categorizer
+        // will see an empty token list.)
         if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE
-            || fieldType.getTextSearchInfo() == TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS) {
+            || (fieldType.getTextSearchInfo() == TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS
+                && fieldType instanceof KeywordScriptFieldType == false)) {
             throw new IllegalArgumentException(
                 "categorize_text agg ["
                     + name
-                    + "] only works on analyzable text fields. Cannot aggregate field type ["
+                    + "] only works on text and keyword fields. Cannot aggregate field type ["
                     + fieldType.name()
                     + "] via ["
                     + fieldType.getClass().getSimpleName()
@@ -98,7 +92,7 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
             );
         }
         TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(this.bucketCountThresholds);
-        if (bucketCountThresholds.getShardSize() == CategorizeTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+        if (bucketCountThresholds.getShardSize() == CategorizeTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.shardSize()) {
             // The user has not made a shardSize selection. Use default
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
@@ -112,15 +106,12 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
             factories,
             context,
             parent,
-            indexedFieldName,
+            fieldType.name(),
             fieldType,
             bucketCountThresholds,
-            maxUniqueTokens,
-            maxMatchTokens,
             similarityThreshold,
             categorizationAnalyzerConfig,
             metadata
         );
     }
-
 }

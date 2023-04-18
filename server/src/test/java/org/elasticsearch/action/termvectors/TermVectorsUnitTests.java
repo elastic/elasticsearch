@@ -25,7 +25,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -161,9 +161,8 @@ public class TermVectorsUnitTests extends ESTestCase {
     }
 
     public void testRestRequestParsing() throws Exception {
-        BytesReference inputBytes = new BytesArray(
-            " {\"fields\" : [\"a\",  \"b\",\"c\"], \"offsets\":false, \"positions\":false, \"payloads\":true}"
-        );
+        BytesReference inputBytes = new BytesArray("""
+            {"fields" : ["a",  "b","c"], "offsets":false, "positions":false, "payloads":true}""");
 
         TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
@@ -199,9 +198,8 @@ public class TermVectorsUnitTests extends ESTestCase {
     }
 
     public void testRequestParsingThrowsException() throws Exception {
-        BytesReference inputBytes = new BytesArray(
-            " {\"fields\" : \"a,  b,c   \", \"offsets\":false, \"positions\":false, \"payloads\":true, \"meaningless_term\":2}"
-        );
+        BytesReference inputBytes = new BytesArray("""
+            {"fields" : "a,  b,c   ", "offsets":false, "positions":false, "payloads":true, "meaningless_term":2}""");
         TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         boolean threwException = false;
         try {
@@ -263,7 +261,7 @@ public class TermVectorsUnitTests extends ESTestCase {
             // write using older version which contains types
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(Version.V_7_2_0);
+            out.setTransportVersion(TransportVersion.V_7_2_0);
             request.writeTo(out);
 
             // First check the type on the stream was written as "_doc" by manually parsing the stream until the type
@@ -279,7 +277,7 @@ public class TermVectorsUnitTests extends ESTestCase {
             // now read the stream as normal to check it is parsed correct if received from an older node
             esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
             esBuffer = new InputStreamStreamInput(esInBuffer);
-            esBuffer.setVersion(Version.V_7_2_0);
+            esBuffer.setTransportVersion(TransportVersion.V_7_2_0);
             TermVectorsRequest req2 = new TermVectorsRequest(esBuffer);
 
             assertThat(request.offsets(), equalTo(req2.offsets()));

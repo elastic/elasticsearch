@@ -16,10 +16,10 @@ import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.Ann
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -119,38 +119,44 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
 
     // Merge original annotations and search hits into a single set of markups for each passage
     static MarkupPassage mergeAnnotations(AnnotationToken[] annotations, Passage passage) {
-        try {
-            MarkupPassage markupPassage = new MarkupPassage();
+        MarkupPassage markupPassage = new MarkupPassage();
 
-            // Add search hits first - they take precedence over any other markup
-            for (int i = 0; i < passage.getNumMatches(); i++) {
-                int start = passage.getMatchStarts()[i];
-                int end = passage.getMatchEnds()[i];
-                String searchTerm = passage.getMatchTerms()[i].utf8ToString();
-                Markup markup = new Markup(
-                    start,
-                    end,
-                    SEARCH_HIT_TYPE + "=" + URLEncoder.encode(searchTerm, StandardCharsets.UTF_8.name())
-                );
+        final Integer[] matches = new Integer[passage.getNumMatches()];
+        for (int i = 0; i < matches.length; ++i) {
+            matches[i] = i;
+        }
+        Arrays.sort(matches, (l, r) -> {
+            int lStart = passage.getMatchStarts()[l];
+            int lEnd = passage.getMatchEnds()[l];
+            int rStart = passage.getMatchStarts()[r];
+            int rEnd = passage.getMatchEnds()[r];
+            if (lStart == rStart) {
+                return rEnd - lEnd; // longest match first
+            } else {
+                return lStart - rStart;
+            }
+        });
+
+        // Add search hits first - they take precedence over any other markup
+        for (int matchId : matches) {
+            int start = passage.getMatchStarts()[matchId];
+            int end = passage.getMatchEnds()[matchId];
+            String searchTerm = passage.getMatchTerms()[matchId].utf8ToString();
+            Markup markup = new Markup(start, end, SEARCH_HIT_TYPE + "=" + URLEncoder.encode(searchTerm, StandardCharsets.UTF_8));
+            markupPassage.addUnlessOverlapping(markup);
+        }
+
+        // Now add original text's annotations - ignoring any that might conflict with the search hits markup.
+        for (AnnotationToken token : annotations) {
+            int start = token.offset();
+            int end = token.endOffset();
+            if (start >= passage.getStartOffset() && end <= passage.getEndOffset()) {
+                String escapedValue = URLEncoder.encode(token.value(), StandardCharsets.UTF_8);
+                Markup markup = new Markup(start, end, escapedValue);
                 markupPassage.addUnlessOverlapping(markup);
             }
-
-            // Now add original text's annotations - ignoring any that might conflict with the search hits markup.
-            for (AnnotationToken token : annotations) {
-                int start = token.offset;
-                int end = token.endOffset;
-                if (start >= passage.getStartOffset() && end <= passage.getEndOffset()) {
-                    String escapedValue = URLEncoder.encode(token.value, StandardCharsets.UTF_8.name());
-                    Markup markup = new Markup(start, end, escapedValue);
-                    markupPassage.addUnlessOverlapping(markup);
-                }
-            }
-            return markupPassage;
-
-        } catch (UnsupportedEncodingException e) {
-            // We should always have UTF-8 support
-            throw new IllegalStateException(e);
         }
+        return markupPassage;
     }
 
     @Override
@@ -160,8 +166,8 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
         int pos;
         int j = 0;
         for (Passage passage : passages) {
-            AnnotationToken[] annotations = getIntersectingAnnotations(passage.getStartOffset(), passage.getEndOffset());
-            MarkupPassage mergedMarkup = mergeAnnotations(annotations, passage);
+            AnnotationToken[] annotationTokens = getIntersectingAnnotations(passage.getStartOffset(), passage.getEndOffset());
+            MarkupPassage mergedMarkup = mergeAnnotations(annotationTokens, passage);
 
             StringBuilder sb = new StringBuilder();
             pos = passage.getStartOffset();
@@ -207,12 +213,12 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
                 AnnotationToken token = fieldValueAnnotations.getAnnotation(i);
                 if (token.intersects(start - fieldValueOffset, end - fieldValueOffset)) {
                     intersectingAnnotations.add(
-                        new AnnotationToken(token.offset + fieldValueOffset, token.endOffset + fieldValueOffset, token.value)
+                        new AnnotationToken(token.offset() + fieldValueOffset, token.endOffset() + fieldValueOffset, token.value())
                     );
                 }
             }
             // add 1 for the fieldvalue separator character
-            fieldValueOffset += fieldValueAnnotations.textMinusMarkup.length() + 1;
+            fieldValueOffset += fieldValueAnnotations.textMinusMarkup().length() + 1;
         }
         return intersectingAnnotations.toArray(new AnnotationToken[intersectingAnnotations.size()]);
     }

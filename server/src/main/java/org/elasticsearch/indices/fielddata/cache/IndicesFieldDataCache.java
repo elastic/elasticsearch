@@ -44,7 +44,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
     public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY = Setting.memorySizeSetting(
         "indices.fielddata.cache.size",
-        new ByteSizeValue(-1),
+        ByteSizeValue.MINUS_ONE,
         Property.NodeScope
     );
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;

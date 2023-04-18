@@ -7,8 +7,9 @@
 package org.elasticsearch.xpack.spatial.util;
 
 import org.apache.lucene.geo.XShapeTestUtil;
+import org.apache.lucene.geo.XYCircle;
 import org.apache.lucene.geo.XYPolygon;
-import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
@@ -26,10 +27,12 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.geo.GeometryTestUtils.linearRing;
-import static org.elasticsearch.geo.GeometryTestUtils.randomAlt;
+import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
 
 /** generates random cartesian shapes */
 public class ShapeTestUtils {
+
+    public static final double MIN_VALID_AREA = 1e-10;
 
     public static double randomValue() {
         return XShapeTestUtil.nextDouble();
@@ -44,6 +47,37 @@ public class ShapeTestUtils {
             return new Point(randomValue(), randomValue(), randomAlt());
         }
         return new Point(randomValue(), randomValue());
+    }
+
+    public static Point randomPointNotExtreme(boolean hasAlt) {
+        return ESTestCase.randomValueOtherThanMany(ShapeTestUtils::extremePoint, () -> ShapeTestUtils.randomPoint(hasAlt));
+    }
+
+    public static Point randomPointNotExtreme() {
+        return ShapeTestUtils.randomPointNotExtreme(ESTestCase.randomBoolean());
+    }
+
+    /**
+     * Since cartesian centroid is stored in Float values, and calculations perform averages over many,
+     * We cannot support points at the very edge of the range.
+     */
+    public static boolean extremePoint(Point point) {
+        double max = Float.MAX_VALUE / 100;
+        double min = -Float.MAX_VALUE / 100;
+        return point.getLon() > max || point.getLon() < min || point.getLat() > max || point.getLat() < min;
+    }
+
+    public static double randomAlt() {
+        return ESTestCase.randomDouble() * XShapeTestUtil.CENTER_SCALE_FACTOR;
+    }
+
+    public static Circle randomCircle(boolean hasAlt) {
+        XYCircle luceneCircle = XShapeTestUtil.nextCircle();
+        if (hasAlt) {
+            return new Circle(luceneCircle.getX(), luceneCircle.getY(), randomAlt(), luceneCircle.getRadius());
+        } else {
+            return new Circle(luceneCircle.getX(), luceneCircle.getY(), luceneCircle.getRadius());
+        }
     }
 
     public static Line randomLine(boolean hasAlts) {
@@ -67,7 +101,7 @@ public class ShapeTestUtils {
     }
 
     public static Polygon randomPolygon(boolean hasAlt) {
-        XYPolygon lucenePolygon = XShapeTestUtil.nextPolygon();
+        XYPolygon lucenePolygon = randomValueOtherThanMany(p -> area(p) <= MIN_VALID_AREA, XShapeTestUtil::nextPolygon);
         if (lucenePolygon.numHoles() > 0) {
             XYPolygon[] luceneHoles = lucenePolygon.getHoles();
             List<LinearRing> holes = new ArrayList<>();
@@ -81,6 +115,16 @@ public class ShapeTestUtils {
             );
         }
         return new Polygon(linearRing(floatsToDoubles(lucenePolygon.getPolyX()), floatsToDoubles(lucenePolygon.getPolyY()), hasAlt));
+    }
+
+    static double area(XYPolygon p) {
+        double windingSum = 0;
+        final int numPts = p.numPoints() - 1;
+        for (int i = 0; i < numPts; i++) {
+            // compute signed area
+            windingSum += p.getPolyX(i) * p.getPolyY(i + 1) - p.getPolyY(i) * p.getPolyX(i + 1);
+        }
+        return Math.abs(windingSum / 2);
     }
 
     static double[] floatsToDoubles(float[] f) {
@@ -150,8 +194,41 @@ public class ShapeTestUtils {
             ShapeTestUtils::randomMultiPoint,
             ShapeTestUtils::randomMultiPolygon,
             hasAlt ? ShapeTestUtils::randomPoint : (b) -> randomRectangle(),
-            level < 3 ? (b) -> randomGeometryCollection(level + 1, b) : GeometryTestUtils::randomPoint // don't build too deep
+            level < 3 ? (b) -> randomGeometryCollection(level + 1, b) : ShapeTestUtils::randomPoint // don't build too deep
         );
         return geometry.apply(hasAlt);
+    }
+
+    public static Geometry randomGeometryWithoutCircle(boolean hasAlt) {
+        return randomGeometryWithoutCircle(0, hasAlt);
+    }
+
+    public static Geometry randomGeometryWithoutCircle(int level, boolean hasAlt) {
+        @SuppressWarnings("unchecked")
+        Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(
+            ShapeTestUtils::randomPoint,
+            ShapeTestUtils::randomMultiPoint,
+            ShapeTestUtils::randomLine,
+            ShapeTestUtils::randomMultiLine,
+            ShapeTestUtils::randomPolygon,
+            ShapeTestUtils::randomMultiPolygon,
+            hasAlt ? ShapeTestUtils::randomPoint : (b) -> randomRectangle(),
+            level < 3 ? (b) -> randomGeometryCollectionWithoutCircle(level + 1, hasAlt) : ShapeTestUtils::randomPoint // don't build too
+            // deep
+        );
+        return geometry.apply(hasAlt);
+    }
+
+    public static GeometryCollection<Geometry> randomGeometryCollectionWithoutCircle(boolean hasAlt) {
+        return randomGeometryCollectionWithoutCircle(0, hasAlt);
+    }
+
+    protected static GeometryCollection<Geometry> randomGeometryCollectionWithoutCircle(int level, boolean hasAlt) {
+        int size = ESTestCase.randomIntBetween(1, 10);
+        List<Geometry> shapes = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            shapes.add(randomGeometryWithoutCircle(level, hasAlt));
+        }
+        return new GeometryCollection<>(shapes);
     }
 }

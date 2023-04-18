@@ -87,12 +87,12 @@ public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
             } else {
                 // Zero length buffers are not added to nioBuffers by ChannelOutboundBuffer, so there is no need
                 // to check if the total size of all the buffers is non-zero.
-                ByteBuffer ioBuffer = getIoBuffer();
-                copyBytes(nioBuffers, nioBufferCnt, ioBuffer);
-                ioBuffer.flip();
+                ByteBuffer buffer = getIoBuffer();
+                copyBytes(nioBuffers, nioBufferCnt, buffer);
+                buffer.flip();
 
-                int attemptedBytes = ioBuffer.remaining();
-                final int localWrittenBytes = writeToSocketChannel(javaChannel(), ioBuffer);
+                int attemptedBytes = buffer.remaining();
+                final int localWrittenBytes = writeToSocketChannel(javaChannel(), buffer);
                 if (localWrittenBytes <= 0) {
                     incompleteWrite(true);
                     return;
@@ -112,29 +112,29 @@ public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
         final RecvByteBufAllocator.Handle allocHandle = unsafe().recvBufAllocHandle();
         int writeableBytes = Math.min(byteBuf.writableBytes(), MAX_BYTES_PER_WRITE);
         allocHandle.attemptedBytesRead(writeableBytes);
-        ByteBuffer ioBuffer = getIoBuffer().limit(writeableBytes);
-        int bytesRead = readFromSocketChannel(javaChannel(), ioBuffer);
-        ioBuffer.flip();
+        ByteBuffer limit = getIoBuffer().limit(writeableBytes);
+        int bytesRead = readFromSocketChannel(javaChannel(), limit);
+        limit.flip();
         if (bytesRead > 0) {
-            byteBuf.writeBytes(ioBuffer);
+            byteBuf.writeBytes(limit);
         }
         return bytesRead;
     }
 
     // Protected so that tests can verify behavior and simulate partial writes
-    protected int writeToSocketChannel(SocketChannel socketChannel, ByteBuffer ioBuffer) throws IOException {
-        return socketChannel.write(ioBuffer);
+    protected int writeToSocketChannel(SocketChannel socketChannel, ByteBuffer buffer) throws IOException {
+        return socketChannel.write(buffer);
     }
 
     // Protected so that tests can verify behavior
-    protected int readFromSocketChannel(SocketChannel socketChannel, ByteBuffer ioBuffer) throws IOException {
-        return socketChannel.read(ioBuffer);
+    protected int readFromSocketChannel(SocketChannel socketChannel, ByteBuffer buffer) throws IOException {
+        return socketChannel.read(buffer);
     }
 
     private static ByteBuffer getIoBuffer() {
-        ByteBuffer ioBuffer = CopyBytesSocketChannel.ioBuffer.get();
-        ioBuffer.clear();
-        return ioBuffer;
+        ByteBuffer buffer = CopyBytesSocketChannel.ioBuffer.get();
+        buffer.clear();
+        return buffer;
     }
 
     private void adjustMaxBytesPerGatheringWrite(int attempted, int written, int oldMaxBytesPerGatheringWrite) {

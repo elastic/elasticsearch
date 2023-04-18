@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.license.GetFeatureUsageRequest;
 import org.elasticsearch.license.GetFeatureUsageResponse;
 import org.elasticsearch.license.TransportGetFeatureUsageAction;
@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.After;
 
 import java.time.ZonedDateTime;
@@ -57,14 +58,17 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
     private final Set<String> createdPipelines = new HashSet<>();
 
     @After
-    public void cleanup() {
+    public void cleanup() throws Exception {
         for (String pipeline : createdPipelines) {
             try {
                 client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest(pipeline)).actionGet();
             } catch (Exception ex) {
-                logger.warn(() -> new ParameterizedMessage("error cleaning up pipeline [{}]", pipeline), ex);
+                logger.warn(() -> "error cleaning up pipeline [" + pipeline + "]", ex);
             }
         }
+        // Some of the tests have async side effects. We need to wait for these to complete before continuing
+        // the cleanup, otherwise unexpected indices may get created during the cleanup process.
+        BaseMlIntegTestCase.waitForPendingTasks(client());
     }
 
     public void testFeatureTrackingAnomalyJob() throws Exception {
@@ -125,7 +129,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
             .setInferenceConfig(new ClassificationConfig(3))
             .setParsedDefinition(
                 new TrainedModelDefinition.Builder().setPreProcessors(
-                    Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false))
+                    List.of(new OneHotEncoding("other.categorical", oneHotEncoding, false))
                 ).setTrainedModel(buildClassification(true))
             )
             .build();
@@ -206,28 +210,18 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
     }
 
     private void putTrainedModelIngestPipeline(String pipelineId, String modelId) throws Exception {
-        client().execute(
-            PutPipelineAction.INSTANCE,
-            new PutPipelineRequest(
-                pipelineId,
-                new BytesArray(
-                    "{\n"
-                        + "    \"processors\": [\n"
-                        + "      {\n"
-                        + "        \"inference\": {\n"
-                        + "          \"inference_config\": {\"classification\":{}},\n"
-                        + "          \"model_id\": \""
-                        + modelId
-                        + "\",\n"
-                        + "          \"field_map\": {}\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    ]\n"
-                        + "  }"
-                ),
-                XContentType.JSON
-            )
-        ).actionGet();
+        client().execute(PutPipelineAction.INSTANCE, new PutPipelineRequest(pipelineId, new BytesArray(Strings.format("""
+            {
+                "processors": [
+                  {
+                    "inference": {
+                      "inference_config": {"classification":{}},
+                      "model_id": "%s",
+                      "field_map": {}
+                    }
+                  }
+                ]
+              }""", modelId)), XContentType.JSON)).actionGet();
     }
 
 }

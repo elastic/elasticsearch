@@ -8,6 +8,7 @@
 
 package org.elasticsearch.client.analytics;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -97,5 +98,10 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     @Override
     protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_7_0;
     }
 }

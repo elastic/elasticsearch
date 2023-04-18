@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -43,6 +42,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Processes {@link Aggregation} objects and writes flat JSON documents for each leaf aggregation.
@@ -117,10 +118,9 @@ class AggregationToJsonProcessor {
         for (Aggregation agg : aggregations) {
             if (agg instanceof MultiBucketsAggregation) {
                 bucketAggregations.add((MultiBucketsAggregation) agg);
-            } else if (agg instanceof SingleBucketAggregation) {
+            } else if (agg instanceof SingleBucketAggregation singleBucketAggregation) {
                 // Skip a level down for single bucket aggs, if they have a sub-agg that is not
                 // a bucketed agg we should treat it like a leaf in this bucket
-                SingleBucketAggregation singleBucketAggregation = (SingleBucketAggregation) agg;
                 for (Aggregation subAgg : singleBucketAggregation.getAggregations()) {
                     if (subAgg instanceof MultiBucketsAggregation || subAgg instanceof SingleBucketAggregation) {
                         singleBucketAggregations.add(singleBucketAggregation);
@@ -202,7 +202,7 @@ class AggregationToJsonProcessor {
             queueDocToWrite(keyValuePairs, docCount);
         }
 
-        addedLeafKeys.forEach(k -> keyValuePairs.remove(k));
+        addedLeafKeys.forEach(keyValuePairs::remove);
     }
 
     private void processDateHistogram(Histogram agg) throws IOException {
@@ -261,7 +261,7 @@ class AggregationToJsonProcessor {
 
                 long bucketTime = toHistogramKeyToEpoch(bucket.getKey().get(compositeAggDateValueSourceName));
                 if (bucketTime < startTime) {
-                    LOGGER.debug(() -> new ParameterizedMessage("Skipping bucket at [{}], startTime is [{}]", bucketTime, startTime));
+                    LOGGER.debug(() -> format("Skipping bucket at [%s], startTime is [%s]", bucketTime, startTime));
                     continue;
                 } else {
                     checkBucketTime = false;
@@ -400,7 +400,7 @@ class AggregationToJsonProcessor {
 
     private boolean processGeoCentroid(GeoCentroid agg) {
         if (agg.count() > 0) {
-            keyValuePairs.put(agg.getName(), agg.centroid().getLat() + "," + agg.centroid().getLon());
+            keyValuePairs.put(agg.getName(), agg.centroid().getY() + "," + agg.centroid().getX());
             return true;
         }
         return false;

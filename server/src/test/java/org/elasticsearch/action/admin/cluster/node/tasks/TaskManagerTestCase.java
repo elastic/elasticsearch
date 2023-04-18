@@ -8,6 +8,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
@@ -39,10 +40,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -50,7 +54,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -76,8 +79,12 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     public void setupTestNodes(Settings settings) {
         nodesCount = randomIntBetween(2, 10);
         testNodes = new TestNode[nodesCount];
+        final Settings reservedPortRangeSettings = Settings.builder()
+            .put(TransportSettings.PORT.getKey(), getPortRange())
+            .put(settings)
+            .build();
         for (int i = 0; i < testNodes.length; i++) {
-            testNodes[i] = new TestNode("node" + i, threadPool, settings);
+            testNodes[i] = new TestNode("node" + i, threadPool, reservedPortRangeSettings);
         }
     }
 
@@ -172,33 +179,32 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
                 return discoveryNode.get();
             };
+            TaskManager taskManager;
+            if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
+                taskManager = new MockTaskManager(settings, threadPool, emptySet());
+            } else {
+                taskManager = new TaskManager(settings, threadPool, emptySet());
+            }
             transportService = new TransportService(
                 settings,
-                new MockNioTransport(
+                new Netty4Transport(
                     settings,
-                    Version.CURRENT,
+                    TransportVersion.CURRENT,
                     threadPool,
                     new NetworkService(Collections.emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,
                     new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                    new NoneCircuitBreakerService()
+                    new NoneCircuitBreakerService(),
+                    new SharedGroupFactory(settings)
                 ),
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 boundTransportAddressDiscoveryNodeFunction,
                 null,
-                Collections.emptySet()
-            ) {
-                @Override
-                protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-                    if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
-                        return new MockTaskManager(settings, threadPool, taskHeaders);
-                    } else {
-                        return super.createTaskManager(settings, threadPool, taskHeaders);
-                    }
-                }
-            };
-            transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
+                taskManager,
+                Tracer.NOOP
+            );
+            taskManager.setTaskCancellationService(new TaskCancellationService(transportService));
             transportService.start();
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());

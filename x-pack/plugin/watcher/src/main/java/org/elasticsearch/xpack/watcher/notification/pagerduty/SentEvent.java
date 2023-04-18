@@ -167,22 +167,15 @@ public class SentEvent implements ToXContentObject {
             // response object is anyway added to the action result in the watch record (though not searchable)
         }
 
-        switch (status) {
-            case 400:
-                return "Bad Request";
-            case 401:
-                return "Unauthorized. The account service api key is invalid.";
-            case 403:
-                return "Forbidden. The account doesn't have permission to send this trigger.";
-            case 404:
-                return "The account used invalid HipChat APIs";
-            case 408:
-                return "Request Timeout. The request took too long to process.";
-            case 500:
-                return "PagerDuty Server Error. Internal error occurred while processing request.";
-            default:
-                return "Unknown Error";
-        }
+        return switch (status) {
+            case 400 -> "Bad Request";
+            case 401 -> "Unauthorized. The account service api key is invalid.";
+            case 403 -> "Forbidden. The account doesn't have permission to send this trigger.";
+            case 404 -> "The account used invalid HipChat APIs";
+            case 408 -> "Request Timeout. The request took too long to process.";
+            case 500 -> "PagerDuty Server Error. Internal error occurred while processing request.";
+            default -> "Unknown Error";
+        };
     }
 
     public interface XField {

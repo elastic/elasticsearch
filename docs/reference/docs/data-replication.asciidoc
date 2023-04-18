@@ -126,7 +126,6 @@ respond with partial results if one or more shards fail:
 
 * <<search-search, Search>>
 * <<search-multi-search, Multi Search>>
-* <<docs-bulk, Bulk>>
 * <<docs-multi-get, Multi Get>>
 
 Responses containing partial results still provide a `200 OK` HTTP status code.

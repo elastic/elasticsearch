@@ -8,10 +8,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats.Bounds;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.ArrayList;
@@ -82,6 +84,21 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         assertEquals(expectedMax, reduced.getMax(), 0d);
         // summing squared values, see reason for delta above
         assertEquals(expectedSumOfSquare, reduced.getSumOfSquares(), expectedSumOfSquare * 1e-14);
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalExtendedStats sampled, InternalExtendedStats reduced, SamplingContext samplingContext) {
+        assertEquals(sigma, sampled.getSigma(), 0);
+        assertEquals(sampled.getCount(), samplingContext.scaleUp(reduced.getCount()));
+        assertEquals(sampled.getSum(), samplingContext.scaleUp(reduced.getSum()), 0);
+        assertEquals(sampled.getMax(), reduced.getMax(), 0d);
+        assertEquals(sampled.getMin(), reduced.getMin(), 0d);
+        assertEquals(sampled.getSumOfSquares(), samplingContext.scaleUp(reduced.getSumOfSquares()), 0);
     }
 
     @Override
@@ -210,7 +227,7 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
                 break;
             case 7:
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

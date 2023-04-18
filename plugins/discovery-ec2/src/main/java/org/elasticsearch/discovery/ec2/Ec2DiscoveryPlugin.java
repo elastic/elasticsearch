@@ -11,14 +11,14 @@ package org.elasticsearch.discovery.ec2;
 import com.amazonaws.util.EC2MetadataUtils;
 import com.amazonaws.util.json.Jackson;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -41,9 +41,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.discovery.ec2.AwsEc2Utils.X_AWS_EC_2_METADATA_TOKEN;
+
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReloadablePlugin {
 
-    private static Logger logger = LogManager.getLogger(Ec2DiscoveryPlugin.class);
+    private static final Logger logger = LogManager.getLogger(Ec2DiscoveryPlugin.class);
     public static final String EC2 = "ec2";
 
     static {
@@ -80,7 +82,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
     }
 
     @Override
-    public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
+    public NetworkService.CustomNameResolver getCustomNameResolver(Settings _settings) {
         logger.debug("Register _ec2_, _ec2:xxx_ network names");
         return new Ec2NameResolver();
     }
@@ -122,13 +124,14 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         // Adds a node attribute for the ec2 availability zone
         final String azMetadataUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService()
             + "/latest/meta-data/placement/availability-zone";
-        builder.put(getAvailabilityZoneNodeAttributes(settings, azMetadataUrl));
+        String azMetadataTokenUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService() + "/latest/api/token";
+        builder.put(getAvailabilityZoneNodeAttributes(settings, azMetadataUrl, azMetadataTokenUrl));
         return builder.build();
     }
 
     // pkg private for testing
     @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
-    static Settings getAvailabilityZoneNodeAttributes(Settings settings, String azMetadataUrl) {
+    static Settings getAvailabilityZoneNodeAttributes(Settings settings, String azMetadataUrl, String azMetadataTokenUrl) {
         if (AwsEc2Service.AUTO_ATTRIBUTE_SETTING.get(settings) == false) {
             return Settings.EMPTY;
         }
@@ -141,6 +144,8 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
             urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
             urlConnection.setConnectTimeout(2000);
+            AwsEc2Utils.getMetadataToken(azMetadataTokenUrl)
+                .ifPresent(token -> urlConnection.setRequestProperty(X_AWS_EC_2_METADATA_TOKEN, token));
         } catch (final IOException e) {
             // should not happen, we know the url is not malformed, and openConnection does not actually hit network
             throw new UncheckedIOException(e);
@@ -171,9 +176,9 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
     }
 
     @Override
-    public void reload(Settings settings) {
+    public void reload(Settings settingsToLoad) {
         // secure settings should be readable
-        final Ec2ClientSettings clientSettings = Ec2ClientSettings.getClientSettings(settings);
+        final Ec2ClientSettings clientSettings = Ec2ClientSettings.getClientSettings(settingsToLoad);
         ec2Service.refreshAndClearCache(clientSettings);
     }
 }

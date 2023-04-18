@@ -8,21 +8,25 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -30,10 +34,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class InternalAggregationsTests extends ESTestCase {
 
@@ -43,9 +49,185 @@ public class InternalAggregationsTests extends ESTestCase {
 
     public void testReduceEmptyAggs() {
         List<InternalAggregations> aggs = Collections.emptyList();
-        InternalAggregation.ReduceContextBuilder builder = InternalAggregationTestCase.emptyReduceContextBuilder();
-        InternalAggregation.ReduceContext reduceContext = randomBoolean() ? builder.forFinalReduction() : builder.forPartialReduction();
+        AggregationReduceContext.Builder builder = InternalAggregationTestCase.emptyReduceContextBuilder();
+        AggregationReduceContext reduceContext = randomBoolean() ? builder.forFinalReduction() : builder.forPartialReduction();
         assertNull(InternalAggregations.reduce(aggs, reduceContext));
+    }
+
+    public void testReduceIncludesBuilder() {
+        AggregatorFactories.Builder builders = new AggregatorFactories.Builder();
+        builders.addAggregator(
+            new FiltersAggregationBuilder(
+                "f1",
+                new KeyedFilter("f1k1", new TermQueryBuilder("f1", "k1")),
+                new KeyedFilter("f1k2", new TermQueryBuilder("f1", "k2"))
+            ).subAggregation(
+                new FiltersAggregationBuilder(
+                    "f2",
+                    new KeyedFilter("f2k1", new TermQueryBuilder("f2", "k1")),
+                    new KeyedFilter("f2k2", new TermQueryBuilder("f2", "k2"))
+                )
+            )
+        );
+        AtomicLong f1Reduced = new AtomicLong();
+        AtomicLong f2Reduced = new AtomicLong();
+
+        InternalAggregations s1 = toReduce(f1Reduced, f2Reduced, 3, 3, 1, 1, 1, 1);
+        InternalAggregations s2 = toReduce(f1Reduced, f2Reduced, 4, 9, 1, 2, 1, 0);
+
+        InternalAggregations reduced = InternalAggregations.topLevelReduce(
+            List.of(s1, s2),
+            new AggregationReduceContext.ForFinal(null, null, () -> false, builders, b -> {})
+        );
+        assertThat(f1Reduced.get(), equalTo(1L));
+        assertThat(f2Reduced.get(), equalTo(2L));
+        assertThat(reduced.asList(), equalTo(reduced(7, 12, 2, 3, 2, 1).asList()));
+    }
+
+    InternalAggregations toReduce(AtomicLong f1Reduced, AtomicLong f2Reduced, int k1, int k2, int k1k1, int k1k2, int k2k1, int k2k2) {
+        class InternalFiltersForF2 extends InternalFilters {
+            InternalFiltersForF2(
+                String name,
+                List<InternalBucket> buckets,
+                boolean keyed,
+                boolean keyedBucket,
+                Map<String, Object> metadata
+            ) {
+                super(name, buckets, keyed, keyedBucket, metadata);
+            }
+
+            public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+                assertThat(reduceContext.builder().getName(), equalTo("f2"));
+                assertThat(reduceContext.builder(), instanceOf(FiltersAggregationBuilder.class));
+                f2Reduced.incrementAndGet();
+                return super.reduce(aggregations, reduceContext);
+            }
+        }
+        class InternalFiltersForF1 extends InternalFilters {
+            InternalFiltersForF1(
+                String name,
+                List<InternalBucket> buckets,
+                boolean keyed,
+                boolean keyedBucket,
+                Map<String, Object> metadata
+            ) {
+                super(name, buckets, keyed, keyedBucket, metadata);
+            }
+
+            public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+                assertThat(reduceContext.builder().getName(), equalTo("f1"));
+                assertThat(reduceContext.builder(), instanceOf(FiltersAggregationBuilder.class));
+                f1Reduced.incrementAndGet();
+                return super.reduce(aggregations, reduceContext);
+            }
+        }
+        return InternalAggregations.from(
+            List.of(
+                new InternalFiltersForF1(
+                    "f1",
+                    List.of(
+                        new InternalFilters.InternalBucket(
+                            "f1k1",
+                            k1,
+                            InternalAggregations.from(
+                                List.of(
+                                    new InternalFiltersForF2(
+                                        "f2",
+                                        List.of(
+                                            new InternalFilters.InternalBucket("f2k1", k1k1, InternalAggregations.EMPTY, true, true),
+                                            new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY, true, true)
+                                        ),
+                                        true,
+                                        true,
+                                        null
+                                    )
+                                )
+                            ),
+                            true,
+                            true
+                        ),
+                        new InternalFilters.InternalBucket(
+                            "f1k2",
+                            k2,
+                            InternalAggregations.from(
+                                List.of(
+                                    new InternalFiltersForF2(
+                                        "f2",
+                                        List.of(
+                                            new InternalFilters.InternalBucket("f2k1", k2k1, InternalAggregations.EMPTY, true, true),
+                                            new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY, true, true)
+                                        ),
+                                        true,
+                                        true,
+                                        null
+                                    )
+                                )
+                            ),
+                            true,
+                            true
+                        )
+                    ),
+                    true,
+                    true,
+                    null
+                )
+            )
+        );
+    }
+
+    InternalAggregations reduced(int k1, int k2, int k1k1, int k1k2, int k2k1, int k2k2) {
+        return InternalAggregations.from(
+            List.of(
+                new InternalFilters(
+                    "f1",
+                    List.of(
+                        new InternalFilters.InternalBucket(
+                            "f1k1",
+                            k1,
+                            InternalAggregations.from(
+                                List.of(
+                                    new InternalFilters(
+                                        "f2",
+                                        List.of(
+                                            new InternalFilters.InternalBucket("f2k1", k1k1, InternalAggregations.EMPTY, true, true),
+                                            new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY, true, true)
+                                        ),
+                                        true,
+                                        true,
+                                        null
+                                    )
+                                )
+                            ),
+                            true,
+                            true
+                        ),
+                        new InternalFilters.InternalBucket(
+                            "f1k2",
+                            k2,
+                            InternalAggregations.from(
+                                List.of(
+                                    new InternalFilters(
+                                        "f2",
+                                        List.of(
+                                            new InternalFilters.InternalBucket("f2k1", k2k1, InternalAggregations.EMPTY, true, true),
+                                            new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY, true, true)
+                                        ),
+                                        true,
+                                        true,
+                                        null
+                                    )
+                                )
+                            ),
+                            true,
+                            true
+                        )
+                    ),
+                    true,
+                    true,
+                    null
+                )
+            )
+        );
     }
 
     public void testNonFinalReduceTopLevelPipelineAggs() {
@@ -85,20 +267,16 @@ public class InternalAggregationsTests extends ESTestCase {
         );
 
         InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(terms));
-        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(
-            Collections.singletonList(aggs),
-            maxBucketReduceContext().forFinalReduction()
-        );
+        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(List.of(aggs), maxBucketReduceContext().forFinalReduction());
         assertEquals(2, reducedAggs.aggregations.size());
     }
 
-    private InternalAggregation.ReduceContextBuilder maxBucketReduceContext() {
-        MaxBucketPipelineAggregationBuilder maxBucketPipelineAggregationBuilder = new MaxBucketPipelineAggregationBuilder("test", "test");
-        PipelineAggregator.PipelineTree tree = new PipelineAggregator.PipelineTree(
-            emptyMap(),
-            singletonList(maxBucketPipelineAggregationBuilder.create())
+    private AggregationReduceContext.Builder maxBucketReduceContext() {
+        AggregationBuilder aggBuilder = new TermsAggregationBuilder("name");
+        PipelineAggregationBuilder pipelineBuilder = new MaxBucketPipelineAggregationBuilder("test", "name");
+        return InternalAggregationTestCase.emptyReduceContextBuilder(
+            AggregatorFactories.builder().addAggregator(aggBuilder).addPipelineAggregator(pipelineBuilder)
         );
-        return InternalAggregationTestCase.emptyReduceContextBuilder(tree);
     }
 
     public static InternalAggregations createTestInstance() throws Exception {
@@ -123,18 +301,21 @@ public class InternalAggregationsTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         InternalAggregations aggregations = createTestInstance();
-        writeToAndReadFrom(aggregations, Version.CURRENT, 0);
+        writeToAndReadFrom(aggregations, TransportVersion.CURRENT, 0);
     }
 
     public void testSerializedSize() throws Exception {
         InternalAggregations aggregations = createTestInstance();
-        assertThat(DelayableWriteable.getSerializedSize(aggregations), equalTo((long) serialize(aggregations, Version.CURRENT).length));
+        assertThat(
+            DelayableWriteable.getSerializedSize(aggregations),
+            equalTo((long) serialize(aggregations, TransportVersion.CURRENT).length)
+        );
     }
 
-    private void writeToAndReadFrom(InternalAggregations aggregations, Version version, int iteration) throws IOException {
+    private void writeToAndReadFrom(InternalAggregations aggregations, TransportVersion version, int iteration) throws IOException {
         BytesRef serializedAggs = serialize(aggregations, version);
         try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(serializedAggs.bytes), registry)) {
-            in.setVersion(version);
+            in.setTransportVersion(version);
             InternalAggregations deserialized = InternalAggregations.readFrom(in);
             assertEquals(aggregations.aggregations, deserialized.aggregations);
             if (iteration < 2) {
@@ -143,9 +324,9 @@ public class InternalAggregationsTests extends ESTestCase {
         }
     }
 
-    private BytesRef serialize(InternalAggregations aggs, Version version) throws IOException {
+    private BytesRef serialize(InternalAggregations aggs, TransportVersion version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(version);
+            out.setTransportVersion(version);
             aggs.writeTo(out);
             return out.bytes().toBytesRef();
         }

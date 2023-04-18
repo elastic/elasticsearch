@@ -23,7 +23,7 @@ public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory implem
     private final CharArraySet articles;
 
     ElisionTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.articles = Analysis.parseArticles(env, settings);
         if (this.articles == null) {
             throw new IllegalArgumentException("elision filter requires [articles] or [articles_path] setting");

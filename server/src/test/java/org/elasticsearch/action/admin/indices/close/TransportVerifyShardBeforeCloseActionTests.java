@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -170,7 +170,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
     public void testShardIsFlushed() throws Throwable {
         final ArgumentCaptor<FlushRequest> flushRequest = ArgumentCaptor.forClass(FlushRequest.class);
-        doNothing().when(indexShard).flush(flushRequest.capture());
+        doReturn(true).when(indexShard).flush(flushRequest.capture());
         executeOnPrimaryOrReplica();
         verify(indexShard, times(1)).flush(any(FlushRequest.class));
         assertThat(flushRequest.getValue().force(), is(true));
@@ -234,7 +234,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         final long primaryTerm = indexMetadata.primaryTerm(0);
 
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(0);
-        final Set<String> trackedShards = shardRoutingTable.getAllAllocationIds();
+        final Set<String> trackedShards = shardRoutingTable.getPromotableAllocationIds();
 
         List<ShardRouting> unavailableShards = randomSubsetOf(randomIntBetween(1, nbReplicas), shardRoutingTable.replicaShards());
         IndexShardRoutingTable.Builder shardRoutingTableBuilder = new IndexShardRoutingTable.Builder(shardRoutingTable);
@@ -274,22 +274,22 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         assertThat(capturedRequests.length, equalTo(nbReplicas));
 
         for (CapturingTransport.CapturedRequest capturedRequest : capturedRequests) {
-            final String actionName = capturedRequest.action;
+            final String actionName = capturedRequest.action();
             if (actionName.startsWith(ShardStateAction.SHARD_FAILED_ACTION_NAME)) {
-                assertThat(capturedRequest.request, instanceOf(ShardStateAction.FailedShardEntry.class));
-                String allocationId = ((ShardStateAction.FailedShardEntry) capturedRequest.request).getAllocationId();
+                assertThat(capturedRequest.request(), instanceOf(ShardStateAction.FailedShardEntry.class));
+                String allocationId = ((ShardStateAction.FailedShardEntry) capturedRequest.request()).getAllocationId();
                 assertTrue(unavailableShards.stream().anyMatch(shardRouting -> shardRouting.allocationId().getId().equals(allocationId)));
-                transport.handleResponse(capturedRequest.requestId, TransportResponse.Empty.INSTANCE);
+                transport.handleResponse(capturedRequest.requestId(), TransportResponse.Empty.INSTANCE);
 
             } else if (actionName.startsWith(TransportVerifyShardBeforeCloseAction.NAME)) {
-                assertThat(capturedRequest.request, instanceOf(ConcreteShardRequest.class));
-                String allocationId = ((ConcreteShardRequest) capturedRequest.request).getTargetAllocationID();
+                assertThat(capturedRequest.request(), instanceOf(ConcreteShardRequest.class));
+                String allocationId = ((ConcreteShardRequest) capturedRequest.request()).getTargetAllocationID();
                 assertFalse(unavailableShards.stream().anyMatch(shardRouting -> shardRouting.allocationId().getId().equals(allocationId)));
                 assertTrue(inSyncAllocationIds.stream().anyMatch(inSyncAllocationId -> inSyncAllocationId.equals(allocationId)));
-                transport.handleResponse(capturedRequest.requestId, new TransportReplicationAction.ReplicaResponse(0L, 0L));
+                transport.handleResponse(capturedRequest.requestId(), new TransportReplicationAction.ReplicaResponse(0L, 0L));
 
             } else {
-                fail("Test does not support action " + capturedRequest.action);
+                fail("Test does not support action " + capturedRequest.action());
             }
         }
 

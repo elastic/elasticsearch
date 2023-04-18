@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -77,30 +78,38 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
             Version.V_7_2_0,
             VersionUtils.getPreviousVersion(TransformDeprecations.MIN_TRANSFORM_VERSION)
         );
-        String config = "{\"dest\": {\"index\":\"bar\"},"
-            + " \"source\": {\"index\":\""
-            + transformIndex
-            + "\", \"query\": {\"match_all\":{}}},"
-            + " \"id\": \""
-            + transformId
-            + "\","
-            + " \"doc_type\": \"data_frame_transform_config\","
-            + " \"pivot\": {"
-            + "   \"group_by\": {"
-            + "     \"reviewer\": {"
-            + "       \"terms\": {"
-            + "         \"field\": \"user_id\""
-            + " } } },"
-            + "   \"aggregations\": {"
-            + "     \"avg_rating\": {"
-            + "       \"avg\": {"
-            + "         \"field\": \"stars\""
-            + " } } } },"
-            + "\"frequency\":\"1s\","
-            + "\"version\":\""
-            + transformVersion
-            + "\""
-            + "}";
+        String config = Strings.format("""
+            {
+              "dest": {
+                "index": "bar"
+              },
+              "source": {
+                "index": "%s",
+                "query": {
+                  "match_all": {}
+                }
+              },
+              "id": "%s",
+              "doc_type": "data_frame_transform_config",
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              },
+              "frequency": "1s",
+              "version": "%s"
+            }""", transformIndex, transformId, transformVersion);
         IndexRequest indexRequest = new IndexRequest(OLD_INDEX).id(TransformConfig.documentId(transformId))
             .source(config, XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -114,6 +123,7 @@ public class TransformOldTransformsIT extends TransformSingleNodeTestCase {
 
         StartTransformAction.Request startTransformRequest = new StartTransformAction.Request(
             transformId,
+            null,
             AcknowledgedRequest.DEFAULT_ACK_TIMEOUT
         );
 

@@ -37,14 +37,14 @@ class FieldCapabilitiesNodeResponse extends ActionResponse implements Writeable 
 
     FieldCapabilitiesNodeResponse(StreamInput in) throws IOException {
         super(in);
-        this.indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
+        this.indexResponses = FieldCapabilitiesIndexResponse.readList(in);
         this.failures = in.readMap(ShardId::new, StreamInput::readException);
         this.unmatchedShardIds = in.readSet(ShardId::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(indexResponses);
+        FieldCapabilitiesIndexResponse.writeList(out, indexResponses);
         out.writeMap(failures, (o, v) -> v.writeTo(o), StreamOutput::writeException);
         out.writeCollection(unmatchedShardIds);
     }

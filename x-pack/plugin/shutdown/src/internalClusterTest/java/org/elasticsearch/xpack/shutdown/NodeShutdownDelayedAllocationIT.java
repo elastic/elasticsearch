@@ -24,7 +24,6 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -102,7 +101,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         assertTrue(putShutdownResponse.isAcknowledged());
 
         // Actually stop the node
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToRestartName));
+        internalCluster().stopNode(nodeToRestartName);
 
         // And the index should turn green again well within the 30-second timeout
         ensureGreen("test");
@@ -210,7 +209,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         }
 
         // Actually stop the node
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToRestartName));
+        internalCluster().stopNode(nodeToRestartName);
 
         // Verify that the shard's allocation is delayed
         assertBusy(() -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); });
@@ -230,8 +229,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     private String findIdOfNodeWithShard() {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
-        Collections.shuffle(startedShards, random());
-        return startedShards.get(0).currentNodeId();
+        return randomFrom(startedShards).currentNodeId();
     }
 
     private String findNodeNameFromId(String id) {

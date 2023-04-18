@@ -37,18 +37,17 @@ public class LinearInterpolationModelTests extends SmoothingModelTestCase {
     protected LinearInterpolation createMutation(SmoothingModel input) {
         LinearInterpolation original = (LinearInterpolation) input;
         // swap two values permute original lambda values
-        switch (randomIntBetween(0, 2)) {
-            case 0:
+        return switch (randomIntBetween(0, 2)) {
+            case 0 ->
                 // swap first two
-                return new LinearInterpolation(original.getBigramLambda(), original.getTrigramLambda(), original.getUnigramLambda());
-            case 1:
+                new LinearInterpolation(original.getBigramLambda(), original.getTrigramLambda(), original.getUnigramLambda());
+            case 1 ->
                 // swap last two
-                return new LinearInterpolation(original.getTrigramLambda(), original.getUnigramLambda(), original.getBigramLambda());
-            case 2:
-            default:
+                new LinearInterpolation(original.getTrigramLambda(), original.getUnigramLambda(), original.getBigramLambda());
+            default ->
                 // swap first and last
-                return new LinearInterpolation(original.getUnigramLambda(), original.getBigramLambda(), original.getTrigramLambda());
-        }
+                new LinearInterpolation(original.getUnigramLambda(), original.getBigramLambda(), original.getTrigramLambda());
+        };
     }
 
     @Override

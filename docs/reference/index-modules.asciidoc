@@ -163,6 +163,9 @@ specific index module:
 
     The number of replicas each primary shard has. Defaults to 1.
 
+    WARNING: Configuring it to 0 may lead to temporary availability loss
+    during node restarts or permanent data loss in case of data corruption.
+
 [[dynamic-index-auto-expand-replicas]]
 `index.auto_expand_replicas`::
 Auto-expand the number of replicas based on the number of data nodes in the
@@ -272,7 +275,7 @@ are ignored for this index.
     The maximum length of regex that can be used in Regexp Query.
     Defaults to `1000`.
 
-
+[[index-query-default-field]]
 `index.query.default_field`::
 +
 --
@@ -289,6 +292,7 @@ Defaults to `*`, which matches all fields eligible for
 <<term-level-queries,term-level queries>>, excluding metadata fields.
 --
 
+[[index-routing-allocation-enable-setting]]
  `index.routing.allocation.enable`::
 
     Controls shard allocation for this index. It can be set to:
@@ -316,7 +320,7 @@ Defaults to `*`, which matches all fields eligible for
     Default <<ingest,ingest pipeline>> for the index. Index requests will fail
     if the default pipeline is set and the pipeline does not exist. The default may be
     overridden using the `pipeline` parameter. The special pipeline name `_none` indicates
-    no ingest pipeline should be run.
+    no default ingest pipeline will run.
 
 [[index-final-pipeline]]
 `index.final_pipeline`::
@@ -324,26 +328,10 @@ Final <<ingest,ingest pipeline>> for the index. Indexing requests
 will fail if the final pipeline is set and the pipeline does not exist.
 The final pipeline always runs after the request pipeline (if specified) and
 the default pipeline (if it exists). The special pipeline name `_none`
-indicates no ingest pipeline will run.
+indicates no final ingest pipeline will run.
 +
 NOTE: You can't use a final pipeline to change the `_index` field. If the
 pipeline attempts to change the `_index` field, the indexing request will fail.
-
-[[index-mapping-dimension-fields-limit]]
-`index.mapping.dimension_fields.limit`::
-+
---
-experimental:[]
-
-.For internal use by Elastic only.
-[%collapsible]
-====
-Maximum number of time series dimensions for the index. Defaults to `16`.
-
-You can mark a field as a dimension using the `time_series_dimension` mapping
-parameter.
-====
---
 
 [[index-hidden]] `index.hidden`::
 

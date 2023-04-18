@@ -37,11 +37,13 @@ public class InboundAggregator implements Releasable {
 
     public InboundAggregator(
         Supplier<CircuitBreaker> circuitBreaker,
-        Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction
+        Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
+        boolean ignoreDeserializationErrors
     ) {
         this(circuitBreaker, (Predicate<String>) actionName -> {
             final RequestHandlerRegistry<TransportRequest> reg = registryFunction.apply(actionName);
             if (reg == null) {
+                assert ignoreDeserializationErrors : actionName;
                 throw new ActionNotFoundTransportException(actionName);
             } else {
                 return reg.canTripCircuitBreaker();
@@ -117,7 +119,7 @@ public class InboundAggregator implements Releasable {
                 checkBreaker(aggregated.getHeader(), aggregated.getContentLength(), breakerControl);
             }
             if (isShortCircuited()) {
-                aggregated.close();
+                aggregated.decRef();
                 success = true;
                 return new InboundMessage(aggregated.getHeader(), aggregationException);
             } else {
@@ -128,7 +130,7 @@ public class InboundAggregator implements Releasable {
         } finally {
             resetCurrentAggregation();
             if (success == false) {
-                aggregated.close();
+                aggregated.decRef();
             }
         }
     }

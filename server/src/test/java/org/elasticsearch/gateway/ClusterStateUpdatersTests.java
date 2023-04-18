@@ -7,8 +7,10 @@
  */
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -90,7 +93,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
 
             })
         );
-        final ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, null);
+        final ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, null, (TaskManager) null);
         final Metadata.Builder builder = Metadata.builder();
         final Settings settings = Settings.builder().put("foo.old", randomAlphaOfLength(8)).build();
         applySettingsToBuilder.accept(builder, settings);
@@ -203,7 +206,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
         assertFalse(initialState.routingTable().hasIndex(index));
 
         {
-            final ClusterState newState = updateRoutingTable(initialState);
+            final ClusterState newState = updateRoutingTable(initialState, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
             assertTrue(newState.routingTable().hasIndex(index));
             assertThat(newState.routingTable().version(), is(0L));
             assertThat(newState.routingTable().allShards(index.getName()).size(), is(numOfShards));
@@ -216,7 +219,8 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                             .put(IndexMetadata.builder(initialState.metadata().index("test")).state(IndexMetadata.State.CLOSE))
                             .build()
                     )
-                    .build()
+                    .build(),
+                TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
             assertFalse(newState.routingTable().hasIndex(index));
         }
@@ -237,7 +241,8 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                             )
                             .build()
                     )
-                    .build()
+                    .build(),
+                TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
             assertTrue(newState.routingTable().hasIndex(index));
             assertThat(newState.routingTable().version(), is(0L));
@@ -284,7 +289,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
             Version.CURRENT
         );
 
-        final ClusterState updatedState = setLocalNode(initialState, localNode);
+        final ClusterState updatedState = setLocalNode(initialState, localNode, TransportVersion.CURRENT);
 
         assertMetadataEquals(initialState, updatedState);
         assertThat(updatedState.nodes().getLocalNode(), equalTo(localNode));
@@ -334,7 +339,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
             Version.CURRENT
         );
         final ClusterState updatedState = Function.<ClusterState>identity()
-            .andThen(state -> setLocalNode(state, localNode))
+            .andThen(state -> setLocalNode(state, localNode, TransportVersion.CURRENT))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .apply(initialState);
 

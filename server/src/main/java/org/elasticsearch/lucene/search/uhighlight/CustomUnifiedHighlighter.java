@@ -193,7 +193,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             maxPassages,
             (noMatchSize > 0 ? 1 : 0),
             getFormatter(field),
-            noMatchSize
+            noMatchSize,
+            queryMaxAnalyzedOffset
         );
     }
 
@@ -220,9 +221,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     /**
      * Translate custom queries in queries that are supported by the unified highlighter.
      */
-    private Collection<Query> rewriteCustomQuery(Query query) {
-        if (query instanceof MultiPhrasePrefixQuery) {
-            MultiPhrasePrefixQuery mpq = (MultiPhrasePrefixQuery) query;
+    private static Collection<Query> rewriteCustomQuery(Query query) {
+        if (query instanceof MultiPhrasePrefixQuery mpq) {
             Term[][] terms = mpq.getTerms();
             int[] positions = mpq.getPositions();
             SpanQuery[] positionSpanQueries = new SpanQuery[positions.length];

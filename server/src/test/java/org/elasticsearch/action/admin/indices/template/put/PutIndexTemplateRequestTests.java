@@ -9,7 +9,6 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -88,7 +87,8 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
         {
             request1 = new PutIndexTemplateRequest("foo");
             request2 = new PutIndexTemplateRequest("bar");
-            String nakedMapping = "{\"properties\": {\"foo\": {\"type\": \"integer\"}}}";
+            String nakedMapping = """
+                {"properties": {"foo": {"type": "integer"}}}""";
             request1.mapping(nakedMapping, XContentType.JSON);
             request2.mapping("{\"_doc\": " + nakedMapping + "}", XContentType.JSON);
             assertEquals(request1.mappings(), request2.mappings());
@@ -96,14 +96,10 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
         {
             request1 = new PutIndexTemplateRequest("foo");
             request2 = new PutIndexTemplateRequest("bar");
-            Map<String, Object> nakedMapping = MapBuilder.<String, Object>newMapBuilder()
-                .put(
-                    "properties",
-                    MapBuilder.<String, Object>newMapBuilder()
-                        .put("bar", MapBuilder.<String, Object>newMapBuilder().put("type", "scaled_float").put("scaling_factor", 100).map())
-                        .map()
-                )
-                .map();
+            Map<String, Object> nakedMapping = Map.<String, Object>of(
+                "properties",
+                Map.<String, Object>of("bar", Map.<String, Object>of("type", "scaled_float", "scaling_factor", 100))
+            );
             request1.mapping(nakedMapping);
             request2.mapping(Map.of("_doc", nakedMapping));
             assertEquals(request1.mappings(), request2.mappings());
@@ -191,5 +187,39 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
             .endObject();
         e = expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest().source(extraField));
         assertThat(e.getCause().getMessage(), containsString("unknown key [extra-field] in the template"));
+
+        XContentBuilder aliases1 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("aliases")
+            .startObject("filtered-data")
+            .startObject("bool")
+            .startObject("filter")
+            .startObject("term")
+            .field("a", "b")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        e = expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest().source(aliases1));
+        assertThat(e.getCause().getMessage(), containsString("Unknown field [bool] in alias [filtered-data]"));
+
+        XContentBuilder aliases2 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("aliases")
+            .startObject("filtered-data")
+            .startArray("filter")
+            .startObject()
+            .startObject("term")
+            .field("a", "b")
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject();
+        e = expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest().source(aliases2));
+        assertThat(e.getCause().getMessage(), containsString("Unknown token [START_ARRAY] in alias [filtered-data]"));
     }
 }

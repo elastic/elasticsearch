@@ -10,6 +10,7 @@ package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -28,16 +29,21 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
     // see #3544
     public void testConcurrentDynamicMapping() throws Exception {
         final String fieldName = "field";
-        final String mapping = "{"
-            + "\"dynamic_templates\": ["
-            + "{ \""
-            + fieldName
-            + "\": {"
-            + "\"path_match\": \"*\","
-            + "\"mapping\": {"
-            + "\"type\": \"text\","
-            + "\"store\": true,"
-            + "\"analyzer\": \"whitespace\" } } } ] }";
+        final String mapping = Strings.format("""
+            {
+              "dynamic_templates": [
+                {
+                  "%s": {
+                    "path_match": "*",
+                    "mapping": {
+                      "type": "text",
+                      "store": true,
+                      "analyzer": "whitespace"
+                    }
+                  }
+                }
+              ]
+            }""", fieldName);
         // The 'fieldNames' array is used to help with retrieval of index terms
         // after testing
 

@@ -14,14 +14,15 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.RemoteClusterMinimumVersionValidation;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
@@ -39,7 +40,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -122,6 +122,35 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         return randomTransformConfig(id, version, pivotConfig, latestConfig);
     }
 
+    public static TransformConfig randomTransformConfigWithSettings(SettingsConfig settingsConfig) {
+        PivotConfig pivotConfig;
+        LatestConfig latestConfig;
+        if (randomBoolean()) {
+            pivotConfig = PivotConfigTests.randomPivotConfig();
+            latestConfig = null;
+        } else {
+            pivotConfig = null;
+            latestConfig = LatestConfigTests.randomLatestConfig();
+        }
+
+        return new TransformConfig(
+            randomAlphaOfLengthBetween(1, 10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
+            randomBoolean() ? null : randomSyncConfig(),
+            randomHeaders(),
+            pivotConfig,
+            latestConfig,
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            settingsConfig,
+            randomBoolean() ? null : randomMetadata(),
+            randomBoolean() ? null : randomRetentionPolicyConfig(),
+            randomBoolean() ? null : Instant.now(),
+            null
+        );
+    }
+
     public static TransformConfig randomTransformConfig(String id, Version version, PivotConfig pivotConfig, LatestConfig latestConfig) {
         return new TransformConfig(
             id,
@@ -141,7 +170,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         );
     }
 
-    public static TransformConfig randomInvalidTransformConfig() {
+    public static TransformConfig randomInvalidTransformConfig(String id) {
         if (randomBoolean()) {
             PivotConfig pivotConfig;
             LatestConfig latestConfig;
@@ -154,7 +183,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             }
 
             return new TransformConfig(
-                randomAlphaOfLengthBetween(1, 10),
+                id,
                 randomInvalidSourceConfig(),
                 randomDestConfig(),
                 null,
@@ -171,7 +200,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             );
         } // else
         return new TransformConfig(
-            randomAlphaOfLengthBetween(1, 10),
+            id,
             randomSourceConfig(),
             randomDestConfig(),
             null,
@@ -199,23 +228,13 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     public static Map<String, Object> randomMetadata() {
         return randomMap(0, 10, () -> {
             String key = randomAlphaOfLengthBetween(1, 10);
-            Object value;
-            switch (randomIntBetween(0, 3)) {
-                case 0:
-                    value = null;
-                    break;
-                case 1:
-                    value = randomLong();
-                    break;
-                case 2:
-                    value = randomAlphaOfLengthBetween(1, 10);
-                    break;
-                case 3:
-                    value = randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
-                    break;
-                default:
-                    throw new AssertionError();
-            }
+            Object value = switch (randomIntBetween(0, 3)) {
+                case 0 -> null;
+                case 1 -> randomLong();
+                case 2 -> randomAlphaOfLengthBetween(1, 10);
+                case 3 -> randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+                default -> throw new AssertionError();
+            };
             return Tuple.tuple(key, value);
         });
     }
@@ -241,6 +260,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     @Override
+    protected TransformConfig mutateInstance(TransformConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformConfig> instanceReader() {
         return TransformConfig::new;
     }
@@ -251,27 +275,38 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     private static Map<String, String> randomHeaders() {
-        Map<String, String> headers = new HashMap<>(1);
+        Map<String, String> headers = Maps.newMapWithExpectedSize(1);
         headers.put("key", "value");
 
         return headers;
     }
 
     public void testDefaultMatchAll() throws IOException {
-        String pivotTransform = "{"
-            + " \"source\" : {\"index\":\"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + " \"pivot\" : {"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } } }";
+        String pivotTransform = """
+            {
+              "source": {
+                "index": "src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""";
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "test_match_all");
         assertNotNull(transformConfig.getSource().getQueryConfig());
@@ -286,15 +321,15 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testConstructor_NoFunctionProvided() throws IOException {
-        // tag::NO_CODE_FORMAT
-        String json = "{"
-                + " \"source\": {"
-                + "   \"index\": \"src\""
-                + " },"
-                + " \"dest\": {"
-                + "   \"index\": \"dest\""
-                + "} }";
-        // end::NO_CODE_FORMAT
+        String json = """
+            {
+              "source": {
+                "index": "src"
+              },
+              "dest": {
+                "index": "dest"
+              }
+            }""";
         // Should parse with lenient parser
         createTransformConfigFromString(json, "dummy", true);
         // Should throw with strict parser
@@ -302,24 +337,35 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testConstructor_TwoFunctionsProvided() throws IOException {
-        String json = "{"
-            + " \"source\" : {\"index\": \"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + " \"latest\": {"
-            + "   \"unique_key\": [ \"event1\", \"event2\", \"event3\" ],"
-            + "   \"sort\": \"timestamp\""
-            + " },"
-            + " \"pivot\" : {"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } } }";
+        String json = """
+            {
+              "source": {
+                "index": "src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "latest": {
+                "unique_key": [ "event1", "event2", "event3" ],
+                "sort": "timestamp"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""";
 
         // Should parse with lenient parser
         createTransformConfigFromString(json, "dummy", true);
@@ -328,63 +374,96 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testPreventHeaderInjection() {
-        String pivotTransform = "{"
-            + " \"headers\" : {\"key\" : \"value\" },"
-            + " \"source\" : {\"index\":\"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + " \"pivot\" : {"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } } }";
+        String pivotTransform = """
+            {
+              "headers": {
+                "key": "value"
+              },
+              "source": {
+                "index": "src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""";
 
         expectThrows(IllegalArgumentException.class, () -> createTransformConfigFromString(pivotTransform, "test_header_injection"));
     }
 
     public void testPreventCreateTimeInjection() {
-        String pivotTransform = "{"
-            + " \"create_time\" : "
-            + Instant.now().toEpochMilli()
-            + " },"
-            + " \"source\" : {\"index\":\"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + " \"pivot\" : {"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } } }";
+        String pivotTransform = Strings.format("""
+            {
+              "create_time": %s,
+              "source": {
+                "index": "src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""", Instant.now().toEpochMilli());
 
         expectThrows(IllegalArgumentException.class, () -> createTransformConfigFromString(pivotTransform, "test_createTime_injection"));
     }
 
     public void testPreventVersionInjection() {
-        String pivotTransform = "{"
-            + " \"version\" : \"7.3.0\","
-            + " \"source\" : {\"index\":\"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + " \"pivot\" : {"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } } }";
+        String pivotTransform = """
+            {
+              "version": "7.3.0",
+              "source": {
+                "index": "src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""";
 
         expectThrows(IllegalArgumentException.class, () -> createTransformConfigFromString(pivotTransform, "test_createTime_injection"));
     }
@@ -449,21 +528,32 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testSetIdInBody() throws IOException {
-        String pivotTransform = "{"
-            + " \"id\" : \"body_id\","
-            + " \"source\" : {\"index\":\"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + " \"pivot\" : {"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } } }";
+        String pivotTransform = """
+            {
+              "id": "body_id",
+              "source": {
+                "index": "src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""";
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id");
         assertEquals("body_id", transformConfig.getId());
@@ -480,27 +570,34 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testRewriteForUpdate() throws IOException {
-        String pivotTransform = "{"
-            + " \"id\" : \"body_id\","
-            + " \"source\" : {\"index\":\"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + " \"pivot\" : {"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } },"
-            + " \"max_page_search_size\" : 111"
-            + "},"
-            + " \"version\" : \""
-            + Version.V_7_6_0.toString()
-            + "\""
-            + "}";
+        String pivotTransform = Strings.format("""
+            {
+              "id": "body_id",
+              "source": {
+                "index": "src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                },
+                "max_page_search_size": 111
+              },
+              "version": "%s"
+            }""", Version.V_7_6_0.toString());
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
@@ -516,26 +613,33 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testRewriteForUpdateAlignCheckpoints() throws IOException {
-        String pivotTransform = "{"
-            + " \"id\" : \"body_id\","
-            + " \"source\" : {\"index\":\"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + " \"pivot\" : {"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } }"
-            + "},"
-            + " \"version\" : \""
-            + Version.V_7_12_0.toString()
-            + "\""
-            + "}";
+        String pivotTransform = Strings.format("""
+            {
+              "id": "body_id",
+              "source": {
+                "index": "src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              },
+              "version": "%s"
+            }""", Version.V_7_12_0.toString());
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
@@ -553,29 +657,37 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testRewriteForUpdateMaxPageSizeSearchConflicting() throws IOException {
-        String pivotTransform = "{"
-            + " \"id\" : \"body_id\","
-            + " \"source\" : {\"index\":\"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + " \"pivot\" : {"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } },"
-            + " \"max_page_search_size\": 111"
-            + "},"
-            + " \"settings\" : { \"max_page_search_size\": 555"
-            + "},"
-            + " \"version\" : \""
-            + Version.V_7_5_0.toString()
-            + "\""
-            + "}";
+        String pivotTransform = Strings.format("""
+            {
+              "id": "body_id",
+              "source": {
+                "index": "src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                },
+                "max_page_search_size": 111
+              },
+              "settings": {
+                "max_page_search_size": 555
+              },
+              "version": "%s"
+            }""", Version.V_7_5_0.toString());
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
@@ -588,26 +700,33 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testRewriteForBWCOfDateNormalization() throws IOException {
-        String pivotTransform = "{"
-            + " \"id\" : \"body_id\","
-            + " \"source\" : {\"index\":\"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + " \"pivot\" : {"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } }"
-            + "},"
-            + " \"version\" : \""
-            + Version.V_7_6_0.toString()
-            + "\""
-            + "}";
+        String pivotTransform = Strings.format("""
+            {
+              "id": "body_id",
+              "source": {
+                "index": "src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              },
+              "version": "%s"
+            }""", Version.V_7_6_0.toString());
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
@@ -635,45 +754,67 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testGetAdditionalSourceDestValidations_WithNoRuntimeMappings() throws IOException {
-        String transformWithRuntimeMappings = "{"
-            + " \"id\" : \"body_id\","
-            + " \"source\" : {\"index\":\"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + " \"pivot\" : {"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } } }";
+        String transformWithRuntimeMappings = """
+            {
+              "id": "body_id",
+              "source": {
+                "index": "src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""";
 
         TransformConfig transformConfig = createTransformConfigFromString(transformWithRuntimeMappings, "body_id", true);
         assertThat(transformConfig.getAdditionalSourceDestValidations(), is(empty()));
     }
 
     public void testGetAdditionalSourceDestValidations_WithRuntimeMappings() throws IOException {
-        String json = "{"
-            + " \"id\" : \"body_id\","
-            + " \"source\" : {"
-            + "   \"index\":\"src\","
-            + "   \"runtime_mappings\":{ \"some-field\": \"some-value\" }"
-            + "},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + " \"pivot\" : {"
-            + " \"group_by\": {"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } } }";
+        String json = """
+            {
+              "id": "body_id",
+              "source": {
+                "index": "src",
+                "runtime_mappings": {
+                  "some-field": "some-value"
+                }
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""";
 
         TransformConfig transformConfig = createTransformConfigFromString(json, "body_id", true);
         List<SourceDestValidation> additiionalValidations = transformConfig.getAdditionalSourceDestValidations();
@@ -686,34 +827,43 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testGroupByStayInOrder() throws IOException {
-        String json = "{"
-            + " \"id\" : \""
-            + transformId
-            + "\","
-            + " \"source\" : {"
-            + "   \"index\":\"src\""
-            + "},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + " \"pivot\" : {"
-            + " \"group_by\": {"
-            + "   \"time\": {"
-            + "     \"date_histogram\": {"
-            + "       \"field\": \"timestamp\","
-            + "       \"fixed_interval\": \"1d\""
-            + "} },"
-            + "   \"alert\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"alert\""
-            + "} },"
-            + "   \"id\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } } }";
+        String json = Strings.format("""
+            {
+              "id": "%s",
+              "source": {
+                "index": "src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "time": {
+                    "date_histogram": {
+                      "field": "timestamp",
+                      "fixed_interval": "1d"
+                    }
+                  },
+                  "alert": {
+                    "terms": {
+                      "field": "alert"
+                    }
+                  },
+                  "id": {
+                    "terms": {
+                      "field": "id"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""", transformId);
         TransformConfig transformConfig = createTransformConfigFromString(json, transformId, true);
         List<String> originalGroups = new ArrayList<>(transformConfig.getPivotConfig().getGroupConfig().getGroups().keySet());
         assertThat(originalGroups, contains("time", "alert", "id"));
@@ -749,7 +899,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 Collections.singletonList(
                     new DeprecationIssue(
                         Level.WARNING,
-                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                         false,
@@ -771,7 +921,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 List.of(
                     new DeprecationIssue(
                         Level.WARNING,
-                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                         false,
@@ -793,7 +943,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 List.of(
                     new DeprecationIssue(
                         Level.CRITICAL,
-                        "Transform [" + id + "] is too old",
+                        "Transform [" + id + "] uses an obsolete configuration format",
                         TransformDeprecations.UPGRADE_TRANSFORM_URL,
                         TransformDeprecations.ACTION_UPGRADE_TRANSFORMS_API,
                         false,
@@ -801,7 +951,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                     ),
                     new DeprecationIssue(
                         Level.WARNING,
-                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                         false,
@@ -813,31 +963,40 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testSerializingMetadataPreservesOrder() throws IOException {
-        String json = "{"
-            + " \"id\" : \""
-            + transformId
-            + "\","
-            + " \"_meta\": {"
-            + "   \"d\": 4,"
-            + "   \"a\": 1,"
-            + "   \"c\": 3,"
-            + "   \"e\": 5,"
-            + "   \"b\": 2"
-            + "},"
-            + " \"source\" : {\"index\":\"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + " \"pivot\" : {"
-            + " \"group_by\": {"
-            + "   \"time\": {"
-            + "     \"date_histogram\": {"
-            + "       \"field\": \"timestamp\","
-            + "       \"fixed_interval\": \"1d\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } } }";
+        String json = Strings.format("""
+            {
+              "id": "%s",
+              "_meta": {
+                "d": 4,
+                "a": 1,
+                "c": 3,
+                "e": 5,
+                "b": 2
+              },
+              "source": {
+                "index": "src"
+              },
+              "dest": {
+                "index": "dest"
+              },
+              "pivot": {
+                "group_by": {
+                  "time": {
+                    "date_histogram": {
+                      "field": "timestamp",
+                      "fixed_interval": "1d"
+                    }
+                  }
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "points"
+                    }
+                  }
+                }
+              }
+            }""", transformId);
 
         // Read TransformConfig from JSON and verify that metadata keys are in the same order as in JSON
         TransformConfig transformConfig = createTransformConfigFromString(json, transformId, true);
@@ -864,7 +1023,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     private TransformConfig createTransformConfigFromString(String json, String id, boolean lenient) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent()
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json);
         return TransformConfig.fromXContent(parser, id, lenient);
     }
 }

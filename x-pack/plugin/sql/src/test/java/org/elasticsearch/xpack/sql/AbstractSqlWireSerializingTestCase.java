@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.sql;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireTestCase;
@@ -22,15 +21,13 @@ import java.time.ZoneId;
 public abstract class AbstractSqlWireSerializingTestCase<T extends Writeable> extends AbstractWireTestCase<T> {
 
     @Override
-    protected T copyInstance(T instance, Version version) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            ZoneId zoneId = instanceZoneId(instance);
-            SqlStreamOutput out = new SqlStreamOutput(version, zoneId);
-            instance.writeTo(out);
-            out.close();
-            try (SqlStreamInput in = new SqlStreamInput(out.streamAsString(), getNamedWriteableRegistry(), version)) {
-                return instanceReader().read(in);
-            }
+    protected T copyInstance(T instance, TransportVersion version) throws IOException {
+        ZoneId zoneId = instanceZoneId(instance);
+        SqlStreamOutput out = SqlStreamOutput.create(version, zoneId);
+        instance.writeTo(out);
+        out.close();
+        try (SqlStreamInput in = SqlStreamInput.fromString(out.streamAsString(), getNamedWriteableRegistry(), version)) {
+            return instanceReader().read(in);
         }
     }
 

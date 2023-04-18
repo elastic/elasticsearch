@@ -47,14 +47,12 @@ public class DebugTests extends ScriptTestCase {
         assertThat(e.getHeaders(painlessLookup), not(hasKey("es.painless_class")));
 
         // You can't catch the explain exception
-        e = expectScriptThrows(
-            PainlessExplainError.class,
-            () -> exec(
-                "try {\n" + "  Debug.explain(params.a)\n" + "} catch (Exception e) {\n" + "  return 1\n" + "}",
-                singletonMap("a", dummy),
-                true
-            )
-        );
+        e = expectScriptThrows(PainlessExplainError.class, () -> exec("""
+            try {
+              Debug.explain(params.a)
+            } catch (Exception e) {
+              return 1
+            }""", singletonMap("a", dummy), true));
         assertSame(dummy, e.getObjectToExplain());
     }
 

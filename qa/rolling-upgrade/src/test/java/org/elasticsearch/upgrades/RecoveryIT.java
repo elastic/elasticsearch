@@ -22,7 +22,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -40,6 +40,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLette
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+import static org.elasticsearch.upgrades.UpgradeWithOldIndexSettingsIT.updateIndexSettingsPermittingSlowlogDeprecationWarning;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
@@ -125,7 +126,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         List<String> nodes = new ArrayList<>(nodeMap.keySet());
 
         switch (CLUSTER_TYPE) {
-            case OLD:
+            case OLD -> {
                 Settings.Builder settings = Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
@@ -140,8 +141,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 ensureGreen(index);
                 // make sure that we can index while the replicas are recovering
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
-                break;
-            case MIXED:
+            }
+            case MIXED -> {
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String) null));
                 asyncIndexDocs(index, 10, 50).get();
                 ensureGreen(index);
@@ -151,8 +152,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 assertCount(index, "_only_nodes:" + nodes.get(2), 60);
                 // make sure that we can index while the replicas are recovering
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
-                break;
-            case UPGRADED:
+            }
+            case UPGRADED -> {
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String) null));
                 asyncIndexDocs(index, 60, 45).get();
                 ensureGreen(index);
@@ -160,9 +161,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 assertCount(index, "_only_nodes:" + nodes.get(0), 105);
                 assertCount(index, "_only_nodes:" + nodes.get(1), 105);
                 assertCount(index, "_only_nodes:" + nodes.get(2), 105);
-                break;
-            default:
-                throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
+            }
+            default -> throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
     }
 
@@ -215,7 +215,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
     public void testRelocationWithConcurrentIndexing() throws Exception {
         final String index = "relocation_with_concurrent_indexing";
         switch (CLUSTER_TYPE) {
-            case OLD:
+            case OLD -> {
                 Settings.Builder settings = Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
@@ -232,12 +232,12 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 // make sure that no shards are allocated, so we can make sure the primary stays on the old node (when one
                 // node stops, we lose the master too, so a replica will not be promoted)
                 updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
-                break;
-            case MIXED:
+            }
+            case MIXED -> {
                 final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
                 final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
                 // remove the replica and guaranteed the primary is placed on the old node
-                updateIndexSettings(
+                updateIndexSettingsPermittingSlowlogDeprecationWarning(
                     index,
                     Settings.builder()
                         .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
@@ -247,7 +247,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 );
                 ensureGreen(index); // wait for the primary to be assigned
                 ensureNoInitializingShards(); // wait for all other shard activity to finish
-                updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._id", newNode));
+                updateIndexSettingsPermittingSlowlogDeprecationWarning(
+                    index,
+                    Settings.builder().put("index.routing.allocation.include._id", newNode)
+                );
                 asyncIndexDocs(index, 10, 50).get();
                 // ensure the relocation from old node to new node has occurred; otherwise ensureGreen can
                 // return true even though shards haven't moved to the new node yet (allocation was throttled).
@@ -262,8 +265,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 ensureGreen(index);
                 client().performRequest(new Request("POST", index + "/_refresh"));
                 assertCount(index, "_only_nodes:" + newNode, 60);
-                break;
-            case UPGRADED:
+            }
+            case UPGRADED -> {
                 updateIndexSettings(
                     index,
                     Settings.builder()
@@ -278,13 +281,11 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);
                 final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
                 List<String> nodes = new ArrayList<>(nodeMap.keySet());
-
                 assertCount(index, "_only_nodes:" + nodes.get(0), 105);
                 assertCount(index, "_only_nodes:" + nodes.get(1), 105);
                 assertCount(index, "_only_nodes:" + nodes.get(2), 105);
-                break;
-            default:
-                throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
+            }
+            default -> throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
         if (randomBoolean()) {
             flush(index, randomBoolean());
@@ -355,7 +356,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
     public void testRetentionLeasesEstablishedWhenRelocatingPrimary() throws Exception {
         final String index = "recover_and_create_leases_in_relocation";
         switch (CLUSTER_TYPE) {
-            case OLD:
+            case OLD -> {
                 Settings.Builder settings = Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(0, 1))
@@ -371,9 +372,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     client().performRequest(new Request("POST", "/" + index + "/_flush"));
                 }
                 ensureGreen(index);
-                break;
-
-            case MIXED:
+            }
+            case MIXED -> {
                 // trigger a primary relocation by excluding the last old node with a shard filter
                 final Map<?, ?> nodesMap = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes")))
                     .evaluate("nodes");
@@ -385,7 +385,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
                         oldNodeNames.add((String) nodeDetailsMap.get("name"));
                     }
                 }
-
                 if (oldNodeNames.size() == 1) {
                     final String oldNodeName = oldNodeNames.get(0);
                     logger.info("--> excluding index [{}] from node [{}]", index, oldNodeName);
@@ -395,12 +394,11 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 }
                 ensureGreen(index);
                 ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
-                break;
-
-            case UPGRADED:
+            }
+            case UPGRADED -> {
                 ensureGreen(index);
                 ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
-                break;
+            }
         }
     }
 

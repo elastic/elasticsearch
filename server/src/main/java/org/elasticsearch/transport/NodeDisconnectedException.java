@@ -15,6 +15,10 @@ import java.io.IOException;
 
 public class NodeDisconnectedException extends ConnectTransportException {
 
+    public NodeDisconnectedException(DiscoveryNode node, String msg, String action, Exception cause) {
+        super(node, msg, action, cause);
+    }
+
     public NodeDisconnectedException(DiscoveryNode node, String action) {
         super(node, "disconnected", action, null);
     }

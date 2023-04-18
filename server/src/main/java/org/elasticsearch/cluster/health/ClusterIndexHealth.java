@@ -8,12 +8,14 @@
 
 package org.elasticsearch.cluster.health;
 
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -23,7 +25,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -34,7 +35,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Writeable, ToXContentFragment {
+public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
     private static final String STATUS = "status";
     private static final String NUMBER_OF_SHARDS = "number_of_shards";
     private static final String NUMBER_OF_REPLICAS = "number_of_replicas";
@@ -65,7 +66,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
             if (shardList == null || shardList.isEmpty()) {
                 shards = emptyMap();
             } else {
-                shards = new HashMap<>(shardList.size());
+                shards = Maps.newMapWithExpectedSize(shardList.size());
                 for (ClusterShardHealth shardHealth : shardList) {
                     shards.put(shardHealth.getShardId(), shardHealth);
                 }
@@ -120,7 +121,8 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         this.numberOfReplicas = indexMetadata.getNumberOfReplicas();
 
         shards = new HashMap<>();
-        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
             int shardId = shardRoutingTable.shardId().id();
             shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
         }
@@ -170,13 +172,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         initializingShards = in.readVInt();
         unassignedShards = in.readVInt();
         status = ClusterHealthStatus.readFrom(in);
-
-        int size = in.readVInt();
-        shards = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            ClusterShardHealth shardHealth = new ClusterShardHealth(in);
-            shards.put(shardHealth.getShardId(), shardHealth);
-        }
+        shards = in.readMapValues(ClusterShardHealth::new, ClusterShardHealth::getShardId);
     }
 
     /**
@@ -247,11 +243,6 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
     }
 
     @Override
-    public Iterator<ClusterShardHealth> iterator() {
-        return shards.values().iterator();
-    }
-
-    @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(index);
         out.writeVInt(numberOfShards);
@@ -262,7 +253,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         out.writeVInt(initializingShards);
         out.writeVInt(unassignedShards);
         out.writeByte(status.value());
-        out.writeCollection(shards.values());
+        out.writeMapValues(shards);
     }
 
     @Override
@@ -277,7 +268,8 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         builder.field(INITIALIZING_SHARDS, getInitializingShards());
         builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
 
-        if ("shards".equals(params.param("level", "indices"))) {
+        ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.INDICES);
+        if (level == ClusterStatsLevel.SHARDS) {
             builder.startObject(SHARDS);
             for (ClusterShardHealth shardHealth : shards.values()) {
                 shardHealth.toXContent(builder, params);

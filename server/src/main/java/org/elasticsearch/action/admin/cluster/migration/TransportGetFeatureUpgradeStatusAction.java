@@ -20,22 +20,25 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.upgrades.SingleFeatureMigrationResult;
+import org.elasticsearch.upgrades.SystemIndexMigrationTaskParams;
 import org.elasticsearch.upgrades.SystemIndexMigrationTaskState;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR;
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.IN_PROGRESS;
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED;
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED;
+import static org.elasticsearch.indices.SystemIndices.UPGRADED_INDEX_SUFFIX;
 import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
 
 /**
@@ -46,11 +49,12 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     GetFeatureUpgradeStatusResponse> {
 
     /**
-     * This version is only valid for >=8.0.0 and should be changed on backport.
+     * Once all feature migrations for 8.x -> 9.x have been tested, we can bump this to Version.V_8_0_0
      */
-    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_8_0_0;
+    public static final Version NO_UPGRADE_REQUIRED_VERSION = Version.V_7_0_0;
 
     private final SystemIndices systemIndices;
+    PersistentTasksService persistentTasksService;
 
     @Inject
     public TransportGetFeatureUpgradeStatusAction(
@@ -59,6 +63,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         ActionFilters actionFilters,
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        PersistentTasksService persistentTasksService,
         SystemIndices systemIndices
     ) {
         super(
@@ -72,7 +77,11 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
             GetFeatureUpgradeStatusResponse::new,
             ThreadPool.Names.SAME
         );
+
+        assert Version.CURRENT.major == 8 : "Once we begin working on 9.x, we need to update our migration classes";
+
         this.systemIndices = systemIndices;
+        this.persistentTasksService = persistentTasksService;
     }
 
     @Override
@@ -84,19 +93,21 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     ) throws Exception {
 
         List<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> features = systemIndices.getFeatures()
-            .values()
             .stream()
             .sorted(Comparator.comparing(SystemIndices.Feature::getName))
             .map(feature -> getFeatureUpgradeStatus(state, feature))
-            .collect(Collectors.toList());
+            .toList();
 
-        GetFeatureUpgradeStatusResponse.UpgradeStatus status = features.stream()
-            .map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getUpgradeStatus)
-            .reduce(GetFeatureUpgradeStatusResponse.UpgradeStatus::combine)
-            .orElseGet(() -> {
-                assert false : "get feature statuses API doesn't have any features";
-                return NO_MIGRATION_NEEDED;
-            });
+        boolean migrationTaskExists = PersistentTasksCustomMetadata.getTaskWithId(state, SYSTEM_INDEX_UPGRADE_TASK_NAME) != null;
+        GetFeatureUpgradeStatusResponse.UpgradeStatus initalStatus = migrationTaskExists ? IN_PROGRESS : NO_MIGRATION_NEEDED;
+
+        GetFeatureUpgradeStatusResponse.UpgradeStatus status = Stream.concat(
+            Stream.of(initalStatus),
+            features.stream().map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getUpgradeStatus)
+        ).reduce(GetFeatureUpgradeStatusResponse.UpgradeStatus::combine).orElseGet(() -> {
+            assert false : "get feature statuses API doesn't have any features";
+            return NO_MIGRATION_NEEDED;
+        });
 
         listener.onResponse(new GetFeatureUpgradeStatusResponse(features, status));
     }
@@ -104,10 +115,9 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus getFeatureUpgradeStatus(ClusterState state, SystemIndices.Feature feature) {
         String featureName = feature.getName();
 
-        final String currentFeature = Optional.ofNullable(
-            state.metadata().<PersistentTasksCustomMetadata>custom(PersistentTasksCustomMetadata.TYPE)
-        )
-            .map(tasksMetdata -> tasksMetdata.getTask(SYSTEM_INDEX_UPGRADE_TASK_NAME))
+        PersistentTasksCustomMetadata.PersistentTask<SystemIndexMigrationTaskParams> migrationTask = PersistentTasksCustomMetadata
+            .getTaskWithId(state, SYSTEM_INDEX_UPGRADE_TASK_NAME);
+        final String currentFeature = Optional.ofNullable(migrationTask)
             .map(task -> task.getState())
             .map(taskState -> ((SystemIndexMigrationTaskState) taskState).getCurrentFeature())
             .orElse(null);
@@ -144,6 +154,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         ).map(FeatureMigrationResults::getFeatureStatuses).map(results -> results.get(feature.getName())).orElse(null);
 
         final String failedFeatureName = featureStatus == null ? null : featureStatus.getFailedIndexName();
+        final String failedFeatureUpgradedName = failedFeatureName == null ? null : failedFeatureName + UPGRADED_INDEX_SUFFIX;
         final Exception exception = featureStatus == null ? null : featureStatus.getException();
 
         return feature.getIndexDescriptors()
@@ -155,10 +166,11 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
                 indexMetadata -> new GetFeatureUpgradeStatusResponse.IndexInfo(
                     indexMetadata.getIndex().getName(),
                     indexMetadata.getCreationVersion(),
-                    indexMetadata.getIndex().getName().equals(failedFeatureName) ? exception : null
+                    (indexMetadata.getIndex().getName().equals(failedFeatureName)
+                        || indexMetadata.getIndex().getName().equals(failedFeatureUpgradedName)) ? exception : null
                 )
             )
-            .collect(Collectors.toList());
+            .toList();
     }
 
     @Override

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.function.BiPredicate;
 
@@ -70,12 +69,8 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         Property.NodeScope
     );
 
-    private final Settings settings;
-
-    public ShardsLimitAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        this.settings = settings;
-        this.clusterShardLimit = CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING, this::setClusterShardLimit);
+    public ShardsLimitAllocationDecider(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING, this::setClusterShardLimit);
     }
 
     private void setClusterShardLimit(int clusterShardLimit) {
@@ -84,23 +79,29 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return doDecide(shardRouting, node, allocation, (count, limit) -> count >= limit);
+        return doDecide(
+            allocation.metadata().getIndexSafe(shardRouting.index()),
+            shardRouting,
+            node,
+            allocation,
+            (count, limit) -> count >= limit
+        );
     }
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return doDecide(shardRouting, node, allocation, (count, limit) -> count > limit);
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return doDecide(indexMetadata, shardRouting, node, allocation, (count, limit) -> count > limit);
 
     }
 
     private Decision doDecide(
+        IndexMetadata indexMd,
         ShardRouting shardRouting,
         RoutingNode node,
         RoutingAllocation allocation,
         BiPredicate<Integer, Integer> decider
     ) {
-        IndexMetadata indexMd = allocation.metadata().getIndexSafe(shardRouting.index());
-        final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings(), settings);
+        final int indexShardLimit = indexMd.getShardsPerNodeLimit();
         // Capture the limit here in case it changes during this method's
         // execution
         final int clusterShardLimit = this.clusterShardLimit;

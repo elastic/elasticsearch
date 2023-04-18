@@ -11,7 +11,6 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.shard.IndexLongFieldRangeTestUtils.randomSpecificRange;
@@ -47,7 +46,7 @@ public class IndexLongFieldRangeTests extends ESTestCase {
 
         assertThat(
             range.extendWithShardRange(
-                range.isComplete() ? between(1, 10) : randomFrom(IntStream.of(range.getShards()).boxed().collect(Collectors.toList())),
+                range.isComplete() ? between(1, 10) : randomFrom(IntStream.of(range.getShards()).boxed().toList()),
                 between(1, 10),
                 shardRange
             ),

@@ -14,7 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,7 +32,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainResponse> {
+public class ExplainResponseTests extends AbstractXContentSerializingTestCase<ExplainResponse> {
 
     @Override
     protected ExplainResponse doParseInstance(XContentParser parser) throws IOException {
@@ -67,6 +67,11 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
     }
 
     @Override
+    protected ExplainResponse mutateInstance(ExplainResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return field -> field.equals("get") || field.startsWith("get.fields") || field.startsWith("get._source");
     }
@@ -83,7 +88,8 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
             1,
             -1,
             true,
-            new BytesArray("{ \"field1\" : " + "\"value1\", \"field2\":\"value2\"}"),
+            new BytesArray("""
+                { "field1" : "value1", "field2":"value2"}"""),
             singletonMap("field1", new DocumentField("field1", singletonList("value1"))),
             null
         );
@@ -94,30 +100,32 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
 
         String generatedResponse = BytesReference.bytes(builder).utf8ToString().replaceAll("\\s+", "");
 
-        String expectedResponse = ("{\n"
-            + "    \"_index\":\"index\",\n"
-            + "    \"_id\":\"1\",\n"
-            + "    \"matched\":true,\n"
-            + "    \"explanation\":{\n"
-            + "        \"value\":1.0,\n"
-            + "        \"description\":\"description\",\n"
-            + "        \"details\":[]\n"
-            + "    },\n"
-            + "    \"get\":{\n"
-            + "        \"_seq_no\":0,"
-            + "        \"_primary_term\":1,"
-            + "        \"found\":true,\n"
-            + "        \"_source\":{\n"
-            + "            \"field1\":\"value1\",\n"
-            + "            \"field2\":\"value2\"\n"
-            + "        },\n"
-            + "        \"fields\":{\n"
-            + "            \"field1\":[\n"
-            + "                \"value1\"\n"
-            + "            ]\n"
-            + "        }\n"
-            + "    }\n"
-            + "}").replaceAll("\\s+", "");
+        String expectedResponse = ("""
+            {
+                "_index": "index",
+                "_id": "1",
+                "matched": true,
+                "explanation": {
+                    "value": 1.0,
+                    "description": "description",
+                    "details": []
+                },
+                "get": {
+                    "_seq_no": 0,
+                    "_primary_term": 1,
+                    "found": true,
+                    "_source": {
+                        "field1": "value1",
+                        "field2": "value2"
+                    },
+                    "fields": {
+                        "field1": [
+                          "value1"
+                        ]
+                    }
+                }
+            }
+            """).replaceAll("\\s+", "");
         assertThat(expectedResponse, equalTo(generatedResponse));
     }
 

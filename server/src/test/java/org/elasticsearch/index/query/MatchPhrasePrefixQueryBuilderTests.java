@@ -14,6 +14,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -68,15 +69,12 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10)
         );
-        String contentString = "{\n"
-            + "    \"match_phrase_prefix\" : {\n"
-            + "        \""
-            + matchPhrasePrefixQuery.fieldName()
-            + "\" : \""
-            + matchPhrasePrefixQuery.value()
-            + "\"\n"
-            + "    }\n"
-            + "}";
+        String contentString = Strings.format("""
+            {
+                "match_phrase_prefix" : {
+                    "%s" : "%s"
+                }
+            }""", matchPhrasePrefixQuery.fieldName(), matchPhrasePrefixQuery.value());
         alternateVersions.put(contentString, matchPhrasePrefixQuery);
         return alternateVersions;
     }
@@ -133,65 +131,68 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
     }
 
     public void testPhrasePrefixMatchQuery() throws IOException {
-        String json1 = "{\n" + "    \"match_phrase_prefix\" : {\n" + "        \"message\" : \"this is a test\"\n" + "    }\n" + "}";
+        String json1 = """
+            {
+                "match_phrase_prefix" : {
+                    "message" : "this is a test"
+                }
+            }""";
 
-        String expected = "{\n"
-            + "  \"match_phrase_prefix\" : {\n"
-            + "    \"message\" : {\n"
-            + "      \"query\" : \"this is a test\",\n"
-            + "      \"slop\" : 0,\n"
-            + "      \"max_expansions\" : 50,\n"
-            + "      \"zero_terms_query\" : \"NONE\",\n"
-            + "      \"boost\" : 1.0\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String expected = """
+            {
+              "match_phrase_prefix" : {
+                "message" : {
+                  "query" : "this is a test"
+                }
+              }
+            }""";
         MatchPhrasePrefixQueryBuilder qb = (MatchPhrasePrefixQueryBuilder) parseQuery(json1);
         checkGeneratedJson(expected, qb);
 
-        String json3 = "{\n"
-            + "    \"match_phrase_prefix\" : {\n"
-            + "        \"message\" : {\n"
-            + "            \"query\" : \"this is a test\",\n"
-            + "            \"max_expansions\" : 10\n"
-            + "        }\n"
-            + "    }\n"
-            + "}";
-        expected = "{\n"
-            + "  \"match_phrase_prefix\" : {\n"
-            + "    \"message\" : {\n"
-            + "      \"query\" : \"this is a test\",\n"
-            + "      \"slop\" : 0,\n"
-            + "      \"max_expansions\" : 10,\n"
-            + "      \"zero_terms_query\" : \"NONE\",\n"
-            + "      \"boost\" : 1.0\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json3 = """
+            {
+                "match_phrase_prefix" : {
+                    "message" : {
+                        "query" : "this is a test",
+                        "max_expansions" : 10
+                    }
+                }
+            }""";
+        expected = """
+            {
+              "match_phrase_prefix" : {
+                "message" : {
+                  "query" : "this is a test",
+                  "max_expansions" : 10
+                }
+              }
+            }""";
         qb = (MatchPhrasePrefixQueryBuilder) parseQuery(json3);
         checkGeneratedJson(expected, qb);
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n"
-            + "  \"match_phrase_prefix\" : {\n"
-            + "    \"message1\" : {\n"
-            + "      \"query\" : \"this is a test\"\n"
-            + "    },\n"
-            + "    \"message2\" : {\n"
-            + "      \"query\" : \"this is a test\"\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "match_phrase_prefix" : {
+                "message1" : {
+                  "query" : "this is a test"
+                },
+                "message2" : {
+                  "query" : "this is a test"
+                }
+              }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[match_phrase_prefix] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
-        String shortJson = "{\n"
-            + "  \"match_phrase_prefix\" : {\n"
-            + "    \"message1\" : \"this is a test\",\n"
-            + "    \"message2\" : \"this is a test\"\n"
-            + "  }\n"
-            + "}";
+        String shortJson = """
+            {
+              "match_phrase_prefix" : {
+                "message1" : "this is a test",
+                "message2" : "this is a test"
+              }
+            }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[match_phrase_prefix] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }

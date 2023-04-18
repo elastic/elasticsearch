@@ -119,9 +119,9 @@ public class In extends ScalarFunction {
         );
     }
 
-    protected List<Object> foldAndConvertListOfValues(List<Expression> list, DataType dataType) {
-        List<Object> values = new ArrayList<>(list.size());
-        for (Expression e : list) {
+    protected List<Object> foldAndConvertListOfValues(List<Expression> expressions, DataType dataType) {
+        List<Object> values = new ArrayList<>(expressions.size());
+        for (Expression e : expressions) {
             values.add(DataTypeConverter.convert(Foldables.valueOf(e), dataType));
         }
         return values;

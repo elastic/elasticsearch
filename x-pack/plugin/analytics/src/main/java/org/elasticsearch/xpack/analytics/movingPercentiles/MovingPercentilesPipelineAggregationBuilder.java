@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.analytics.movingPercentiles;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
@@ -27,11 +28,9 @@ public class MovingPercentilesPipelineAggregationBuilder extends AbstractPipelin
     private static final ParseField SHIFT = new ParseField("shift");
 
     public static final ConstructingObjectParser<MovingPercentilesPipelineAggregationBuilder, String> PARSER =
-        new ConstructingObjectParser<>(
-            NAME,
-            false,
-            (args, name) -> { return new MovingPercentilesPipelineAggregationBuilder(name, (String) args[0], (int) args[1]); }
-        );
+        new ConstructingObjectParser<>(NAME, false, (args, name) -> {
+            return new MovingPercentilesPipelineAggregationBuilder(name, (String) args[0], (int) args[1]);
+        });
     static {
         PARSER.declareString(constructorArg(), BUCKETS_PATH_FIELD);
         PARSER.declareInt(constructorArg(), WINDOW);
@@ -128,5 +127,10 @@ public class MovingPercentilesPipelineAggregationBuilder extends AbstractPipelin
     @Override
     protected boolean overrideBucketsPath() {
         return true;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_9_0;
     }
 }

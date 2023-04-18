@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -94,16 +95,11 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         // for time based synchronization
         final long timeUpperBound = alignTimestamp.apply(timestamp - timeSyncConfig.getDelay().millis());
 
-        getIndexCheckpoints(
-            ActionListener.wrap(
-                checkpointsByIndex -> {
-                    listener.onResponse(
-                        new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, timeUpperBound)
-                    );
-                },
-                listener::onFailure
-            )
-        );
+        getIndexCheckpoints(ActionListener.wrap(checkpointsByIndex -> {
+            listener.onResponse(
+                new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, timeUpperBound)
+            );
+        }, listener::onFailure));
     }
 
     /**
@@ -114,6 +110,10 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
      */
     private static Function<Long, Long> createAlignTimestampFunction(TransformConfig transformConfig) {
         if (Boolean.FALSE.equals(transformConfig.getSettings().getAlignCheckpoints())) {
+            return identity();
+        }
+        // In case of transforms created before aligning timestamp optimization was introduced we assume the default was "false".
+        if (transformConfig.getVersion() == null || transformConfig.getVersion().before(Version.V_7_15_0)) {
             return identity();
         }
         if (transformConfig.getPivotConfig() == null) {

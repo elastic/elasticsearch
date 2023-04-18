@@ -19,7 +19,7 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public class SerbianNormalizationFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     SerbianNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
     }
 
     @Override

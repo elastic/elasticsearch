@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.autoscaling.policy;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAutoscalingPolicy;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicyOfName;
 
-public class AutoscalingPolicySerializingTests extends AbstractSerializingTestCase<AutoscalingPolicy> {
+public class AutoscalingPolicySerializingTests extends AbstractXContentSerializingTestCase<AutoscalingPolicy> {
 
     private final String name = randomAlphaOfLength(8);
 

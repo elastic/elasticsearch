@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -52,8 +52,7 @@ public final class TimeoutUtils {
     public static void ensureNoTimeouts(TimeValue collectionTimeout, BaseTasksResponse response) {
         HashSet<String> timedOutNodeIds = null;
         for (ElasticsearchException nodeFailure : response.getNodeFailures()) {
-            if (nodeFailure instanceof FailedNodeException) {
-                FailedNodeException failedNodeException = (FailedNodeException) nodeFailure;
+            if (nodeFailure instanceof FailedNodeException failedNodeException) {
                 if (isTimeoutFailure(failedNodeException)) {
                     if (timedOutNodeIds == null) {
                         timedOutNodeIds = new HashSet<>();
@@ -69,12 +68,11 @@ public final class TimeoutUtils {
      * @throws ElasticsearchTimeoutException iff the {@code response} contains any node-level timeout. The exception message identifies the
      *                                       nodes that timed out and mentions {@code collectionTimeout}.
      */
-    public static void ensureNoTimeouts(TimeValue collectionTimeout, BroadcastResponse response) {
+    public static void ensureNoTimeouts(TimeValue collectionTimeout, BaseBroadcastResponse response) {
         HashSet<String> timedOutNodeIds = null;
         for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {
             final Throwable shardFailureCause = shardFailure.getCause();
-            if (shardFailureCause instanceof FailedNodeException) {
-                FailedNodeException failedNodeException = (FailedNodeException) shardFailureCause;
+            if (shardFailureCause instanceof FailedNodeException failedNodeException) {
                 if (isTimeoutFailure(failedNodeException)) {
                     if (timedOutNodeIds == null) {
                         timedOutNodeIds = new HashSet<>();

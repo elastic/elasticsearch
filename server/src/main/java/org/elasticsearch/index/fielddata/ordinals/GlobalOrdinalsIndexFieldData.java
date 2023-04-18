@@ -19,8 +19,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -30,8 +30,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.function.Function;
 
 /**
  * Concrete implementation of {@link IndexOrdinalsFieldData} for global ordinals.
@@ -50,7 +48,7 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
 
     private final OrdinalMap ordinalMap;
     private final LeafOrdinalsFieldData[] segmentAfd;
-    private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
+    private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
     protected GlobalOrdinalsIndexFieldData(
         String fieldName,
@@ -58,14 +56,14 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         LeafOrdinalsFieldData[] segmentAfd,
         OrdinalMap ordinalMap,
         long memorySizeInBytes,
-        Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.memorySizeInBytes = memorySizeInBytes;
         this.ordinalMap = ordinalMap;
         this.segmentAfd = segmentAfd;
-        this.scriptFunction = scriptFunction;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     public IndexOrdinalsFieldData newConsumer(DirectoryReader source) {
@@ -119,12 +117,6 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     @Override
     public long ramBytesUsed() {
         return memorySizeInBytes;
-    }
-
-    @Override
-    public Collection<Accountable> getChildResources() {
-        // TODO: break down ram usage?
-        return Collections.emptyList();
     }
 
     @Override
@@ -221,14 +213,9 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         }
 
         @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
-        }
-
-        @Override
         public LeafOrdinalsFieldData load(LeafReaderContext context) {
             assert source.getReaderCacheHelper().getKey() == context.parent.reader().getReaderCacheHelper().getKey();
-            return new AbstractLeafOrdinalsFieldData(scriptFunction) {
+            return new AbstractLeafOrdinalsFieldData(toScriptFieldFactory) {
                 @Override
                 public SortedSetDocValues getOrdinalsValues() {
                     final SortedSetDocValues values = segmentAfd[context.ord].getOrdinalsValues();

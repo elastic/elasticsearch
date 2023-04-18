@@ -54,8 +54,8 @@ public class StoredAsyncResponse<R extends Writeable> extends ActionResponse
     }
 
     @Override
-    public StoredAsyncResponse<R> withExpirationTime(long expirationTimeMillis) {
-        return new StoredAsyncResponse<>(this.response, this.exception, expirationTimeMillis);
+    public StoredAsyncResponse<R> withExpirationTime(long expirationTime) {
+        return new StoredAsyncResponse<>(this.response, this.exception, expirationTime);
     }
 
     @Override

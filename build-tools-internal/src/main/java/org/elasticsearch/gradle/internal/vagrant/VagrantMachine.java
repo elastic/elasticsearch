@@ -14,7 +14,6 @@ import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.internal.LoggingOutputStream;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Action;
-import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
 import org.gradle.internal.logging.progress.ProgressLogger;
 import org.gradle.internal.logging.progress.ProgressLoggerFactory;
@@ -136,13 +135,12 @@ public class VagrantMachine {
         }
     }
 
-    // convert the given path from an elasticsearch repo path to a VM path
-    public static String convertLinuxPath(Project project, String path) {
-        return "/elasticsearch/" + project.getRootDir().toPath().relativize(Paths.get(path));
+    public static String convertLinuxPath(File rootDir, String path) {
+        return "/elasticsearch/" + rootDir.toPath().relativize(Paths.get(path));
     }
 
-    public static String convertWindowsPath(Project project, String path) {
-        return "C:\\elasticsearch\\" + project.getRootDir().toPath().relativize(Paths.get(path)).toString().replace('/', '\\');
+    public static String convertWindowsPath(File rootDir, String path) {
+        return "C:\\elasticsearch\\" + rootDir.toPath().relativize(Paths.get(path)).toString().replace('/', '\\');
     }
 
     public static class VagrantExecSpec {

@@ -10,13 +10,13 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
@@ -48,6 +48,12 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     }
 
     @Override
+    protected ScriptScoreQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
+        return new ScriptScoreQueryBuilder(queryBuilder, script);
+    }
+
+    @Override
     protected void doAssertLuceneQuery(ScriptScoreQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
         throws IOException {
         Query wrappedQuery = queryBuilder.query().rewrite(context).toQuery(context);
@@ -59,15 +65,16 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"script_score\" : {\n"
-            + "    \"query\" : { \"match_all\" : {} },\n"
-            + "    \"script\" : {\n"
-            + "      \"source\" : \"doc['field'].value\" \n"
-            + "    },\n"
-            + "    \"min_score\" : 2.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "script_score" : {
+                "query" : { "match_all" : {} },
+                "script" : {
+                  "source" : "doc['field'].value"
+                },
+                "min_score" : 2.0
+              }
+            }""";
 
         ScriptScoreQueryBuilder parsed = (ScriptScoreQueryBuilder) parseQuery(json);
         assertEquals(json, 2, parsed.getMinScore(), 0.0001);

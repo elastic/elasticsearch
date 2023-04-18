@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.upgrade;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,13 +18,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.StreamSupport;
 
 /**
  * This class upgrades frozen indices to apply the index.shard_limit.group=frozen setting after all nodes have been upgraded to 7.13+
@@ -64,19 +63,19 @@ public class SearchableSnapshotIndexMetadataUpgrader {
         // 99% of the time, this will be a noop, so precheck that before adding a cluster state update.
         if (needsUpgrade(state)) {
             logger.info("Upgrading partial searchable snapshots to use frozen shard limit group");
-            clusterService.submitStateUpdateTask("searchable-snapshot-index-upgrader", new ClusterStateUpdateTask() {
+            submitUnbatchedTask("searchable-snapshot-index-upgrader", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return upgradeIndices(currentState);
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     clusterService.removeListener(listener);
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.warn(
                         "upgrading frozen indices to have frozen shard limit group failed, will retry on the next cluster state update",
                         e
@@ -90,11 +89,19 @@ public class SearchableSnapshotIndexMetadataUpgrader {
         }
     }
 
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
+    }
+
     static boolean needsUpgrade(ClusterState state) {
-        return StreamSupport.stream(state.metadata().spliterator(), false)
-            .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_8_0_0))
+        return state.metadata()
+            .stream()
+            .filter(
+                imd -> imd.getCompatibilityVersion().onOrAfter(Version.V_7_12_0) && imd.getCompatibilityVersion().before(Version.V_8_0_0)
+            )
+            .filter(IndexMetadata::isPartialSearchableSnapshot)
             .map(IndexMetadata::getSettings)
-            .filter(SearchableSnapshotsSettings::isPartialSearchableSnapshotIndex)
             .anyMatch(SearchableSnapshotIndexMetadataUpgrader::notFrozenShardLimitGroup);
     }
 
@@ -103,12 +110,12 @@ public class SearchableSnapshotIndexMetadataUpgrader {
             return currentState;
         }
         Metadata.Builder builder = Metadata.builder(currentState.metadata());
-        StreamSupport.stream(currentState.metadata().spliterator(), false)
-            .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_8_0_0))
+        currentState.metadata()
+            .stream()
             .filter(
-                imd -> SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(imd.getSettings())
-                    && notFrozenShardLimitGroup(imd.getSettings())
+                imd -> imd.getCompatibilityVersion().onOrAfter(Version.V_7_12_0) && imd.getCompatibilityVersion().before(Version.V_8_0_0)
             )
+            .filter(imd -> imd.isPartialSearchableSnapshot() && notFrozenShardLimitGroup(imd.getSettings()))
             .map(SearchableSnapshotIndexMetadataUpgrader::setShardLimitGroupFrozen)
             .forEach(imd -> builder.put(imd, true));
         return ClusterState.builder(currentState).metadata(builder).build();

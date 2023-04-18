@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -25,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.REPLACE_SHUTDOWN_TYPE_ADDED_VERSION;
+import static org.elasticsearch.core.Strings.format;
 
 public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
@@ -92,7 +92,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             this.type = in.readEnum(SingleNodeShutdownMetadata.Type.class);
             this.reason = in.readString();
             this.allocationDelay = in.readOptionalTimeValue();
-            if (in.getVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
                 this.targetNodeName = in.readOptionalString();
             } else {
                 this.targetNodeName = null;
@@ -102,14 +102,15 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(nodeId);
-            if (out.getVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE) {
+            if (out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)
+                && this.type == SingleNodeShutdownMetadata.Type.REPLACE) {
                 out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
             } else {
                 out.writeEnum(type);
             }
             out.writeString(reason);
             out.writeOptionalTimeValue(allocationDelay);
-            if (out.getVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
                 out.writeOptionalString(targetNodeName);
             }
         }
@@ -156,11 +157,11 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
             if (targetNodeName != null && type != SingleNodeShutdownMetadata.Type.REPLACE) {
                 arve.addValidationError(
-                    new ParameterizedMessage(
-                        "target node name is only valid for REPLACE type shutdowns, " + "but was given type [{}] and target node name [{}]",
+                    format(
+                        "target node name is only valid for REPLACE type shutdowns, but was given type [%s] and target node name [%s]",
                         type,
                         targetNodeName
-                    ).getFormattedMessage()
+                    )
                 );
             } else if (targetNodeName == null && type == SingleNodeShutdownMetadata.Type.REPLACE) {
                 arve.addValidationError("target node name is required for REPLACE type shutdowns");

@@ -29,7 +29,7 @@ import java.util.Map;
  */
 public final class InternalContext {
 
-    private Map<Object, ConstructionContext<?>> constructionContexts = new HashMap<>();
+    private final Map<Object, ConstructionContext<?>> constructionContexts = new HashMap<>();
     private Dependency<?> dependency;
 
     @SuppressWarnings("unchecked")

@@ -324,7 +324,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
                 // This means the task has not been assigned to a node yet so
                 // we can stop it by removing its persistent task.
                 // The listener is a no-op as we're already going to wait for the task to be removed.
-                persistentTasksService.sendRemoveRequest(task.getId(), ActionListener.wrap(r -> {}, e -> {}));
+                persistentTasksService.sendRemoveRequest(task.getId(), ActionListener.noop());
             }
         }
         return nodes.toArray(new String[0]);
@@ -356,9 +356,9 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
     ) {
         if (request.getExpandedIds().size() != tasks.size()) {
             if (taskOperationFailures.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+                throw ExceptionsHelper.taskOperationFailureToStatusException(taskOperationFailures.get(0));
             } else if (failedNodeExceptions.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+                throw failedNodeExceptions.get(0);
             } else {
                 // This can happen when the actual task in the node no longer exists,
                 // which means the data frame analytic(s) have already been closed.
@@ -370,6 +370,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
+        Task actionTask,
         StopDataFrameAnalyticsAction.Request request,
         DataFrameAnalyticsTask task,
         ActionListener<StopDataFrameAnalyticsAction.Response> listener

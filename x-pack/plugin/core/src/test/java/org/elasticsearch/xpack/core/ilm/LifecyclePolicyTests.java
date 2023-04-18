@@ -6,19 +6,19 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
-public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecyclePolicy> {
+public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<LifecyclePolicy> {
 
     private String lifecycleName;
 
@@ -58,14 +58,14 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, in -> FreezeAction.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, in -> UnfollowAction.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, RollupILMAction.NAME, RollupILMAction::new)
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DownsampleAction.NAME, DownsampleAction::new)
             )
         );
     }
@@ -100,7 +100,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                     new ParseField(SearchableSnapshotAction.NAME),
                     SearchableSnapshotAction::parse
                 ),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RollupILMAction.NAME), RollupILMAction::parse)
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DownsampleAction.NAME), DownsampleAction::parse)
             )
         );
         return new NamedXContentRegistry(entries);
@@ -118,7 +118,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
      */
     public static LifecyclePolicy randomTimeseriesLifecyclePolicyWithAllPhases(@Nullable String lifecycleName) {
         List<String> phaseNames = TimeseriesLifecycleType.ORDERED_VALID_PHASES;
-        Map<String, Phase> phases = new HashMap<>(phaseNames.size());
+        Map<String, Phase> phases = Maps.newMapWithExpectedSize(phaseNames.size());
         Function<String, Set<String>> validActions = getPhaseToValidActions();
         Function<String, LifecycleAction> randomAction = getNameToActionFunction();
         TimeValue prev = null;
@@ -150,7 +150,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             // Remove the frozen phase, we'll randomly re-add it later
             .filter(pn -> TimeseriesLifecycleType.FROZEN_PHASE.equals(pn) == false)
             .collect(Collectors.toList());
-        Map<String, Phase> phases = new HashMap<>(phaseNames.size());
+        Map<String, Phase> phases = Maps.newMapWithExpectedSize(phaseNames.size());
         Function<String, Set<String>> validActions = getPhaseToValidActions();
         Function<String, LifecycleAction> randomAction = getNameToActionFunction();
         // as what actions end up in the hot phase influence what actions are allowed in the subsequent phases we'll move the hot phase
@@ -234,62 +234,38 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     private static Function<String, Set<String>> getPhaseToValidActions() {
-        return (phase) -> {
-            switch (phase) {
-                case "hot":
-                    return new HashSet<>(TimeseriesLifecycleType.VALID_HOT_ACTIONS);
-                case "warm":
-                    return new HashSet<>(TimeseriesLifecycleType.VALID_WARM_ACTIONS);
-                case "cold":
-                    return new HashSet<>(TimeseriesLifecycleType.VALID_COLD_ACTIONS);
-                case "frozen":
-                    return new HashSet<>(TimeseriesLifecycleType.VALID_FROZEN_ACTIONS);
-                case "delete":
-                    return new HashSet<>(TimeseriesLifecycleType.VALID_DELETE_ACTIONS);
-                default:
-                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
-            }
-        };
+        return (phase) -> new HashSet<>(switch (phase) {
+            case "hot" -> TimeseriesLifecycleType.VALID_HOT_ACTIONS;
+            case "warm" -> TimeseriesLifecycleType.VALID_WARM_ACTIONS;
+            case "cold" -> TimeseriesLifecycleType.VALID_COLD_ACTIONS;
+            case "frozen" -> TimeseriesLifecycleType.VALID_FROZEN_ACTIONS;
+            case "delete" -> TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
+            default -> throw new IllegalArgumentException("invalid phase [" + phase + "]");
+        });
     }
 
     private static Function<String, LifecycleAction> getNameToActionFunction() {
-        return (action) -> {
-            switch (action) {
-                case AllocateAction.NAME:
-                    return AllocateActionTests.randomInstance();
-                case WaitForSnapshotAction.NAME:
-                    return WaitForSnapshotActionTests.randomInstance();
-                case DeleteAction.NAME:
-                    return DeleteAction.WITH_SNAPSHOT_DELETE;
-                case ForceMergeAction.NAME:
-                    return ForceMergeActionTests.randomInstance();
-                case ReadOnlyAction.NAME:
-                    return new ReadOnlyAction();
-                case RolloverAction.NAME:
-                    return RolloverActionTests.randomInstance();
-                case ShrinkAction.NAME:
-                    return ShrinkActionTests.randomInstance();
-                case FreezeAction.NAME:
-                    return FreezeAction.INSTANCE;
-                case SetPriorityAction.NAME:
-                    return SetPriorityActionTests.randomInstance();
-                case UnfollowAction.NAME:
-                    return UnfollowAction.INSTANCE;
-                case SearchableSnapshotAction.NAME:
-                    return new SearchableSnapshotAction("repo", randomBoolean());
-                case MigrateAction.NAME:
-                    return MigrateAction.DISABLED;
-                case RollupILMAction.NAME:
-                    return RollupILMActionTests.randomInstance();
-                default:
-                    throw new IllegalArgumentException("invalid action [" + action + "]");
-            }
+        return (action) -> switch (action) {
+            case AllocateAction.NAME -> AllocateActionTests.randomInstance();
+            case WaitForSnapshotAction.NAME -> WaitForSnapshotActionTests.randomInstance();
+            case DeleteAction.NAME -> DeleteAction.WITH_SNAPSHOT_DELETE;
+            case ForceMergeAction.NAME -> ForceMergeActionTests.randomInstance();
+            case ReadOnlyAction.NAME -> new ReadOnlyAction();
+            case RolloverAction.NAME -> RolloverActionTests.randomInstance();
+            case ShrinkAction.NAME -> ShrinkActionTests.randomInstance();
+            case FreezeAction.NAME -> FreezeAction.INSTANCE;
+            case SetPriorityAction.NAME -> SetPriorityActionTests.randomInstance();
+            case UnfollowAction.NAME -> UnfollowAction.INSTANCE;
+            case SearchableSnapshotAction.NAME -> new SearchableSnapshotAction("repo", randomBoolean());
+            case MigrateAction.NAME -> MigrateAction.DISABLED;
+            case DownsampleAction.NAME -> DownsampleActionTests.randomInstance();
+            default -> throw new IllegalArgumentException("invalid action [" + action + "]");
         };
     }
 
     public static LifecyclePolicy randomTestLifecyclePolicy(@Nullable String lifecycleName) {
         int numberPhases = randomInt(5);
-        Map<String, Phase> phases = new HashMap<>(numberPhases);
+        Map<String, Phase> phases = Maps.newMapWithExpectedSize(numberPhases);
         for (int i = 0; i < numberPhases; i++) {
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 10000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
@@ -304,14 +280,12 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     @Override
-    protected LifecyclePolicy mutateInstance(LifecyclePolicy instance) throws IOException {
+    protected LifecyclePolicy mutateInstance(LifecyclePolicy instance) {
         String name = instance.getName();
         Map<String, Phase> phases = instance.getPhases();
         switch (between(0, 1)) {
-            case 0:
-                name = name + randomAlphaOfLengthBetween(1, 5);
-                break;
-            case 1:
+            case 0 -> name = name + randomAlphaOfLengthBetween(1, 5);
+            case 1 -> {
                 // Remove the frozen phase, because it makes a lot of invalid phases when randomly mutating an existing policy
                 phases.remove(TimeseriesLifecycleType.FROZEN_PHASE);
                 // Remove a random phase
@@ -328,9 +302,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 );
                 phases = new LinkedHashMap<>(phases);
                 phases.put(phaseName, new Phase(phaseName, null, Collections.emptyMap()));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases, randomMeta());
     }
@@ -456,6 +429,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public void testValidatePolicyName() {
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(null));
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(""));
         expectThrows(
             IllegalArgumentException.class,
             () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0, 10) + "," + randomAlphaOfLengthBetween(0, 10))

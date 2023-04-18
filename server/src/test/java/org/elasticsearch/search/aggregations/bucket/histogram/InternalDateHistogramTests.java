@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Rounding.DateTimeUnit;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -67,6 +68,11 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             }
             emptyBucketInfo = new InternalDateHistogram.EmptyBucketInfo(rounding, InternalAggregations.EMPTY, extendedBounds);
         }
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
     }
 
     @Override
@@ -175,10 +181,8 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = instance.emptyBucketInfo;
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 5)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
                 buckets = new ArrayList<>(buckets);
                 buckets.add(
                     new InternalDateHistogram.Bucket(
@@ -189,52 +193,46 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
                         InternalAggregations.EMPTY
                     )
                 );
-                break;
-            case 2:
-                order = BucketOrder.count(randomBoolean());
-                break;
-            case 3:
+            }
+            case 2 -> order = BucketOrder.count(randomBoolean());
+            case 3 -> {
                 minDocCount += between(1, 10);
                 emptyBucketInfo = null;
-                break;
-            case 4:
-                offset += between(1, 20);
-                break;
-            case 5:
+            }
+            case 4 -> offset += between(1, 20);
+            case 5 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, format, keyed, metadata);
     }
 
     public void testLargeReduce() {
-        expectReduceUsesTooManyBuckets(
-            new InternalDateHistogram(
-                "h",
-                List.of(),
-                BucketOrder.key(true),
-                0,
-                0,
-                new InternalDateHistogram.EmptyBucketInfo(
-                    Rounding.builder(DateTimeUnit.SECOND_OF_MINUTE).build(),
-                    InternalAggregations.EMPTY,
-                    new LongBounds(
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2018-01-01T00:00:00Z"),
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2021-01-01T00:00:00Z")
-                    )
-                ),
-                DocValueFormat.RAW,
-                false,
-                null
+        InternalDateHistogram largeHisto = new InternalDateHistogram(
+            "h",
+            List.of(),
+            BucketOrder.key(true),
+            0,
+            0,
+            new InternalDateHistogram.EmptyBucketInfo(
+                Rounding.builder(DateTimeUnit.SECOND_OF_MINUTE).build(),
+                InternalAggregations.EMPTY,
+                new LongBounds(
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01T00:00:00Z"),
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z")
+                )
             ),
-            100000
+            DocValueFormat.RAW,
+            false,
+            null
         );
+        expectReduceUsesTooManyBuckets(largeHisto, 100000);
+        expectReduceThrowsRealMemoryBreaker(largeHisto);
     }
 }

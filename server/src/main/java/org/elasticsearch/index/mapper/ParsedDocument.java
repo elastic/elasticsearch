@@ -74,7 +74,7 @@ public class ParsedDocument {
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
         document.add(versionField);
-        document.add(IdFieldMapper.idField(id));
+        document.add(IdFieldMapper.standardIdField(id));
         return new ParsedDocument(
             versionField,
             seqIdFields,
@@ -115,10 +115,12 @@ public class ParsedDocument {
         return version;
     }
 
-    public void updateSeqID(long sequenceNumber, long primaryTerm) {
-        this.seqID.seqNo.setLongValue(sequenceNumber);
-        this.seqID.seqNoDocValue.setLongValue(sequenceNumber);
-        this.seqID.primaryTerm.setLongValue(primaryTerm);
+    /**
+     * Update the values of the {@code _seq_no} and {@code primary_term} fields
+     * to the specified value. Called in the engine long after parsing.
+     */
+    public void updateSeqID(long seqNo, long primaryTerm) {
+        seqID.set(seqNo, primaryTerm);
     }
 
     public String routing() {
@@ -167,4 +169,7 @@ public class ParsedDocument {
         return "Document id[" + id + "] doc [" + documents + ']';
     }
 
+    public String documentDescription() {
+        return "id";
+    }
 }

@@ -30,9 +30,27 @@ public class FieldExtractorRegistry {
         return cache.computeIfAbsent(Expressions.id(expression), k -> createFieldExtractionFor(expression));
     }
 
+    public FieldExtraction compositeKeyExtraction(Expression expression) {
+        return cache.computeIfAbsent(Expressions.id(expression), k -> createKeyExtractionFor(expression));
+    }
+
+    private FieldExtraction createKeyExtractionFor(Expression expression) {
+        if (expression instanceof FieldAttribute fieldAttribute) {
+            FieldAttribute fa = fieldAttribute.exactAttribute();
+            if (fa.isNested()) {
+                throw new UnsupportedOperationException("Nested not yet supported");
+            }
+            return new CompositeAggRef(fa.name());
+        }
+        if (expression instanceof OptionalMissingAttribute) {
+            return new ComputedRef(new ConstantInput(expression.source(), expression, null));
+        }
+        throw new EqlIllegalArgumentException("Unsupported expression [{}]", expression);
+    }
+
     private FieldExtraction createFieldExtractionFor(Expression expression) {
-        if (expression instanceof FieldAttribute) {
-            FieldAttribute fa = ((FieldAttribute) expression).exactAttribute();
+        if (expression instanceof FieldAttribute fieldAttribute) {
+            FieldAttribute fa = fieldAttribute.exactAttribute();
             if (fa.isNested()) {
                 throw new UnsupportedOperationException("Nested not yet supported");
             }

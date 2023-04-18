@@ -7,23 +7,37 @@
  */
 package org.elasticsearch.env;
 
+import org.apache.logging.log4j.Level;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +53,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.env.NodeEnvironment.checkForIndexCompatibility;
+import static org.elasticsearch.env.NodeMetadata.NODE_VERSION_KEY;
+import static org.elasticsearch.env.NodeMetadata.OLDEST_INDEX_VERSION_KEY;
+import static org.elasticsearch.gateway.PersistedClusterStateService.METADATA_DIRECTORY_NAME;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -99,44 +117,63 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
+    // using a literal string here because the logger is mentioned in the docs, and therefore must only be changed with care
+    private static final String NODE_ENVIRONMENT_LOGGER_NAME = "org.elasticsearch.env.NodeEnvironment";
+
+    @TestLogging(reason = "test includes assertions about DEBUG logging", value = NODE_ENVIRONMENT_LOGGER_NAME + ":DEBUG")
     public void testShardLock() throws Exception {
-        final NodeEnvironment env = newNodeEnvironment();
+        try (var env = newNodeEnvironment()) {
 
-        Index index = new Index("foo", "fooUUID");
-        ShardLock fooLock = env.shardLock(new ShardId(index, 0), "1");
-        assertEquals(new ShardId(index, 0), fooLock.getShardId());
+            Index index = new Index("foo", "fooUUID");
 
-        try {
-            env.shardLock(new ShardId(index, 0), "2");
-            fail("shard is locked");
-        } catch (ShardLockObtainFailedException ex) {
-            // expected
-        }
-        for (Path path : env.indexPaths(index)) {
-            Files.createDirectories(path.resolve("0"));
-            Files.createDirectories(path.resolve("1"));
-        }
-        try {
-            env.lockAllForIndex(index, idxSettings, "3", randomIntBetween(0, 10));
-            fail("shard 0 is locked");
-        } catch (ShardLockObtainFailedException ex) {
-            // expected
-        }
+            var appender = new MockLogAppender();
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "hot threads logging",
+                    NODE_ENVIRONMENT_LOGGER_NAME,
+                    Level.DEBUG,
+                    "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after *"
+                )
+            );
+            appender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "second attempt should be suppressed due to throttling",
+                    NODE_ENVIRONMENT_LOGGER_NAME,
+                    Level.DEBUG,
+                    "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [3] timed out after *"
+                )
+            );
 
-        fooLock.close();
-        // can lock again?
-        env.shardLock(new ShardId(index, 0), "4").close();
+            try (var ignored = appender.capturing(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
+                assertEquals(new ShardId(index, 0), lock.getShardId());
 
-        List<ShardLock> locks = env.lockAllForIndex(index, idxSettings, "5", randomIntBetween(0, 10));
-        try {
-            env.shardLock(new ShardId(index, 0), "6");
-            fail("shard is locked");
-        } catch (ShardLockObtainFailedException ex) {
-            // expected
+                expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "2"));
+
+                for (Path path : env.indexPaths(index)) {
+                    Files.createDirectories(path.resolve("0"));
+                    Files.createDirectories(path.resolve("1"));
+                }
+                expectThrows(
+                    ShardLockObtainFailedException.class,
+                    () -> env.lockAllForIndex(index, idxSettings, "3", randomIntBetween(0, 10))
+                );
+
+                appender.assertAllExpectationsMatched();
+            }
+
+            // can lock again?
+            env.shardLock(new ShardId(index, 0), "4").close();
+
+            List<ShardLock> locks = new ArrayList<>();
+            try {
+                locks.addAll(env.lockAllForIndex(index, idxSettings, "5", randomIntBetween(0, 10)));
+                expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "6"));
+            } finally {
+                IOUtils.close(locks);
+            }
+
+            assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
         }
-        IOUtils.close(locks);
-        assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
-        env.close();
     }
 
     public void testAvailableIndexFolders() throws Exception {
@@ -217,11 +254,9 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         expectThrows(
             ShardLockObtainFailedException.class,
-            () -> env.deleteShardDirectorySafe(
-                new ShardId(index, 0),
-                idxSettings,
-                shardPaths -> { assert false : "should not be called " + shardPaths; }
-            )
+            () -> env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings, shardPaths -> {
+                assert false : "should not be called " + shardPaths;
+            })
         );
 
         for (Path path : env.indexPaths(index)) {
@@ -233,8 +268,8 @@ public class NodeEnvironmentTests extends ESTestCase {
             SetOnce<Path[]> listener = new SetOnce<>();
             env.deleteShardDirectorySafe(new ShardId(index, 1), idxSettings, listener::set);
             Path[] deletedPaths = listener.get();
-            for (int i = 0; i < env.nodePaths().length; i++) {
-                assertThat(deletedPaths[i], equalTo(env.nodePaths()[i].resolve(index).resolve("1")));
+            for (int i = 0; i < env.dataPaths().length; i++) {
+                assertThat(deletedPaths[i], equalTo(env.dataPaths()[i].resolve(index).resolve("1")));
             }
         }
 
@@ -245,12 +280,9 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         expectThrows(
             ShardLockObtainFailedException.class,
-            () -> env.deleteIndexDirectorySafe(
-                index,
-                randomIntBetween(0, 10),
-                idxSettings,
-                indexPaths -> { assert false : "should not be called " + indexPaths; }
-            )
+            () -> env.deleteIndexDirectorySafe(index, randomIntBetween(0, 10), idxSettings, indexPaths -> {
+                assert false : "should not be called " + indexPaths;
+            })
         );
 
         fooLock.close();
@@ -419,14 +451,14 @@ public class NodeEnvironmentTests extends ESTestCase {
         String[] paths = tmpPaths();
         // simulate some previous left over temp files
         for (String path : randomSubsetOf(randomIntBetween(1, paths.length), paths)) {
-            final Path nodePath = PathUtils.get(path);
-            Files.createDirectories(nodePath);
-            Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME));
+            final Path dataPath = PathUtils.get(path);
+            Files.createDirectories(dataPath);
+            Files.createFile(dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME));
             if (randomBoolean()) {
-                Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".tmp"));
+                Files.createFile(dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".tmp"));
             }
             if (randomBoolean()) {
-                Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".final"));
+                Files.createFile(dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".final"));
             }
         }
         NodeEnvironment env = newNodeEnvironment(paths, Settings.EMPTY);
@@ -434,12 +466,12 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         // check we clean up
         for (String path : paths) {
-            final Path nodePath = PathUtils.get(path);
-            final Path tempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME);
+            final Path dataPath = PathUtils.get(path);
+            final Path tempFile = dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME);
             assertFalse(tempFile + " should have been cleaned", Files.exists(tempFile));
-            final Path srcTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".src");
+            final Path srcTempFile = dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".src");
             assertFalse(srcTempFile + " should have been cleaned", Files.exists(srcTempFile));
-            final Path targetTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
+            final Path targetTempFile = dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
             assertFalse(targetTempFile + " should have been cleaned", Files.exists(targetTempFile));
         }
     }
@@ -523,6 +555,84 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
+    public void testIndexCompatibilityChecks() throws IOException {
+        final Settings settings = buildEnvSettings(Settings.EMPTY);
+
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            try (
+                PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
+                    env.nodeDataPaths(),
+                    env.nodeId(),
+                    xContentRegistry(),
+                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    () -> 0L
+                ).createWriter()
+            ) {
+                writer.writeFullStateAndCommit(
+                    1L,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .metadata(
+                            Metadata.builder()
+                                .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
+                                .build()
+                        )
+                        .build()
+                );
+            }
+
+            Version oldIndexVersion = Version.fromId(between(1, Version.CURRENT.minimumIndexCompatibilityVersion().id - 1));
+            Version previousNodeVersion = Version.fromId(between(Version.CURRENT.minimumCompatibilityVersion().id, Version.CURRENT.id - 1));
+            overrideOldestIndexVersion(oldIndexVersion, previousNodeVersion, env.nodeDataPaths());
+
+            IllegalStateException ex = expectThrows(
+                IllegalStateException.class,
+                "Must fail the check on index that's too old",
+                () -> checkForIndexCompatibility(logger, env.dataPaths())
+            );
+
+            assertThat(
+                ex.getMessage(),
+                allOf(
+                    containsString("Cannot start this node"),
+                    containsString("it holds metadata for indices created with version [" + oldIndexVersion + "]"),
+                    containsString("Revert this node to version [" + previousNodeVersion + "]")
+                )
+            );
+
+            // This should work
+            overrideOldestIndexVersion(Version.CURRENT.minimumIndexCompatibilityVersion(), previousNodeVersion, env.nodeDataPaths());
+            checkForIndexCompatibility(logger, env.dataPaths());
+
+            // Trying to boot with newer version should pass this check
+            overrideOldestIndexVersion(NodeMetadataTests.tooNewVersion(), previousNodeVersion, env.nodeDataPaths());
+            checkForIndexCompatibility(logger, env.dataPaths());
+
+            // Simulate empty old index version, attempting to upgrade before 7.17
+            removeOldestIndexVersion(oldIndexVersion, env.nodeDataPaths());
+
+            ex = expectThrows(
+                IllegalStateException.class,
+                "Must fail the check on index that's too old",
+                () -> checkForIndexCompatibility(logger, env.dataPaths())
+            );
+
+            assertThat(ex.getMessage(), startsWith("cannot upgrade a node from version [" + oldIndexVersion + "] directly"));
+            assertThat(ex.getMessage(), containsString("upgrade to version [" + Version.CURRENT.minimumCompatibilityVersion()));
+        }
+    }
+
+    public void testSymlinkDataDirectory() throws Exception {
+        Path tempDir = createTempDir().toAbsolutePath();
+        Path dataPath = tempDir.resolve("data");
+        Files.createDirectories(dataPath);
+        Path symLinkPath = tempDir.resolve("data_symlink");
+        Files.createSymbolicLink(symLinkPath, dataPath);
+        NodeEnvironment env = newNodeEnvironment(new String[] { symLinkPath.toString() }, "/tmp", Settings.EMPTY);
+
+        assertTrue(Files.exists(symLinkPath));
+        env.close();
+    }
+
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
@@ -602,5 +712,56 @@ public class NodeEnvironmentTests extends ESTestCase {
             .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths)
             .build();
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
+    }
+
+    private static void overrideOldestIndexVersion(Version oldestIndexVersion, Version previousNodeVersion, Path... dataPaths)
+        throws IOException {
+        for (final Path dataPath : dataPaths) {
+            final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
+            if (Files.exists(indexPath)) {
+                try (DirectoryReader reader = DirectoryReader.open(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
+                    final Map<String, String> userData = reader.getIndexCommit().getUserData();
+                    final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+
+                    try (
+                        IndexWriter indexWriter = new IndexWriter(
+                            new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)),
+                            indexWriterConfig
+                        )
+                    ) {
+                        final Map<String, String> commitData = new HashMap<>(userData);
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(previousNodeVersion.id));
+                        commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id));
+                        indexWriter.setLiveCommitData(commitData.entrySet());
+                        indexWriter.commit();
+                    }
+                }
+            }
+        }
+    }
+
+    private static void removeOldestIndexVersion(Version oldVersion, Path... dataPaths) throws IOException {
+        for (final Path dataPath : dataPaths) {
+            final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
+            if (Files.exists(indexPath)) {
+                try (DirectoryReader reader = DirectoryReader.open(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
+                    final Map<String, String> userData = reader.getIndexCommit().getUserData();
+                    final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+
+                    try (
+                        IndexWriter indexWriter = new IndexWriter(
+                            new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)),
+                            indexWriterConfig
+                        )
+                    ) {
+                        final Map<String, String> commitData = new HashMap<>(userData);
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(oldVersion.id));
+                        commitData.remove(OLDEST_INDEX_VERSION_KEY);
+                        indexWriter.setLiveCommitData(commitData.entrySet());
+                        indexWriter.commit();
+                    }
+                }
+            }
+        }
     }
 }

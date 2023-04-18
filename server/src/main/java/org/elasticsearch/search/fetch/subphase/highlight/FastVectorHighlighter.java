@@ -11,7 +11,6 @@ import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BaseFragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.BreakIteratorBoundaryScanner;
-import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
 import org.apache.lucene.search.vectorhighlight.FieldFragList;
 import org.apache.lucene.search.vectorhighlight.FieldQuery;
 import org.apache.lucene.search.vectorhighlight.FragListBuilder;
@@ -27,10 +26,12 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.lucene.search.vectorhighlight.CustomFieldQuery;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.FieldOptions;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -67,7 +68,6 @@ public class FastVectorHighlighter implements Highlighter {
         SearchHighlightContext.Field field = fieldContext.field;
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
         MappedFieldType fieldType = fieldContext.fieldType;
-        boolean forceSource = fieldContext.forceSource;
         boolean fixBrokenAnalysis = fieldContext.context.containsBrokenAnalysis(fieldContext.fieldName);
 
         if (canHighlight(fieldType) == false) {
@@ -95,10 +95,10 @@ public class FastVectorHighlighter implements Highlighter {
                     : new SimpleFragListBuilder(field.fieldOptions().fragmentOffset());
             }
 
-            Function<SourceLookup, FragmentsBuilder> fragmentsBuilderSupplier = fragmentsBuilderSupplier(
+            Function<Source, FragmentsBuilder> fragmentsBuilderSupplier = fragmentsBuilderSupplier(
                 field,
                 fieldType,
-                forceSource,
+                fieldContext.context,
                 fixBrokenAnalysis
             );
 
@@ -146,7 +146,7 @@ public class FastVectorHighlighter implements Highlighter {
         cache.fvh.setPhraseLimit(field.fieldOptions().phraseLimit());
 
         String[] fragments;
-        FragmentsBuilder fragmentsBuilder = entry.fragmentsBuilderSupplier.apply(hitContext.sourceLookup());
+        FragmentsBuilder fragmentsBuilder = entry.fragmentsBuilderSupplier.apply(hitContext.source());
 
         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0
@@ -214,16 +214,16 @@ public class FastVectorHighlighter implements Highlighter {
         return null;
     }
 
-    private Function<SourceLookup, FragmentsBuilder> fragmentsBuilderSupplier(
+    private Function<Source, FragmentsBuilder> fragmentsBuilderSupplier(
         SearchHighlightContext.Field field,
         MappedFieldType fieldType,
-        boolean forceSource,
+        FetchContext fetchContext,
         boolean fixBrokenAnalysis
     ) {
         BoundaryScanner boundaryScanner = getBoundaryScanner(field);
         FieldOptions options = field.fieldOptions();
-        Function<SourceLookup, BaseFragmentsBuilder> supplier;
-        if (forceSource == false && fieldType.isStored()) {
+        Function<Source, BaseFragmentsBuilder> supplier;
+        if (fieldType.isStored()) {
             if (options.numberOfFragments() != 0 && options.scoreOrdered()) {
                 supplier = ignored -> new ScoreOrderFragmentsBuilder(options.preTags(), options.postTags(), boundaryScanner);
             } else {
@@ -239,6 +239,7 @@ public class FastVectorHighlighter implements Highlighter {
             if (options.numberOfFragments() != 0 && options.scoreOrdered()) {
                 supplier = lookup -> new SourceScoreOrderFragmentsBuilder(
                     fieldType,
+                    fetchContext,
                     fixBrokenAnalysis,
                     lookup,
                     options.preTags(),
@@ -248,6 +249,7 @@ public class FastVectorHighlighter implements Highlighter {
             } else {
                 supplier = lookup -> new SourceSimpleFragmentsBuilder(
                     fieldType,
+                    fetchContext,
                     fixBrokenAnalysis,
                     lookup,
                     options.preTags(),
@@ -278,30 +280,32 @@ public class FastVectorHighlighter implements Highlighter {
             ? fieldOptions.boundaryScannerType()
             : HighlightBuilder.BoundaryScannerType.CHARS;
         switch (type) {
-            case SENTENCE:
+            case SENTENCE -> {
                 if (boundaryScannerLocale != null) {
                     return new BreakIteratorBoundaryScanner(BreakIterator.getSentenceInstance(boundaryScannerLocale));
                 }
                 return DEFAULT_SENTENCE_BOUNDARY_SCANNER;
-            case WORD:
+            }
+            case WORD -> {
                 if (boundaryScannerLocale != null) {
                     return new BreakIteratorBoundaryScanner(BreakIterator.getWordInstance(boundaryScannerLocale));
                 }
                 return DEFAULT_WORD_BOUNDARY_SCANNER;
-            case CHARS:
+            }
+            case CHARS -> {
                 if (fieldOptions.boundaryMaxScan() != SimpleBoundaryScanner.DEFAULT_MAX_SCAN
                     || fieldOptions.boundaryChars() != SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS) {
                     return new SimpleBoundaryScanner(fieldOptions.boundaryMaxScan(), fieldOptions.boundaryChars());
                 }
                 return DEFAULT_SIMPLE_BOUNDARY_SCANNER;
-            default:
-                throw new IllegalArgumentException("Invalid boundary scanner type: " + type.toString());
+            }
+            default -> throw new IllegalArgumentException("Invalid boundary scanner type: " + type.toString());
         }
     }
 
     private static class FieldHighlightEntry {
         public FragListBuilder fragListBuilder;
-        public Function<SourceLookup, FragmentsBuilder> fragmentsBuilderSupplier;
+        public Function<Source, FragmentsBuilder> fragmentsBuilderSupplier;
         public FieldQuery noFieldMatchFieldQuery;
         public FieldQuery fieldMatchFieldQuery;
     }

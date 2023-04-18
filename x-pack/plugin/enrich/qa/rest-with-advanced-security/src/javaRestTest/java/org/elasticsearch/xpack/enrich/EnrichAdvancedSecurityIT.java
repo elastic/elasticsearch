@@ -32,6 +32,12 @@ public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86061")
+    public void testBasicFlowLong() throws Exception {
+        super.testBasicFlowLong();
+    }
+
     public void testEnrichEnforcesDLS() throws IOException {
         // Create the index and policy using the admin client
         final String sourceIndexName = "dls-source-index";
@@ -50,9 +56,18 @@ public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
 
         // Create pipeline
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/my_pipeline");
-        putPipelineRequest.setJsonEntity(
-            "{\"processors\":[" + "{\"enrich\":{\"policy_name\":\"my_policy\",\"field\":\"host\",\"target_field\":\"entry\"}}" + "]}"
-        );
+        putPipelineRequest.setJsonEntity("""
+            {
+              "processors": [
+                {
+                  "enrich": {
+                    "policy_name": "my_policy",
+                    "field": "host",
+                    "target_field": "entry"
+                  }
+                }
+              ]
+            }""");
         assertOK(client().performRequest(putPipelineRequest));
 
         // Verify that the pipeline works as expected for the source doc included in the DLS filter
@@ -103,9 +118,18 @@ public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
 
         // Create pipeline
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/my_pipeline");
-        putPipelineRequest.setJsonEntity(
-            "{\"processors\":[" + "{\"enrich\":{\"policy_name\":\"my_policy\",\"field\":\"host\",\"target_field\":\"entry\"}}" + "]}"
-        );
+        putPipelineRequest.setJsonEntity("""
+            {
+              "processors": [
+                {
+                  "enrich": {
+                    "policy_name": "my_policy",
+                    "field": "host",
+                    "target_field": "entry"
+                  }
+                }
+              ]
+            }""");
         assertOK(client().performRequest(putPipelineRequest));
 
         // Index document using pipeline with enrich processor:
@@ -138,7 +162,13 @@ public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
 
         // Add entry to source index and then refresh:
         Request indexRequest = new Request("PUT", "/" + sourceIndexName + "/_doc/elastic.co");
-        indexRequest.setJsonEntity("{\"host\": \"elastic.co\",\"globalRank\": 25,\"tldRank\": 7,\"tld\": \"co\"}");
+        indexRequest.setJsonEntity("""
+            {
+              "host": "elastic.co",
+              "globalRank": 25,
+              "tldRank": 7,
+              "tld": "co"
+            }""");
         assertOK(adminClient().performRequest(indexRequest));
         Request refreshRequest = new Request("POST", "/" + sourceIndexName + "/_refresh");
         assertOK(adminClient().performRequest(refreshRequest));

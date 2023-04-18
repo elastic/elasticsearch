@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SearchScrollIT extends ESIntegTestCase {
     @After
     public void cleanup() throws Exception {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("*")));
+        updateClusterSettings(Settings.builder().putNull("*"));
     }
 
     public void testSimpleScrollQueryThenFetch() throws Exception {
@@ -467,11 +467,7 @@ public class SearchScrollIT extends ESIntegTestCase {
          * Disable the max result window setting for this test because it'll reject the search's unreasonable batch size. We want
          * unreasonable batch sizes to just OOM.
          */
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("index")
-            .setSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE), "index");
 
         for (SearchType searchType : SearchType.values()) {
             SearchRequestBuilder builder = client().prepareSearch("index")
@@ -578,29 +574,9 @@ public class SearchScrollIT extends ESIntegTestCase {
         );
         assertThat(exc.getMessage(), containsString("was (2m > 1m)"));
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m"))
-                .get()
-        );
-
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "2m"))
-                .get()
-        );
-
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "2m"))
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m"));
+        updateClusterSettings(Settings.builder().put("search.default_keep_alive", "2m"));
+        updateClusterSettings(Settings.builder().put("search.max_keep_alive", "2m"));
 
         exc = expectThrows(
             IllegalArgumentException.class,
@@ -612,13 +588,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         );
         assertThat(exc.getMessage(), containsString("was (3m > 2m)"));
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "1m"))
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put("search.default_keep_alive", "1m"));
 
         exc = expectThrows(
             IllegalArgumentException.class,
@@ -640,13 +610,7 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .get();
         }
         refresh();
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m"))
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m"));
 
         Exception exc = expectThrows(
             Exception.class,
@@ -688,7 +652,9 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards))
-                .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}")
+                .setMapping("""
+                    {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}
+                    """)
         );
         client().prepareIndex("test").setId("1").setSource("created_date", "2020-01-01").get();
         client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();

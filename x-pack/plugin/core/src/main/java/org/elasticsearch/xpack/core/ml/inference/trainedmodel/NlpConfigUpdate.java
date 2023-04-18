@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -19,25 +19,56 @@ import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXContentObject {
 
     @SuppressWarnings("unchecked")
     public static TokenizationUpdate tokenizationFromMap(Map<String, Object> map) {
-        Map<String, Object> tokenziation = (Map<String, Object>) map.remove("tokenization");
-        if (tokenziation == null) {
+        Map<String, Object> tokenization = (Map<String, Object>) map.remove("tokenization");
+        if (tokenization == null) {
             return null;
         }
 
-        Map<String, Object> bert = (Map<String, Object>) tokenziation.remove("bert");
-        if (bert == null && tokenziation.isEmpty() == false) {
-            throw ExceptionsHelper.badRequestException("unknown tokenization type expecting one of [bert] got {}", tokenziation.keySet());
+        Map<String, BiFunction<Tokenization.Truncate, Integer, TokenizationUpdate>> knownTokenizers = Map.of(
+            BertTokenization.NAME.getPreferredName(),
+            BertTokenizationUpdate::new,
+            MPNetTokenization.NAME.getPreferredName(),
+            MPNetTokenizationUpdate::new,
+            RobertaTokenizationUpdate.NAME.getPreferredName(),
+            RobertaTokenizationUpdate::new
+        );
+
+        Map<String, Object> tokenizationConfig = null;
+        BiFunction<Tokenization.Truncate, Integer, TokenizationUpdate> updater = null;
+        for (var tokenizerType : knownTokenizers.keySet()) {
+            tokenizationConfig = (Map<String, Object>) tokenization.remove(tokenizerType);
+            if (tokenizationConfig != null) {
+                updater = knownTokenizers.get(tokenizerType);
+                break;
+            }
         }
-        Object truncate = bert.remove("truncate");
-        if (truncate == null) {
+
+        if (tokenizationConfig == null && tokenization.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException(
+                "unknown tokenization type expecting one of {} got {}",
+                knownTokenizers.keySet().stream().sorted().collect(Collectors.toList()),
+                tokenization.keySet()
+            );
+        }
+        if (tokenizationConfig == null) {
             return null;
         }
-        return new BertTokenizationUpdate(Tokenization.Truncate.fromString(truncate.toString()));
+        Tokenization.Truncate truncate = Optional.ofNullable(tokenizationConfig.remove("truncate"))
+            .map(t -> Tokenization.Truncate.fromString(t.toString()))
+            .orElse(null);
+        Integer span = (Integer) Optional.ofNullable(tokenizationConfig.remove("span")).orElse(null);
+        if (truncate == null && span == null) {
+            return null;
+        }
+        return updater.apply(truncate, span);
     }
 
     protected final TokenizationUpdate tokenizationUpdate;
@@ -47,7 +78,7 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
     }
 
     public NlpConfigUpdate(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             tokenizationUpdate = in.readOptionalNamedWriteable(TokenizationUpdate.class);
         } else {
             tokenizationUpdate = null;
@@ -56,7 +87,7 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             out.writeOptionalNamedWriteable(tokenizationUpdate);
         }
     }

@@ -8,15 +8,24 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Standard test case for testing wire serialization. If the class being tested
@@ -37,10 +46,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * Returns an instance which is mutated slightly so it should not be equal
      * to the given instance.
      */
-    // TODO: Make this abstract when all sub-classes implement this (https://github.com/elastic/elasticsearch/issues/25929)
-    protected T mutateInstance(T instance) throws IOException {
-        return null;
-    }
+    protected abstract T mutateInstance(T instance) throws IOException;
 
     /**
      * Tests that the equals and hashcode methods are consistent and copied
@@ -50,6 +56,80 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copyInstance, this::mutateInstance);
         }
+    }
+
+    /**
+     * Calls {@link Object#equals} on equal objects on many threads and verifies
+     * they all return true. Folks tend to assume this is true about
+     * {@link Object#equals} and it <strong>generally</strong> is. But some
+     * equals implementations violate this assumption and it's very surprising.
+     * This tries to fail when that assumption is violated.
+     */
+    public final void testConcurrentEquals() throws IOException, InterruptedException, ExecutionException {
+        T testInstance = createTestInstance();
+        T copy = copyInstance(testInstance);
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 5000);
+        concurrentTest(() -> {
+            for (int r = 0; r < rounds; r++) {
+                assertEquals(testInstance, copy);
+            }
+        });
+    }
+
+    /**
+     * Call some test on many threads in parallel.
+     */
+    protected void concurrentTest(Runnable r) throws InterruptedException, ExecutionException {
+        int threads = 5;
+        int tasks = threads * 2;
+        ExecutorService exec = Executors.newFixedThreadPool(threads);
+        try {
+            List<Future<?>> results = new ArrayList<>();
+            for (int t = 0; t < tasks; t++) {
+                results.add(exec.submit(r));
+            }
+            for (Future<?> f : results) {
+                f.get();
+            }
+        } finally {
+            exec.shutdown();
+        }
+    }
+
+    /**
+     * Calls {@link Object#hashCode} on the same object on many threads and
+     * verifies they return the same result. Folks tend to assume this is true
+     * about {@link Object#hashCode} and it <strong>generally</strong> is. But
+     * some hashCode implementations violate this assumption and it's very
+     * surprising. This tries to fail when that assumption is violated.
+     */
+    public final void testConcurrentHashCode() throws InterruptedException, ExecutionException {
+        T testInstance = createTestInstance();
+        int firstHashCode = testInstance.hashCode();
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 5000);
+        concurrentTest(() -> {
+            for (int r = 0; r < rounds; r++) {
+                assertEquals(firstHashCode, testInstance.hashCode());
+            }
+        });
+    }
+
+    public void testToString() throws Exception {
+        final String toString = createTestInstance().toString();
+        assertNotNull(toString);
+        assertThat(toString, not(emptyString()));
     }
 
     /**
@@ -63,10 +143,41 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
     }
 
     /**
+     * Test serializing the same object on many threads always
+     * deserializes to equal instances. Folks tend to assume this is true
+     * about serialization and it <strong>generally</strong> is. But
+     * some implementations violate this assumption and it's very
+     * surprising. This tries to fail when that assumption is violated.
+     * <p>
+     * Async search can serialize responses concurrently with other
+     * operations like {@link ToXContent#toXContent}. This doesn't
+     * check that exactly, but it's close.
+     */
+    public final void testConcurrentSerialization() throws InterruptedException, ExecutionException {
+        T testInstance = createTestInstance();
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 2000);
+        concurrentTest(() -> {
+            try {
+                for (int r = 0; r < rounds; r++) {
+                    assertSerialization(testInstance);
+                }
+            } catch (IOException e) {
+                throw new AssertionError("error serializing", e);
+            }
+        });
+    }
+
+    /**
      * Serialize the given instance and asserts that both are equal.
      */
     protected final void assertSerialization(T testInstance) throws IOException {
-        assertSerialization(testInstance, Version.CURRENT);
+        assertSerialization(testInstance, TransportVersion.CURRENT);
     }
 
     /**
@@ -74,7 +185,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * for sanity checking the backwards compatibility of the wire. It isn't a substitute for
      * real backwards compatibility tests but it is *so* much faster.
      */
-    protected final void assertSerialization(T testInstance, Version version) throws IOException {
+    protected final void assertSerialization(T testInstance, TransportVersion version) throws IOException {
         T deserializedInstance = copyInstance(testInstance, version);
         assertEqualInstances(testInstance, deserializedInstance);
     }
@@ -90,7 +201,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
     }
 
     protected final T copyInstance(T instance) throws IOException {
-        return copyInstance(instance, Version.CURRENT);
+        return copyInstance(instance, TransportVersion.CURRENT);
     }
 
     /**
@@ -98,7 +209,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * The version is useful for sanity checking the backwards compatibility of the wire. It isn't
      * a substitute for real backwards compatibility tests but it is *so* much faster.
      */
-    protected abstract T copyInstance(T instance, Version version) throws IOException;
+    protected abstract T copyInstance(T instance, TransportVersion version) throws IOException;
 
     /**
      * Get the {@link NamedWriteableRegistry} to use when de-serializing the object.

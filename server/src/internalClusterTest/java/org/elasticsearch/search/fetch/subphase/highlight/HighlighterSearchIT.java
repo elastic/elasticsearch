@@ -10,13 +10,14 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.MockAnalyzer;
-import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
@@ -60,14 +62,12 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
 import static org.elasticsearch.index.query.QueryBuilders.combinedFieldsQuery;
@@ -94,7 +94,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNotHighlighted;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -358,7 +357,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 "no_long_term",
                 "This is a test where foo is highlighed and should be highlighted",
                 "long_term",
-                "This is a test thisisaverylongwordandmakessurethisfails where foo is highlighed " + "and should be highlighted"
+                "This is a test thisisaverylongwordandmakessurethisfails where foo is highlighed and should be highlighted"
             )
             .get();
         refresh();
@@ -724,7 +723,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .query(termQuery("field-postings", "test"))
             .highlighter(highlight().field("field*").preTags("<xxx>").postTags("</xxx>").requireFieldMatch(false));
 
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        SearchResponse searchResponse = client().search(new SearchRequest("test").source(source)).actionGet();
 
         assertHighlight(
             searchResponse,
@@ -736,71 +735,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         );
         assertHighlight(searchResponse, 0, "field-fvh", 0, 1, equalTo("This is the <xxx>test</xxx> with term_vectors"));
         assertHighlight(searchResponse, 0, "field-plain", 0, 1, equalTo("This is the <xxx>test</xxx> for the plain highlighter"));
-    }
-
-    public void testForceSourceWithSourceDisabled() throws Exception {
-        assertAcked(
-            prepareCreate("test").setMapping(
-                jsonBuilder().startObject()
-                    .startObject("_doc")
-                    .startObject("_source")
-                    .field("enabled", false)
-                    .endObject()
-                    .startObject("properties")
-                    .startObject("field1")
-                    .field("type", "text")
-                    .field("store", true)
-                    .field("index_options", "offsets")
-                    .field("term_vector", "with_positions_offsets")
-                    .endObject()
-                    .startObject("field2")
-                    .field("type", "text")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-        );
-
-        ensureGreen();
-
-        client().prepareIndex("test")
-            .setSource("field1", "The quick brown fox jumps over the lazy dog", "field2", "second field content")
-            .get();
-        refresh();
-
-        // works using stored field
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(termQuery("field1", "quick"))
-            .highlighter(new HighlightBuilder().field(new Field("field1").preTags("<xxx>").postTags("</xxx>")))
-            .get();
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
-
-        assertFailures(
-            client().prepareSearch("test")
-                .setQuery(termQuery("field1", "quick"))
-                .highlighter(new HighlightBuilder().field(new Field("field1").preTags("<xxx>").postTags("</xxx>").forceSource(true))),
-            RestStatus.BAD_REQUEST,
-            containsString("source is forced for fields [field1] but _source is disabled")
-        );
-
-        SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource()
-            .query(termQuery("field1", "quick"))
-            .highlighter(highlight().forceSource(true).field("field1"));
-        assertFailures(
-            client().prepareSearch("test").setSource(searchSource),
-            RestStatus.BAD_REQUEST,
-            containsString("source is forced for fields [field1] but _source is disabled")
-        );
-
-        searchSource = SearchSourceBuilder.searchSource()
-            .query(termQuery("field1", "quick"))
-            .highlighter(highlight().forceSource(true).field("field*"));
-        assertFailures(
-            client().prepareSearch("test").setSource(searchSource),
-            RestStatus.BAD_REQUEST,
-            matches("source is forced for fields \\[field\\d, field\\d\\] but _source is disabled")
-        );
     }
 
     public void testPlainHighlighter() throws Exception {
@@ -1058,7 +992,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         logger.info("--> highlighting and searching on field1 with default phrase limit");
         SearchSourceBuilder source = searchSource().query(termQuery("field1", "t"))
             .highlighter(highlight().highlighterType("fvh").field("field1", 20, 1).order("score").preTags("<xxx>").postTags("</xxx>"));
-        SearchResponse defaultPhraseLimit = client().search(searchRequest("test").source(source)).actionGet();
+        SearchResponse defaultPhraseLimit = client().search(new SearchRequest("test").source(source)).actionGet();
         assertHighlight(defaultPhraseLimit, 0, "field1", 0, 1, containsString("<xxx>t</xxx>"));
 
         logger.info("--> highlighting and searching on field1 with large phrase limit");
@@ -1071,7 +1005,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                     .postTags("</xxx>")
                     .phraseLimit(30000)
             );
-        SearchResponse largePhraseLimit = client().search(searchRequest("test").source(source)).actionGet();
+        SearchResponse largePhraseLimit = client().search(new SearchRequest("test").source(source)).actionGet();
         assertHighlight(largePhraseLimit, 0, "field1", 0, 1, containsString("<xxx>t</xxx>"));
 
         /*
@@ -1339,14 +1273,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .get();
 
         for (int i = 0; i < 5; i++) {
-            assertHighlight(
-                search,
-                i,
-                "title",
-                0,
-                1,
-                equalTo("This is a test on the highlighting <em>bug</em> " + "present in elasticsearch")
-            );
+            assertHighlight(search, i, "title", 0, 1, equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
         }
     }
 
@@ -1624,7 +1551,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .highlighter(new HighlightBuilder().field("title", 50, 1, 10).highlighterType("fvh")),
             RestStatus.BAD_REQUEST,
             containsString(
-                "the field [title] should be indexed with term vector with position offsets to be " + "used with fast vector highlighter"
+                "the field [title] should be indexed with term vector with position offsets to be used with fast vector highlighter"
             )
         );
 
@@ -2257,7 +2184,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(termQuery("field1", "test"))
             .highlighter(highlight().field("field1").preTags("<xxx>").postTags("</xxx>"));
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        SearchResponse searchResponse = client().search(new SearchRequest("test").source(source)).actionGet();
 
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("this is a <xxx>test</xxx>"));
 
@@ -2265,7 +2192,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         source = searchSource().query(termQuery("field1", "test"))
             .highlighter(highlight().field("field1").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        searchResponse = client().search(new SearchRequest("test").source(source)).actionGet();
 
         assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("this is a <xxx>test</xxx>"));
 
@@ -2273,7 +2200,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         source = searchSource().query(termQuery("field2", "quick"))
             .highlighter(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        searchResponse = client().search(new SearchRequest("test").source(source)).actionGet();
 
         assertHighlight(
             searchResponse,
@@ -2288,7 +2215,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         source = searchSource().query(matchPhraseQuery("field2", "quick brown"))
             .highlighter(highlight().field("field2").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        searchResponse = client().search(new SearchRequest("test").source(source)).actionGet();
 
         assertHighlight(
             searchResponse,
@@ -2304,7 +2231,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         source = searchSource().query(matchPhraseQuery("field2", "quick brown"))
             .highlighter(highlight().field("field2").preTags("<xxx>").postTags("</xxx>").highlighterType("plain").requireFieldMatch(false));
 
-        searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        searchResponse = client().search(new SearchRequest("test").source(source)).actionGet();
 
         assertHighlight(
             searchResponse,
@@ -2358,7 +2285,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchSourceBuilder source = searchSource().query(termQuery("field1", "fox"))
             .highlighter(highlight().field(new Field("field1").numOfFragments(5).preTags("<field1>").postTags("</field1>")));
 
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        SearchResponse searchResponse = client().search(new SearchRequest("test").source(source)).actionGet();
 
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertHighlight(
@@ -2389,7 +2316,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         source = searchSource().query(termQuery("field1", "fox"))
             .highlighter(highlight().field(new Field("field1").numOfFragments(0).preTags("<field1>").postTags("</field1>")));
 
-        searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        searchResponse = client().search(new SearchRequest("test").source(source)).actionGet();
         assertHitCount(searchResponse, 2L);
 
         for (SearchHit searchHit : searchResponse.getHits()) {
@@ -2458,7 +2385,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .field(new Field("field1").requireFieldMatch(true).preTags("<field1>").postTags("</field1>"))
                 );
             logger.info("Running multi-match type: [{}] highlight with type: [{}]", matchQueryType, highlighterType);
-            SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+            SearchResponse searchResponse = client().search(new SearchRequest("test").source(source)).actionGet();
             assertHitCount(searchResponse, 1L);
             assertHighlight(
                 searchResponse,
@@ -2507,7 +2434,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .field(new Field("field1").requireFieldMatch(true).preTags("<field1>").postTags("</field1>"))
                 );
 
-            SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+            SearchResponse searchResponse = client().search(new SearchRequest("test").source(source)).actionGet();
             assertHitCount(searchResponse, 1L);
             assertHighlight(
                 searchResponse,
@@ -2541,7 +2468,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchSourceBuilder source = searchSource().query(termQuery("field1", "sentence"))
             .highlighter(highlight().field("field1").order("score"));
 
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        SearchResponse searchResponse = client().search(new SearchRequest("test").source(source)).actionGet();
 
         Map<String, HighlightField> highlightFieldMap = searchResponse.getHits().getAt(0).getHighlightFields();
         assertThat(highlightFieldMap.size(), equalTo(1));
@@ -2747,7 +2674,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchSourceBuilder source = searchSource().query(
             boostingQuery(termQuery("field2", "brown"), termQuery("field2", "foobar")).negativeBoost(0.5f)
         ).highlighter(highlight().field("field2").preTags("<x>").postTags("</x>"));
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        SearchResponse searchResponse = client().search(new SearchRequest("test").source(source)).actionGet();
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The quick <x>brown</x> fox jumps over the lazy dog! Second sentence."));
     }
@@ -2978,7 +2905,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         ensureGreen();
 
         int COUNT = between(20, 100);
-        Map<String, String> prefixes = new HashMap<>(COUNT);
+        Map<String, String> prefixes = Maps.newMapWithExpectedSize(COUNT);
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[COUNT];
         for (int i = 0; i < COUNT; i++) {
@@ -3074,16 +3001,16 @@ public class HighlighterSearchIT extends ESIntegTestCase {
      */
     private void phraseBoostTestCase(String highlighterType) {
         ensureGreen();
-        StringBuilder text = new StringBuilder();
-        text.append("words words junk junk junk junk junk junk junk junk highlight junk junk junk junk together junk\n");
-        for (int i = 0; i < 10; i++) {
-            text.append("junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk\n");
-        }
-        text.append("highlight words together\n");
-        for (int i = 0; i < 10; i++) {
-            text.append("junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk\n");
-        }
-        indexDoc("test", "1", "field1", text.toString());
+        String text = """
+            words words junk junk junk junk junk junk junk junk highlight junk junk junk junk together junk
+            """ + """
+            junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk
+            """.repeat(10) + """
+            highlight words together
+            """ + """
+            junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk
+            """.repeat(10);
+        indexDoc("test", "1", "field1", text);
         refresh();
 
         // Match queries
@@ -3606,7 +3533,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         @Override
         public Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
             return singletonMap("mock_whitespace", (indexSettings, environment, name, settings) -> {
-                return new AbstractIndexAnalyzerProvider<Analyzer>(indexSettings, name, settings) {
+                return new AbstractIndexAnalyzerProvider<Analyzer>(name, settings) {
 
                     MockAnalyzer instance = new MockAnalyzer(random(), MockTokenizer.WHITESPACE, false);
 

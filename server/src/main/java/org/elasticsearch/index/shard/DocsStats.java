@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class DocsStats implements Writeable, ToXContentFragment {
 
@@ -82,6 +83,19 @@ public class DocsStats implements Writeable, ToXContentFragment {
         builder.field(Fields.DELETED, deleted);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DocsStats that = (DocsStats) o;
+        return count == that.count && deleted == that.deleted && totalSizeInBytes == that.totalSizeInBytes;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(count, deleted, totalSizeInBytes);
     }
 
     static final class Fields {

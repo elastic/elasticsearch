@@ -10,13 +10,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.Payloads;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,16 +30,22 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CURSOR;
-import static org.elasticsearch.xpack.sql.proto.Protocol.ID_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.IS_PARTIAL_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.IS_RUNNING_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.ID_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.IS_PARTIAL_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.IS_RUNNING_NAME;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
 import static org.hamcrest.Matchers.hasSize;
 
-public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryResponse> {
+public class SqlQueryResponseTests extends AbstractXContentSerializingTestCase<SqlQueryResponse> {
 
     static String randomStringCursor() {
         return randomBoolean() ? "" : randomAlphaOfLength(10);
+    }
+
+    @Override
+    protected SqlQueryResponse createXContextTestInstance(XContentType xContentType) {
+        SqlTestUtils.assumeXContentJsonOrCbor(xContentType);
+        return super.createXContextTestInstance(xContentType);
     }
 
     @Override
@@ -50,6 +58,11 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
             randomBoolean(),
             randomBoolean()
         );
+    }
+
+    @Override
+    protected SqlQueryResponse mutateInstance(SqlQueryResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -155,20 +168,22 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
     }
 
     @Override
-    protected SqlQueryResponse doParseInstance(XContentParser parser) {
-        org.elasticsearch.xpack.sql.proto.SqlQueryResponse response = org.elasticsearch.xpack.sql.proto.SqlQueryResponse.fromXContent(
-            parser
+    protected SqlQueryResponse doParseInstance(XContentParser parser) throws IOException {
+        org.elasticsearch.xpack.sql.proto.SqlQueryResponse protoResponse = SqlTestUtils.fromXContentParser(
+            parser,
+            Payloads::parseQueryResponse
         );
+
         return new SqlQueryResponse(
-            response.cursor(),
+            protoResponse.cursor(),
             Mode.JDBC,
             DATE_NANOS_SUPPORT_VERSION,
             false,
-            response.columns(),
-            response.rows(),
-            response.id(),
-            response.isPartial(),
-            response.isRunning()
+            protoResponse.columns(),
+            protoResponse.rows(),
+            protoResponse.id(),
+            protoResponse.isPartial(),
+            protoResponse.isRunning()
         );
     }
 }

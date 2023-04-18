@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -240,27 +240,18 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test2")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, replicasInNewIndex - 1))
-        );
+        setReplicaCount(replicasInNewIndex - 1, "test2");
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test2")
-                .setSettings(
-                    Settings.builder()
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(
-                            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
-                            internalCluster().getDataNodeInstance(Node.class).settings().get(Node.NODE_NAME_SETTING.getKey())
-                        )
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(
+                    IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
+                    internalCluster().getDataNodeInstance(Node.class).settings().get(Node.NODE_NAME_SETTING.getKey())
+                ),
+            "test2"
         );
 
         ensureGreen();

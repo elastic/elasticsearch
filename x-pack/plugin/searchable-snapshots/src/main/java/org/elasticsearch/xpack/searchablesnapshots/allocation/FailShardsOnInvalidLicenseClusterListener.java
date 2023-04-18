@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -62,11 +60,11 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
 
     @Override
     public synchronized void licenseStateChanged() {
-        final boolean allowed = SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(xPackLicenseState);
-        if (allowed && this.allowed == false) {
-            rerouteService.reroute("reroute after license activation", Priority.NORMAL, new ActionListener<ClusterState>() {
+        final boolean isAllowed = SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(xPackLicenseState);
+        if (isAllowed && this.allowed == false) {
+            rerouteService.reroute("reroute after license activation", Priority.NORMAL, new ActionListener<Void>() {
                 @Override
-                public void onResponse(ClusterState clusterState) {
+                public void onResponse(Void ignored) {
                     logger.trace("successful reroute after license activation");
                 }
 
@@ -76,7 +74,7 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
                 }
             });
         }
-        this.allowed = allowed;
+        this.allowed = isAllowed;
         failActiveShardsIfNecessary();
     }
 
@@ -89,7 +87,7 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
                 } catch (AlreadyClosedException ignored) {
                     // ignore
                 } catch (Exception e) {
-                    logger.warn(new ParameterizedMessage("Could not close shard {} due to invalid license", indexShard.shardId()), e);
+                    logger.warn(() -> "Could not close shard " + indexShard.shardId() + " due to invalid license", e);
                 }
             }
             shardsToFail.clear();

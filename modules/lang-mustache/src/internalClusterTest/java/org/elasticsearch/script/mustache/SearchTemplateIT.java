@@ -8,12 +8,16 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.DummyQueryParserPlugin;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -23,7 +27,9 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -38,7 +44,12 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(MustachePlugin.class);
+        return List.of(MustachePlugin.class, DummyQueryParserPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true").build();
     }
 
     @Before
@@ -51,7 +62,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
     // Relates to #6318
     public void testSearchRequestFail() throws Exception {
-        String query = "{ \"query\": {\"match_all\": {}}, \"size\" : \"{{my_size}}\"  }";
+        String query = """
+            { "query": {"match_all": {}}, "size" : "{{my_size}}"  }""";
 
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
@@ -80,12 +92,13 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     public void testTemplateQueryAsEscapedString() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
-        String query = "{"
-            + "  \"source\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
-            + "  \"params\":{"
-            + "    \"size\": 1"
-            + "  }"
-            + "}";
+        String query = """
+            {
+              "source": "{ \\"size\\": \\"{{size}}\\", \\"query\\":{\\"match_all\\":{}}}",
+              "params": {
+                "size": 1
+              }
+            }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, query));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
@@ -99,13 +112,14 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     public void testTemplateQueryAsEscapedStringStartingWithConditionalClause() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
-        String templateString = "{"
-            + "  \"source\" : \"{ {{#use_size}} \\\"size\\\": \\\"{{size}}\\\", {{/use_size}} \\\"query\\\":{\\\"match_all\\\":{}}}\","
-            + "  \"params\":{"
-            + "    \"size\": 1,"
-            + "    \"use_size\": true"
-            + "  }"
-            + "}";
+        String templateString = """
+            {
+              "source": "{ {{#use_size}} \\"size\\": \\"{{size}}\\", {{/use_size}} \\"query\\":{\\"match_all\\":{}}}",
+              "params": {
+                "size": 1,
+                "use_size": true
+              }
+            }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
@@ -119,13 +133,14 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     public void testTemplateQueryAsEscapedStringWithConditionalClauseAtEnd() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
-        String templateString = "{"
-            + "  \"source\" : \"{ \\\"query\\\":{\\\"match_all\\\":{}} {{#use_size}}, \\\"size\\\": \\\"{{size}}\\\" {{/use_size}} }\","
-            + "  \"params\":{"
-            + "    \"size\": 1,"
-            + "    \"use_size\": true"
-            + "  }"
-            + "}";
+        String templateString = """
+            {
+              "source": "{ \\"query\\":{\\"match_all\\":{}} {{#use_size}}, \\"size\\": \\"{{size}}\\" {{/use_size}} }",
+              "params": {
+                "size": 1,
+                "use_size": true
+              }
+            }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
@@ -133,29 +148,19 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     }
 
     public void testIndexedTemplateClient() throws Exception {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutStoredScript()
-                .setId("testTemplate")
-                .setContent(
-                    new BytesArray(
-                        "{"
-                            + "  \"script\": {"
-                            + "    \"lang\": \"mustache\","
-                            + "    \"source\": {"
-                            + "      \"query\": {"
-                            + "        \"match\": {"
-                            + "            \"theField\": \"{{fieldParam}}\""
-                            + "        }"
-                            + "      }"
-                            + "    }"
-                            + "  }"
-                            + "}"
-                    ),
-                    XContentType.JSON
-                )
-        );
+        assertAcked(client().admin().cluster().preparePutStoredScript().setId("testTemplate").setContent(new BytesArray("""
+            {
+              "script": {
+                "lang": "mustache",
+                "source": {
+                  "query": {
+                    "match": {
+                      "theField": "{{fieldParam}}"
+                    }
+                  }
+                }
+              }
+            }"""), XContentType.JSON));
 
         GetStoredScriptResponse getResponse = client().admin().cluster().prepareGetStoredScript("testTemplate").get();
         assertNotNull(getResponse.getSource());
@@ -187,18 +192,20 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
     public void testIndexedTemplate() throws Exception {
 
-        String script = "{"
-            + "  \"script\": {"
-            + "    \"lang\": \"mustache\","
-            + "    \"source\": {"
-            + "      \"query\": {"
-            + "        \"match\": {"
-            + "            \"theField\": \"{{fieldParam}}\""
-            + "        }"
-            + "      }"
-            + "    }"
-            + "  }"
-            + "}";
+        String script = """
+            {
+              "script": {
+                "lang": "mustache",
+                "source": {
+                  "query": {
+                    "match": {
+                      "theField": "{{fieldParam}}"
+                    }
+                  }
+                }
+              }
+            }
+            """;
 
         assertAcked(client().admin().cluster().preparePutStoredScript().setId("1a").setContent(new BytesArray(script), XContentType.JSON));
         assertAcked(client().admin().cluster().preparePutStoredScript().setId("2").setContent(new BytesArray(script), XContentType.JSON));
@@ -250,21 +257,22 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh().get();
 
         int iterations = randomIntBetween(2, 11);
-        String query = "{"
-            + "  \"script\": {"
-            + "    \"lang\": \"mustache\","
-            + "    \"source\": {"
-            + "      \"query\": {"
-            + "        \"match_phrase_prefix\": {"
-            + "            \"searchtext\": {"
-            + "                \"query\": \"{{P_Keyword1}}\","
-            + "                \"slop\": {{slop}}"
-            + "            }"
-            + "        }"
-            + "      }"
-            + "    }"
-            + "  }"
-            + "}";
+        String query = """
+            {
+              "script": {
+                "lang": "mustache",
+                "source": {
+                  "query": {
+                    "match_phrase_prefix": {
+                      "searchtext": {
+                        "query": "{{P_Keyword1}}",
+                        "slop": "{{slop}}"
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
         for (int i = 1; i < iterations; i++) {
             assertAcked(
                 client().admin()
@@ -308,22 +316,23 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     }
 
     public void testIndexedTemplateWithArray() throws Exception {
-        String multiQuery = "{\n"
-            + "  \"script\": {\n"
-            + "    \"lang\": \"mustache\",\n"
-            + "    \"source\": {\n"
-            + "      \"query\": {\n"
-            + "        \"terms\": {\n"
-            + "            \"theField\": [\n"
-            + "                \"{{#fieldParam}}\",\n"
-            + "                \"{{.}}\",\n"
-            + "                \"{{/fieldParam}}\"\n"
-            + "            ]\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String multiQuery = """
+            {
+              "script": {
+                "lang": "mustache",
+                "source": {
+                  "query": {
+                    "terms": {
+                        "theField": [
+                            "{{#fieldParam}}",
+                            "{{.}}",
+                            "{{/fieldParam}}"
+                        ]
+                    }
+                  }
+                }
+              }
+            }""";
         assertAcked(
             client().admin().cluster().preparePutStoredScript().setId("4").setContent(new BytesArray(multiQuery), XContentType.JSON)
         );
@@ -348,4 +357,28 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         assertHitCount(searchResponse.getResponse(), 5);
     }
 
+    /**
+     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+     */
+    public void testCCSCheckCompatibility() throws Exception {
+        String templateString = """
+            {
+              "source": "{ \\"query\\":{\\"fail_before_current_version\\":{}} }"
+            }""";
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
+        request.setRequest(new SearchRequest());
+        ExecutionException ex = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(SearchTemplateAction.INSTANCE, request).get()
+        );
+        assertThat(
+            ex.getCause().getMessage(),
+            containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version")
+        );
+        assertThat(ex.getCause().getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
+        assertEquals(
+            "This query isn't serializable with transport versions before " + TransportVersion.CURRENT,
+            ex.getCause().getCause().getMessage()
+        );
+    }
 }

@@ -7,10 +7,15 @@
  */
 package org.elasticsearch.gradle.internal.doc;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
+import org.junit.Test;
 
-public class SnippetsTaskTests extends GradleUnitTestCase {
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
+public class SnippetsTaskTests {
+
+    @Test
     public void testMatchSource() {
         SnippetsTask.Source source = SnippetsTask.matchSource("[source,console]");
         assertTrue(source.getMatches());

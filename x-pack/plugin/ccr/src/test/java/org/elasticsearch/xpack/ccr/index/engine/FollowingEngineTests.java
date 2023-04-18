@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -75,15 +76,19 @@ public class FollowingEngineTests extends ESTestCase {
     private ShardId shardId;
     private AtomicLong primaryTerm = new AtomicLong();
     private AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+    private IndexMode indexMode;
 
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("following-engine-tests");
         index = new Index("index", "uuid");
         shardId = new ShardId(index, 0);
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
+        indexMode = randomFrom(IndexMode.values());
     }
 
+    @Override
     public void tearDown() throws Exception {
         terminate(threadPool);
         super.tearDown();
@@ -109,8 +114,8 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testIndexSeqNoIsMaintained() throws IOException {
         final long seqNo = randomIntBetween(0, Integer.MAX_VALUE);
-        runIndexTest(seqNo, Engine.Operation.Origin.PRIMARY, (followingEngine, index) -> {
-            final Engine.IndexResult result = followingEngine.index(index);
+        runIndexTest(seqNo, Engine.Operation.Origin.PRIMARY, (followingEngine, indexToTest) -> {
+            final Engine.IndexResult result = followingEngine.index(indexToTest);
             assertThat(result.getSeqNo(), equalTo(seqNo));
         });
     }
@@ -156,8 +161,8 @@ public class FollowingEngineTests extends ESTestCase {
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store);
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
-                final Engine.Index index = indexForFollowing("id", seqNo, origin);
-                consumer.accept(followingEngine, index);
+                final Engine.Index indexToTest = indexForFollowing("id", seqNo, origin);
+                consumer.accept(followingEngine, indexToTest);
             }
         }
     }
@@ -226,16 +231,21 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private EngineConfig engineConfig(
-        final ShardId shardId,
+        final ShardId shardIdValue,
         final IndexSettings indexSettings,
         final ThreadPool threadPool,
         final Store store
     ) {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         final Path translogPath = createTempDir("translog");
-        final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        final TranslogConfig translogConfig = new TranslogConfig(
+            shardIdValue,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE
+        );
         return new EngineConfig(
-            shardId,
+            shardIdValue,
             threadPool,
             indexSettings,
             null,
@@ -243,7 +253,7 @@ public class FollowingEngineTests extends ESTestCase {
             newMergePolicy(),
             indexWriterConfig.getAnalyzer(),
             indexWriterConfig.getSimilarity(),
-            new CodecService(null),
+            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
             new Engine.EventListener() {
                 @Override
                 public void onFailedEngine(String reason, Exception e) {
@@ -262,7 +272,10 @@ public class FollowingEngineTests extends ESTestCase {
             () -> RetentionLeases.EMPTY,
             () -> primaryTerm.get(),
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null
+            null,
+            System::nanoTime,
+            null,
+            true
         );
     }
 
@@ -331,36 +344,34 @@ public class FollowingEngineTests extends ESTestCase {
         return new Engine.Delete(parsedDoc.id(), EngineTestCase.newUid(parsedDoc), primaryTerm.get());
     }
 
-    private Engine.Result applyOperation(Engine engine, Engine.Operation op, long primaryTerm, Engine.Operation.Origin origin)
+    private Engine.Result applyOperation(Engine engine, Engine.Operation op, long primaryTermValue, Engine.Operation.Origin origin)
         throws IOException {
         final VersionType versionType = origin == Engine.Operation.Origin.PRIMARY ? VersionType.EXTERNAL : null;
         final Engine.Result result;
-        if (op instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) op;
+        if (op instanceof Engine.Index engineIndex) {
             result = engine.index(
                 new Engine.Index(
-                    index.uid(),
-                    index.parsedDoc(),
-                    index.seqNo(),
-                    primaryTerm,
-                    index.version(),
+                    engineIndex.uid(),
+                    engineIndex.parsedDoc(),
+                    engineIndex.seqNo(),
+                    primaryTermValue,
+                    engineIndex.version(),
                     versionType,
                     origin,
-                    index.startTime(),
-                    index.getAutoGeneratedIdTimestamp(),
-                    index.isRetry(),
-                    index.getIfSeqNo(),
-                    index.getIfPrimaryTerm()
+                    engineIndex.startTime(),
+                    engineIndex.getAutoGeneratedIdTimestamp(),
+                    engineIndex.isRetry(),
+                    engineIndex.getIfSeqNo(),
+                    engineIndex.getIfPrimaryTerm()
                 )
             );
-        } else if (op instanceof Engine.Delete) {
-            Engine.Delete delete = (Engine.Delete) op;
+        } else if (op instanceof Engine.Delete delete) {
             result = engine.delete(
                 new Engine.Delete(
                     delete.id(),
                     delete.uid(),
                     delete.seqNo(),
-                    primaryTerm,
+                    primaryTermValue,
                     delete.version(),
                     versionType,
                     origin,
@@ -371,7 +382,7 @@ public class FollowingEngineTests extends ESTestCase {
             );
         } else {
             Engine.NoOp noOp = (Engine.NoOp) op;
-            result = engine.noOp(new Engine.NoOp(noOp.seqNo(), primaryTerm, origin, noOp.startTime(), noOp.reason()));
+            result = engine.noOp(new Engine.NoOp(noOp.seqNo(), primaryTermValue, origin, noOp.startTime(), noOp.reason()));
         }
         return result;
     }
@@ -405,7 +416,7 @@ public class FollowingEngineTests extends ESTestCase {
             // Apply optimization for documents that do not exist
             long moreDocs = between(1, 100);
             versionLookUps = getNumVersionLookups(follower);
-            Set<String> docIds = getDocIds(follower, true).stream().map(doc -> doc.getId()).collect(Collectors.toSet());
+            Set<String> docIds = getDocIds(follower, true).stream().map(doc -> doc.id()).collect(Collectors.toSet());
             for (int i = 0; i < moreDocs; i++) {
                 String docId = randomValueOtherThanMany(docIds::contains, () -> Integer.toString(between(1, 1000)));
                 docIds.add(docId);
@@ -714,12 +725,21 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     public void testProcessOnceOnPrimary() throws Exception {
-        final Settings settings = Settings.builder()
+        final Settings.Builder settingsBuilder = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
             .put("index.version.created", Version.CURRENT)
-            .put("index.xpack.ccr.following_index", true)
-            .build();
+            .put("index.xpack.ccr.following_index", true);
+        switch (indexMode) {
+            case STANDARD:
+                break;
+            case TIME_SERIES:
+                settingsBuilder.put("index.mode", "time_series").put("index.routing_path", "foo");
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown index mode [" + indexMode + "]");
+        }
+        final Settings settings = settingsBuilder.build();
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         final CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedDocFunc = EngineTestCase.nestedParsedDocFactory();
@@ -802,7 +822,7 @@ public class FollowingEngineTests extends ESTestCase {
                     }
                 }
                 for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true)) {
-                    assertThat(docId.getPrimaryTerm(), equalTo(operationWithTerms.get(docId.getSeqNo())));
+                    assertThat(docId.primaryTerm(), equalTo(operationWithTerms.get(docId.seqNo())));
                 }
                 // Replica should accept duplicates
                 primaryTerm.set(newTerm);
@@ -816,7 +836,7 @@ public class FollowingEngineTests extends ESTestCase {
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                 }
                 for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true)) {
-                    assertThat(docId.getPrimaryTerm(), equalTo(operationWithTerms.get(docId.getSeqNo())));
+                    assertThat(docId.primaryTerm(), equalTo(operationWithTerms.get(docId.seqNo())));
                 }
             }
         }
@@ -828,7 +848,7 @@ public class FollowingEngineTests extends ESTestCase {
      */
     public void testVerifyShardBeforeIndexClosingIsNoOp() throws IOException {
         final long seqNo = randomIntBetween(0, Integer.MAX_VALUE);
-        runIndexTest(seqNo, Engine.Operation.Origin.PRIMARY, (followingEngine, index) -> {
+        runIndexTest(seqNo, Engine.Operation.Origin.PRIMARY, (followingEngine, indexToTest) -> {
             globalCheckpoint.set(randomNonNegativeLong());
             try {
                 followingEngine.verifyEngineBeforeIndexClosing();

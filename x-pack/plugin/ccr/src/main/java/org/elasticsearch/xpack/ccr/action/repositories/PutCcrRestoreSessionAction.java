@@ -101,9 +101,9 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
 
     public static class PutCcrRestoreSessionResponse extends ActionResponse {
 
-        private DiscoveryNode node;
-        private Store.MetadataSnapshot storeFileMetadata;
-        private long mappingVersion;
+        private final DiscoveryNode node;
+        private final Store.MetadataSnapshot storeFileMetadata;
+        private final long mappingVersion;
 
         PutCcrRestoreSessionResponse(DiscoveryNode node, Store.MetadataSnapshot storeFileMetadata, long mappingVersion) {
             this.node = node;
@@ -114,7 +114,7 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
         PutCcrRestoreSessionResponse(StreamInput in) throws IOException {
             super(in);
             node = new DiscoveryNode(in);
-            storeFileMetadata = new Store.MetadataSnapshot(in);
+            storeFileMetadata = Store.MetadataSnapshot.readFrom(in);
             mappingVersion = in.readVLong();
         }
 

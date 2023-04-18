@@ -13,7 +13,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -150,11 +150,8 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     @Override
     void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
         ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
-            LOGGER,
-            threadPool,
-            MachineLearning.UTILITY_THREAD_POOL_NAME,
-            listener,
-            false
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+            listener
         );
         latestBucketTime(client, getParentTaskId(), jobId, ActionListener.wrap(latestTime -> {
             if (latestTime == null) {

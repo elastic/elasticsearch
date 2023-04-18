@@ -10,15 +10,16 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.LuceneTests;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -26,10 +27,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.function.Predicate;
 
-public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
+public class SearchHitsTests extends AbstractXContentSerializingTestCase<SearchHits> {
 
     public static SearchHits createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
         return createTestItem(randomFrom(XContentType.values()).canonical(), withOptionalInnerHits, withShardTarget);
@@ -226,9 +226,7 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
     }
 
     public void testToXContent() throws IOException {
-        SearchHit[] hits = new SearchHit[] {
-            new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap()),
-            new SearchHit(2, "id2", Collections.emptyMap(), Collections.emptyMap()) };
+        SearchHit[] hits = new SearchHit[] { new SearchHit(1, "id1"), new SearchHit(2, "id2") };
 
         long totalHits = 1000;
         float maxScore = 1.5f;
@@ -237,20 +235,22 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
         builder.startObject();
         searchHits.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals(
-            "{\"hits\":{\"total\":{\"value\":1000,\"relation\":\"eq\"},\"max_score\":1.5,"
-                + "\"hits\":[{\"_id\":\"id1\",\"_score\":null},"
-                + "{\"_id\":\"id2\",\"_score\":null}]}}",
-            Strings.toString(builder)
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "hits": {
+                "total": {
+                  "value": 1000,
+                  "relation": "eq"
+                },
+                "max_score": 1.5,
+                "hits": [ { "_id": "id1", "_score": null }, { "_id": "id2", "_score": null } ]
+              }
+            }"""), Strings.toString(builder));
     }
 
     public void testFromXContentWithShards() throws IOException {
         for (boolean withExplanation : new boolean[] { true, false }) {
-            final SearchHit[] hits = new SearchHit[] {
-                new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap()),
-                new SearchHit(2, "id2", Collections.emptyMap(), Collections.emptyMap()),
-                new SearchHit(10, "id10", Collections.emptyMap(), Collections.emptyMap()) };
+            final SearchHit[] hits = new SearchHit[] { new SearchHit(1, "id1"), new SearchHit(2, "id2"), new SearchHit(10, "id10") };
 
             for (SearchHit hit : hits) {
                 String index = randomAlphaOfLengthBetween(5, 10);

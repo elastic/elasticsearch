@@ -12,11 +12,13 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogOperationsUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -26,7 +28,6 @@ import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -291,7 +292,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         long settingsVersion = startSettingsVersion;
         long aliasesVersion = startAliasesVersion;
         int numResponses = randomIntBetween(16, 256);
-        Map<Long, List<TestResponse>> responses = new HashMap<>(numResponses);
+        Map<Long, List<TestResponse>> responses = Maps.newMapWithExpectedSize(numResponses);
         for (int i = 0; i < numResponses; i++) {
             long nextGlobalCheckPoint = prevGlobalCheckpoint + maxOperationCount;
             if (sometimes()) {
@@ -313,8 +314,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                 List<Translog.Operation> ops = new ArrayList<>();
                 for (long seqNo = prevGlobalCheckpoint; seqNo <= nextGlobalCheckPoint; seqNo++) {
                     String id = UUIDs.randomBase64UUID();
-                    byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
-                    ops.add(new Translog.Index(id, seqNo, 0, source));
+                    ops.add(TranslogOperationsUtils.indexOp(id, seqNo, 0));
                 }
                 item.add(
                     new TestResponse(
@@ -368,8 +368,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                     List<Translog.Operation> ops = new ArrayList<>();
                     for (long seqNo = fromSeqNo; seqNo <= toSeqNo; seqNo++) {
                         String id = UUIDs.randomBase64UUID();
-                        byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
-                        ops.add(new Translog.Index(id, seqNo, 0, source));
+                        ops.add(TranslogOperationsUtils.indexOp(id, seqNo, 0));
                     }
                     // Report toSeqNo to simulate maxBatchSizeInBytes limit being met or last op to simulate a shard lagging behind:
                     long localLeaderGCP = randomBoolean() ? ops.get(ops.size() - 1).seqNo() : toSeqNo;

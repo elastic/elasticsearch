@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -15,21 +16,20 @@ import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterIndexHealthTests;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -40,27 +40,18 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<ClusterHealthResponse> {
-    private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
+public class ClusterHealthResponsesTests extends AbstractXContentSerializingTestCase<ClusterHealthResponse> {
+    private final ClusterStatsLevel level = randomFrom(ClusterStatsLevel.values());
 
     public void testIsTimeout() {
-        ClusterHealthResponse res = new ClusterHealthResponse("", Strings.EMPTY_ARRAY, ClusterState.EMPTY_STATE, false);
+        ClusterHealthResponse res = new ClusterHealthResponse();
         for (int i = 0; i < 5; i++) {
             res.setTimedOut(randomBoolean());
             if (res.isTimedOut()) {
                 assertEquals(RestStatus.REQUEST_TIMEOUT, res.status());
-                assertCriticalWarnings(ClusterHealthResponse.CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
             } else {
                 assertEquals(RestStatus.OK, res.status());
             }
-        }
-    }
-
-    public void testTimeoutReturns200IfOptedIn() {
-        ClusterHealthResponse res = new ClusterHealthResponse("", Strings.EMPTY_ARRAY, ClusterState.EMPTY_STATE, true);
-        for (int i = 0; i < 5; i++) {
-            res.setTimedOut(randomBoolean());
-            assertEquals(RestStatus.OK, res.status());
         }
     }
 
@@ -77,8 +68,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
             pendingTasks,
             inFlight,
             delayedUnassigned,
-            pendingTaskInQueueTime,
-            false
+            pendingTaskInQueueTime
         );
         clusterHealth = maybeSerialize(clusterHealth);
         assertClusterHealth(clusterHealth);
@@ -119,8 +109,8 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
     @Override
     protected ClusterHealthResponse createTestInstance() {
         int indicesSize = randomInt(20);
-        Map<String, ClusterIndexHealth> indices = new HashMap<>(indicesSize);
-        if (ClusterHealthRequest.Level.INDICES.equals(level) || ClusterHealthRequest.Level.SHARDS.equals(level)) {
+        Map<String, ClusterIndexHealth> indices = Maps.newMapWithExpectedSize(indicesSize);
+        if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
             for (int i = 0; i < indicesSize; i++) {
                 String indexName = randomAlphaOfLengthBetween(1, 5) + i;
                 indices.put(indexName, ClusterIndexHealthTests.randomIndexHealth(indexName, level));

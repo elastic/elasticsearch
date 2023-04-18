@@ -19,7 +19,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
@@ -98,7 +97,7 @@ public class JobResultsProviderTests extends ESTestCase {
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
-        assertTrue(queryString.matches("(?s).*anomaly_score[^}]*from. : 1\\.0.*must_not[^}]*term[^}]*is_interim.*value. : true" + ".*"));
+        assertTrue(queryString.matches("(?s).*anomaly_score[^}]*gte. : 1\\.0.*must_not[^}]*term[^}]*is_interim.*value. : true" + ".*"));
     }
 
     public void testBuckets_OneBucketInterim() throws IOException {
@@ -128,7 +127,7 @@ public class JobResultsProviderTests extends ESTestCase {
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
-        assertTrue(queryString.matches("(?s).*anomaly_score[^}]*from. : 5\\.1.*"));
+        assertTrue(queryString.matches("(?s).*anomaly_score[^}]*gte. : 5\\.1.*"));
         assertFalse(queryString.matches("(?s).*is_interim.*"));
     }
 
@@ -163,7 +162,7 @@ public class JobResultsProviderTests extends ESTestCase {
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
-        assertTrue(queryString.matches("(?s).*anomaly_score[^}]*from. : 5\\.1.*"));
+        assertTrue(queryString.matches("(?s).*anomaly_score[^}]*gte. : 5\\.1.*"));
         assertFalse(queryString.matches("(?s).*is_interim.*"));
     }
 
@@ -413,7 +412,19 @@ public class JobResultsProviderTests extends ESTestCase {
 
         JobResultsProvider provider = createProvider(client);
         SetOnce<QueryPage<CategoryDefinition>> holder = new SetOnce<>();
-        provider.categoryDefinitions(jobId, null, null, false, from, size, holder::set, e -> { throw new RuntimeException(e); }, client);
+        provider.categoryDefinitions(
+            jobId,
+            null,
+            null,
+            false,
+            from,
+            size,
+            holder::set,
+            e -> { throw new RuntimeException(e); },
+            null,
+            null,
+            client
+        );
         QueryPage<CategoryDefinition> categoryDefinitions = holder.get();
         assertEquals(1L, categoryDefinitions.count());
         assertEquals(terms, categoryDefinitions.results().get(0).getTerms());
@@ -442,6 +453,8 @@ public class JobResultsProviderTests extends ESTestCase {
             null,
             holder::set,
             e -> { throw new RuntimeException(e); },
+            null,
+            null,
             client
         );
         QueryPage<CategoryDefinition> categoryDefinitions = holder.get();
@@ -676,86 +689,13 @@ public class JobResultsProviderTests extends ESTestCase {
         assertEquals(7, JobResultsProvider.countFields(Collections.singletonMap("properties", mapping)));
     }
 
-    public void testTimingStats_Ok() throws IOException {
-        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
-        List<Map<String, Object>> source = Collections.singletonList(
-            Map.of(
-                Job.ID.getPreferredName(),
-                "foo",
-                TimingStats.BUCKET_COUNT.getPreferredName(),
-                7,
-                TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
-                1.0,
-                TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
-                1000.0,
-                TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
-                666.0,
-                TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
-                777.0,
-                TimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(),
-                Map.of(
-                    ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(),
-                    100.0,
-                    ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(),
-                    Instant.ofEpochMilli(1000_000_000),
-                    ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(),
-                    200.0
-                )
-            )
-        );
-        SearchResponse response = createSearchResponse(source);
-        Client client = getMockedClient(queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")), response);
-
-        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
-        JobResultsProvider provider = createProvider(client);
-        ExponentialAverageCalculationContext context = new ExponentialAverageCalculationContext(
-            100.0,
-            Instant.ofEpochMilli(1000_000_000),
-            200.0
-        );
-        provider.timingStats(
-            "foo",
-            stats -> assertThat(stats, equalTo(new TimingStats("foo", 7, 1.0, 1000.0, 666.0, 777.0, context))),
-            e -> { throw new AssertionError("Failure getting timing stats", e); }
-        );
-
-        verify(client).prepareSearch(indexName);
-        verify(client).threadPool();
-        verify(client).search(any(SearchRequest.class), any());
-        verifyNoMoreInteractions(client);
-    }
-
-    public void testTimingStats_NotFound() throws IOException {
-        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
-        List<Map<String, Object>> source = new ArrayList<>();
-        SearchResponse response = createSearchResponse(source);
-        Client client = getMockedClient(queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")), response);
-
-        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
-        JobResultsProvider provider = createProvider(client);
-        provider.timingStats(
-            "foo",
-            stats -> assertThat(stats, equalTo(new TimingStats("foo"))),
-            e -> { throw new AssertionError("Failure getting timing stats", e); }
-        );
-
-        verify(client).prepareSearch(indexName);
-        verify(client).threadPool();
-        verify(client).search(any(SearchRequest.class), any());
-        verifyNoMoreInteractions(client);
-    }
-
     public void testDatafeedTimingStats_EmptyJobList() {
         Client client = getBasicMockedClient();
 
         JobResultsProvider provider = createProvider(client);
-        provider.datafeedTimingStats(
-            List.of(),
-            ActionListener.wrap(
-                statsByJobId -> assertThat(statsByJobId, anEmptyMap()),
-                e -> { throw new AssertionError("Failure getting datafeed timing stats", e); }
-            )
-        );
+        provider.datafeedTimingStats(List.of(), null, ActionListener.wrap(statsByJobId -> assertThat(statsByJobId, anEmptyMap()), e -> {
+            throw new AssertionError("Failure getting datafeed timing stats", e);
+        }));
 
         verifyNoMoreInteractions(client);
     }
@@ -844,6 +784,7 @@ public class JobResultsProviderTests extends ESTestCase {
         );
         provider.datafeedTimingStats(
             List.of("foo", "bar"),
+            null,
             ActionListener.wrap(
                 statsByJobId -> assertThat(
                     statsByJobId,
@@ -904,7 +845,9 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.datafeedTimingStats(
             "foo",
             stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo", 6, 66, 666.0, contextFoo))),
-            e -> { throw new AssertionError("Failure getting datafeed timing stats", e); }
+            e -> {
+                throw new AssertionError("Failure getting datafeed timing stats", e);
+            }
         );
 
         verify(client).prepareSearch(indexName);
@@ -921,11 +864,9 @@ public class JobResultsProviderTests extends ESTestCase {
 
         when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
         JobResultsProvider provider = createProvider(client);
-        provider.datafeedTimingStats(
-            "foo",
-            stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo"))),
-            e -> { throw new AssertionError("Failure getting datafeed timing stats", e); }
-        );
+        provider.datafeedTimingStats("foo", stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo"))), e -> {
+            throw new AssertionError("Failure getting datafeed timing stats", e);
+        });
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
@@ -975,9 +916,9 @@ public class JobResultsProviderTests extends ESTestCase {
             fields.put("field_1", new DocumentField("field_1", Collections.singletonList("foo")));
             fields.put("field_2", new DocumentField("field_2", Collections.singletonList("foo")));
 
-            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()), fields, Collections.emptyMap()).sourceRef(
-                BytesReference.bytes(XContentFactory.jsonBuilder().map(_source))
-            );
+            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()));
+            hit.addDocumentFields(fields, Collections.emptyMap());
+            hit.sourceRef(BytesReference.bytes(XContentFactory.jsonBuilder().map(_source)));
 
             list.add(hit);
         }

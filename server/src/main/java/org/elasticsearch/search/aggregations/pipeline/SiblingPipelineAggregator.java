@@ -8,9 +8,9 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.util.List;
@@ -22,7 +22,7 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
     }
 
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
         return aggregation.copyWithRewritenBuckets(aggregations -> {
             List<InternalAggregation> aggs = aggregations.copyResults();
             aggs.add(doReduce(aggregations, reduceContext));
@@ -30,5 +30,5 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
         });
     }
 
-    public abstract InternalAggregation doReduce(Aggregations aggregations, ReduceContext context);
+    public abstract InternalAggregation doReduce(Aggregations aggregations, AggregationReduceContext context);
 }

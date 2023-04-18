@@ -18,8 +18,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -79,7 +79,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING
         ).forEach(s -> resetSettings.putNull(s.getKey()));
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(resetSettings));
+        updateClusterSettings(resetSettings);
     }
 
     @Before
@@ -134,11 +134,11 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         clearFieldData();
 
         // Update circuit breaker settings
-        Settings settings = Settings.builder()
-            .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
-            .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.05)
-            .build();
-        assertAcked(client.admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(
+            Settings.builder()
+                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
+                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.05)
+        );
 
         // execute a search that loads field data (sorting on the "test" field)
         // again, this time it should trip the breaker
@@ -166,13 +166,22 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         final Client client = client();
 
         // Create an index where the mappings have a field data filter
-        assertAcked(
-            prepareCreate("ramtest").setSource(
-                "{\"mappings\": {\"type\": {\"properties\": {\"test\": "
-                    + "{\"type\": \"text\",\"fielddata\": true,\"fielddata_frequency_filter\": {\"max\": 10000}}}}}}",
-                XContentType.JSON
-            )
-        );
+        assertAcked(prepareCreate("ramtest").setSource("""
+            {
+              "mappings": {
+                "type": {
+                  "properties": {
+                    "test": {
+                      "type": "text",
+                      "fielddata": true,
+                      "fielddata_frequency_filter": {
+                        "max": 10000
+                      }
+                    }
+                  }
+                }
+              }
+            }""", XContentType.JSON));
 
         ensureGreen("ramtest");
 
@@ -191,11 +200,11 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         clearFieldData();
 
         // Update circuit breaker settings
-        Settings settings = Settings.builder()
-            .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
-            .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.05)
-            .build();
-        assertAcked(client.admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(
+            Settings.builder()
+                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
+                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.05)
+        );
 
         // execute a search that loads field data (sorting on the "test" field)
         // again, this time it should trip the breaker
@@ -224,10 +233,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         Client client = client();
 
         // Make request breaker limited to a small amount
-        Settings resetSettings = Settings.builder()
-            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b")
-            .build();
-        assertAcked(client.admin().cluster().prepareUpdateSettings().setPersistentSettings(resetSettings));
+        updateClusterSettings(Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b"));
 
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(300, 1000);
@@ -258,10 +264,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         Client client = client();
 
         // Make request breaker limited to a small amount
-        Settings resetSettings = Settings.builder()
-            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
-            .build();
-        assertAcked(client.admin().cluster().prepareUpdateSettings().setPersistentSettings(resetSettings));
+        updateClusterSettings(
+            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
+        );
 
         // index some different terms so we have some field data for loading
         int docCount = scaledRandomIntBetween(100, 1000);
@@ -312,10 +317,9 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             logger.info("--> noop breakers used, skipping test");
             return;
         }
-        Settings insane = Settings.builder()
-            .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "5b")
-            .build();
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(insane).get();
+        updateClusterSettings(
+            Settings.builder().put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "5b")
+        );
 
         // calls updates settings to reset everything to default, checking that the request
         // is not blocked by the above inflight circuit breaker
@@ -380,11 +384,10 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             bulkRequest.add(indexRequest);
         }
 
-        Settings limitSettings = Settings.builder()
-            .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), inFlightRequestsLimit)
-            .build();
-
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(limitSettings));
+        updateClusterSettings(
+            Settings.builder()
+                .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), inFlightRequestsLimit)
+        );
 
         // can either fail directly with an exception or the response contains exceptions (depending on client)
         try {
@@ -401,6 +404,37 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             }
         } catch (CircuitBreakingException ex) {
             assertEquals(ex.getByteLimit(), inFlightRequestsLimit.getBytes());
+        }
+    }
+
+    // Test the default value of TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING should
+    // change with the update of USE_REAL_MEMORY_USAGE_SETTING
+    // but should stay the same if it is overridden
+    public void testDynamicUseRealMemory() {
+        final Client client = client();
+        // use_real_memory is set to false for internalTestCluster
+        checkLimitSize(client, 0.7);
+        String useRealMemoryUsageSetting = HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey();
+        String totalCircuitBreakerLimitSettingKey = HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey();
+
+        updateClusterSettings(Settings.builder().put(useRealMemoryUsageSetting, true));
+        checkLimitSize(client, 0.95);
+
+        updateClusterSettings(Settings.builder().put(totalCircuitBreakerLimitSettingKey, "80%").put(useRealMemoryUsageSetting, true));
+        checkLimitSize(client, 0.8);
+
+        updateClusterSettings(Settings.builder().put(useRealMemoryUsageSetting, false));
+        checkLimitSize(client, 0.8);
+
+        updateClusterSettings(Settings.builder().putNull(totalCircuitBreakerLimitSettingKey).putNull(useRealMemoryUsageSetting));
+    }
+
+    private void checkLimitSize(Client client, double limitRatio) {
+        NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).setJvm(true).get();
+        for (NodeStats node : stats.getNodes()) {
+            long heapSize = node.getJvm().getMem().getHeapCommitted().getBytes();
+            long limitSize = node.getBreaker().getStats(CircuitBreaker.PARENT).getLimit();
+            assertEquals((long) (heapSize * limitRatio), limitSize);
         }
     }
 }

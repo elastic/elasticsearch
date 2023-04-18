@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -115,9 +114,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
             IndexMetadata existingIndex = IndexMetadata.builder("test_index").settings(existingSettings).build();
             MetaStateWriterUtils.writeIndex(env, "test_write", existingIndex);
 
-            final ImmutableOpenMap<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-                .fPut(dangledIndex.getIndex().getName(), existingIndex)
-                .build();
+            Map<String, IndexMetadata> indices = Map.of(dangledIndex.getIndex().getName(), existingIndex);
             final Metadata metadata = Metadata.builder().indices(indices).build();
 
             DanglingIndicesState danglingState = createDanglingIndicesState(metaStateService, metadata);

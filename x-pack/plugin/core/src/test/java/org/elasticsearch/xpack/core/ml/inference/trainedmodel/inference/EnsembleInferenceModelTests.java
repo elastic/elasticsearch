@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -31,12 +32,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceModelTestUtils.deserializeFromTrainedModel;
 import static org.hamcrest.Matchers.closeTo;
@@ -47,7 +46,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class EnsembleInferenceModelTests extends ESTestCase {
 
     private static final int NUMBER_OF_TEST_RUNS = 20;
-    private final double eps = 1.0E-8;
 
     public static EnsembleInferenceModel serializeFromTrainedModel(Ensemble ensemble) throws IOException {
         NamedXContentRegistry registry = new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
@@ -67,21 +65,13 @@ public class EnsembleInferenceModelTests extends ESTestCase {
     public void testSerializationFromEnsemble() throws Exception {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; ++i) {
             int numberOfFeatures = randomIntBetween(1, 10);
-            Ensemble ensemble = EnsembleTests.createRandom(
-                randomFrom(TargetType.values()),
-                randomBoolean()
-                    ? Collections.emptyList()
-                    : Stream.generate(() -> randomAlphaOfLength(10)).limit(numberOfFeatures).collect(Collectors.toList())
-            );
+            Ensemble ensemble = EnsembleTests.createRandom(randomFrom(TargetType.values()), randomBoolean() ? 0 : numberOfFeatures);
             assertThat(serializeFromTrainedModel(ensemble), is(not(nullValue())));
         }
     }
 
     public void testInferenceWithoutPreparing() throws IOException {
-        Ensemble ensemble = EnsembleTests.createRandom(
-            TargetType.REGRESSION,
-            Stream.generate(() -> randomAlphaOfLength(10)).limit(4).collect(Collectors.toList())
-        );
+        Ensemble ensemble = EnsembleTests.createRandom(TargetType.REGRESSION, 4);
 
         EnsembleInferenceModel model = deserializeFromTrainedModel(ensemble, xContentRegistry(), EnsembleInferenceModel::fromXContent);
         expectThrows(ElasticsearchException.class, () -> model.infer(Collections.emptyMap(), RegressionConfig.EMPTY_PARAMS, null));
@@ -162,12 +152,9 @@ public class EnsembleInferenceModelTests extends ESTestCase {
         }
 
         // This should handle missing values and take the default_left path
-        featureMap = new HashMap<>(2) {
-            {
-                put("foo", 0.3);
-                put("bar", null);
-            }
-        };
+        featureMap = Maps.newMapWithExpectedSize(2);
+        featureMap.put("foo", 0.3);
+        featureMap.put("bar", null);
         expected = Arrays.asList(0.6899744811, 0.3100255188);
         scores = Arrays.asList(0.482982136, 0.0930076556);
         probabilities = ((ClassificationInferenceResults) ensemble.infer(featureMap, new ClassificationConfig(2), Collections.emptyMap()))
@@ -247,12 +234,9 @@ public class EnsembleInferenceModelTests extends ESTestCase {
             )
         );
 
-        featureMap = new HashMap<>(2) {
-            {
-                put("foo", 0.3);
-                put("bar", null);
-            }
-        };
+        featureMap = Maps.newMapWithExpectedSize(2);
+        featureMap.put("foo", 0.3);
+        featureMap.put("bar", null);
         assertThat(
             0.0,
             closeTo(
@@ -331,12 +315,9 @@ public class EnsembleInferenceModelTests extends ESTestCase {
             )
         );
 
-        featureMap = new HashMap<>(2) {
-            {
-                put("foo", 0.6);
-                put("bar", null);
-            }
-        };
+        featureMap = Maps.newMapWithExpectedSize(2);
+        featureMap.put("foo", 0.6);
+        featureMap.put("bar", null);
         assertThat(
             1.0,
             closeTo(
@@ -425,12 +406,9 @@ public class EnsembleInferenceModelTests extends ESTestCase {
             )
         );
 
-        featureMap = new HashMap<>(2) {
-            {
-                put("foo", 0.3);
-                put("bar", null);
-            }
-        };
+        featureMap = Maps.newMapWithExpectedSize(2);
+        featureMap.put("foo", 0.3);
+        featureMap.put("bar", null);
         assertThat(
             1.8,
             closeTo(
@@ -518,6 +496,7 @@ public class EnsembleInferenceModelTests extends ESTestCase {
         ensemble.rewriteFeatureIndices(Collections.emptyMap());
 
         double[][] featureImportance = ensemble.featureImportance(new double[] { 0.0, 0.9 });
+        final double eps = 1.0E-8;
         assertThat(featureImportance[0][0], closeTo(-1.653200025, eps));
         assertThat(featureImportance[1][0], closeTo(-0.12444978, eps));
 

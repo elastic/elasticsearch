@@ -1,6 +1,4 @@
 #!/bin/bash
 
-ES_MAIN_CLASS=org.elasticsearch.geoip.GeoIpCli \
-  ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/geoip-cli \
-  "`dirname "$0"`"/elasticsearch-cli \
-  "$@"
+CLI_LIBS=lib/tools/geoip-cli
+source "`dirname "$0"`"/elasticsearch-cli

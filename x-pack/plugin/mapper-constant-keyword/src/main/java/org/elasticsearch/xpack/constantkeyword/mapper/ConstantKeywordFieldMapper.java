@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -17,12 +19,15 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
@@ -33,22 +38,22 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.constantkeyword.ConstantKeywordDocValuesField;
 import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
-import org.elasticsearch.xpack.core.termsenum.action.TermCount;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -75,7 +80,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 throw new MapperParsingException("Property [value] on field [" + n + "] must be a number or a string, but got [" + o + "]");
             }
             return o.toString();
-        }, m -> toType(m).fieldType().value);
+        }, m -> toType(m).fieldType().value, XContentBuilder::field, Objects::toString);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -85,8 +90,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(value, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { value, meta };
         }
 
         @Override
@@ -129,8 +134,13 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new ConstantIndexFieldData.Builder(value, name(), CoreValuesSourceType.KEYWORD);
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            return new ConstantIndexFieldData.Builder(
+                value,
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new ConstantKeywordDocValuesField(FieldData.toString(dv), n)
+            );
         }
 
         @Override
@@ -139,26 +149,36 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return value == null ? (lookup, ignoredValues) -> List.of() : (lookup, ignoredValues) -> List.of(value);
+            return value == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(value);
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-            throws IOException {
-            boolean matches = caseInsensitive
-                ? value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT))
-                : value.startsWith(string);
-            if (matches == false) {
+        public Object valueForDisplay(Object value) {
+            if (value == null) {
                 return null;
+            }
+            BytesRef binaryValue = (BytesRef) value;
+            return binaryValue.utf8ToString();
+        }
+
+        @Override
+        public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) {
+            if (value == null) {
+                return TermsEnum.EMPTY;
+            }
+            boolean matches = caseInsensitive
+                ? value.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT))
+                : value.startsWith(prefix);
+            if (matches == false) {
+                return TermsEnum.EMPTY;
             }
             if (searchAfter != null) {
                 if (searchAfter.compareTo(value) >= 0) {
                     // The constant value is before the searchAfter value so must be ignored
-                    return null;
+                    return TermsEnum.EMPTY;
                 }
             }
-            int docCount = queryShardContext.searcher().getIndexReader().maxDoc();
-            return new SimpleTermCountEnum(new TermCount(value, docCount));
+            return new SimpleTermCountEnum(value);
         }
 
         @Override
@@ -201,18 +221,19 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query fuzzyQuery(
-            Object value,
+            Object term,
             Fuzziness fuzziness,
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }
 
-            final String termAsString = BytesRefs.toString(value);
+            final String termAsString = BytesRefs.toString(term);
             final int maxEdits = fuzziness.asDistance(termAsString);
 
             final int[] termText = new int[termAsString.codePointCount(0, termAsString.length())];
@@ -237,7 +258,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query regexpQuery(
-            String value,
+            String regexp,
             int syntaxFlags,
             int matchFlags,
             int maxDeterminizedStates,
@@ -248,7 +269,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 return new MatchNoDocsQuery();
             }
 
-            final Automaton automaton = new RegExp(value, syntaxFlags, matchFlags).toAutomaton(maxDeterminizedStates);
+            final Automaton automaton = new RegExp(regexp, syntaxFlags, matchFlags).toAutomaton(maxDeterminizedStates);
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {
                 return new MatchAllDocsQuery();
@@ -299,4 +320,35 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        String value = fieldType().value();
+        ;
+        if (value == null) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+        return new SourceLoader.SyntheticFieldLoader() {
+            @Override
+            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+                return Stream.of();
+            }
+
+            @Override
+            public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) {
+                return docId -> true;
+            }
+
+            @Override
+            public boolean hasValue() {
+                return true;
+            }
+
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+                if (fieldType().value != null) {
+                    b.field(simpleName(), fieldType().value);
+                }
+            }
+        };
+    }
 }

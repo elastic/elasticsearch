@@ -8,12 +8,13 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -35,6 +36,10 @@ public class SystemIndexMigrationTaskParams implements PersistentTaskParams {
     );
     static {
         // PARSER.declareString etc...
+    }
+
+    public static SystemIndexMigrationTaskParams fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     public SystemIndexMigrationTaskParams() {
@@ -63,7 +68,7 @@ public class SystemIndexMigrationTaskParams implements PersistentTaskParams {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public TransportVersion getMinimalSupportedVersion() {
         return MIGRATION_ADDED_VERSION;
     }
 

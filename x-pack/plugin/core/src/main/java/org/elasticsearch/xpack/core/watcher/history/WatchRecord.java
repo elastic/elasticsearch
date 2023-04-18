@@ -285,8 +285,7 @@ public abstract class WatchRecord implements ToXContentObject {
 
         public MessageWatchRecord(WatchRecord record, ExecutionState state, String message) {
             super(record, state);
-            if (record instanceof MessageWatchRecord) {
-                MessageWatchRecord messageWatchRecord = (MessageWatchRecord) record;
+            if (record instanceof MessageWatchRecord messageWatchRecord) {
                 if (messageWatchRecord.messages.length == 0) {
                     this.messages = new String[] { message };
                 } else {
@@ -344,8 +343,7 @@ public abstract class WatchRecord implements ToXContentObject {
         @Override
         void innerToXContent(XContentBuilder builder, Params params) throws IOException {
             if (exception != null) {
-                if (exception instanceof ElasticsearchException) {
-                    ElasticsearchException elasticsearchException = (ElasticsearchException) exception;
+                if (exception instanceof ElasticsearchException elasticsearchException) {
                     builder.startObject(EXCEPTION.getPreferredName());
                     Params delegatingParams = new DelegatingMapParams(STACK_TRACE_ENABLED_PARAMS, params);
                     elasticsearchException.toXContent(builder, delegatingParams);

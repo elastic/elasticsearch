@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -69,7 +68,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             String fieldName = randomValueOtherThanMany(
                 choice -> choice.equals(GEO_POINT_FIELD_NAME)
                     || choice.equals(GEO_POINT_ALIAS_FIELD_NAME)
-                    || choice.equals(GEO_SHAPE_FIELD_NAME)
                     || choice.equals(INT_RANGE_FIELD_NAME)
                     || choice.equals(DATE_RANGE_FIELD_NAME)
                     || choice.equals(DATE_NANOS_FIELD_NAME), // TODO: needs testing for date_nanos type
@@ -131,7 +129,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             if (context.getFieldType(fieldName) != null) {
                 expected = new TermInSetQuery(
                     fieldName,
-                    terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList())
+                    terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).toList()
                 );
             } else {
                 expected = new MatchNoDocsQuery();
@@ -170,20 +168,21 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     public void testBothValuesAndLookupSet() throws IOException {
-        String query = "{\n"
-            + "  \"terms\": {\n"
-            + "    \"field\": [\n"
-            + "      \"blue\",\n"
-            + "      \"pill\"\n"
-            + "    ],\n"
-            + "    \"field_lookup\": {\n"
-            + "      \"index\": \"pills\",\n"
-            + "      \"type\": \"red\",\n"
-            + "      \"id\": \"3\",\n"
-            + "      \"path\": \"white rabbit\"\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String query = """
+            {
+              "terms": {
+                "field": [
+                  "blue",
+                  "pill"
+                ],
+                "field_lookup": {
+                  "index": "pills",
+                  "type": "red",
+                  "id": "3",
+                  "path": "white rabbit"
+                }
+              }
+            }""";
 
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
         assertThat(e.getMessage(), containsString("[" + TermsQueryBuilder.NAME + "] query does not support more than one field."));
@@ -240,12 +239,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"terms\" : {\n"
-            + "    \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "terms" : {
+                "user" : [ "kimchy", "elasticsearch" ],
+                "boost" : 1.0
+              }
+            }""";
 
         TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
@@ -262,7 +262,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertEquals("query must be rewritten first", e.getMessage());
 
         // terms lookup removes null values
-        List<Object> nonNullTerms = randomTerms.stream().filter(x -> x != null).collect(Collectors.toList());
+        List<Object> nonNullTerms = randomTerms.stream().filter(x -> x != null).toList();
         QueryBuilder expected;
         if (nonNullTerms.isEmpty()) {
             expected = new MatchNoneQueryBuilder();
@@ -277,7 +277,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         SearchExecutionContext context = createSearchExecutionContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
         assertEquals(
-            "Geometry fields do not support exact searching, use dedicated geometry queries instead: " + "[mapped_geo_point]",
+            "Geometry fields do not support exact searching, use dedicated geometry queries instead: [mapped_geo_point]",
             e.getMessage()
         );
     }

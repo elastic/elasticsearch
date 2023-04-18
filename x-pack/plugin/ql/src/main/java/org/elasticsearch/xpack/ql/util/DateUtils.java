@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ql.util;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 
 import java.sql.Timestamp;
@@ -58,6 +59,8 @@ public class DateUtils {
         .appendOffsetId()
         .toFormatter(Locale.ROOT);
 
+    public static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time").withZone(UTC);
+
     public static final int SECONDS_PER_MINUTE = 60;
     public static final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60;
     public static final int SECONDS_PER_DAY = SECONDS_PER_HOUR * 24;
@@ -82,17 +85,15 @@ public class DateUtils {
         if (value instanceof OffsetTime) {
             return ((OffsetTime) value).format(ISO_TIME_WITH_NANOS);
         }
-        if (value instanceof Timestamp) {
-            Timestamp ts = (Timestamp) value;
+        if (value instanceof Timestamp ts) {
             return ts.toInstant().toString();
         }
 
         // handle intervals
         // YEAR/MONTH/YEAR TO MONTH -> YEAR TO MONTH
-        if (value instanceof Period) {
+        if (value instanceof Period p) {
             // +yyy-mm - 7 chars
             StringBuilder sb = new StringBuilder(7);
-            Period p = (Period) value;
             if (p.isNegative()) {
                 sb.append("-");
                 p = p.negated();
@@ -106,10 +107,9 @@ public class DateUtils {
         }
 
         // DAY/HOUR/MINUTE/SECOND (and variations) -> DAY_TO_SECOND
-        if (value instanceof Duration) {
+        if (value instanceof Duration d) {
             // +ddd hh:mm:ss.mmmmmmmmm - 23 chars
             StringBuilder sb = new StringBuilder(23);
-            Duration d = (Duration) value;
             if (d.isNegative()) {
                 sb.append("-");
                 d = d.negated();

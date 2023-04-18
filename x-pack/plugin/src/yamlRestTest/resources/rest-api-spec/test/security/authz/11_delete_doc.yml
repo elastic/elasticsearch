@@ -140,14 +140,14 @@ teardown:
       delete:
         refresh: true
         index: only_delete
-        id: 3
+        id: "3"
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       delete:
         refresh: true
         index: everything
-        id: 8
+        id: "8"
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
@@ -172,10 +172,10 @@ teardown:
         body: # The rest test won't send streaming content unless it has multiple bodies, so we send the same delete twice
           - delete:
               _index: everything
-              _id: 10
+              _id: "10"
           - delete:
               _index: everything
-              _id: 10
+              _id: "10"
 
   - do: # superuser
       search:
@@ -199,7 +199,7 @@ teardown:
       delete:
         refresh: true
         index: only_read
-        id: 1
+        id: "1"
 
   - do:
       catch: forbidden
@@ -207,7 +207,7 @@ teardown:
       delete:
         refresh: true
         index: only_index
-        id: 2
+        id: "2"
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user

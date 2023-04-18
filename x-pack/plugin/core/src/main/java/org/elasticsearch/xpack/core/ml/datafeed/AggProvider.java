@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -76,11 +76,11 @@ class AggProvider implements Writeable, ToXContentObject {
             if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(currentInterval.toString()) != null) {
                 aggs.put("calendar_interval", currentInterval.toString());
                 didRewrite = true;
-            } else if (currentInterval instanceof Number) {
-                aggs.put("fixed_interval", ((Number) currentInterval).longValue() + "ms");
+            } else if (currentInterval instanceof Number number) {
+                aggs.put("fixed_interval", number.longValue() + "ms");
                 didRewrite = true;
-            } else if (currentInterval instanceof String) {
-                aggs.put("fixed_interval", currentInterval.toString());
+            } else if (currentInterval instanceof String str) {
+                aggs.put("fixed_interval", str);
                 didRewrite = true;
             } else {
                 throw ExceptionsHelper.badRequestException(
@@ -117,7 +117,7 @@ class AggProvider implements Writeable, ToXContentObject {
             in.readMap(),
             in.readOptionalWriteable(AggregatorFactories.Builder::new),
             in.readException(),
-            in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false
+            in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0) ? in.readBoolean() : false
         );
     }
 
@@ -137,10 +137,10 @@ class AggProvider implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(aggs);
+        out.writeGenericMap(aggs);
         out.writeOptionalWriteable(parsedAggs);
         out.writeException(parsingException);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeBoolean(rewroteAggs);
         }
     }

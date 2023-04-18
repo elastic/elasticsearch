@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[slm-api-start]]
 === Start {slm} API
 

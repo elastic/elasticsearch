@@ -12,10 +12,11 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -31,7 +32,6 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -49,6 +49,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -95,7 +96,6 @@ import org.elasticsearch.xpack.ccr.rest.RestResumeFollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowAction;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -171,6 +171,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     public Collection<Object> createComponents(
         final Client client,
         final ClusterService clusterService,
@@ -182,7 +183,9 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry namedWriteableRegistry,
         final IndexNameExpressionResolver expressionResolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier
+        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationService allocationService
     ) {
         this.client = client;
         if (enabled == false) {
@@ -211,6 +214,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -271,7 +275,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     }
 
     public List<RestHandler> getRestHandlers(
-        Settings settings,
+        Settings unused,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -367,6 +371,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         }
     }
 
+    @SuppressWarnings("HiddenField")
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         if (enabled == false) {
             return Collections.emptyList();
@@ -387,7 +392,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(
             metadata,
             client,
-            ccrLicenseChecker,
             settings,
             ccrSettings.get(),
             clusterService.getClusterApplierService().threadPool()
@@ -402,10 +406,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         }
     }
 
-    protected XPackLicenseState getLicenseState() {
-        return XPackPlugin.getSharedLicenseState();
-    }
-
     @Override
     public Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {
         return Collections.singletonList(CcrRequests.CCR_PUT_MAPPING_REQUEST_VALIDATOR);
@@ -417,7 +417,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     }
 
     @Override
-    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+    public Collection<AllocationDecider> createAllocationDeciders(Settings unused, ClusterSettings clusterSettings) {
         return List.of(new CcrPrimaryFollowerAllocationDecider());
     }
 }

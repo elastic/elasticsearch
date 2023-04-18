@@ -21,7 +21,7 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
@@ -36,14 +36,11 @@ import java.util.Set;
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
-        switch (s) {
-            case "native":
-                return NativeFSLockFactory.INSTANCE;
-            case "simple":
-                return SimpleFSLockFactory.INSTANCE;
-            default:
-                throw new IllegalArgumentException("unrecognized [index.store.fs.fs_lock] \"" + s + "\": must be native or simple");
-        } // can we set on both - node and index level, some nodes might be running on NFS so they might need simple rather than native
+        return switch (s) {
+            case "native" -> NativeFSLockFactory.INSTANCE;
+            case "simple" -> SimpleFSLockFactory.INSTANCE;
+            default -> throw new IllegalArgumentException("unrecognized [index.store.fs.fs_lock] \"" + s + "\": must be native or simple");
+        }; // can we set on both - node and index level, some nodes might be running on NFS so they might need simple rather than native
     }, Property.IndexScope, Property.NodeScope);
 
     @Override
@@ -68,8 +65,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             case HYBRIDFS:
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
-                if (primaryDirectory instanceof MMapDirectory) {
-                    MMapDirectory mMapDirectory = (MMapDirectory) primaryDirectory;
+                if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
                     return new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions));
                 } else {
                     return primaryDirectory;
@@ -134,14 +130,24 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             IOUtils.close(super::close, delegate);
         }
 
-        boolean useDelegate(String name, IOContext ioContext) {
+        private static String getExtension(String name) {
+            // Unlike FileSwitchDirectory#getExtension, we treat `tmp` as a normal file extension, which can have its own rules for mmaping.
+            final int lastDotIndex = name.lastIndexOf('.');
+            if (lastDotIndex == -1) {
+                return "";
+            } else {
+                return name.substring(lastDotIndex + 1);
+            }
+        }
+
+        static boolean useDelegate(String name, IOContext ioContext) {
             if (ioContext == Store.READONCE_CHECKSUM) {
                 // If we're just reading the footer for the checksum then mmap() isn't really necessary, and it's desperately inefficient
                 // if pre-loading is enabled on this file.
                 return false;
             }
 
-            final LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(FileSwitchDirectory.getExtension(name));
+            final LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(getExtension(name));
             if (extension == null || extension.shouldMmap() == false) {
                 // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
                 // or are large and have a random access pattern and mmap leads to page cache trashing

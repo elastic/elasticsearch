@@ -82,8 +82,8 @@ public class ExtractedFieldsDetector {
         this.topNestedFieldPrefixes = findTopNestedFieldPrefixes(fieldCapabilitiesResponse);
     }
 
-    private List<String> findTopNestedFieldPrefixes(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
-        List<String> sortedNestedFieldPrefixes = fieldCapabilitiesResponse.get()
+    private List<String> findTopNestedFieldPrefixes(FieldCapabilitiesResponse response) {
+        List<String> sortedNestedFieldPrefixes = response.get()
             .keySet()
             .stream()
             .filter(field -> isNested(getMappingTypes(field)))
@@ -327,22 +327,34 @@ public class ExtractedFieldsDetector {
         try {
             // If the inclusion set does not match anything, that means the user's desired fields cannot be found in
             // the collection of supported field types. We should let the user know.
-            Set<String> includedSet = NameResolver.newUnaliased(
+            Set<String> includedSet = expandFields(
+                analyzedFields.includes().length == 0 ? new String[] { "*" } : analyzedFields.includes(),
                 fields,
-                (ex) -> new ResourceNotFoundException(Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, ex))
-            ).expand(includes, false);
+                false
+            );
+
             // If the exclusion set does not match anything, that means the fields are already not present
             // no need to raise if nothing matched
-            Set<String> excludedSet = NameResolver.newUnaliased(
-                fieldCapabilitiesResponse.get().keySet(),
-                (ex) -> new ResourceNotFoundException(Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, ex))
-            ).expand(excludes, true);
+            Set<String> excludedSet = expandFields(analyzedFields.excludes(), fieldCapabilitiesResponse.get().keySet(), true);
 
             applyIncludesExcludes(fields, includedSet, excludedSet, fieldSelection);
         } catch (ResourceNotFoundException ex) {
             // Re-wrap our exception so that we throw the same exception type when there are no fields.
             throw ExceptionsHelper.badRequestException(ex.getMessage());
         }
+    }
+
+    private Set<String> expandFields(String[] fields, Set<String> nameset, boolean allowNoMatch) {
+        NameResolver nameResolver = NameResolver.newUnaliased(
+            nameset,
+            (ex) -> new ResourceNotFoundException(Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, ex))
+        );
+
+        Set<String> expanded = new HashSet<>();
+        for (String field : fields) {
+            expanded.addAll(nameResolver.expand(field, allowNoMatch));
+        }
+        return expanded;
     }
 
     private void checkIncludesExcludesAreNotObjects(FetchSourceContext analyzedFields) {
@@ -439,10 +451,11 @@ public class ExtractedFieldsDetector {
     }
 
     private List<PreProcessor> extractFeatureProcessors() {
-        if (config.getAnalysis() instanceof Classification) {
-            return ((Classification) config.getAnalysis()).getFeatureProcessors();
-        } else if (config.getAnalysis() instanceof Regression) {
-            return ((Regression) config.getAnalysis()).getFeatureProcessors();
+        final DataFrameAnalysis analysis = config.getAnalysis();
+        if (analysis instanceof Classification classification) {
+            return classification.getFeatureProcessors();
+        } else if (analysis instanceof Regression regression) {
+            return regression.getFeatureProcessors();
         }
         return Collections.emptyList();
     }

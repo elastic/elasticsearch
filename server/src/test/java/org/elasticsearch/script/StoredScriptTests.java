@@ -13,7 +13,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,7 +28,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptSource> {
+public class StoredScriptTests extends AbstractXContentSerializingTestCase<StoredScriptSource> {
 
     public void testBasicAddDelete() {
         StoredScriptSource source = new StoredScriptSource("lang", "code", emptyMap());
@@ -240,18 +240,13 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
         Map<String, String> options = instance.getOptions();
 
         switch (between(0, 2)) {
-            case 0:
-                source = randomAlphaOfLength(randomIntBetween(4, 16383));
-                break;
-            case 1:
-                lang = randomAlphaOfLengthBetween(1, 20);
-                break;
-            case 2:
+            case 0 -> source = randomAlphaOfLength(randomIntBetween(4, 16383));
+            case 1 -> lang = randomAlphaOfLengthBetween(1, 20);
+            case 2 -> {
                 options = new HashMap<>(options);
                 options.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new StoredScriptSource(lang, source, options);
     }

@@ -13,21 +13,17 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 /**
  * Utility class to build global ordinals.
@@ -43,7 +39,7 @@ public enum GlobalOrdinalsBuilder {
         IndexOrdinalsFieldData indexFieldData,
         CircuitBreakerService breakerService,
         Logger logger,
-        Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) throws IOException {
         assert indexReader.leaves().size() > 1;
         long startTimeNS = System.nanoTime();
@@ -72,17 +68,21 @@ public enum GlobalOrdinalsBuilder {
             atomicFD,
             ordinalMap,
             memorySizeInBytes,
-            scriptFunction
+            toScriptFieldFactory
         );
     }
 
-    public static IndexOrdinalsFieldData buildEmpty(IndexReader indexReader, IndexOrdinalsFieldData indexFieldData) throws IOException {
+    public static IndexOrdinalsFieldData buildEmpty(
+        IndexReader indexReader,
+        IndexOrdinalsFieldData indexFieldData,
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
+    ) throws IOException {
         assert indexReader.leaves().size() > 1;
 
         final LeafOrdinalsFieldData[] atomicFD = new LeafOrdinalsFieldData[indexReader.leaves().size()];
         final SortedSetDocValues[] subs = new SortedSetDocValues[indexReader.leaves().size()];
         for (int i = 0; i < indexReader.leaves().size(); ++i) {
-            atomicFD[i] = new AbstractLeafOrdinalsFieldData(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION) {
+            atomicFD[i] = new AbstractLeafOrdinalsFieldData(toScriptFieldFactory) {
                 @Override
                 public SortedSetDocValues getOrdinalsValues() {
                     return DocValues.emptySortedSet();
@@ -91,11 +91,6 @@ public enum GlobalOrdinalsBuilder {
                 @Override
                 public long ramBytesUsed() {
                     return 0;
-                }
-
-                @Override
-                public Collection<Accountable> getChildResources() {
-                    return Collections.emptyList();
                 }
 
                 @Override
@@ -110,7 +105,7 @@ public enum GlobalOrdinalsBuilder {
             atomicFD,
             ordinalMap,
             0,
-            AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+            toScriptFieldFactory
         );
     }
 

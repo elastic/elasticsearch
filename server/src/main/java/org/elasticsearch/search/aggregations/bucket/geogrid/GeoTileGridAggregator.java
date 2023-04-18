@@ -18,6 +18,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 /**
  * Aggregates data expressed as geotile longs (for efficiency's sake) but formats results as geotile strings.
@@ -27,7 +29,7 @@ public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid
     public GeoTileGridAggregator(
         String name,
         AggregatorFactories factories,
-        ValuesSource.Numeric valuesSource,
+        Function<LongConsumer, ValuesSource.Numeric> valuesSource,
         int requiredSize,
         int shardSize,
         AggregationContext context,
@@ -39,7 +41,12 @@ public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid
     }
 
     @Override
-    InternalGeoTileGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata) {
+    protected InternalGeoTileGrid buildAggregation(
+        String name,
+        int requiredSize,
+        List<InternalGeoGridBucket> buckets,
+        Map<String, Object> metadata
+    ) {
         return new InternalGeoTileGrid(name, requiredSize, buckets, metadata);
     }
 
@@ -48,7 +55,7 @@ public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid
         return new InternalGeoTileGrid(name, requiredSize, Collections.emptyList(), metadata());
     }
 
-    InternalGeoGridBucket newEmptyBucket() {
+    protected InternalGeoGridBucket newEmptyBucket() {
         return new InternalGeoTileGridBucket(0, 0, null);
     }
 }

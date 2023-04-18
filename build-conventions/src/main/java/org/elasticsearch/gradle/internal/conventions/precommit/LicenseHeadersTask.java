@@ -23,8 +23,11 @@ import org.apache.rat.report.xml.writer.impl.base.XmlWriter;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
@@ -54,55 +57,15 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import java.io.Serializable;
 
+import javax.inject.Inject;
+
 /**
  * Checks files for license headers..
  */
 @CacheableTask
 public abstract class LicenseHeadersTask extends DefaultTask {
-    public LicenseHeadersTask() {
-        setDescription("Checks sources for missing, incorrect, or unacceptable license headers");
-    }
 
-    /**
-     * The list of java files to check. protected so the afterEvaluate closure in the
-     * constructor can write to it.
-     */
-    @InputFiles
-    @SkipWhenEmpty
-    @PathSensitive(PathSensitivity.RELATIVE)
-    public List<FileCollection> getJavaFiles() {
-        return getSourceFolders().get();
-    }
-
-    @Internal
-    public abstract ListProperty<FileCollection> getSourceFolders();
-
-    public File getReportFile() {
-        return reportFile;
-    }
-
-    public void setReportFile(File reportFile) {
-        this.reportFile = reportFile;
-    }
-
-    public List<String> getApprovedLicenses() {
-        return approvedLicenses;
-    }
-
-    public void setApprovedLicenses(List<String> approvedLicenses) {
-        this.approvedLicenses = approvedLicenses;
-    }
-
-    public List<String> getExcludes() {
-        return excludes;
-    }
-
-    public void setExcludes(List<String> excludes) {
-        this.excludes = excludes;
-    }
-
-    @OutputFile
-    private File reportFile = new File(getProject().getBuildDir(), "reports/licenseHeaders/rat.xml");
+    private final RegularFileProperty reportFile;
 
     private static List<License> conventionalLicenses = Arrays.asList(
             // Dual SSPLv1 and Elastic
@@ -123,6 +86,51 @@ public abstract class LicenseHeadersTask extends DefaultTask {
     private List<String> excludes = new ArrayList<String>();
 
     private ListProperty<License> additionalLicenses;
+
+    @Inject
+    public LicenseHeadersTask(ObjectFactory objectFactory, ProjectLayout projectLayout) {
+        additionalLicenses = objectFactory.listProperty(License.class).convention(conventionalLicenses);
+        reportFile = objectFactory.fileProperty().convention(
+            projectLayout.getBuildDirectory().file("reports/licenseHeaders/rat.xml")
+        );
+        setDescription("Checks sources for missing, incorrect, or unacceptable license headers");
+    }
+
+    /**
+     * The list of java files to check. protected so the afterEvaluate closure in the
+     * constructor can write to it.
+     */
+    @InputFiles
+    @IgnoreEmptyDirectories
+    @SkipWhenEmpty
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public List<FileCollection> getJavaFiles() {
+        return getSourceFolders().get();
+    }
+
+    @Internal
+    public abstract ListProperty<FileCollection> getSourceFolders();
+
+    @OutputFile
+    public RegularFileProperty getReportFile() {
+        return reportFile;
+    }
+
+    public List<String> getApprovedLicenses() {
+        return approvedLicenses;
+    }
+
+    public void setApprovedLicenses(List<String> approvedLicenses) {
+        this.approvedLicenses = approvedLicenses;
+    }
+
+    public List<String> getExcludes() {
+        return excludes;
+    }
+
+    public void setExcludes(List<String> excludes) {
+        this.excludes = excludes;
+    }
 
     /**
      * Additional license families that may be found. The key is the license category name (5 characters),
@@ -147,11 +155,6 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         }
 
         additionalLicenses.add(new License(categoryName, familyName, pattern));
-    }
-
-    @Inject
-    public LicenseHeadersTask(ObjectFactory objectFactory) {
-        additionalLicenses = objectFactory.listProperty(License.class).convention(conventionalLicenses);
     }
 
     @TaskAction
@@ -184,13 +187,15 @@ public abstract class LicenseHeadersTask extends DefaultTask {
             return simpleLicenseFamily;
         }).toArray(SimpleLicenseFamily[]::new));
 
-        ClaimStatistic stats = generateReport(reportConfiguration, getReportFile());
+        File repFile = getReportFile().getAsFile().get();
+        ClaimStatistic stats = generateReport(reportConfiguration, repFile);
         boolean unknownLicenses = stats.getNumUnknown() > 0;
         boolean unApprovedLicenses = stats.getNumUnApproved() > 0;
         if (unknownLicenses || unApprovedLicenses) {
             getLogger().error("The following files contain unapproved license headers:");
-            unapprovedFiles(getReportFile()).stream().forEachOrdered(unapprovedFile -> getLogger().error(unapprovedFile));
-            throw new GradleException("Check failed. License header problems were found. Full details: " + reportFile.getAbsolutePath());
+            unapprovedFiles(repFile).stream().forEachOrdered(unapprovedFile -> getLogger().error(unapprovedFile));
+            throw new GradleException("Check failed. License header problems were found. Full details: " +
+                    repFile.getAbsolutePath());
         }
     }
 
@@ -206,7 +211,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
 
     private ClaimStatistic generateReport(ReportConfiguration config, File xmlReportFile) {
         try {
-            Files.deleteIfExists(reportFile.toPath());
+            Files.deleteIfExists(reportFile.get().getAsFile().toPath());
             BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(xmlReportFile));
             return toXmlReportFile(config, bufferedWriter);
         } catch (IOException | RatException exception) {

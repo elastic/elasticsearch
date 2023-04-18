@@ -10,9 +10,10 @@ package org.elasticsearch.cli.keystore;
 
 import joptsimple.OptionSet;
 
-import org.elasticsearch.cli.KeyStoreAwareCommand;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.cli.KeyStoreAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
 
@@ -29,7 +30,7 @@ public class HasPasswordKeyStoreCommand extends KeyStoreAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         final Path configFile = env.configFile();
         final KeyStoreWrapper keyStore = KeyStoreWrapper.load(configFile);
 

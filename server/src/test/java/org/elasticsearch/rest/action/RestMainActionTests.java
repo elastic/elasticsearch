@@ -13,8 +13,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -46,7 +46,7 @@ public class RestMainActionTests extends ESTestCase {
             }
         };
 
-        BytesRestResponse response = RestMainAction.convertMainResponse(mainResponse, restRequest, builder);
+        RestResponse response = RestMainAction.convertMainResponse(mainResponse, restRequest, builder);
         assertNotNull(response);
         assertThat(response.status(), equalTo(RestStatus.OK));
 
@@ -71,7 +71,7 @@ public class RestMainActionTests extends ESTestCase {
         }
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
 
-        BytesRestResponse response = RestMainAction.convertMainResponse(mainResponse, restRequest, builder);
+        RestResponse response = RestMainAction.convertMainResponse(mainResponse, restRequest, builder);
         assertNotNull(response);
         assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(response.content().length(), greaterThan(0));

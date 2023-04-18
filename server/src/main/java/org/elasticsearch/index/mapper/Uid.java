@@ -17,7 +17,6 @@ import java.util.Base64;
 
 public final class Uid {
 
-    public static final char DELIMITER = '#';
     public static final byte DELIMITER_BYTE = 0x23;
 
     private static final int UTF8 = 0xff;
@@ -185,13 +184,10 @@ public final class Uid {
             throw new IllegalArgumentException("Ids can't be empty");
         }
         final int magicChar = Byte.toUnsignedInt(idBytes[offset]);
-        switch (magicChar) {
-            case NUMERIC:
-                return decodeNumericId(idBytes, offset, length);
-            case UTF8:
-                return decodeUtf8Id(idBytes, offset, length);
-            default:
-                return decodeBase64Id(idBytes, offset, length);
-        }
+        return switch (magicChar) {
+            case NUMERIC -> decodeNumericId(idBytes, offset, length);
+            case UTF8 -> decodeUtf8Id(idBytes, offset, length);
+            default -> decodeBase64Id(idBytes, offset, length);
+        };
     }
 }

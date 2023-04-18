@@ -29,11 +29,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
 
     @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        return false;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(TestLegacyGeoShapeFieldMapperPlugin.class);
     }

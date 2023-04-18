@@ -31,6 +31,17 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
     }
 
     @Override
+    protected BoostingQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (randomBoolean()) {
+            return new BoostingQueryBuilder(queryBuilder, queryBuilder).negativeBoost(1f);
+        }
+        if (randomBoolean()) {
+            return new BoostingQueryBuilder(new MatchAllQueryBuilder(), queryBuilder).negativeBoost(1f);
+        }
+        return new BoostingQueryBuilder(queryBuilder, new MatchAllQueryBuilder()).negativeBoost(1f);
+    }
+
+    @Override
     protected void doAssertLuceneQuery(BoostingQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         Query positive = queryBuilder.positiveQuery().rewrite(context).toQuery(context);
         Query negative = queryBuilder.negativeQuery().rewrite(context).toQuery(context);
@@ -53,28 +64,29 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
     }
 
     public void testFromJson() throws IOException {
-        String query = "{\n"
-            + "  \"boosting\" : {\n"
-            + "    \"positive\" : {\n"
-            + "      \"term\" : {\n"
-            + "        \"field1\" : {\n"
-            + "          \"value\" : \"value1\",\n"
-            + "          \"boost\" : 5.0\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"negative\" : {\n"
-            + "      \"term\" : {\n"
-            + "        \"field2\" : {\n"
-            + "          \"value\" : \"value2\",\n"
-            + "          \"boost\" : 8.0\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"negative_boost\" : 23.0,\n"
-            + "    \"boost\" : 42.0\n"
-            + "  }\n"
-            + "}";
+        String query = """
+            {
+              "boosting" : {
+                "positive" : {
+                  "term" : {
+                    "field1" : {
+                      "value" : "value1",
+                      "boost" : 5.0
+                    }
+                  }
+                },
+                "negative" : {
+                  "term" : {
+                    "field2" : {
+                      "value" : "value2",
+                      "boost" : 8.0
+                    }
+                  }
+                },
+                "negative_boost" : 23.0,
+                "boost" : 42.0
+              }
+            }""";
 
         BoostingQueryBuilder queryBuilder = (BoostingQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);

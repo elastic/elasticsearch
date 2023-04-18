@@ -20,12 +20,12 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -61,7 +62,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             ReindexPlugin.class,
             IngestCommonPlugin.class,
             MustachePlugin.class,
-            TestGeoShapeFieldMapperPlugin.class
+            SpatialPlugin.class
         );
     }
 
@@ -97,13 +98,19 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
         String pipelineName = "my-pipeline";
-        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\""
-            + policyName
-            + "\", \"field\": \""
-            + MATCH_FIELD
-            + "\", \"target_field\": \"users\", \"max_matches\": "
-            + maxMatches
-            + "}}]}";
+        String pipelineBody = Strings.format("""
+            {
+              "processors": [
+                {
+                  "enrich": {
+                    "policy_name": "%s",
+                    "field": "%s",
+                    "target_field": "users",
+                    "max_matches": %s
+                  }
+                }
+              ]
+            }""", policyName, MATCH_FIELD, maxMatches);
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
 
@@ -184,11 +191,19 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
         String pipelineName = "my-pipeline";
-        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\""
-            + policyName
-            + "\", \"field\": \""
-            + matchField
-            + "\", \"target_field\": \"enriched\", \"max_matches\": 1 }}]}";
+        String pipelineBody = Strings.format("""
+            {
+              "processors": [
+                {
+                  "enrich": {
+                    "policy_name": "%s",
+                    "field": "%s",
+                    "target_field": "enriched",
+                    "max_matches": 1
+                  }
+                }
+              ]
+            }""", policyName, matchField);
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
 
@@ -236,9 +251,10 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
             String pipelineName = "pipeline" + i;
-            String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\""
-                + policyName
-                + "\", \"field\": \"key\", \"target_field\": \"target\"}}]}";
+            String pipelineBody = Strings.format("""
+                {
+                  "processors": [ { "enrich": { "policy_name": "%s", "field": "key", "target_field": "target" } } ]
+                }""", policyName);
             PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
             client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
         }
@@ -287,15 +303,16 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             GetTaskResponse taskResponse = client().execute(GetTaskAction.INSTANCE, getPolicyTaskRequest).actionGet();
             assertThat(
-                ((ExecuteEnrichPolicyStatus) taskResponse.getTask().getTask().getStatus()).getPhase(),
+                ((ExecuteEnrichPolicyStatus) taskResponse.getTask().getTask().status()).getPhase(),
                 is(ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE)
             );
         });
 
         String pipelineName = "test-pipeline";
-        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\""
-            + policyName
-            + "\", \"field\": \"key\", \"target_field\": \"target\"}}]}";
+        String pipelineBody = Strings.format("""
+            {
+              "processors": [ { "enrich": { "policy_name": "%s", "field": "key", "target_field": "target" } } ]
+            }""", policyName);
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
 
@@ -334,10 +351,11 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
         String pipelineName = "my-pipeline";
-        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\""
-            + policyName
-            + "\", \"field\": \"{{indirection1}}\", \"target_field\": \"{{indirection2}}\""
-            + "}}]}";
+        String pipelineBody = Strings.format(
+            """
+                {"processors": [{"enrich": {"policy_name":"%s", "field": "{{indirection1}}", "target_field": "{{indirection2}}"}}]}""",
+            policyName
+        );
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
 
@@ -354,6 +372,39 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             assertThat(userEntry.get(field), equalTo(keys.get(0) + j));
         }
         assertThat(keys.contains(userEntry.get(MATCH_FIELD)), is(true));
+    }
+
+    public void testFailureAfterEnrich() throws Exception {
+        List<String> keys = createSourceMatchIndex(1, 1);
+        String policyName = "my-policy";
+        EnrichPolicy enrichPolicy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of(SOURCE_INDEX_NAME),
+            MATCH_FIELD,
+            Arrays.asList(DECORATE_FIELDS)
+        );
+        PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
+        client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
+        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
+
+        // A pipeline with a foreach that uses a non existing field that is specified after enrich has run:
+        String pipelineName = "my-pipeline";
+        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\""
+            + policyName
+            + "\", \"field\": \"email\", \"target_field\": \"users\"}},"
+            + "{ \"foreach\": {\"field\":\"users\", \"processor\":{\"append\":{\"field\":\"matched2\",\"value\":\"{{_ingest._value}}\"}}}}"
+            + "]}";
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest(pipelineName, new BytesArray(pipelineBody), XContentType.JSON);
+        client().admin().cluster().putPipeline(putPipelineRequest).actionGet();
+
+        for (int i = 0; i < 5; i++) {
+            IndexRequest indexRequest = new IndexRequest("my-index").id("1")
+                .setPipeline(pipelineName)
+                .source(Map.of(MATCH_FIELD, "non_existing"));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest).actionGet());
+            assertThat(e.getMessage(), equalTo("field [users] not present as part of path [users]"));
+        }
     }
 
     private List<String> createSourceMatchIndex(int numKeys, int numDocsPerKey) {

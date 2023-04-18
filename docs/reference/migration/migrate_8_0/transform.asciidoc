@@ -6,7 +6,7 @@
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-.{transforms-cap} created in 7.4 or earlier versions must be upgraded
+.{transforms-cap} created in 7.4 or earlier versions must be upgraded.
 [%collapsible]
 ====
 *Details* +

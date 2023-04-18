@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.watcher.actions.email;
 import io.netty.handler.codec.http.HttpHeaders;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.WebhookService;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.notification.email.Authentication;
 import org.elasticsearch.xpack.watcher.notification.email.Email;
@@ -61,6 +64,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -91,7 +95,10 @@ public class EmailActionTests extends ESTestCase {
         Map<String, EmailAttachmentParser<? extends EmailAttachmentParser.EmailAttachment>> emailAttachmentParsers = new HashMap<>();
         emailAttachmentParsers.put(
             HttpEmailAttachementParser.TYPE,
-            new HttpEmailAttachementParser(httpClient, new MockTextTemplateEngine())
+            new HttpEmailAttachementParser(
+                new WebhookService(Settings.EMPTY, httpClient, mockClusterService().getClusterSettings()),
+                new MockTextTemplateEngine()
+            )
         );
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
         emailAttachmentParser = new EmailAttachmentsParser(emailAttachmentParsers);
@@ -450,7 +457,7 @@ public class EmailActionTests extends ESTestCase {
         String attachmentId = "my_attachment";
 
         // setup mock response
-        Map<String, String[]> headers = new HashMap<>(1);
+        Map<String, String[]> headers = Maps.newMapWithExpectedSize(1);
         headers.put(HttpHeaders.Names.CONTENT_TYPE, new String[] { "plain/text" });
         String content = "My wonderful text";
         HttpResponse mockResponse = new HttpResponse(200, content, headers);
@@ -539,14 +546,20 @@ public class EmailActionTests extends ESTestCase {
         HttpClient httpClient = mock(HttpClient.class);
 
         // setup mock response, second one is an error
-        Map<String, String[]> headers = new HashMap<>(1);
+        Map<String, String[]> headers = Maps.newMapWithExpectedSize(1);
         headers.put(HttpHeaders.Names.CONTENT_TYPE, new String[] { "plain/text" });
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(new HttpResponse(200, "body", headers))
             .thenReturn(new HttpResponse(403));
 
         // setup email attachment parsers
         Map<String, EmailAttachmentParser<? extends EmailAttachmentParser.EmailAttachment>> attachmentParsers = new HashMap<>();
-        attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, engine));
+        attachmentParsers.put(
+            HttpEmailAttachementParser.TYPE,
+            new HttpEmailAttachementParser(
+                new WebhookService(Settings.EMPTY, httpClient, mockClusterService().getClusterSettings()),
+                engine
+            )
+        );
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
 
         XContentBuilder builder = jsonBuilder().startObject()
@@ -623,7 +636,7 @@ public class EmailActionTests extends ESTestCase {
 
         String attachmentType = randomFrom("http", "data", null);
         if ("http".equals(attachmentType)) {
-            Map<String, String[]> headers = new HashMap<>(1);
+            Map<String, String[]> headers = Maps.newMapWithExpectedSize(1);
             headers.put(HttpHeaders.Names.CONTENT_TYPE, new String[] { "plain/text" });
             String content = "My wonderful text";
             HttpResponse mockResponse = new HttpResponse(200, content, headers);
@@ -665,4 +678,10 @@ public class EmailActionTests extends ESTestCase {
         }
     }
 
+    private ClusterService mockClusterService() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of());
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        return clusterService;
+    }
 }

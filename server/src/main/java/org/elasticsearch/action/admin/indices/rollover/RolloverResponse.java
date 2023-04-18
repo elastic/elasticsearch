@@ -11,12 +11,12 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -48,7 +48,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         oldIndex = in.readString();
         newIndex = in.readString();
         int conditionSize = in.readVInt();
-        conditionStatus = new HashMap<>(conditionSize);
+        conditionStatus = Maps.newMapWithExpectedSize(conditionSize);
         for (int i = 0; i < conditionSize; i++) {
             conditionStatus.put(in.readString(), in.readBoolean());
         }
@@ -120,11 +120,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         super.writeTo(out);
         out.writeString(oldIndex);
         out.writeString(newIndex);
-        out.writeVInt(conditionStatus.size());
-        for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeBoolean(entry.getValue());
-        }
+        out.writeMap(conditionStatus, StreamOutput::writeString, StreamOutput::writeBoolean);
         out.writeBoolean(dryRun);
         out.writeBoolean(rolledOver);
         out.writeBoolean(shardsAcknowledged);

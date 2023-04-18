@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +29,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.core.ml.MlTasks.RESET_IN_PROGRESS;
 
@@ -145,7 +146,7 @@ public class DatafeedNodeSelector {
         }
 
         if (jobState.isAnyOf(JobState.OPENING, JobState.OPENED) == false) {
-            // lets try again later when the job has been opened:
+            // let's try again later when the job has been opened:
             String reason = "cannot start datafeed ["
                 + datafeedId
                 + "], because the job's ["
@@ -168,6 +169,7 @@ public class DatafeedNodeSelector {
 
     @Nullable
     private AssignmentFailure verifyIndicesActive() {
+        boolean hasRemoteIndices = datafeedIndices.stream().anyMatch(RemoteClusterLicenseChecker::isRemoteIndex);
         String[] index = datafeedIndices.stream()
             // We cannot verify remote indices
             .filter(i -> RemoteClusterLicenseChecker.isRemoteIndex(i) == false)
@@ -177,7 +179,9 @@ public class DatafeedNodeSelector {
 
         try {
             concreteIndices = resolver.concreteIndexNames(clusterState, indicesOptions, true, index);
-            if (concreteIndices.length == 0) {
+
+            // If we have remote indices we cannot check those. We should not fail as they may contain data.
+            if (hasRemoteIndices == false && concreteIndices.length == 0) {
                 return new AssignmentFailure(
                     "cannot start datafeed ["
                         + datafeedId
@@ -188,11 +192,11 @@ public class DatafeedNodeSelector {
                 );
             }
         } catch (Exception e) {
-            String msg = new ParameterizedMessage(
-                "failed resolving indices given [{}] and indices_options [{}]",
-                Strings.arrayToCommaDelimitedString(index),
+            String msg = format(
+                "failed resolving indices given [%s] and indices_options [%s]",
+                arrayToCommaDelimitedString(index),
                 indicesOptions
-            ).getFormattedMessage();
+            );
             LOGGER.debug("[" + datafeedId + "] " + msg, e);
             return new AssignmentFailure(
                 "cannot start datafeed [" + datafeedId + "] because it " + msg + " with exception [" + e.getMessage() + "]",

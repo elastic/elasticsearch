@@ -24,10 +24,18 @@ public class TTestStatsBuilder implements Releasable {
 
     TTestStatsBuilder(BigArrays bigArrays) {
         counts = bigArrays.newLongArray(1, true);
-        sums = bigArrays.newDoubleArray(1, true);
-        compensations = bigArrays.newDoubleArray(1, true);
-        sumOfSqrs = bigArrays.newDoubleArray(1, true);
-        sumOfSqrCompensations = bigArrays.newDoubleArray(1, true);
+        boolean success = false;
+        try {
+            sums = bigArrays.newDoubleArray(1, true);
+            compensations = bigArrays.newDoubleArray(1, true);
+            sumOfSqrs = bigArrays.newDoubleArray(1, true);
+            sumOfSqrCompensations = bigArrays.newDoubleArray(1, true);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     public TTestStats get(long bucket) {

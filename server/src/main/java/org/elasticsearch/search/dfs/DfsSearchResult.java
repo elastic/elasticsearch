@@ -8,23 +8,23 @@
 
 package org.elasticsearch.search.dfs;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.HppcMaps;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class DfsSearchResult extends SearchPhaseResult {
 
@@ -32,8 +32,10 @@ public class DfsSearchResult extends SearchPhaseResult {
     private static final TermStatistics[] EMPTY_TERM_STATS = new TermStatistics[0];
     private Term[] terms;
     private TermStatistics[] termStatistics;
-    private ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
+    private Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
+    private List<DfsKnnResults> knnResults;
     private int maxDoc;
+    private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
     public DfsSearchResult(StreamInput in) throws IOException {
         super(in);
@@ -51,8 +53,19 @@ public class DfsSearchResult extends SearchPhaseResult {
         fieldStatistics = readFieldStats(in);
 
         maxDoc = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+                knnResults = in.readOptionalList(DfsKnnResults::new);
+            } else {
+                DfsKnnResults results = in.readOptionalWriteable(DfsKnnResults::new);
+                knnResults = results != null ? List.of(results) : List.of();
+            }
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+            searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
         }
     }
 
@@ -77,8 +90,18 @@ public class DfsSearchResult extends SearchPhaseResult {
         return this;
     }
 
-    public DfsSearchResult fieldStatistics(ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) {
+    public DfsSearchResult fieldStatistics(Map<String, CollectionStatistics> fieldStatistics) {
         this.fieldStatistics = fieldStatistics;
+        return this;
+    }
+
+    public DfsSearchResult knnResults(List<DfsKnnResults> knnResults) {
+        this.knnResults = knnResults;
+        return this;
+    }
+
+    public DfsSearchResult profileResult(SearchProfileDfsPhaseResult searchProfileDfsPhaseResult) {
+        this.searchProfileDfsPhaseResult = searchProfileDfsPhaseResult;
         return this;
     }
 
@@ -90,47 +113,63 @@ public class DfsSearchResult extends SearchPhaseResult {
         return termStatistics;
     }
 
-    public ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics() {
+    public Map<String, CollectionStatistics> fieldStatistics() {
         return fieldStatistics;
+    }
+
+    public List<DfsKnnResults> knnResults() {
+        return knnResults;
+    }
+
+    public SearchProfileDfsPhaseResult searchProfileDfsPhaseResult() {
+        return searchProfileDfsPhaseResult;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         contextId.writeTo(out);
-        out.writeVInt(terms.length);
-        for (Term term : terms) {
-            out.writeString(term.field());
-            out.writeBytesRef(term.bytes());
-        }
+        out.writeArray((o, term) -> {
+            o.writeString(term.field());
+            o.writeBytesRef(term.bytes());
+        }, terms);
         writeTermStats(out, termStatistics);
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeOptionalWriteable(getShardSearchRequest());
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+                out.writeOptionalCollection(knnResults);
+            } else {
+                if (knnResults != null && knnResults.size() > 1) {
+                    throw new IllegalArgumentException(
+                        "Cannot serialize multiple KNN results to nodes using previous transport version ["
+                            + out.getTransportVersion()
+                            + "], minimum required transport version is [8070099]"
+                    );
+                }
+                out.writeOptionalWriteable(knnResults == null || knnResults.isEmpty() ? null : knnResults.get(0));
+            }
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+            out.writeOptionalWriteable(searchProfileDfsPhaseResult);
         }
     }
 
-    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics)
-        throws IOException {
-        out.writeVInt(fieldStatistics.size());
-
-        for (ObjectObjectCursor<String, CollectionStatistics> c : fieldStatistics) {
-            out.writeString(c.key);
-            CollectionStatistics statistics = c.value;
+    public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {
+        out.writeMap(fieldStatistics, StreamOutput::writeString, (o, statistics) -> {
             assert statistics.maxDoc() >= 0;
-            out.writeVLong(statistics.maxDoc());
+            o.writeVLong(statistics.maxDoc());
             // stats are always positive numbers
-            out.writeVLong(statistics.docCount());
-            out.writeVLong(statistics.sumTotalTermFreq());
-            out.writeVLong(statistics.sumDocFreq());
-        }
+            o.writeVLong(statistics.docCount());
+            o.writeVLong(statistics.sumTotalTermFreq());
+            o.writeVLong(statistics.sumDocFreq());
+        });
     }
 
     public static void writeTermStats(StreamOutput out, TermStatistics[] termStatistics) throws IOException {
-        out.writeVInt(termStatistics.length);
-        for (TermStatistics termStatistic : termStatistics) {
-            writeSingleTermStats(out, termStatistic);
-        }
+        out.writeArray(DfsSearchResult::writeSingleTermStats, termStatistics);
     }
 
     public static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
@@ -144,9 +183,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
+    static Map<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
         final int numFieldStatistics = in.readVInt();
-        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
+        Map<String, CollectionStatistics> fieldStatistics = new HashMap<>(numFieldStatistics);
         for (int i = 0; i < numFieldStatistics; i++) {
             final String field = in.readString();
             assert field != null;

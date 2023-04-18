@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,9 +38,9 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     private static final String USE_DEFAULT_FORMAT = "use_field_mapping";
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(FetchDocValuesPhase.class);
 
-    private static final ParseField FIELD_FIELD = new ParseField("field");
-    private static final ParseField FORMAT_FIELD = new ParseField("format");
-    private static final ParseField INCLUDE_UNMAPPED_FIELD = new ParseField("include_unmapped");
+    public static final ParseField FIELD_FIELD = new ParseField("field");
+    public static final ParseField FORMAT_FIELD = new ParseField("format");
+    public static final ParseField INCLUDE_UNMAPPED_FIELD = new ParseField("include_unmapped");
 
     private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = new ConstructingObjectParser<>(
         "fetch_field_and_format",
@@ -133,7 +133,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     public FieldAndFormat(StreamInput in) throws IOException {
         this.field = in.readString();
         format = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             this.includeUnmapped = in.readOptionalBoolean();
         } else {
             this.includeUnmapped = null;
@@ -144,7 +144,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeOptionalString(format);
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             out.writeOptionalBoolean(this.includeUnmapped);
         }
     }

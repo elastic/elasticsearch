@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -18,6 +18,19 @@ import java.io.IOException;
 public class BertTokenizationTests extends AbstractBWCSerializationTestCase<BertTokenization> {
 
     private boolean lenient;
+
+    public static BertTokenization mutateForVersion(BertTokenization instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_2_0)) {
+            return new BertTokenization(
+                instance.doLowerCase,
+                instance.withSpecialTokens,
+                instance.maxSequenceLength,
+                instance.truncate,
+                null
+            );
+        }
+        return instance;
+    }
 
     @Before
     public void chooseStrictOrLenient() {
@@ -40,8 +53,13 @@ public class BertTokenizationTests extends AbstractBWCSerializationTestCase<Bert
     }
 
     @Override
-    protected BertTokenization mutateInstanceForVersion(BertTokenization instance, Version version) {
-        return instance;
+    protected BertTokenization mutateInstance(BertTokenization instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected BertTokenization mutateInstanceForVersion(BertTokenization instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
     }
 
     public static BertTokenization createRandom() {
@@ -49,7 +67,20 @@ public class BertTokenizationTests extends AbstractBWCSerializationTestCase<Bert
             randomBoolean() ? null : randomBoolean(),
             randomBoolean() ? null : randomBoolean(),
             randomBoolean() ? null : randomIntBetween(1, 1024),
-            randomBoolean() ? null : randomFrom(Tokenization.Truncate.values())
+            randomBoolean() ? null : randomFrom(Tokenization.Truncate.values()),
+            null
+        );
+    }
+
+    public static BertTokenization createRandomWithSpan() {
+        Tokenization.Truncate truncate = randomBoolean() ? null : randomFrom(Tokenization.Truncate.values());
+        Integer maxSeq = randomBoolean() ? null : randomIntBetween(1, 1024);
+        return new BertTokenization(
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomBoolean(),
+            maxSeq,
+            truncate,
+            Tokenization.Truncate.NONE.equals(truncate) && randomBoolean() ? randomIntBetween(0, maxSeq != null ? maxSeq - 1 : 100) : null
         );
     }
 }

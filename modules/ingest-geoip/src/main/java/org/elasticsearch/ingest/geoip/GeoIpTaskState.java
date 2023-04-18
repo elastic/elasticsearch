@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -67,10 +67,10 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
     }
 
     GeoIpTaskState(StreamInput input) throws IOException {
-        databases = Collections.unmodifiableMap(input.readMap(StreamInput::readString, in -> {
+        databases = input.readImmutableMap(StreamInput::readString, in -> {
             long lastUpdate = in.readLong();
             return new Metadata(lastUpdate, in.readVInt(), in.readVInt(), in.readString(), in.readLong());
-        }));
+        });
     }
 
     public GeoIpTaskState put(String name, Metadata metadata) {
@@ -124,8 +124,8 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_13_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_13_0;
     }
 
     @Override
@@ -139,7 +139,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
         });
     }
 
-    static class Metadata implements ToXContentObject {
+    record Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck) implements ToXContentObject {
 
         static final String NAME = GEOIP_DOWNLOADER + "-metadata";
         private static final ParseField LAST_CHECK = new ParseField("last_check");
@@ -176,22 +176,8 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             }
         }
 
-        private final long lastUpdate;
-        private final int firstChunk;
-        private final int lastChunk;
-        private final String md5;
-        private final long lastCheck;
-
-        Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck) {
-            this.lastUpdate = lastUpdate;
-            this.firstChunk = firstChunk;
-            this.lastChunk = lastChunk;
-            this.md5 = Objects.requireNonNull(md5);
-            this.lastCheck = lastCheck;
-        }
-
-        public long getLastUpdate() {
-            return lastUpdate;
+        Metadata {
+            Objects.requireNonNull(md5);
         }
 
         public boolean isCloseToExpiration() {
@@ -201,39 +187,6 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
         public boolean isValid(Settings settings) {
             TimeValue valid = settings.getAsTime("ingest.geoip.database_validity", TimeValue.timeValueDays(30));
             return Instant.ofEpochMilli(lastCheck).isAfter(Instant.now().minus(valid.getMillis(), ChronoUnit.MILLIS));
-        }
-
-        public int getFirstChunk() {
-            return firstChunk;
-        }
-
-        public int getLastChunk() {
-            return lastChunk;
-        }
-
-        public String getMd5() {
-            return md5;
-        }
-
-        public long getLastCheck() {
-            return lastCheck;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Metadata metadata = (Metadata) o;
-            return lastUpdate == metadata.lastUpdate
-                && firstChunk == metadata.firstChunk
-                && lastChunk == metadata.lastChunk
-                && lastCheck == metadata.lastCheck
-                && md5.equals(metadata.md5);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(lastUpdate, firstChunk, lastChunk, md5, lastCheck);
         }
 
         @Override

@@ -15,12 +15,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -88,30 +85,19 @@ public class License implements ToXContentObject {
          * Backward compatible license type parsing for older license models
          */
         static LicenseType resolve(String name) {
-            switch (name.toLowerCase(Locale.ROOT)) {
-                case "missing":
-                    return null;
-                case "trial":
-                case "none": // bwc for 1.x subscription_type field
-                case "dev": // bwc for 1.x subscription_type field
-                case "development": // bwc for 1.x subscription_type field
-                    return TRIAL;
-                case "basic":
-                    return BASIC;
-                case "standard":
-                    return STANDARD;
-                case "silver":
-                case "gold":
-                    return GOLD;
-                case "platinum":
-                case "cloud_internal":
-                case "internal": // bwc for 1.x subscription_type field
-                    return PLATINUM;
-                case "enterprise":
-                    return ENTERPRISE;
-                default:
-                    throw new IllegalArgumentException("unknown license type [" + name + "]");
-            }
+            return switch (name.toLowerCase(Locale.ROOT)) {
+                case "missing" -> null; // bwc for 1.x subscription_type field
+                // bwc for 1.x subscription_type field
+                case "trial", "none", "dev", "development" -> // bwc for 1.x subscription_type field
+                    TRIAL;
+                case "basic" -> BASIC;
+                case "standard" -> STANDARD;
+                case "silver", "gold" -> GOLD;
+                case "platinum", "internal" -> // bwc for 1.x subscription_type field
+                    PLATINUM;
+                case "enterprise" -> ENTERPRISE;
+                default -> throw new IllegalArgumentException("unknown license type [" + name + "]");
+            };
         }
 
         static boolean isBasic(String typeName) {
@@ -215,22 +201,14 @@ public class License implements ToXContentObject {
             if (type == null) {
                 return MISSING;
             }
-            switch (type) {
-                case BASIC:
-                    return BASIC;
-                case STANDARD:
-                    return STANDARD;
-                case GOLD:
-                    return GOLD;
-                case PLATINUM:
-                    return PLATINUM;
-                case ENTERPRISE:
-                    return ENTERPRISE;
-                case TRIAL:
-                    return TRIAL;
-                default:
-                    throw new IllegalArgumentException("unsupported license type [" + type.getTypeName() + "]");
-            }
+            return switch (type) {
+                case BASIC -> BASIC;
+                case STANDARD -> STANDARD;
+                case GOLD -> GOLD;
+                case PLATINUM -> PLATINUM;
+                case ENTERPRISE -> ENTERPRISE;
+                case TRIAL -> TRIAL;
+            };
         }
 
         /**
@@ -286,7 +264,7 @@ public class License implements ToXContentObject {
         // We will validate that only a basic license can have the BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS
         // in the validate() method.
         if (expiryDate == -1) {
-            this.expiryDate = LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+            this.expiryDate = LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
         } else {
             this.expiryDate = expiryDate;
         }
@@ -333,6 +311,9 @@ public class License implements ToXContentObject {
     }
 
     /**
+     * The expiration date as it appears in the license. For most uses, prefer {@link LicenseUtils#getExpiryDate(License)}, as in
+     * rare cases the effective expiration date may differ from the expiration date specified in the license.
+     *
      * @return the expiry date in milliseconds
      */
     public long expiryDate() {
@@ -377,53 +358,10 @@ public class License implements ToXContentObject {
     }
 
     /**
-     * @return the operation mode of the license as computed from the license type or from
-     * the license mode file
+     * @return the operation mode of the license as computed from the license type
      */
     public OperationMode operationMode() {
-        synchronized (this) {
-            if (canReadOperationModeFromFile() && operationModeFileWatcher != null) {
-                return operationModeFileWatcher.getCurrentOperationMode();
-            }
-        }
         return operationMode;
-    }
-
-    private boolean canReadOperationModeFromFile() {
-        return type.equals("cloud_internal");
-    }
-
-    private volatile OperationModeFileWatcher operationModeFileWatcher;
-
-    /**
-     * Sets the operation mode file watcher for the license and initializes the
-     * file watcher when the license type allows to override operation mode from file
-     */
-    public synchronized void setOperationModeFileWatcher(final OperationModeFileWatcher operationModeFileWatcher) {
-        this.operationModeFileWatcher = operationModeFileWatcher;
-        if (canReadOperationModeFromFile()) {
-            this.operationModeFileWatcher.init();
-        }
-    }
-
-    /**
-     * Removes operation mode file watcher, so unused license objects can be gc'ed
-     */
-    public synchronized void removeOperationModeFileWatcher() {
-        this.operationModeFileWatcher = null;
-    }
-
-    /**
-     * @return the current license's status
-     */
-    public LicenseStatus status() {
-        long now = System.currentTimeMillis();
-        if (issueDate > now) {
-            return LicenseStatus.INVALID;
-        } else if (expiryDate < now) {
-            return LicenseStatus.EXPIRED;
-        }
-        return LicenseStatus.ACTIVE;
     }
 
     private void validate() {
@@ -443,7 +381,7 @@ public class License implements ToXContentObject {
             throw new IllegalStateException("feature can not be null");
         } else if (expiryDate == -1) {
             throw new IllegalStateException("expiryDate has to be set");
-        } else if (expiryDate == LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS && LicenseType.isBasic(type) == false) {
+        } else if (expiryDate == LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS && LicenseType.isBasic(type) == false) {
             throw new IllegalStateException("only basic licenses are allowed to have no expiration");
         }
 
@@ -469,6 +407,24 @@ public class License implements ToXContentObject {
                 );
             }
         }
+    }
+
+    private Boolean isVerified;
+
+    public boolean verified() {
+        final Boolean v = isVerified;
+        if (v != null) {
+            return v;
+        }
+        final boolean verified = doVerify();
+        this.isVerified = verified;
+        return verified;
+    }
+
+    private boolean doVerify() {
+        boolean autoGeneratedLicense = License.isAutoGeneratedLicense(signature());
+        return (autoGeneratedLicense && SelfGeneratedLicense.verify(this))
+            || (autoGeneratedLicense == false && LicenseVerifier.verifyLicense(this));
     }
 
     public static License readLicense(StreamInput in) throws IOException {
@@ -527,13 +483,7 @@ public class License implements ToXContentObject {
 
     @Override
     public String toString() {
-        try {
-            final XContentBuilder builder = XContentFactory.jsonBuilder();
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return Strings.toString(builder);
-        } catch (IOException e) {
-            return "";
-        }
+        return Strings.toString(this);
     }
 
     @Override
@@ -557,31 +507,31 @@ public class License implements ToXContentObject {
                 builder.humanReadable(true);
             }
         }
-        final int version;
+        final int licenseVersion;
         if (params.param(LICENSE_VERSION_MODE) != null && restViewMode) {
-            version = Integer.parseInt(params.param(LICENSE_VERSION_MODE));
+            licenseVersion = Integer.parseInt(params.param(LICENSE_VERSION_MODE));
         } else {
-            version = this.version;
+            licenseVersion = this.version;
         }
         if (restViewMode) {
-            builder.field(Fields.STATUS, status().label());
+            builder.field(Fields.STATUS, LicenseUtils.status(this).label());
         }
         builder.field(Fields.UID, uid);
         final String bwcType = hideEnterprise && LicenseType.isEnterprise(type) ? LicenseType.PLATINUM.getTypeName() : type;
         builder.field(Fields.TYPE, bwcType);
-        if (version == VERSION_START) {
+        if (licenseVersion == VERSION_START) {
             builder.field(Fields.SUBSCRIPTION_TYPE, subscriptionType);
         }
         builder.timeField(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, issueDate);
-        if (version == VERSION_START) {
+        if (licenseVersion == VERSION_START) {
             builder.field(Fields.FEATURE, feature);
         }
 
-        if (expiryDate != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
+        if (expiryDate != LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
             builder.timeField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
         }
 
-        if (version >= VERSION_ENTERPRISE) {
+        if (licenseVersion >= VERSION_ENTERPRISE) {
             builder.field(Fields.MAX_NODES, maxNodes == -1 ? null : maxNodes);
             builder.field(Fields.MAX_RESOURCE_UNITS, maxResourceUnits == -1 ? null : maxResourceUnits);
         } else if (hideEnterprise && maxNodes == -1) {
@@ -598,7 +548,7 @@ public class License implements ToXContentObject {
         if (restViewMode) {
             builder.humanReadable(previouslyHumanReadable);
         }
-        if (version >= VERSION_START_DATE) {
+        if (licenseVersion >= VERSION_START_DATE) {
             builder.timeField(Fields.START_DATE_IN_MILLIS, Fields.START_DATE, startDate);
         }
         return builder;
@@ -921,7 +871,7 @@ public class License implements ToXContentObject {
             return this;
         }
 
-        public Builder fromLicenseSpec(License license, String signature) {
+        public Builder fromLicenseSpec(License license, String licenseSignature) {
             return uid(license.uid()).version(license.version())
                 .issuedTo(license.issuedTo())
                 .issueDate(license.issueDate())
@@ -933,7 +883,7 @@ public class License implements ToXContentObject {
                 .maxResourceUnits(license.maxResourceUnits())
                 .expiryDate(license.expiryDate())
                 .issuer(license.issuer())
-                .signature(signature);
+                .signature(licenseSignature);
         }
 
         /**

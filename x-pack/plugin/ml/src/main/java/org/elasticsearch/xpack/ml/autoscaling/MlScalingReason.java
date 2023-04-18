@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +36,7 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
 
     private final List<String> waitingAnalyticsJobs;
     private final List<String> waitingAnomalyJobs;
+    private final List<String> waitingSnapshotUpgrades;
     private final List<String> waitingModels;
     private final Settings passedConfiguration;
     private final Long largestWaitingAnalyticsJob;
@@ -47,7 +48,8 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
     public MlScalingReason(StreamInput in) throws IOException {
         this.waitingAnalyticsJobs = in.readStringList();
         this.waitingAnomalyJobs = in.readStringList();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        this.waitingSnapshotUpgrades = in.readStringList();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             this.waitingModels = in.readStringList();
         } else {
             this.waitingModels = List.of();
@@ -63,6 +65,7 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
     MlScalingReason(
         List<String> waitingAnalyticsJobs,
         List<String> waitingAnomalyJobs,
+        List<String> waitingSnapshotUpgrades,
         List<String> waitingModels,
         Settings passedConfiguration,
         Long largestWaitingAnalyticsJob,
@@ -73,6 +76,7 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
     ) {
         this.waitingAnalyticsJobs = waitingAnalyticsJobs == null ? Collections.emptyList() : waitingAnalyticsJobs;
         this.waitingAnomalyJobs = waitingAnomalyJobs == null ? Collections.emptyList() : waitingAnomalyJobs;
+        this.waitingSnapshotUpgrades = waitingSnapshotUpgrades == null ? Collections.emptyList() : waitingSnapshotUpgrades;
         this.waitingModels = waitingModels == null ? List.of() : waitingModels;
         this.passedConfiguration = ExceptionsHelper.requireNonNull(passedConfiguration, CONFIGURATION);
         this.largestWaitingAnalyticsJob = largestWaitingAnalyticsJob;
@@ -82,8 +86,8 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
         this.simpleReason = ExceptionsHelper.requireNonNull(simpleReason, REASON);
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public static Builder builder(MlAutoscalingContext mlContext) {
+        return new Builder(mlContext);
     }
 
     @Override
@@ -131,10 +135,11 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(this.waitingAnalyticsJobs);
         out.writeStringCollection(this.waitingAnomalyJobs);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        out.writeStringCollection(this.waitingSnapshotUpgrades);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeStringCollection(this.waitingModels);
         }
-        Settings.writeSettingsToStream(this.passedConfiguration, out);
+        this.passedConfiguration.writeTo(out);
         this.currentMlCapacity.writeTo(out);
         out.writeOptionalWriteable(this.requiredCapacity);
         out.writeOptionalVLong(largestWaitingAnalyticsJob);
@@ -170,9 +175,7 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
     }
 
     static class Builder {
-        private List<String> waitingAnalyticsJobs = Collections.emptyList();
-        private List<String> waitingAnomalyJobs = Collections.emptyList();
-        private List<String> waitingModels = Collections.emptyList();
+        private final MlAutoscalingContext mlContext;
         private Settings passedConfiguration;
         private Long largestWaitingAnalyticsJob;
         private Long largestWaitingAnomalyJob;
@@ -180,22 +183,11 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
         private AutoscalingCapacity requiredCapacity;
         private String simpleReason;
 
-        public Builder setWaitingAnalyticsJobs(List<String> waitingAnalyticsJobs) {
-            this.waitingAnalyticsJobs = waitingAnalyticsJobs;
-            return this;
+        Builder(MlAutoscalingContext mlContext) {
+            this.mlContext = Objects.requireNonNull(mlContext);
         }
 
-        public Builder setWaitingAnomalyJobs(List<String> waitingAnomalyJobs) {
-            this.waitingAnomalyJobs = waitingAnomalyJobs;
-            return this;
-        }
-
-        public Builder setWaitingModels(List<String> waitingModels) {
-            this.waitingModels = waitingModels;
-            return this;
-        }
-
-        public Builder setPassedConfiguration(Settings passedConfiguration) {
+        Builder setPassedConfiguration(Settings passedConfiguration) {
             this.passedConfiguration = passedConfiguration;
             return this;
         }
@@ -227,9 +219,10 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
 
         public MlScalingReason build() {
             return new MlScalingReason(
-                waitingAnalyticsJobs,
-                waitingAnomalyJobs,
-                waitingModels,
+                mlContext.waitingAnalyticsJobs,
+                mlContext.waitingAnomalyJobs,
+                mlContext.waitingSnapshotUpgrades,
+                mlContext.waitingAllocatedModels,
                 passedConfiguration,
                 largestWaitingAnalyticsJob,
                 largestWaitingAnomalyJob,

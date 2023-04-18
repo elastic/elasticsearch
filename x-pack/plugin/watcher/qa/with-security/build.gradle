@@ -1,6 +1,6 @@
-apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 dependencies {
   yamlRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
@@ -31,7 +31,7 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'debug'
   setting 'logger.org.elasticsearch.xpack.core.watcher', 'debug'
-  extraConfigFile 'roles.yml', file('roles.yml')
+  rolesFile file('roles.yml')
   user username: "test_admin", password: "x-pack-test-password"
   user username: "x_pack_rest_user", password: "x-pack-test-password", role: "watcher_manager"
   user username: "watcher_manager", password: "x-pack-test-password", role: "watcher_manager"

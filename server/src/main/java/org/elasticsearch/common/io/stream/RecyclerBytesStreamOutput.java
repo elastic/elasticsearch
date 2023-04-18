@@ -22,6 +22,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Objects;
 
 /**
  * A @link {@link StreamOutput} that uses {@link Recycler.V<BytesRef>} to acquire pages of bytes, which
@@ -68,10 +69,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             return;
         }
 
-        // illegal args: offset and/or length exceed array size
-        if (b.length < (offset + length)) {
-            throw new IllegalArgumentException("Illegal offset " + offset + "/length " + length + " for byte[] of length " + b.length);
-        }
+        Objects.checkFromIndexSize(offset, length, b.length);
 
         // get enough pages for new size
         ensureCapacity(length);
@@ -122,11 +120,26 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     @Override
-    public void reset() {
-        Releasables.close(pages);
-        pages.clear();
-        pageIndex = -1;
-        currentPageOffset = pageSize;
+    public void writeWithSizePrefix(Writeable writeable) throws IOException {
+        // TODO: do this without copying the bytes from tmp by calling writeBytes and just use the pages in tmp directly through
+        // manipulation of the offsets on the pages after writing to tmp. This will require adjustments to the places in this class
+        // that make assumptions about the page size
+        try (RecyclerBytesStreamOutput tmp = new RecyclerBytesStreamOutput(recycler)) {
+            tmp.setTransportVersion(getTransportVersion());
+            writeable.writeTo(tmp);
+            int size = tmp.size();
+            writeVInt(size);
+            int tmpPage = 0;
+            while (size > 0) {
+                final Recycler.V<BytesRef> p = tmp.pages.get(tmpPage);
+                final BytesRef b = p.v();
+                final int writeSize = Math.min(size, b.length);
+                writeBytes(b.bytes, b.offset, writeSize);
+                tmp.pages.set(tmpPage, null).close();
+                size -= writeSize;
+                tmpPage++;
+            }
+        }
     }
 
     @Override
@@ -134,11 +147,20 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         // nothing to do
     }
 
-    @Override
     public void seek(long position) {
         ensureCapacityFromPosition(position);
-        this.pageIndex = (int) position / pageSize;
-        this.currentPageOffset = (int) position % pageSize;
+        int offsetInPage = (int) (position % pageSize);
+        int pageIndex = (int) position / pageSize;
+        // Special handling for seeking to the first index in a new page, which is handled as a seeking to one-after the last index
+        // in the previous case. This is done so that seeking to the first index of a new page does not cause a page allocation while
+        // still allowing a fast check via (pageSize - currentPageOffset) on the remaining size in the current page in all other methods.
+        if (offsetInPage == 0) {
+            this.pageIndex = pageIndex - 1;
+            this.currentPageOffset = pageSize;
+        } else {
+            this.pageIndex = pageIndex;
+            this.currentPageOffset = offsetInPage;
+        }
     }
 
     public void skip(int length) {
@@ -204,19 +226,21 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     private void ensureCapacityFromPosition(long newPosition) {
+        // Integer.MAX_VALUE is not a multiple of the page size so we can only allocate the largest multiple of the pagesize that is less
+        // than Integer.MAX_VALUE
+        if (newPosition > Integer.MAX_VALUE - (Integer.MAX_VALUE % pageSize)) {
+            throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
+        }
         while (newPosition > currentCapacity) {
-            if (newPosition > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
-            }
             Recycler.V<BytesRef> newPage = recycler.obtain();
             assert pageSize == newPage.v().length;
             pages.add(newPage);
-            // We are at the end of the current page, increment page index
-            if (currentPageOffset == pageSize) {
-                pageIndex++;
-                currentPageOffset = 0;
-            }
             currentCapacity += pageSize;
+        }
+        // We are at the end of the current page, increment page index
+        if (currentPageOffset == pageSize) {
+            pageIndex++;
+            currentPageOffset = 0;
         }
     }
 }

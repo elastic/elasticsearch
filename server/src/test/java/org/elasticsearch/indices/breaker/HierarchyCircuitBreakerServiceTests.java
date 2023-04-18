@@ -11,10 +11,12 @@ package org.elasticsearch.indices.breaker;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -24,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -35,7 +38,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -46,6 +48,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
@@ -240,10 +243,10 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             );
             assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [should break] would be"));
             assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
-            assertThat(
-                exception.getMessage(),
-                containsString("usages [request=157286400/150mb, fielddata=54001664/51.5mb, inflight_requests=0/0b]")
-            );
+            assertThat(exception.getMessage(), containsString("usages ["));
+            assertThat(exception.getMessage(), containsString("fielddata=54001664/51.5mb"));
+            assertThat(exception.getMessage(), containsString("inflight_requests=0/0b"));
+            assertThat(exception.getMessage(), containsString("request=157286400/150mb"));
             assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         }
     }
@@ -296,21 +299,18 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 "real usage: [181/181b], new bytes reserved: ["
                     + (reservationInBytes * 2)
                     + "/"
-                    + new ByteSizeValue(reservationInBytes * 2)
+                    + ByteSizeValue.ofBytes(reservationInBytes * 2)
                     + "]"
             )
         );
         final long requestCircuitBreakerUsed = (requestBreaker.getUsed() + reservationInBytes) * 2;
+        assertThat(exception.getMessage(), containsString("usages ["));
+        assertThat(exception.getMessage(), containsString("fielddata=0/0b"));
         assertThat(
             exception.getMessage(),
-            containsString(
-                "usages [request="
-                    + requestCircuitBreakerUsed
-                    + "/"
-                    + new ByteSizeValue(requestCircuitBreakerUsed)
-                    + ", fielddata=0/0b, inflight_requests=0/0b]"
-            )
+            containsString("request=" + requestCircuitBreakerUsed + "/" + ByteSizeValue.ofBytes(requestCircuitBreakerUsed))
         );
+        assertThat(exception.getMessage(), containsString("inflight_requests=0/0b"));
         assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         assertEquals(0, requestBreaker.getTrippedCount());
         assertEquals(1, service.stats().getStats(CircuitBreaker.PARENT).getTrippedCount());
@@ -610,7 +610,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 assertThat(output.permanentChildUsage, equalTo(input.permanentChildUsage));
                 countDown.get().countDown();
             } while (Thread.interrupted() == false);
-        })).collect(Collectors.toList());
+        })).toList();
 
         threads.forEach(Thread::start);
         barrier.await(20, TimeUnit.SECONDS);
@@ -816,5 +816,137 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
     private static long mb(long size) {
         return new ByteSizeValue(size, ByteSizeUnit.MB).getBytes();
+    }
+
+    public void testUpdatingUseRealMemory() {
+        try (
+            HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+                Settings.EMPTY,
+                Collections.emptyList(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            )
+        ) {
+            // use real memory default true
+            assertTrue(service.isTrackRealMemoryUsage());
+            assertThat(service.getOverLimitStrategy(), instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class));
+
+            // update use_real_memory to false
+            service.updateUseRealMemorySetting(false);
+            assertFalse(service.isTrackRealMemoryUsage());
+            assertThat(service.getOverLimitStrategy(), not(instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class)));
+
+            // update use_real_memory to true
+            service.updateUseRealMemorySetting(true);
+            assertTrue(service.isTrackRealMemoryUsage());
+            assertThat(service.getOverLimitStrategy(), instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class));
+        }
+    }
+
+    public void testApplySettingForUpdatingUseRealMemory() {
+        String useRealMemoryUsageSetting = HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey();
+        String totalCircuitBreakerLimitSetting = HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey();
+        Settings initialSettings = Settings.builder().put(useRealMemoryUsageSetting, "true").build();
+        ClusterSettings clusterSettings = new ClusterSettings(initialSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        try (
+            HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+                Settings.EMPTY,
+                Collections.emptyList(),
+                clusterSettings
+            )
+        ) {
+            // total.limit defaults to 95% of the JVM heap if use_real_memory is true
+            assertEquals(
+                MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", totalCircuitBreakerLimitSetting).getBytes(),
+                service.getParentLimit()
+            );
+
+            // total.limit defaults to 70% of the JVM heap if use_real_memory set to false
+            clusterSettings.applySettings(Settings.builder().put(useRealMemoryUsageSetting, false).build());
+            assertEquals(
+                MemorySizeValue.parseBytesSizeValueOrHeapRatio("70%", totalCircuitBreakerLimitSetting).getBytes(),
+                service.getParentLimit()
+            );
+
+            // total.limit defaults to 70% of the JVM heap if use_real_memory set to true
+            clusterSettings.applySettings(Settings.builder().put(useRealMemoryUsageSetting, true).build());
+            assertEquals(
+                MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", totalCircuitBreakerLimitSetting).getBytes(),
+                service.getParentLimit()
+            );
+        }
+    }
+
+    public void testBuildParentTripMessage() {
+        class TestChildCircuitBreaker extends NoopCircuitBreaker {
+            private final long used;
+
+            TestChildCircuitBreaker(long used) {
+                super("child");
+                this.used = used;
+            }
+
+            @Override
+            public long getUsed() {
+                return used;
+            }
+
+            @Override
+            public double getOverhead() {
+                return 1.0;
+            }
+        }
+
+        assertThat(
+            HierarchyCircuitBreakerService.buildParentTripMessage(
+                1L,
+                "test",
+                new HierarchyCircuitBreakerService.MemoryUsage(2L, 3L, 4L, 5L),
+                6L,
+                false,
+                Map.of("child", new TestChildCircuitBreaker(7L), "otherChild", new TestChildCircuitBreaker(8L))
+            ),
+            oneOf(
+                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                    + "usages [child=7/7b, otherChild=8/8b]",
+                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                    + "usages [otherChild=8/8b, child=7/7b]"
+            )
+        );
+
+        assertThat(
+            HierarchyCircuitBreakerService.buildParentTripMessage(
+                1L,
+                "test",
+                new HierarchyCircuitBreakerService.MemoryUsage(2L, 3L, 4L, 5L),
+                6L,
+                true,
+                Map.of()
+            ),
+            equalTo(
+                "[parent] Data too large, data for [test] would be [3/3b], which is larger than the limit of [6/6b], "
+                    + "real usage: [2/2b], new bytes reserved: [1/1b], usages []"
+            )
+        );
+
+        try {
+            HierarchyCircuitBreakerService.permitNegativeValues = true;
+            assertThat(
+                HierarchyCircuitBreakerService.buildParentTripMessage(
+                    -1L,
+                    "test",
+                    new HierarchyCircuitBreakerService.MemoryUsage(-2L, -3L, -4L, -5L),
+                    -6L,
+                    true,
+                    Map.of("child1", new TestChildCircuitBreaker(-7L))
+                ),
+                equalTo(
+                    "[parent] Data too large, data for [test] would be [-3], which is larger than the limit of [-6], "
+                        + "real usage: [-2], new bytes reserved: [-1/-1b], usages [child1=-7]"
+                )
+            );
+        } finally {
+            HierarchyCircuitBreakerService.permitNegativeValues = false;
+        }
     }
 }

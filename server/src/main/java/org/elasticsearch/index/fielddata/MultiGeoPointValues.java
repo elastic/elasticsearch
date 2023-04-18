@@ -7,6 +7,9 @@
  */
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoPoint;
 
 import java.io.IOException;
@@ -15,43 +18,35 @@ import java.io.IOException;
  * A stateful lightweight per document set of {@link GeoPoint} values.
  * To iterate over values in a document use the following pattern:
  * <pre>
- *   GeoPointValues values = ..;
- *   values.setDocId(docId);
- *   final int numValues = values.count();
+ *   MultiGeoPointValues values = ..;
+ *   values.advanceExact(docId);
+ *   final int numValues = values.docValueCount();
  *   for (int i = 0; i &lt; numValues; i++) {
- *       GeoPoint value = values.valueAt(i);
+ *       GeoPoint value = values.nextValue();
  *       // process value
  *   }
  * </pre>
  * The set of values associated with a document might contain duplicates and
  * comes in a non-specified order.
  */
-public abstract class MultiGeoPointValues {
+public class MultiGeoPointValues extends MultiPointValues<GeoPoint> {
+    private final GeoPoint point = new GeoPoint();
+
+    public MultiGeoPointValues(SortedNumericDocValues numericValues) {
+        super(numericValues);
+    }
+
+    @Override
+    public GeoPoint nextValue() throws IOException {
+        return point.resetFromEncoded(numericValues.nextValue());
+    }
 
     /**
-     * Creates a new {@link MultiGeoPointValues} instance
+     * Returns a single-valued view of the {@link MultiPointValues} if possible, otherwise null.
      */
-    protected MultiGeoPointValues() {}
-
-    /**
-     * Advance this instance to the given document id
-     * @return true if there is a value for this document
-     */
-    public abstract boolean advanceExact(int doc) throws IOException;
-
-    /**
-     * Return the number of geo points the current document has.
-     */
-    public abstract int docValueCount();
-
-    /**
-     * Return the next value associated with the current document. This must not be
-     * called more than {@link #docValueCount()} times.
-     *
-     * Note: the returned {@link GeoPoint} might be shared across invocations.
-     *
-     * @return the next value for the current docID set to {@link #advanceExact(int)}.
-     */
-    public abstract GeoPoint nextValue() throws IOException;
-
+    @Override
+    protected GeoPointValues getPointValues() {
+        final NumericDocValues singleton = DocValues.unwrapSingleton(numericValues);
+        return singleton != null ? new GeoPointValues(singleton) : null;
+    }
 }

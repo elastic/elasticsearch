@@ -26,12 +26,24 @@ public class SearchProfileQueryPhaseResultTests extends AbstractWireSerializingT
             queryProfileResults.add(QueryProfileShardResultTests.createTestItem());
         }
         AggregationProfileShardResult aggProfileShardResult = AggregationProfileShardResultTests.createTestItem(1);
-        return new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult);
+        SearchProfileQueryPhaseResult searchProfileQueryPhaseResult = new SearchProfileQueryPhaseResult(
+            queryProfileResults,
+            aggProfileShardResult
+        );
+        if (randomBoolean()) {
+            searchProfileQueryPhaseResult.setSearchProfileDfsPhaseResult(SearchProfileDfsPhaseResultTests.createTestItem());
+        }
+        return searchProfileQueryPhaseResult;
     }
 
     @Override
     protected SearchProfileQueryPhaseResult createTestInstance() {
         return createTestItem();
+    }
+
+    @Override
+    protected SearchProfileQueryPhaseResult mutateInstance(SearchProfileQueryPhaseResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

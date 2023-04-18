@@ -63,7 +63,7 @@ public interface Rewriteable<T> {
                 // this is some protection against user provided queries if they don't obey the contract of rewrite we allow 16 rounds
                 // and then we fail to prevent infinite loops
                 throw new IllegalStateException(
-                    "too many rewrite rounds, rewriteable might return new objects even if they are not " + "rewritten"
+                    "too many rewrite rounds, rewriteable might return new objects even if they are not rewritten"
                 );
             }
         }
@@ -94,7 +94,7 @@ public interface Rewriteable<T> {
                     // this is some protection against user provided queries if they don't obey the contract of rewrite we allow 16 rounds
                     // and then we fail to prevent infinite loops
                     throw new IllegalStateException(
-                        "too many rewrite rounds, rewriteable might return new objects even if they are not " + "rewritten"
+                        "too many rewrite rounds, rewriteable might return new objects even if they are not rewritten"
                     );
                 }
                 if (context.hasAsyncActions()) {

@@ -22,7 +22,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * The response of the delete action.
  *
  * @see org.elasticsearch.action.delete.DeleteRequest
- * @see org.elasticsearch.client.Client#delete(DeleteRequest)
+ * @see org.elasticsearch.client.internal.Client#delete(DeleteRequest)
  */
 public class DeleteResponse extends DocWriteResponse {
 

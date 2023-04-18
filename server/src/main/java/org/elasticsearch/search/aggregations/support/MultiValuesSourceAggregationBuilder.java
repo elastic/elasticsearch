@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
@@ -161,8 +162,8 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
         AggregatorFactory parent,
         Builder subFactoriesBuilder
     ) throws IOException {
-        Map<String, ValuesSourceConfig> configs = new HashMap<>(fields.size());
-        Map<String, QueryBuilder> filters = new HashMap<>(fields.size());
+        Map<String, ValuesSourceConfig> configs = Maps.newMapWithExpectedSize(fields.size());
+        Map<String, QueryBuilder> filters = Maps.newMapWithExpectedSize(fields.size());
         fields.forEach((key, value) -> {
             ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(
                 context,

@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -17,8 +15,8 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -27,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -56,7 +53,6 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
-import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction.TaskParams;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -93,6 +89,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -171,7 +168,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         ClusterState state,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        logger.debug(() -> new ParameterizedMessage("[{}] received start request", request.getId()));
+        logger.debug(() -> "[" + request.getId() + "] received start request");
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
@@ -241,7 +238,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 );
                 auditor.warning(jobId, warning);
                 logger.warn("[{}] {}", jobId, warning);
-                HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
+                HeaderWarning.addWarning(warning);
             }
             // Refresh memory requirement for jobs
             memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
@@ -251,7 +248,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             );
         }, listener::onFailure);
 
-        PutDataFrameAnalyticsAction.Request explainRequest = new PutDataFrameAnalyticsAction.Request(startContext.config);
+        ExplainDataFrameAnalyticsAction.Request explainRequest = new ExplainDataFrameAnalyticsAction.Request(startContext.config);
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.ML_ORIGIN,
@@ -285,21 +282,15 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         // Step 5. Validate dest index is empty if task is starting for first time
         ActionListener<StartContext> toValidateDestEmptyListener = ActionListener.wrap(startContext -> {
             switch (startContext.startingState) {
-                case FIRST_TIME:
-                    checkDestIndexIsEmptyIfExists(parentTaskClient, startContext, toValidateMappingsListener);
-                    break;
-                case RESUMING_REINDEXING:
-                case RESUMING_ANALYZING:
-                case RESUMING_INFERENCE:
-                    toValidateMappingsListener.onResponse(startContext);
-                    break;
-                case FINISHED:
+                case FIRST_TIME -> checkDestIndexIsEmptyIfExists(parentTaskClient, startContext, toValidateMappingsListener);
+                case RESUMING_REINDEXING, RESUMING_ANALYZING, RESUMING_INFERENCE -> toValidateMappingsListener.onResponse(startContext);
+                case FINISHED -> {
                     logger.info("[{}] Job has already finished", startContext.config.getId());
                     finalListener.onFailure(ExceptionsHelper.badRequestException("Cannot start because the job has already finished"));
-                    break;
-                default:
-                    finalListener.onFailure(ExceptionsHelper.serverError("Unexpected starting state {}", startContext.startingState));
-                    break;
+                }
+                default -> finalListener.onFailure(
+                    ExceptionsHelper.serverError("Unexpected starting state {}", startContext.startingState)
+                );
             }
         }, finalListener::onFailure);
 
@@ -494,8 +485,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     logger.error(
-                        new ParameterizedMessage(
-                            "[{}] timed out when starting task after [{}]. Assignment explanation [{}]",
+                        () -> format(
+                            "[%s] timed out when starting task after [%s]. Assignment explanation [%s]",
                             task.getParams().getId(),
                             timeout,
                             predicate.assignmentExplanation
@@ -515,8 +506,9 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                         );
                     } else {
                         listener.onFailure(
-                            new ElasticsearchException(
+                            new ElasticsearchStatusException(
                                 "Starting data frame analytics [{}] timed out after [{}]",
+                                RestStatus.REQUEST_TIMEOUT,
                                 task.getParams().getId(),
                                 timeout
                             )
@@ -626,8 +618,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 @Override
                 public void onFailure(Exception e) {
                     logger.error(
-                        new ParameterizedMessage(
-                            "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                        () -> format(
+                            "[%s] Failed to cancel persistent task that could not be assigned due to [%s]",
                             persistentTask.getParams().getId(),
                             exception.getMessage()
                         ),
@@ -700,7 +692,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         public PersistentTasksCustomMetadata.Assignment getAssignment(
             TaskParams params,
             Collection<DiscoveryNode> candidateNodes,
-            ClusterState clusterState
+            @SuppressWarnings("HiddenField") ClusterState clusterState
         ) {
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
             Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(
@@ -775,8 +767,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 error -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(error);
                     logger.error(
-                        new ParameterizedMessage(
-                            "[{}] failed to create internal index [{}]",
+                        () -> format(
+                            "[%s] failed to create internal index [%s]",
                             params.getId(),
                             InferenceIndexConstants.LATEST_INDEX_NAME
                         ),

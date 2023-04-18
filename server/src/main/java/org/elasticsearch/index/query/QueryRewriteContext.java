@@ -8,7 +8,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.xcontent.XContentParser;
@@ -73,7 +73,7 @@ public class QueryRewriteContext {
 
     /**
      * Registers an async action that must be executed before the next rewrite round in order to make progress.
-     * This should be used if a rewriteabel needs to fetch some external resources in order to be executed ie. a document
+     * This should be used if a rewriteable needs to fetch some external resources in order to be executed ie. a document
      * from an index.
      */
     public void registerAsyncAction(BiConsumer<Client, ActionListener<?>> asyncAction) {

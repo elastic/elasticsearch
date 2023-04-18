@@ -20,7 +20,6 @@ import org.elasticsearch.common.inject.Binding;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.spi.BindingScopingVisitor;
 import org.elasticsearch.common.inject.spi.ElementVisitor;
 import org.elasticsearch.common.inject.spi.InstanceBinding;
 
@@ -96,16 +95,7 @@ public abstract class BindingImpl<T> implements Binding<T> {
         return visitor.visit(this);
     }
 
-    @Override
-    public <V> V acceptScopingVisitor(BindingScopingVisitor<V> visitor) {
-        return scoping.acceptVisitor(visitor);
-    }
-
     protected BindingImpl<T> withScoping(Scoping scoping) {
-        throw new AssertionError();
-    }
-
-    protected BindingImpl<T> withKey(Key<T> key) {
         throw new AssertionError();
     }
 

@@ -196,15 +196,12 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
 
     public String randomNumericField() {
         int randomInt = randomInt(3);
-        switch (randomInt) {
-            case 0:
-                return DATE_FIELD_NAME;
-            case 1:
-                return DOUBLE_FIELD_NAME;
-            case 2:
-            default:
-                return INT_FIELD_NAME;
-        }
+        return switch (randomInt) {
+            case 0 -> DATE_FIELD_NAME;
+            case 1 -> DOUBLE_FIELD_NAME;
+            case 2 -> INT_FIELD_NAME;
+            default -> INT_FIELD_NAME;
+        };
     }
 
     @Override

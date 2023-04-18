@@ -135,7 +135,7 @@ public class GeoIpDownloaderStats implements Task.Status {
         );
     }
 
-    public GeoIpDownloaderStats count(int databasesCount) {
+    public GeoIpDownloaderStats databasesCount(int databasesCount) {
         return new GeoIpDownloaderStats(
             successfulDownloads,
             failedDownloads,

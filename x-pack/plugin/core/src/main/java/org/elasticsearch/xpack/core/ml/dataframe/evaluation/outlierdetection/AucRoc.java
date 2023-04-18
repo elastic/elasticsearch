@@ -131,16 +131,16 @@ public class AucRoc extends AbstractAucRoc {
     @Override
     public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(
         EvaluationParameters parameters,
-        EvaluationFields fields
+        EvaluationFields evaluationFields
     ) {
         if (result.get() != null) {
             return Tuple.tuple(List.of(), List.of());
         }
         // Store given {@code fields} for the purpose of generating error messages in {@code process}.
-        this.fields.trySet(fields);
+        this.fields.trySet(evaluationFields);
 
-        String actualField = fields.getActualField();
-        String predictedProbabilityField = fields.getPredictedProbabilityField();
+        String actualField = evaluationFields.getActualField();
+        String predictedProbabilityField = evaluationFields.getPredictedProbabilityField();
         double[] percentiles = IntStream.range(1, 100).mapToDouble(v -> (double) v).toArray();
         AggregationBuilder percentilesAgg = AggregationBuilders.percentiles(PERCENTILES_AGG_NAME)
             .field(predictedProbabilityField)

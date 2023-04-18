@@ -38,8 +38,8 @@ public class ParsingException extends ElasticsearchException {
         int lineNumber = UNKNOWN_POSITION;
         int columnNumber = UNKNOWN_POSITION;
         if (contentLocation != null) {
-            lineNumber = contentLocation.lineNumber;
-            columnNumber = contentLocation.columnNumber;
+            lineNumber = contentLocation.lineNumber();
+            columnNumber = contentLocation.columnNumber();
         }
         this.columnNumber = columnNumber;
         this.lineNumber = lineNumber;
@@ -93,8 +93,8 @@ public class ParsingException extends ElasticsearchException {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
         out.writeInt(lineNumber);
         out.writeInt(columnNumber);
     }

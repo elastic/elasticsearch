@@ -26,7 +26,11 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
     private boolean lenient;
 
     public static DestConfig randomDestConfig() {
-        return new DestConfig(randomAlphaOfLength(10), randomBoolean() ? null : randomAlphaOfLength(10));
+        return new DestConfig(
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : randomList(5, DestAliasTests::randomDestAlias),
+            randomBoolean() ? null : randomAlphaOfLength(10)
+        );
     }
 
     @Before
@@ -50,15 +54,20 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
     }
 
     @Override
+    protected DestConfig mutateInstance(DestConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<DestConfig> instanceReader() {
         return DestConfig::new;
     }
 
     public void testFailOnEmptyIndex() throws IOException {
-        boolean lenient = randomBoolean();
+        boolean lenient2 = randomBoolean();
         String json = "{ \"index\": \"\" }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            DestConfig dest = DestConfig.fromXContent(parser, lenient);
+            DestConfig dest = DestConfig.fromXContent(parser, lenient2);
             assertThat(dest.getIndex(), is(emptyString()));
             ValidationException validationException = dest.validate(null);
             assertThat(validationException, is(notNullValue()));

@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class GetMappingsRequestBuilder extends ClusterInfoRequestBuilder<
     GetMappingsRequest,

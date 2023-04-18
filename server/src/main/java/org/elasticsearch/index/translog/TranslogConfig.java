@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -24,12 +25,14 @@ import java.nio.file.Path;
 public final class TranslogConfig {
 
     public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
-    public static final ByteSizeValue EMPTY_TRANSLOG_BUFFER_SIZE = new ByteSizeValue(10, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue EMPTY_TRANSLOG_BUFFER_SIZE = ByteSizeValue.ofBytes(10);
     private final BigArrays bigArrays;
+    private final DiskIoBufferPool diskIoBufferPool;
     private final IndexSettings indexSettings;
     private final ShardId shardId;
     private final Path translogPath;
     private final ByteSizeValue bufferSize;
+    private final OperationListener operationListener;
 
     /**
      * Creates a new TranslogConfig instance
@@ -39,15 +42,36 @@ public final class TranslogConfig {
      * @param bigArrays a bigArrays instance used for temporarily allocating write operations
      */
     public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays) {
-        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE);
+        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE, DiskIoBufferPool.INSTANCE);
     }
 
-    TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays, ByteSizeValue bufferSize) {
+    TranslogConfig(
+        ShardId shardId,
+        Path translogPath,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        ByteSizeValue bufferSize,
+        DiskIoBufferPool diskIoBufferPool
+    ) {
+        this(shardId, translogPath, indexSettings, bigArrays, bufferSize, diskIoBufferPool, (d, s, l) -> {});
+    }
+
+    public TranslogConfig(
+        ShardId shardId,
+        Path translogPath,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        ByteSizeValue bufferSize,
+        DiskIoBufferPool diskIoBufferPool,
+        OperationListener operationListener
+    ) {
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
         this.shardId = shardId;
         this.translogPath = translogPath;
         this.bigArrays = bigArrays;
+        this.diskIoBufferPool = diskIoBufferPool;
+        this.operationListener = operationListener;
     }
 
     /**
@@ -83,5 +107,17 @@ public final class TranslogConfig {
      */
     public ByteSizeValue getBufferSize() {
         return bufferSize;
+    }
+
+    /**
+     * {@link DiskIoBufferPool} for this engine. Used to allow custom pools in tests, always returns
+     * {@link DiskIoBufferPool#INSTANCE} in production.
+     */
+    public DiskIoBufferPool getDiskIoBufferPool() {
+        return diskIoBufferPool;
+    }
+
+    public OperationListener getOperationListener() {
+        return operationListener;
     }
 }

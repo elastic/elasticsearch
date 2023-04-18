@@ -19,6 +19,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
@@ -26,6 +28,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -35,7 +38,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -52,86 +54,181 @@ public class ServiceAccountIT extends ESRestTestCase {
     private static final String INVALID_SERVICE_TOKEN = "AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTozYUpDTGFRV1JOMnNYbE9kdHhBMFNR";
     private static Path caPath;
 
-    private static final String AUTHENTICATE_RESPONSE = ""
-        + "{\n"
-        + "  \"username\": \"elastic/fleet-server\",\n"
-        + "  \"roles\": [],\n"
-        + "  \"full_name\": \"Service account - elastic/fleet-server\",\n"
-        + "  \"email\": null,\n"
-        + "  \"token\": {\n"
-        + "    \"name\": \"%s\",\n"
-        + "    \"type\": \"_service_account_%s\"\n"
-        + "  },\n"
-        + "  \"metadata\": {\n"
-        + "    \"_elastic_service_account\": true\n"
-        + "  },\n"
-        + "  \"enabled\": true,\n"
-        + "  \"authentication_realm\": {\n"
-        + "    \"name\": \"_service_account\",\n"
-        + "    \"type\": \"_service_account\"\n"
-        + "  },\n"
-        + "  \"lookup_realm\": {\n"
-        + "    \"name\": \"_service_account\",\n"
-        + "    \"type\": \"_service_account\"\n"
-        + "  },\n"
-        + "  \"authentication_type\": \"token\"\n"
-        + "}\n";
+    private static final String AUTHENTICATE_RESPONSE = """
+        {
+          "username": "elastic/fleet-server",
+          "roles": [],
+          "full_name": "Service account - elastic/fleet-server",
+          "email": null,
+          "token": {
+            "name": "%s",
+            "type": "_service_account_%s"
+          },
+          "metadata": {
+            "_elastic_service_account": true
+          },
+          "enabled": true,
+          "authentication_realm": {
+            "name": "_service_account",
+            "type": "_service_account"
+          },
+          "lookup_realm": {
+            "name": "_service_account",
+            "type": "_service_account"
+          },
+          "authentication_type": "token"
+        }
+        """;
 
-    private static final String ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR = ""
-        + "{\n"
-        + "      \"cluster\": [\n"
-        + "        \"monitor\",\n"
-        + "        \"manage_own_api_key\"\n"
-        + "      ],\n"
-        + "      \"indices\": [\n"
-        + "        {\n"
-        + "          \"names\": [\n"
-        + "            \"logs-*\",\n"
-        + "            \"metrics-*\",\n"
-        + "            \"traces-*\",\n"
-        + "            \"synthetics-*\",\n"
-        + "            \".logs-endpoint.diagnostic.collection-*\",\n"
-        + "            \".logs-endpoint.action.responses-*\"\n"
-        + "          ],\n"
-        + "          \"privileges\": [\n"
-        + "            \"write\",\n"
-        + "            \"create_index\",\n"
-        + "            \"auto_configure\"\n"
-        + "          ],\n"
-        + "          \"allow_restricted_indices\": false\n"
-        + "        },\n"
-        + "        {\n"
-        + "          \"names\": [\n"
-        + "            \".fleet-*\"\n"
-        + "          ],\n"
-        + "          \"privileges\": [\n"
-        + "            \"read\",\n"
-        + "            \"write\",\n"
-        + "            \"monitor\",\n"
-        + "            \"create_index\",\n"
-        + "            \"auto_configure\"\n"
-        + "          ],\n"
-        + "          \"allow_restricted_indices\": true\n"
-        + "        }\n"
-        + "      ],\n"
-        + "      \"applications\": ["
-        + "        {\n"
-        + "          \"application\" : \"kibana-*\",\n"
-        + "          \"privileges\" : [\n"
-        + "            \"reserved_fleet-setup\"\n"
-        + "          ],\n"
-        + "          \"resources\" : [\n"
-        + "            \"*\"\n"
-        + "          ]\n"
-        + "        }"
-        + "      ],\n"
-        + "      \"run_as\": [],\n"
-        + "      \"metadata\": {},\n"
-        + "      \"transient_metadata\": {\n"
-        + "        \"enabled\": true\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }";
+    private static final String ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR = """
+        {
+              "cluster": [
+                "monitor",
+                "manage_own_api_key"
+              ],
+              "indices": [
+                {
+                  "names": [
+                    "logs-*",
+                    "metrics-*",
+                    "traces-*",
+                    ".logs-endpoint.diagnostic.collection-*",
+                    ".logs-endpoint.action.responses-*",
+                    "profiling-*"
+                  ],
+                  "privileges": [
+                    "write",
+                    "create_index",
+                    "auto_configure"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    "traces-apm.sampled-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "monitor",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".fleet-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    "synthetics-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "create_index",
+                    "auto_configure"
+                  ],
+                  "allow_restricted_indices": false
+                }
+              ],
+              "applications": [        {
+                  "application" : "kibana-*",
+                  "privileges" : [
+                    "reserved_fleet-setup"
+                  ],
+                  "resources" : [
+                    "*"
+                  ]
+                }      ],
+              "run_as": [],
+              "metadata": {},
+              "transient_metadata": {
+                "enabled": true
+              }
+            }
+          }""";
+
+    private static final String ELASTIC_ENTERPRISE_SEARCH_SERVER_ROLE_DESCRIPTOR = """
+        {
+            "cluster": [
+                "manage",
+                "manage_security"
+            ],
+            "indices": [
+                {
+                    "names": [
+                        "search-*",
+                        ".elastic-analytics-collections",
+                        ".ent-search-*",
+                        ".monitoring-ent-search-*",
+                        "metricbeat-ent-search-*",
+                        "enterprise-search-*",
+                        "logs-app_search.analytics-default",
+                        "logs-elastic_analytics.events-*",
+                        "logs-enterprise_search.api-default",
+                        "logs-enterprise_search.audit-default",
+                        "logs-app_search.search_relevance_suggestions-default",
+                        "logs-crawler-default",
+                        "logs-elastic_crawler-default",
+                        "logs-workplace_search.analytics-default",
+                        "logs-workplace_search.content_events-default",
+                        ".elastic-connectors*"
+                    ],
+                    "privileges": [
+                        "manage",
+                        "read",
+                        "write"
+                    ],
+                    "allow_restricted_indices": false
+                }
+            ],
+            "applications": [],
+            "run_as": [],
+            "metadata": {},
+            "transient_metadata": {
+                "enabled": true
+            }
+        }""";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .nodes(2)
+        .module("analysis-common")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.authc.token.enabled", "true")
+        .setting("xpack.security.authc.api_key.enabled", "true")
+        .setting("xpack.security.http.ssl.enabled", "true")
+        .setting("xpack.security.http.ssl.certificate", "node.crt")
+        .setting("xpack.security.http.ssl.key", "node.key")
+        .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
+        .setting("xpack.security.transport.ssl.enabled", "true")
+        .setting("xpack.security.transport.ssl.certificate", "node.crt")
+        .setting("xpack.security.transport.ssl.key", "node.key")
+        .setting("xpack.security.transport.ssl.certificate_authorities", "ca.crt")
+        .setting("xpack.security.transport.ssl.verification_mode", "certificate")
+        .keystore("bootstrap.password", "x-pack-test-password")
+        .keystore("xpack.security.transport.ssl.secure_key_passphrase", "node-password")
+        .keystore("xpack.security.http.ssl.secure_key_passphrase", "node-password")
+        .configFile("node.key", Resource.fromClasspath("ssl/node.key"))
+        .configFile("node.crt", Resource.fromClasspath("ssl/node.crt"))
+        .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+        .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("test_admin", "x-pack-test-password")
+        .user("elastic/fleet-server", "x-pack-test-password", "superuser")
+        .user("service_account_manager", "x-pack-test-password", "service_account_manager")
+        .build();
 
     @BeforeClass
     public static void init() throws URISyntaxException, FileNotFoundException {
@@ -140,6 +237,11 @@ public class ServiceAccountIT extends ESRestTestCase {
             throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
         }
         caPath = PathUtils.get(resource.toURI());
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     @Override
@@ -188,6 +290,19 @@ public class ServiceAccountIT extends ESRestTestCase {
             )
         );
 
+        final Request getServiceAccountRequestEnterpriseSearchService = new Request(
+            "GET",
+            "_security/service/elastic/enterprise-search-server"
+        );
+        final Response getServiceAccountResponseEnterpriseSearchService = client().performRequest(
+            getServiceAccountRequestEnterpriseSearchService
+        );
+        assertServiceAccountRoleDescriptor(
+            getServiceAccountResponseEnterpriseSearchService,
+            "elastic/enterprise-search-server",
+            ELASTIC_ENTERPRISE_SEARCH_SERVER_ROLE_DESCRIPTOR
+        );
+
         final String requestPath = "_security/service/" + randomFrom("foo", "elastic/foo", "foo/bar");
         final Request getServiceAccountRequest4 = new Request("GET", requestPath);
         final Response getServiceAccountResponse4 = client().performRequest(getServiceAccountRequest4);
@@ -204,7 +319,7 @@ public class ServiceAccountIT extends ESRestTestCase {
             responseAsMap(response),
             equalTo(
                 XContentHelper.convertToMap(
-                    new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "token1", "file")),
+                    new BytesArray(Strings.format(AUTHENTICATE_RESPONSE, "token1", "file")),
                     false,
                     XContentType.JSON
                 ).v2()
@@ -251,7 +366,9 @@ public class ServiceAccountIT extends ESRestTestCase {
 
         final String refreshToken = (String) oauthTokenResponseMap.get("refresh_token");
         final Request refreshTokenRequest = new Request("POST", "_security/oauth2/token");
-        refreshTokenRequest.setJsonEntity("{\"grant_type\":\"refresh_token\",\"refresh_token\":\"" + refreshToken + "\"}");
+        refreshTokenRequest.setJsonEntity(Strings.format("""
+            {"grant_type":"refresh_token","refresh_token":"%s"}
+            """, refreshToken));
         final Response refreshTokenResponse = adminClient().performRequest(refreshTokenRequest);
         assertOK(refreshTokenResponse);
     }
@@ -294,7 +411,7 @@ public class ServiceAccountIT extends ESRestTestCase {
             responseAsMap(response),
             equalTo(
                 XContentHelper.convertToMap(
-                    new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "api-token-1", "index")),
+                    new BytesArray(Strings.format(AUTHENTICATE_RESPONSE, "api-token-1", "index")),
                     false,
                     XContentType.JSON
                 ).v2()
@@ -414,7 +531,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         if (randomBoolean()) {
             createApiKeyRequest1.setJsonEntity("{\"name\":\"key-1\"}");
         } else {
-            createApiKeyRequest1.setJsonEntity("{\"name\":\"key-1\",\"role_descriptors\":{\"a\":{\"cluster\":[\"all\"]}}}");
+            createApiKeyRequest1.setJsonEntity("""
+                {"name":"key-1","role_descriptors":{"a":{"cluster":["all"]}}}""");
         }
         createApiKeyRequest1.setOptions(requestOptions);
         final Response createApiKeyResponse1 = client().performRequest(createApiKeyRequest1);
@@ -440,7 +558,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("is unauthorized for API key"));
 
         final Request invalidateApiKeysRequest = new Request("DELETE", "_security/api_key");
-        invalidateApiKeysRequest.setJsonEntity("{\"ids\":[\"" + apiKeyId1 + "\"],\"owner\":true}");
+        invalidateApiKeysRequest.setJsonEntity(Strings.format("""
+            {"ids":["%s"],"owner":true}""", apiKeyId1));
         invalidateApiKeysRequest.setOptions(requestOptions);
         final Response invalidateApiKeysResponse = client().performRequest(invalidateApiKeysRequest);
         assertOK(invalidateApiKeysResponse);
@@ -493,6 +612,6 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> fileTokens = (Map<String, Object>) nodes.get("file_tokens");
         assertThat(fileTokens, hasKey("token1"));
         final Map<String, Object> token1 = (Map<String, Object>) fileTokens.get("token1");
-        assertThat((List<String>) token1.get("nodes"), equalTo(List.of("javaRestTest-0", "javaRestTest-1")));
+        assertThat((List<String>) token1.get("nodes"), equalTo(List.of("test-cluster-0", "test-cluster-1")));
     }
 }

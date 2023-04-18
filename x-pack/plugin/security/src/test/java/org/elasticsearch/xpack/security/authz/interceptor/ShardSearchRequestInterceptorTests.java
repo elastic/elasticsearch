@@ -65,16 +65,15 @@ public class ShardSearchRequestInterceptorTests extends ESTestCase {
 
     public void testRequestCacheWillBeDisabledWhenDlsUsesStoredScripts() {
         configureMinMondeVersion(Version.CURRENT);
-        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(
-            Set.of(new BytesArray("{\"template\":{\"id\":\"my-script\"}}"))
-        );
+        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(Set.of(new BytesArray("""
+            {"template":{"id":"my-script"}}""")));
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         final String index = randomAlphaOfLengthBetween(3, 8);
         when(shardSearchRequest.shardId()).thenReturn(new ShardId(index, randomAlphaOfLength(22), randomInt(3)));
         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
         interceptor.disableFeatures(
             shardSearchRequest,
-            Map.of(index, new IndicesAccessControl.IndexAccessControl(true, FieldPermissions.DEFAULT, documentPermissions)),
+            Map.of(index, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions)),
             listener
         );
         listener.actionGet();
@@ -83,16 +82,15 @@ public class ShardSearchRequestInterceptorTests extends ESTestCase {
 
     public void testRequestWillNotBeDisabledCacheWhenDlsUsesInlineScripts() {
         configureMinMondeVersion(Version.CURRENT);
-        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(
-            Set.of(new BytesArray("{\"term\":{\"username\":\"foo\"}}"))
-        );
+        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(Set.of(new BytesArray("""
+            {"term":{"username":"foo"}}""")));
         final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         final String index = randomAlphaOfLengthBetween(3, 8);
         when(shardSearchRequest.shardId()).thenReturn(new ShardId(index, randomAlphaOfLength(22), randomInt(3)));
         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
         interceptor.disableFeatures(
             shardSearchRequest,
-            Map.of(index, new IndicesAccessControl.IndexAccessControl(true, FieldPermissions.DEFAULT, documentPermissions)),
+            Map.of(index, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions)),
             listener
         );
         listener.actionGet();

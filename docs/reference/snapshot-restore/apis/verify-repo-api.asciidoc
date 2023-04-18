@@ -4,7 +4,8 @@
 <titleabbrev>Verify snapshot repository</titleabbrev>
 ++++
 
-Verifies that a snapshot repository is functional.
+Verifies that a snapshot repository is functional. See
+<<snapshots-repository-verification>>.
 
 ////
 [source,console]
@@ -35,21 +36,6 @@ POST /_snapshot/my_repository/_verify
 
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
-
-[[verify-snapshot-repo-api-desc]]
-==== {api-description-title}
-
-By default, <<put-snapshot-repo-api,create or update snapshot repository API>>
-requests verify that a snapshot is functional on all master and data nodes in
-the cluster.
-
-You can skip this verification using the create or update snapshot repository
-API's `verify` parameter. You can then use the verify snapshot repository API to
-manually verify the repository.
-
-If verification is successful, the verify snapshot repository API returns a list
-of nodes connected to the snapshot repository. If verification failed, the API
-returns an error.
 
 [[verify-snapshot-repo-api-path-params]]
 ==== {api-path-parms-title}

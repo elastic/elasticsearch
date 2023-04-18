@@ -63,13 +63,14 @@ GET /_search
 `default_field`::
 +
 --
-(Optional, string) Default field you wish to search if no field is provided in
-the query string.
+(Optional, string) Default field to search if no field is provided in the query
+string. Supports wildcards (`*`).
 
-Defaults to the `index.query.default_field` index setting, which has a default
-value of `*`. The `*` value extracts all fields that are eligible for term
-queries and filters the metadata fields. All extracted fields are then
-combined to build a query if no `prefix` is specified.
+
+Defaults to the <<index-query-default-field,`index.query.default_field`>> index
+setting, which has a default value of `*`. The `*` value extracts all fields
+that are eligible for term queries and filters the metadata fields. All
+extracted fields are then combined to build a query if no `prefix` is specified.
 
 Searching across all eligible fields does not include <<nested,nested
 documents>>. Use a <<query-dsl-nested-query,`nested` query>> to search those
@@ -136,13 +137,11 @@ AND of AND Hungary`.
 from a `query_string` search. Defaults to `true`.
 
 `fields`::
+(Optional, array of strings) Array of fields to search. Supports wildcards
+(`*`).
 +
---
-(Optional, array of strings) Array of fields you wish to search.
-
 You can use this parameter query to search across multiple fields. See
 <<query-string-multi-field>>.
---
 
 `fuzziness`::
 (Optional, string) Maximum edit distance allowed for fuzzy matching. For fuzzy

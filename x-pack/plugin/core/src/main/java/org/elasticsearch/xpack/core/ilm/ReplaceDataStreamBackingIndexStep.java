@@ -9,16 +9,16 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
-
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * This step replaces a data stream backing index with the target index, as part of the data stream's backing indices.
@@ -69,11 +69,11 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
         }
 
         String originalIndex = index.getName();
-        String targetIndexName = targetIndexNameSupplier.apply(originalIndex, fromIndexMetadata(originalIndexMetadata));
-        String policyName = originalIndexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String targetIndexName = targetIndexNameSupplier.apply(originalIndex, originalIndexMetadata.getLifecycleExecutionState());
+        String policyName = originalIndexMetadata.getLifecyclePolicyName();
         IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
-        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream == null) {
             String errorMessage = String.format(
                 Locale.ROOT,
@@ -115,8 +115,8 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
         }
 
         Metadata.Builder newMetaData = Metadata.builder(clusterState.getMetadata())
-            .put(dataStream.getDataStream().replaceBackingIndex(index, targetIndexMetadata.getIndex()));
-        return ClusterState.builder(clusterState).metadata(newMetaData.build(false)).build();
+            .put(dataStream.replaceBackingIndex(index, targetIndexMetadata.getIndex()));
+        return ClusterState.builder(clusterState).metadata(newMetaData).build();
     }
 
     @Override

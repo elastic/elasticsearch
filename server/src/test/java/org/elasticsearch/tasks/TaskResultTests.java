@@ -102,16 +102,12 @@ public class TaskResultTests extends ESTestCase {
     }
 
     private static TaskResult randomTaskResult() throws IOException {
-        switch (between(0, 2)) {
-            case 0:
-                return new TaskResult(randomBoolean(), randomTaskInfo());
-            case 1:
-                return new TaskResult(randomTaskInfo(), new RuntimeException("error"));
-            case 2:
-                return new TaskResult(randomTaskInfo(), randomTaskResponse());
-            default:
-                throw new UnsupportedOperationException("Unsupported random TaskResult constructor");
-        }
+        return switch (between(0, 2)) {
+            case 0 -> new TaskResult(randomBoolean(), randomTaskInfo());
+            case 1 -> new TaskResult(randomTaskInfo(), new RuntimeException("error"));
+            case 2 -> new TaskResult(randomTaskInfo(), randomTaskResponse());
+            default -> throw new UnsupportedOperationException("Unsupported random TaskResult constructor");
+        };
     }
 
     private static ToXContent randomTaskResponse() {

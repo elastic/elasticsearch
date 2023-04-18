@@ -111,9 +111,9 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
      * @param mountSettingIsPositive whether {@code mountSetting} is positive (i.e. include/require) or negative (i.e. exclude)
      */
     private void runTest(
-        Setting.AffixSetting<String> indexSetting,
+        Setting.AffixSetting<List<String>> indexSetting,
         boolean indexSettingIsPositive,
-        @Nullable Setting.AffixSetting<String> mountSetting,
+        @Nullable Setting.AffixSetting<List<String>> mountSetting,
         boolean mountSettingIsPositive
     ) throws InterruptedException {
         final List<String> nodes = internalCluster().startNodes(2);
@@ -131,14 +131,8 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
         final MountSearchableSnapshotRequest mountRequest = prepareMountRequest(indexSettings, mountSettings);
 
         // block allocation to node 0 at the cluster level
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), nodes.get(0))
-                )
+        updateClusterSettings(
+            Settings.builder().put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), nodes.get(0))
         );
 
         // mount snapshot and verify it is allocated as expected
@@ -162,13 +156,8 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
             assertFalse(mountedIndexSettings.toString(), indexSetting.getConcreteSettingForNamespace("_name").exists(mountedIndexSettings));
         }
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().putNull(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
-                )
+        updateClusterSettings(
+            Settings.builder().putNull(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
         );
     }
 

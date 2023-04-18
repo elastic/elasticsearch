@@ -9,15 +9,17 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -104,7 +106,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                         XContentType.JSON
                     )
                 ) {
-                    evaluationRequest = SearchSourceBuilder.fromXContent(subParser, false);
+                    evaluationRequest = new SearchSourceBuilder().parseXContent(subParser, false);
                     // check for parts that should not be part of a ranking evaluation request
                     validateEvaluatedQuery(evaluationRequest);
                 } catch (IOException e) {
@@ -142,7 +144,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         );
     }
 
-    static class RankEvalActionListener extends ActionListener.Delegating<MultiSearchResponse, RankEvalResponse> {
+    static class RankEvalActionListener extends DelegatingActionListener<MultiSearchResponse, RankEvalResponse> {
 
         private final RatedRequest[] specifications;
 
@@ -164,7 +166,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         @Override
         public void onResponse(MultiSearchResponse multiSearchResponse) {
             int responsePosition = 0;
-            Map<String, EvalQueryQuality> responseDetails = new HashMap<>(specifications.length);
+            Map<String, EvalQueryQuality> responseDetails = Maps.newMapWithExpectedSize(specifications.length);
             for (Item response : multiSearchResponse.getResponses()) {
                 RatedRequest specification = specifications[responsePosition];
                 if (response.isFailure() == false) {

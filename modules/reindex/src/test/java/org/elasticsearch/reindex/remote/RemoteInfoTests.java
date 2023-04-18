@@ -9,6 +9,7 @@
 package org.elasticsearch.reindex.remote;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.test.ESTestCase;
 
@@ -23,7 +24,7 @@ public class RemoteInfoTests extends ESTestCase {
             prefixPath,
             new BytesArray("{ \"foo\" : \"bar\" }"),
             username,
-            password,
+            password == null ? null : new SecureString(password.toCharArray()),
             emptyMap(),
             RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
             RemoteInfo.DEFAULT_CONNECT_TIMEOUT

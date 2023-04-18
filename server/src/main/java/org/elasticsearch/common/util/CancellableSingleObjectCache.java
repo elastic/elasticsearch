@@ -9,7 +9,9 @@
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -41,7 +43,13 @@ import java.util.function.BooleanSupplier;
  */
 public abstract class CancellableSingleObjectCache<Input, Key, Value> {
 
+    private final ThreadContext threadContext;
+
     private final AtomicReference<CachedItem> currentCachedItemRef = new AtomicReference<>();
+
+    protected CancellableSingleObjectCache(ThreadContext threadContext) {
+        this.threadContext = threadContext;
+    }
 
     /**
      * Compute a new value for the cache.
@@ -128,9 +136,10 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
 
                 // Our item was only just released, possibly cancelled, by another get() with a fresher key. We don't simply retry
                 // since that would evict the new item. Instead let's see if it was cancelled or whether it completed properly.
-                if (currentCachedItem.getFuture().isDone()) {
+                final var future = currentCachedItem.getFuture();
+                if (future.isDone()) {
                     try {
-                        listener.onResponse(currentCachedItem.getFuture().actionGet(0L));
+                        listener.onResponse(future.actionResult());
                         return;
                     } catch (TaskCancelledException e) {
                         // previous task was cancelled before completion, therefore we must perform our own one-shot refresh
@@ -217,10 +226,10 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
                 if (future.isDone()) {
                     // No need to bother with ref counting & cancellation any more, just complete the listener.
                     // We know it wasn't cancelled because there are still references.
-                    ActionListener.completeWith(listener, () -> future.actionGet(0L));
+                    ActionListener.completeWith(listener, future::actionResult);
                 } else {
                     // Refresh is still pending; it's not cancelled because there are still references.
-                    future.addListener(listener);
+                    future.addListener(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
                     final AtomicBoolean released = new AtomicBoolean();
                     cancellationChecks.add(() -> {
                         if (released.get() == false && isCancelled.getAsBoolean() && released.compareAndSet(false, true)) {

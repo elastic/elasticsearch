@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[get-async-sql-search-api]]
 === Get async SQL search API
 ++++

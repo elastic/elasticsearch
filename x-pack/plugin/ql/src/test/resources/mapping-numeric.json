@@ -12,6 +12,9 @@
         "long" : {
             "type" : "long"
         },
+        "unsigned_long" : {
+          "type" : "unsigned_long"
+        },
         "meta_subfield" : {
             "type" : "text",
             "fields" : {

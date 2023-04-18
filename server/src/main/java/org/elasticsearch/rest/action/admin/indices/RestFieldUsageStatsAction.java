@@ -11,13 +11,13 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,7 +42,7 @@ public class RestFieldUsageStatsAction extends BaseRestHandler {
         fusRequest.fields(request.paramAsStringArray("fields", fusRequest.fields()));
         return channel -> {
             final RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(FieldUsageStatsAction.INSTANCE, fusRequest, new RestToXContentListener<>(channel));
+            cancelClient.execute(FieldUsageStatsAction.INSTANCE, fusRequest, new RestChunkedToXContentListener<>(channel));
         };
     }
 }

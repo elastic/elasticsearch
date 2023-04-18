@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.metrics;
 
-import org.elasticsearch.Assertions;
+import org.elasticsearch.core.Assertions;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -22,7 +22,7 @@ public final class CounterMetric {
     private final LongAdder counter = new LongAdder();
     private final AtomicLong assertingCounter = Assertions.ENABLED ? new AtomicLong() : null;
 
-    private boolean assertNonNegative(long n) {
+    private static boolean assertNonNegative(long n) {
         assert n >= 0 : "CounterMetric value must always be non-negative; got: " + n;
         return true;
     }

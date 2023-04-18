@@ -16,8 +16,6 @@ import org.apache.hadoop.io.retry.FailoverProxyProvider;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,6 +27,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -98,7 +98,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         }
     }
 
-    private HdfsBlobStore createBlobstore(URI uri, String path, Settings repositorySettings) {
+    private HdfsBlobStore createBlobstore(URI blobstoreUri, String path, Settings repositorySettings) {
         Configuration hadoopConfiguration = new Configuration(repositorySettings.getAsBoolean("load_defaults", true));
         hadoopConfiguration.setClassLoader(HdfsRepository.class.getClassLoader());
         hadoopConfiguration.reloadConfiguration();
@@ -118,7 +118,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         // Sense if HA is enabled
         // HA requires elevated permissions during regular usage in the event that a failover operation
         // occurs and a new connection is required.
-        String host = uri.getHost();
+        String host = blobstoreUri.getHost();
         String configKey = HdfsClientConfigKeys.Failover.PROXY_PROVIDER_KEY_PREFIX + "." + host;
         Class<?> ret = hadoopConfiguration.getClass(configKey, null, FailoverProxyProvider.class);
         boolean haEnabled = ret != null;
@@ -127,7 +127,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         // This will correctly configure the filecontext to have our UGI as its internal user.
         FileContext fileContext = ugi.doAs((PrivilegedAction<FileContext>) () -> {
             try {
-                AbstractFileSystem fs = AbstractFileSystem.get(uri, hadoopConfiguration);
+                AbstractFileSystem fs = AbstractFileSystem.get(blobstoreUri, hadoopConfiguration);
                 return FileContext.getFileContext(fs, hadoopConfiguration);
             } catch (UnsupportedFileSystemException e) {
                 throw new UncheckedIOException(e);
@@ -144,7 +144,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         try {
             return new HdfsBlobStore(fileContext, path, bufferSize, isReadOnly(), haEnabled);
         } catch (IOException e) {
-            throw new UncheckedIOException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", uri), e);
+            throw new UncheckedIOException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", blobstoreUri), e);
         }
     }
 

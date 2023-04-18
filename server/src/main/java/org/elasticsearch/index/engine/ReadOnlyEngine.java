@@ -11,7 +11,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -25,8 +24,8 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -48,8 +47,8 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 /**
  * A basic read-only engine that allows switching a shard to be true read-only temporarily or permanently.
@@ -214,13 +213,16 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
-        // TODO: provide engineConfig.getLeafSorter() when opening a DirectoryReader from a commit
-        // should be available from Lucene v 8.10
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
+        DirectoryReader directoryReader = DirectoryReader.open(
+            commit,
+            org.apache.lucene.util.Version.MIN_SUPPORTED_MAJOR,
+            engineConfig.getLeafSorter()
+        );
         if (lazilyLoadSoftDeletes) {
-            return new LazySoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
+            return new LazySoftDeletesDirectoryReaderWrapper(directoryReader, Lucene.SOFT_DELETES_FIELD);
         } else {
-            return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
+            return new SoftDeletesDirectoryReaderWrapper(directoryReader, Lucene.SOFT_DELETES_FIELD);
         }
     }
 
@@ -331,8 +333,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) {
-        return false;
+    public void asyncEnsureTranslogSynced(Translog.Location location, Consumer<Exception> listener) {
+        listener.accept(null);
     }
 
     @Override
@@ -419,14 +421,15 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void refresh(String source) {
+    public RefreshResult refresh(String source) {
         // we could allow refreshes if we want down the road the reader manager will then reflect changes to a rw-engine
         // opened side-by-side
+        return RefreshResult.NO_REFRESH;
     }
 
     @Override
-    public boolean maybeRefresh(String source) throws EngineException {
-        return false;
+    public RefreshResult maybeRefresh(String source) throws EngineException {
+        return RefreshResult.NO_REFRESH;
     }
 
     @Override
@@ -438,8 +441,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        // noop
+    public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        return true; // noop
     }
 
     @Override
@@ -540,7 +543,7 @@ public class ReadOnlyEngine extends Engine {
         return false;
     }
 
-    private Translog.Snapshot newEmptySnapshot() {
+    private static Translog.Snapshot newEmptySnapshot() {
         return new Translog.Snapshot() {
             @Override
             public void close() {}

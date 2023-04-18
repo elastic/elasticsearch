@@ -34,16 +34,25 @@ and you remove fewer than half of the master-eligible nodes in the cluster at
 once, the <<modules-discovery-voting,voting configuration>> automatically
 shrinks.
 
-If you want to shrink the voting configuration to contain fewer than three nodes
-or to remove half or more of the master-eligible nodes in the cluster at once,
-you must use this API to remove departed nodes from the voting configuration
-manually. It adds an entry for that node in the voting configuration exclusions
-list. The cluster then tries to reconfigure the voting configuration to remove
-that node and to prevent it from returning.
+If you want to shrink the voting configuration to contain fewer than three
+nodes or to remove half or more of the master-eligible nodes in the cluster at
+once, use this API to remove departing nodes from the voting configuration
+manually. The API adds an entry for each specified node to the cluster's voting
+configuration exclusions list. It then waits until the cluster has reconfigured
+its voting configuration to exclude the specified nodes.
+
+Clusters should have no voting configuration exclusions in normal operation.
+Once the excluded nodes have stopped, clear the voting configuration exclusions
+with `DELETE /_cluster/voting_config_exclusions`. This API waits for the nodes
+to be fully removed from the cluster before it returns. If your cluster has
+voting configuration exclusions for nodes that you no longer intend to remove,
+use `DELETE /_cluster/voting_config_exclusions?wait_for_removal=false` to clear
+the voting configuration exclusions without waiting for the nodes to leave the
+cluster.
 
 If the API fails, you can safely retry it. Only a successful response
-guarantees that the node has been removed from the voting configuration and will
-not be reinstated.
+guarantees that the node has been removed from the voting configuration and
+will not be reinstated.
 
 NOTE: Voting exclusions are required only when you remove at least half of the
 master-eligible nodes from a cluster in a short time period. They are not
@@ -57,11 +66,13 @@ For more information, see <<modules-discovery-removing-nodes>>.
 
 `node_names`::
 A comma-separated list of the names of the nodes to exclude from the voting
-configuration. If specified, you may not also specify `?node_ids`.
+configuration. If specified, you may not also specify `?node_ids`. Only applies
+to the `POST` form of this API.
 
 `node_ids`::
 A comma-separated list of the persistent ids of the nodes to exclude from the
 voting configuration. If specified, you may not also specify `?node_names`.
+Only applies to the `POST` form of this API.
 
 `timeout`::
 (Optional, <<time-units, time units>>) When adding a voting configuration
@@ -69,7 +80,12 @@ exclusion, the API waits for the specified nodes to be excluded from the voting
 configuration before returning. The period of time to wait is specified by the
 `?timeout` query parameter. If the timeout expires before the appropriate
 condition is satisfied, the request fails and returns an error. Defaults to
-`30s`.
+`30s`. Only applies to the `POST` form of this API.
+
+`master_timeout`::
+(Optional, <<time-units, time units>>) Defines how long to wait while trying to
+route the request to the current master node in the cluster. Defaults to `30s`.
+Applies to both `POST` and `DELETE` forms of this API.
 
 `wait_for_removal`::
 (Optional, Boolean) Specifies whether to wait for all excluded nodes to be
@@ -77,7 +93,7 @@ removed from the cluster before clearing the voting configuration exclusions
 list. Defaults to `true`, meaning that all excluded nodes must be removed from
 the cluster before this API takes any action. If set to `false` then the voting
 configuration exclusions list is cleared even if some excluded nodes are still
-in the cluster.
+in the cluster. Only applies to the `DELETE` form of this API.
   
 [[voting-config-exclusions-api-example]]
 ==== {api-examples-title}

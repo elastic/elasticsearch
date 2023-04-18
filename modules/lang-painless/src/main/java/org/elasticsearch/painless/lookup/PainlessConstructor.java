@@ -15,15 +15,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class PainlessConstructor {
+public record PainlessConstructor(
+    Constructor<?> javaConstructor,
+    List<Class<?>> typeParameters,
+    MethodHandle methodHandle,
+    MethodType methodType,
+    Map<Class<?>, Object> annotations
+) {
 
-    public final Constructor<?> javaConstructor;
-    public final List<Class<?>> typeParameters;
-    public final MethodHandle methodHandle;
-    public final MethodType methodType;
-    public final Map<Class<?>, Object> annotations;
-
-    PainlessConstructor(
+    public PainlessConstructor(
         Constructor<?> javaConstructor,
         List<Class<?>> typeParameters,
         MethodHandle methodHandle,
@@ -31,10 +31,10 @@ public class PainlessConstructor {
         Map<Class<?>, Object> annotations
     ) {
         this.javaConstructor = javaConstructor;
-        this.typeParameters = typeParameters;
+        this.typeParameters = List.copyOf(typeParameters);
         this.methodHandle = methodHandle;
         this.methodType = methodType;
-        this.annotations = annotations;
+        this.annotations = Map.copyOf(annotations);
     }
 
     @Override
@@ -48,7 +48,6 @@ public class PainlessConstructor {
         }
 
         PainlessConstructor that = (PainlessConstructor) object;
-
         return Objects.equals(javaConstructor, that.javaConstructor)
             && Objects.equals(typeParameters, that.typeParameters)
             && Objects.equals(methodType, that.methodType)

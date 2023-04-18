@@ -4,7 +4,7 @@
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body: { "num1": 1.0 }
     - do:
         indices.refresh: {}

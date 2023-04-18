@@ -9,6 +9,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
@@ -19,7 +20,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -124,7 +124,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     @Override
     public Iterator<BulkItemResponse> iterator() {
-        return Arrays.stream(responses).iterator();
+        return Iterators.forArray(responses);
     }
 
     @Override
@@ -174,7 +174,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
                 } else if (INGEST_TOOK.equals(currentFieldName)) {
                     ingestTook = parser.longValue();
                 } else if (ERRORS.equals(currentFieldName) == false) {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    throwUnknownField(currentFieldName, parser);
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (ITEMS.equals(currentFieldName)) {
@@ -182,10 +182,10 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
                         items.add(BulkItemResponse.fromXContent(parser, items.size()));
                     }
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    throwUnknownField(currentFieldName, parser);
                 }
             } else {
-                throwUnknownToken(token, parser.getTokenLocation());
+                throwUnknownToken(token, parser);
             }
         }
         return new BulkResponse(items.toArray(new BulkItemResponse[items.size()]), took, ingestTook);

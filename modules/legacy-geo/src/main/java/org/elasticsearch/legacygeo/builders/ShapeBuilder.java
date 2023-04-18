@@ -10,11 +10,11 @@ package org.elasticsearch.legacygeo.builders;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.legacygeo.GeoShapeType;
 import org.elasticsearch.legacygeo.parsers.GeoWKTParser;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -107,10 +107,7 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(coordinates.size());
-        for (Coordinate point : coordinates) {
-            writeCoordinateTo(point, out);
-        }
+        out.writeCollection(coordinates, (o, p) -> writeCoordinateTo(p, o));
     }
 
     protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {
@@ -147,21 +144,21 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
     /**
      * Add a array of coordinates to the collection
      *
-     * @param coordinates array of {@link Coordinate}s to add
+     * @param coordinatesToAdd array of {@link Coordinate}s to add
      * @return this
      */
-    public E coordinates(Coordinate... coordinates) {
-        return this.coordinates(Arrays.asList(coordinates));
+    public E coordinates(Coordinate... coordinatesToAdd) {
+        return this.coordinates(Arrays.asList(coordinatesToAdd));
     }
 
     /**
      * Add a collection of coordinates to the collection
      *
-     * @param coordinates array of {@link Coordinate}s to add
+     * @param coordinatesToAdd array of {@link Coordinate}s to add
      * @return this
      */
-    public E coordinates(Collection<? extends Coordinate> coordinates) {
-        this.coordinates.addAll(coordinates);
+    public E coordinates(Collection<? extends Coordinate> coordinatesToAdd) {
+        this.coordinates.addAll(coordinatesToAdd);
         return thisRef();
     }
 

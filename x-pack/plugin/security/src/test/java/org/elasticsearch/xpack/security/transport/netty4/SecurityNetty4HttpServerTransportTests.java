@@ -14,17 +14,18 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.NullDispatcher;
+import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
+import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
+import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTransportTestCase;
-import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -32,6 +33,7 @@ import java.util.Collections;
 
 import javax.net.ssl.SSLEngine;
 
+import static org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests.randomCapitalization;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -66,17 +68,18 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     public void testDefaultClientAuth() throws Exception {
         Settings settings = Settings.builder().put(env.settings()).put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
         sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
+        Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
-            mock(IPFilter.class),
-            sslService,
             mock(ThreadPool.class),
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP,
+            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            null,
+            randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -85,24 +88,25 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     }
 
     public void testOptionalClientAuth() throws Exception {
-        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.OPTIONAL);
+        String value = randomCapitalization(SslClientAuthenticationMode.OPTIONAL);
         Settings settings = Settings.builder()
             .put(env.settings())
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
             .put("xpack.security.http.ssl.client_authentication", value)
             .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
+        Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
-            mock(IPFilter.class),
-            sslService,
             mock(ThreadPool.class),
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP,
+            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            null,
+            randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -111,24 +115,25 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     }
 
     public void testRequiredClientAuth() throws Exception {
-        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.REQUIRED);
+        String value = randomCapitalization(SslClientAuthenticationMode.REQUIRED);
         Settings settings = Settings.builder()
             .put(env.settings())
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
             .put("xpack.security.http.ssl.client_authentication", value)
             .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
+        Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
-            mock(IPFilter.class),
-            sslService,
             mock(ThreadPool.class),
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP,
+            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            null,
+            randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -137,24 +142,25 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     }
 
     public void testNoClientAuth() throws Exception {
-        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.NONE);
+        String value = randomCapitalization(SslClientAuthenticationMode.NONE);
         Settings settings = Settings.builder()
             .put(env.settings())
             .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
             .put("xpack.security.http.ssl.client_authentication", value)
             .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
+        Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
-            mock(IPFilter.class),
-            sslService,
             mock(ThreadPool.class),
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP,
+            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            null,
+            randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -165,17 +171,18 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     public void testCustomSSLConfiguration() throws Exception {
         Settings settings = Settings.builder().put(env.settings()).put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
         sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
+        Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
-            mock(IPFilter.class),
-            sslService,
             mock(ThreadPool.class),
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP,
+            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            null,
+            randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -187,17 +194,18 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             .put("xpack.security.http.ssl.supported_protocols", "TLSv1.2")
             .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        transport = new SecurityNetty4HttpServerTransport(
+        transport = new Netty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
-            mock(IPFilter.class),
-            sslService,
             mock(ThreadPool.class),
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP,
+            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            null,
+            randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
         );
         handler = transport.configureServerChannelHandler();
         ch = new EmbeddedChannel(handler);
@@ -218,17 +226,18 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             .build();
         env = TestEnvironment.newEnvironment(settings);
         sslService = new SSLService(env);
-        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
+        Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
-            mock(IPFilter.class),
-            sslService,
             mock(ThreadPool.class),
             xContentRegistry(),
             new NullDispatcher(),
             randomClusterSettings(),
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            Tracer.NOOP,
+            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            null,
+            randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
         );
         assertNotNull(transport.configureServerChannelHandler());
     }

@@ -73,7 +73,7 @@ public class ESJsonLayout extends AbstractStringLayout {
             .build();
     }
 
-    private String pattern(String type, String[] esmessagefields) {
+    private static String pattern(String type, String[] esmessagefields) {
         if (Strings.isEmpty(type)) {
             throw new IllegalArgumentException("layout parameter 'type_name' cannot be empty");
         }
@@ -94,7 +94,7 @@ public class ESJsonLayout extends AbstractStringLayout {
         return createPattern(map, Set.of(esmessagefields));
     }
 
-    private String createPattern(Map<String, Object> map, Set<String> esmessagefields) {
+    private static String createPattern(Map<String, Object> map, Set<String> esmessagefields) {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         String separator = "";
@@ -117,20 +117,20 @@ public class ESJsonLayout extends AbstractStringLayout {
         return sb.toString();
     }
 
-    private void appendField(StringBuilder sb, Map.Entry<String, Object> entry) {
+    private static void appendField(StringBuilder sb, Map.Entry<String, Object> entry) {
         sb.append(jsonKey(entry.getKey()));
         sb.append(entry.getValue().toString());
     }
 
-    private String notEmpty(String value) {
+    private static String notEmpty(String value) {
         return "%notEmpty{" + value + "}";
     }
 
-    private CharSequence jsonKey(String s) {
+    private static CharSequence jsonKey(String s) {
         return inQuotes(s) + ": ";
     }
 
-    private String inQuotes(String s) {
+    private static String inQuotes(String s) {
         return "\"" + s + "\"";
     }
 

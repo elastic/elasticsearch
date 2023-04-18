@@ -15,16 +15,13 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.RandomApproximationQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
@@ -33,8 +30,11 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.search.RandomApproximationQuery;
+import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.test.ESTestCase;
@@ -75,7 +75,7 @@ public class QueryProfilerTests extends ESTestCase {
             reader,
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
-            ALWAYS_CACHE_POLICY,
+            TrivialQueryCachingPolicy.ALWAYS,
             true
         );
     }
@@ -106,6 +106,7 @@ public class QueryProfilerTests extends ESTestCase {
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.COUNT_WEIGHT.toString()), equalTo(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.ADVANCE.toString()), equalTo(0L));
@@ -113,6 +114,7 @@ public class QueryProfilerTests extends ESTestCase {
         assertThat(breakdown.get(QueryTimingType.MATCH.toString()), equalTo(0L));
 
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.COUNT_WEIGHT.toString() + "_count"), equalTo(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count"), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count"), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count"), equalTo(0L));
@@ -149,6 +151,7 @@ public class QueryProfilerTests extends ESTestCase {
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.COUNT_WEIGHT.toString()), equalTo(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.ADVANCE.toString()), equalTo(0L));
@@ -156,6 +159,7 @@ public class QueryProfilerTests extends ESTestCase {
         assertThat(breakdown.get(QueryTimingType.MATCH.toString()), equalTo(0L));
 
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.COUNT_WEIGHT.toString() + "_count"), equalTo(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count"), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count"), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count"), equalTo(0L));
@@ -189,6 +193,7 @@ public class QueryProfilerTests extends ESTestCase {
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString()), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.COUNT_WEIGHT.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString()), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.ADVANCE.toString()), equalTo(0L));
@@ -196,6 +201,7 @@ public class QueryProfilerTests extends ESTestCase {
         assertThat(breakdown.get(QueryTimingType.MATCH.toString()), greaterThan(0L));
 
         assertThat(breakdown.get(QueryTimingType.CREATE_WEIGHT.toString() + "_count"), greaterThan(0L));
+        assertThat(breakdown.get(QueryTimingType.COUNT_WEIGHT.toString() + "_count"), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.BUILD_SCORER.toString() + "_count"), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.NEXT_DOC.toString() + "_count"), greaterThan(0L));
         assertThat(breakdown.get(QueryTimingType.ADVANCE.toString() + "_count"), equalTo(0L));
@@ -296,15 +302,4 @@ public class QueryProfilerTests extends ESTestCase {
         dir.close();
     }
 
-    private static final QueryCachingPolicy ALWAYS_CACHE_POLICY = new QueryCachingPolicy() {
-
-        @Override
-        public void onUse(Query query) {}
-
-        @Override
-        public boolean shouldCache(Query query) throws IOException {
-            return true;
-        }
-
-    };
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.action.enrollment;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -15,7 +16,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -100,6 +101,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             nodeInfos.add(
                 new NodeInfo(
                     Version.CURRENT,
+                    TransportVersion.CURRENT,
                     null,
                     n,
                     null,
@@ -108,6 +110,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
                     null,
                     null,
                     new TransportInfo(new BoundTransportAddress(new TransportAddress[] { n.getAddress() }, n.getAddress()), null, false),
+                    null,
                     null,
                     null,
                     null,
@@ -149,10 +152,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         assertThat(response.getNodesAddresses(), hasSize(numberOfNodes));
         assertThat(nodesInfoRequests, hasSize(1));
 
-        assertWarnings(
-            "[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version."
-        );
+        assertWarnings("[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release.");
     }
 
     private void assertSameCertificate(String cert, Path original, char[] originalPassword, boolean isCa) throws Exception {

@@ -8,14 +8,20 @@
 
 package org.elasticsearch.test.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
@@ -44,6 +50,7 @@ public class StubbableTransport implements Transport {
     private volatile SendRequestBehavior defaultSendRequest = null;
     private volatile OpenConnectionBehavior defaultConnectBehavior = null;
     private final Transport delegate;
+    private final PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
 
     public StubbableTransport(Transport transport) {
         this.delegate = transport;
@@ -132,6 +139,11 @@ public class StubbableTransport implements Transport {
     }
 
     @Override
+    public TransportVersion getVersion() {
+        return delegate.getVersion();
+    }
+
+    @Override
     public void setMessageListener(TransportMessageListener listener) {
         delegate.setMessageListener(listener);
     }
@@ -139,6 +151,11 @@ public class StubbableTransport implements Transport {
     @Override
     public BoundTransportAddress boundAddress() {
         return delegate.boundAddress();
+    }
+
+    @Override
+    public BoundTransportAddress boundRemoteIngressAddress() {
+        return delegate.boundRemoteIngressAddress();
     }
 
     @Override
@@ -190,11 +207,6 @@ public class StubbableTransport implements Transport {
     @Override
     public void addLifecycleListener(LifecycleListener listener) {
         delegate.addLifecycleListener(listener);
-    }
-
-    @Override
-    public void removeLifecycleListener(LifecycleListener listener) {
-        delegate.removeLifecycleListener(listener);
     }
 
     @Override
@@ -260,6 +272,11 @@ public class StubbableTransport implements Transport {
         @Override
         public Version getVersion() {
             return connection.getVersion();
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
+            return connection.getTransportVersion();
         }
 
         @Override
@@ -335,5 +352,10 @@ public class StubbableTransport implements Transport {
             throws Exception;
 
         default void clearCallback() {}
+    }
+
+    @Override
+    public RecyclerBytesStreamOutput newNetworkBytesStream() {
+        return new RecyclerBytesStreamOutput(new BytesRefRecycler(recycler));
     }
 }

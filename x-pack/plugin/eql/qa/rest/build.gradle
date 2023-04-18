@@ -1,6 +1,6 @@
-apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 import org.elasticsearch.gradle.internal.info.BuildParams
 
@@ -12,6 +12,10 @@ restResources {
 
 dependencies {
   javaRestTestImplementation project(path: xpackModule('eql:qa:common'))
+}
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
 if (BuildParams.inFipsJvm){

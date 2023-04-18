@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -26,10 +27,9 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
 
     protected static final ParseField INCLUDE_NEGATIVES_FIELD = new ParseField("include_negatives");
 
-    protected static final String SCORE_ERROR_MESSAGE = ", does your background filter not include all documents in the bucket? "
-        + "If so and it is intentional, set \""
-        + BACKGROUND_IS_SUPERSET.getPreferredName()
-        + "\": false";
+    protected static final String SCORE_ERROR_MESSAGE = String.format(Locale.ROOT, """
+        , does your background filter not include all documents in the bucket? If so and it is intentional, set "%s": false
+        """, BACKGROUND_IS_SUPERSET.getPreferredName());
 
     protected final boolean backgroundIsSuperset;
 

@@ -68,6 +68,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -183,7 +184,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         if (randomBoolean()) {
             indexSettingsBuilder.put(
                 SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(),
-                new ByteSizeValue(randomLongBetween(10, 100_000))
+                ByteSizeValue.ofBytes(randomLongBetween(10, 100_000))
             );
         }
         final int expectedReplicas;
@@ -254,7 +255,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
         ensureGreen(restoredIndexName);
-        assertBusy(() -> assertShardFolders(restoredIndexName, true));
+        assertBusy(() -> assertShardFolders(restoredIndexName, true), 30, TimeUnit.SECONDS);
 
         assertThat(
             client().admin()
@@ -299,18 +300,14 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             client().admin().cluster().prepareState().get().getState().nodes().getDataNodes().values()
         );
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(restoredIndexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(
-                            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
-                            dataNode.getName()
-                        )
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(
+                    IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
+                    dataNode.getName()
+                ),
+            restoredIndexName
         );
 
         assertFalse(
@@ -327,15 +324,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertRecoveryStats(restoredIndexName, preWarmEnabled);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(restoredIndexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey()),
+            restoredIndexName
         );
 
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
@@ -470,7 +463,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             // trigger the rate limiter in all nodes. We could just use the min shard size
             // but that would make this test too slow.
             long rateLimitInBytes = getMaxShardSizeByNodeInBytes(indexName).values().stream().min(Long::compareTo).get();
-            repositorySettings.put("max_restore_bytes_per_sec", new ByteSizeValue(rateLimitInBytes, ByteSizeUnit.BYTES));
+            repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ofBytes(rateLimitInBytes));
         } else {
             repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ZERO);
         }
@@ -691,7 +684,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .get()
             .getSnapshots()
             .get(0);
-        assertThat(snapshotTwoStatus.getStats().getTotalFileCount(), equalTo(numShards)); // one segment_N per shard
+        assertThat(snapshotTwoStatus.getStats().getTotalFileCount(), equalTo(0));
         assertThat(snapshotTwoStatus.getStats().getIncrementalFileCount(), equalTo(0));
         assertThat(snapshotTwoStatus.getStats().getProcessedFileCount(), equalTo(0));
     }
@@ -700,6 +693,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int numShards = between(1, 3);
 
+        boolean indexed = randomBoolean();
         final String dateType = randomFrom("date", "date_nanos");
         assertAcked(
             client().admin()
@@ -711,6 +705,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                         .startObject("properties")
                         .startObject(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
                         .field("type", dateType)
+                        .field("index", indexed)
                         .field("format", "strict_date_optional_time_nanos")
                         .endObject()
                         .endObject()
@@ -768,16 +763,21 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .getTimestampRange();
 
         assertTrue(timestampRange.isComplete());
-        assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
-        if (docCount == 0) {
-            assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
+
+        if (indexed) {
+            assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+            if (docCount == 0) {
+                assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
+            } else {
+                assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+                DateFieldMapper.Resolution resolution = dateType.equals("date")
+                    ? DateFieldMapper.Resolution.MILLISECONDS
+                    : DateFieldMapper.Resolution.NANOSECONDS;
+                assertThat(timestampRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
+                assertThat(timestampRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+            }
         } else {
-            assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-            DateFieldMapper.Resolution resolution = dateType.equals("date")
-                ? DateFieldMapper.Resolution.MILLISECONDS
-                : DateFieldMapper.Resolution.NANOSECONDS;
-            assertThat(timestampRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
-            assertThat(timestampRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+            assertThat(timestampRange, sameInstance(IndexLongFieldRange.UNKNOWN));
         }
     }
 
@@ -888,9 +888,9 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             assertTrue(snapshotStatus.getIndices().containsKey(restoredIndexName));
             for (final SnapshotIndexShardStatus snapshotIndexShardStatus : snapshotStatus.getShards()) {
                 final SnapshotStats stats = snapshotIndexShardStatus.getStats();
-                assertThat(stats.getIncrementalFileCount(), equalTo(1));
-                assertThat(stats.getProcessedFileCount(), equalTo(1));
-                assertThat(stats.getTotalFileCount(), equalTo(1));
+                assertThat(stats.getIncrementalFileCount(), equalTo(0));
+                assertThat(stats.getProcessedFileCount(), equalTo(0));
+                assertThat(stats.getTotalFileCount(), equalTo(0));
             }
         }
         assertAcked(client().admin().indices().prepareDelete(restoredIndexName));

@@ -10,13 +10,15 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -32,7 +34,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
         createIndex("idx");
         createIndex("idx_unmapped");
         ensureSearchable();
-        final int numDocs = randomInt(5);
+        final int numDocs = between(1, 10);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
             final boolean singleValue = randomBoolean();
@@ -42,25 +44,22 @@ public class BooleanTermsIT extends ESIntegTestCase {
                 numSingleFalses++;
             }
             final boolean[] multiValue;
-            switch (randomInt(3)) {
-                case 0:
-                    multiValue = new boolean[0];
-                    break;
-                case 1:
+            switch (between(i == 0 ? 1 : 0, 3)) { // Make sure the first document has at least one value
+                case 0 -> multiValue = new boolean[0];
+                case 1 -> {
                     numMultiFalses++;
                     multiValue = new boolean[] { false };
-                    break;
-                case 2:
+                }
+                case 2 -> {
                     numMultiTrues++;
                     multiValue = new boolean[] { true };
-                    break;
-                case 3:
+                }
+                case 3 -> {
                     numMultiFalses++;
                     numMultiTrues++;
                     multiValue = new boolean[] { false, true };
-                    break;
-                default:
-                    throw new AssertionError();
+                }
+                default -> throw new AssertionError();
             }
             builders[i] = client().prepareIndex("idx")
                 .setSource(
@@ -75,18 +74,20 @@ public class BooleanTermsIT extends ESIntegTestCase {
 
     public void testSingleValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(terms("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values())))
+            .addAggregation(
+                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
+            )
             .get();
 
         assertSearchResponse(response);
 
-        Terms terms = response.getAggregations().get("terms");
+        LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
         final int bucketCount = numSingleFalses > 0 && numSingleTrues > 0 ? 2 : numSingleFalses + numSingleTrues > 0 ? 1 : 0;
         assertThat(terms.getBuckets().size(), equalTo(bucketCount));
 
-        Terms.Bucket bucket = terms.getBucketByKey("false");
+        LongTerms.Bucket bucket = terms.getBucketByKey("false");
         if (numSingleFalses == 0) {
             assertNull(bucket);
         } else {
@@ -107,18 +108,20 @@ public class BooleanTermsIT extends ESIntegTestCase {
 
     public void testMultiValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(terms("terms").field(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values())))
+            .addAggregation(
+                new TermsAggregationBuilder("terms").field(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
+            )
             .get();
 
         assertSearchResponse(response);
 
-        Terms terms = response.getAggregations().get("terms");
+        LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
         final int bucketCount = numMultiFalses > 0 && numMultiTrues > 0 ? 2 : numMultiFalses + numMultiTrues > 0 ? 1 : 0;
-        assertThat(terms.getBuckets().size(), equalTo(bucketCount));
+        assertThat(terms.getBuckets(), hasSize(bucketCount));
 
-        Terms.Bucket bucket = terms.getBucketByKey("false");
+        LongTerms.Bucket bucket = terms.getBucketByKey("false");
         if (numMultiFalses == 0) {
             assertNull(bucket);
         } else {
@@ -140,13 +143,15 @@ public class BooleanTermsIT extends ESIntegTestCase {
     public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
             .addAggregation(
-                terms("terms").field(SINGLE_VALUED_FIELD_NAME).size(between(1, 5)).collectMode(randomFrom(SubAggCollectionMode.values()))
+                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                    .size(between(1, 5))
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
             )
             .get();
 
         assertSearchResponse(response);
 
-        Terms terms = response.getAggregations().get("terms");
+        UnmappedTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.getBuckets().size(), equalTo(0));

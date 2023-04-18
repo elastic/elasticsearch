@@ -17,6 +17,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPolygon;
@@ -31,17 +32,21 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 /**
- * Rest test for _mvt end point. The test only check that the structure of the vector tiles is sound in
- * respect to the number of layers returned and the number of features abd tags in each layer.
+ * Rest test for _mvt end point. The tests only check that the structure of the vector tiles is sound in
+ * respect to the number of layers returned and the number of features and tags in each layer.
  */
 public class VectorTileRestIT extends ESRestTestCase {
 
     private static final String INDEX_POINTS = "index-points";
     private static final String INDEX_POLYGON = "index-polygon";
     private static final String INDEX_COLLECTION = "index-collection";
+    private static final String INDEX_BIG_POLYGON = "index-big-polygon";
     private static final String INDEX_POINTS_SHAPES = INDEX_POINTS + "," + INDEX_POLYGON;
     private static final String INDEX_ALL = "index*";
     private static final String META_LAYER = "meta";
@@ -58,7 +63,8 @@ public class VectorTileRestIT extends ESRestTestCase {
             x = randomIntBetween(0, (1 << z) - 1);
             y = randomIntBetween(0, (1 << z) - 1);
             indexPoints();
-            indexShapes();
+            indexPolygon();
+            indexBigPolygon();
             indexCollection();
             oneTimeSetup = true;
         }
@@ -69,18 +75,17 @@ public class VectorTileRestIT extends ESRestTestCase {
         Response response = client().performRequest(createRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
         final Request mappingRequest = new Request(HttpPut.METHOD_NAME, INDEX_POINTS + "/_mapping");
-        mappingRequest.setJsonEntity(
-            "{\n"
-                + "  \"properties\": {\n"
-                + "    \"location\": {\n"
-                + "      \"type\": \"geo_point\"\n"
-                + "    },\n"
-                + "    \"name\": {\n"
-                + "      \"type\": \"keyword\"\n"
-                + "    }\n"
-                + "  }\n"
-                + "}"
-        );
+        mappingRequest.setJsonEntity("""
+            {
+              "properties": {
+                "location": {
+                  "type": "geo_point"
+                },
+                "name": {
+                  "type": "keyword"
+                }
+              }
+            }""");
         response = client().performRequest(mappingRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
         final Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
@@ -89,22 +94,10 @@ public class VectorTileRestIT extends ESRestTestCase {
         for (int i = 0; i < 30; i += 10) {
             for (int j = 0; j <= i; j++) {
                 final Request putRequest = new Request(HttpPost.METHOD_NAME, INDEX_POINTS + "/_doc/");
-                putRequest.setJsonEntity(
-                    "{\n"
-                        + "  \"location\": \"POINT("
-                        + x
-                        + " "
-                        + y
-                        + ")\", \"name\": \"point"
-                        + i
-                        + "\""
-                        + ", \"value1\": "
-                        + i
-                        + ", \"value2\": "
-                        + (i + 1)
-                        + "\n"
-                        + "}"
-                );
+                putRequest.setJsonEntity(Strings.format("""
+                    {
+                      "location": "POINT(%s %s)", "name": "point%s", "value1": %s, "value2": %s
+                    }""", x, y, i, i, i + 1));
                 response = client().performRequest(putRequest);
                 assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_CREATED));
             }
@@ -115,9 +108,14 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
     }
 
-    private void indexShapes() throws IOException {
+    private void indexPolygon() throws IOException {
         final Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
         createIndexAndPutGeometry(INDEX_POLYGON, toPolygon(r), "polygon");
+    }
+
+    private void indexBigPolygon() throws IOException {
+        final Rectangle r = new Rectangle(-180, 180, 90, -90);
+        createIndexAndPutGeometry(INDEX_BIG_POLYGON, toPolygon(r), "polygon");
     }
 
     private void createIndexAndPutGeometry(String indexName, Geometry geometry, String id) throws IOException {
@@ -125,35 +123,30 @@ public class VectorTileRestIT extends ESRestTestCase {
         Response response = client().performRequest(createRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
         final Request mappingRequest = new Request(HttpPut.METHOD_NAME, indexName + "/_mapping");
-        mappingRequest.setJsonEntity(
-            "{\n"
-                + "  \"properties\": {\n"
-                + "    \"location\": {\n"
-                + "      \"type\": \"geo_shape\"\n"
-                + "    },\n"
-                + "    \"name\": {\n"
-                + "      \"type\": \"keyword\"\n"
-                + "    }\n"
-                + "  }\n"
-                + "}"
-        );
+        mappingRequest.setJsonEntity("""
+            {
+              "properties": {
+                "location": {
+                  "type": "geo_shape",
+                  "store":""" + " " + random().nextBoolean() + """
+                },
+                "name": {
+                  "type": "keyword"
+                },
+                "ignore_value": {
+                  "type": "double",
+                  "ignore_malformed" : true
+                }
+              }
+            }""");
         response = client().performRequest(mappingRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
 
         final Request putRequest = new Request(HttpPost.METHOD_NAME, indexName + "/_doc/" + id);
-        putRequest.setJsonEntity(
-            "{\n"
-                + "  \"location\": \""
-                + WellKnownText.toWKT(geometry)
-                + "\""
-                + ", \"name\": \"geometry\""
-                + ", \"value1\": "
-                + 1
-                + ", \"value2\": "
-                + 2
-                + "\n"
-                + "}"
-        );
+        putRequest.setJsonEntity(Strings.format("""
+            {
+              "location": "%s", "name": "geometry", "value1": %s, "value2": %s, "nullField" : null, "ignore_value" : ""
+            }""", WellKnownText.toWKT(geometry), 1, 2));
         response = client().performRequest(putRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_CREATED));
 
@@ -176,18 +169,17 @@ public class VectorTileRestIT extends ESRestTestCase {
         Response response = client().performRequest(createRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
         final Request mappingRequest = new Request(HttpPut.METHOD_NAME, INDEX_COLLECTION + "/_mapping");
-        mappingRequest.setJsonEntity(
-            "{\n"
-                + "  \"properties\": {\n"
-                + "    \"location\": {\n"
-                + "      \"type\": \"geo_shape\"\n"
-                + "    },\n"
-                + "    \"name\": {\n"
-                + "      \"type\": \"keyword\"\n"
-                + "    }\n"
-                + "  }\n"
-                + "}"
-        );
+        mappingRequest.setJsonEntity("""
+            {
+              "properties": {
+                "location": {
+                  "type": "geo_shape"
+                },
+                "name": {
+                  "type": "keyword"
+                }
+              }
+            }""");
         response = client().performRequest(mappingRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
 
@@ -208,19 +200,10 @@ public class VectorTileRestIT extends ESRestTestCase {
             + " "
             + y
             + "))";
-        putRequest.setJsonEntity(
-            "{\n"
-                + "  \"location\": \""
-                + collection
-                + "\""
-                + ", \"name\": \"collection\""
-                + ", \"value1\": "
-                + 1
-                + ", \"value2\": "
-                + 2
-                + "\n"
-                + "}"
-        );
+        putRequest.setJsonEntity(Strings.format("""
+            {
+              "location": "%s", "name": "collection", "value1": %s, "value2": %s
+            }""", collection, 1, 2));
         response = client().performRequest(putRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_CREATED));
 
@@ -259,8 +242,8 @@ public class VectorTileRestIT extends ESRestTestCase {
         mvtRequest.setJsonEntity("{\"size\" : 100}");
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
-        // 33 points, 1 polygon and two from geometry collection
-        assertLayer(tile, HITS_LAYER, 4096, 36, 2);
+        // 33 points, 1 big polygon, 1 polygon and two from geometry collection
+        assertLayer(tile, HITS_LAYER, 4096, 37, 2);
         assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
         assertLayer(tile, META_LAYER, 4096, 1, 13);
     }
@@ -306,9 +289,8 @@ public class VectorTileRestIT extends ESRestTestCase {
             assertThat(tile.getLayersCount(), Matchers.equalTo(1));
             assertLayer(tile, META_LAYER, 4096, 1, 8);
             final VectorTile.Tile.Layer layer = getLayer(tile, META_LAYER);
-            // edge case: because all points are the same, the bounding box is a point and cannot be expressed as a polygon.
-            // Therefore the feature ends-up without a geometry.
-            assertThat(layer.getFeatures(0).hasType(), Matchers.equalTo(false));
+            // edge case: because all points are the same, the bounding box is a point
+            assertThat(layer.getFeatures(0).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POINT));
         }
         {
             final Request mvtRequest = new Request(
@@ -351,10 +333,194 @@ public class VectorTileRestIT extends ESRestTestCase {
         }
     }
 
-    public void testGridType() throws Exception {
+    public void testGridPrecisionGeoTile() throws Exception {
+        final int z = randomIntBetween(0, GeoTileUtils.MAX_ZOOM - 10);
+        final int x = randomIntBetween(0, (1 << z) - 1);
+        final int y = randomIntBetween(0, (1 << z) - 1);
+        for (int i = 1; i <= 8; i++) {
+            final Request mvtRequest = new Request(getHttpMethod(), INDEX_BIG_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+            mvtRequest.setJsonEntity("{\"size\" : 0, \"grid_agg\" : \"geotile\", \"grid_precision\" : " + i + " }");
+            final VectorTile.Tile tile = execute(mvtRequest);
+            assertThat(tile.getLayersCount(), Matchers.equalTo(2));
+            assertLayer(tile, AGGS_LAYER, 4096, (1 << i) * (1 << i), 2);
+            assertLayer(tile, META_LAYER, 4096, 1, 13);
+        }
+    }
+
+    public void testGridPrecisionGeoHex() throws Exception {
+        // the number of hex depends on the position of the tile, therefore we just check some of them.
+        final int[] expected_zoom_0 = new int[] { 122, 122, 842, 842, 5872, 5872, 41058, 41058 };
+        for (int i = 1; i <= 8; i++) {
+            final Request mvtRequest = new Request(getHttpMethod(), INDEX_BIG_POLYGON + "/_mvt/location/0/0/0");
+            mvtRequest.setJsonEntity("{\"size\" : 0, \"grid_agg\" : \"geohex\", \"grid_precision\" : " + i + " }");
+            final VectorTile.Tile tile = execute(mvtRequest);
+            assertThat(tile.getLayersCount(), Matchers.equalTo(2));
+            assertLayer(tile, AGGS_LAYER, 4096, expected_zoom_0[i - 1], 2);
+            assertLayer(tile, META_LAYER, 4096, 1, 13);
+        }
+        final int[] expected_zoom_1 = new int[] { 45, 241, 241, 1559, 1559, 10531, 10531, 10531 };
+        for (int i = 1; i <= 8; i++) {
+            final Request mvtRequest = new Request(getHttpMethod(), INDEX_BIG_POLYGON + "/_mvt/location/1/0/0");
+            mvtRequest.setJsonEntity("{\"size\" : 0, \"grid_agg\" : \"geohex\", \"grid_precision\" : " + i + " }");
+            final VectorTile.Tile tile = execute(mvtRequest);
+            assertThat(tile.getLayersCount(), Matchers.equalTo(2));
+            assertLayer(tile, AGGS_LAYER, 4096, expected_zoom_1[i - 1], 2);
+            assertLayer(tile, META_LAYER, 4096, 1, 13);
+        }
+        final int[] expected_zoom_5 = new int[] { 12, 55, 55, 55, 292, 292, 1873, 12673 };
+        for (int i = 1; i <= 8; i++) {
+            final Request mvtRequest = new Request(getHttpMethod(), INDEX_BIG_POLYGON + "/_mvt/location/5/16/8");
+            mvtRequest.setJsonEntity("{\"size\" : 0, \"grid_agg\" : \"geohex\", \"grid_precision\" : " + i + " }");
+            final VectorTile.Tile tile = execute(mvtRequest);
+            assertThat(tile.getLayersCount(), Matchers.equalTo(2));
+            assertLayer(tile, AGGS_LAYER, 4096, expected_zoom_5[i - 1], 2);
+            assertLayer(tile, META_LAYER, 4096, 1, 13);
+        }
+    }
+
+    public void testWithLabels() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("{\"size\" : 100, \"with_labels\": true}");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        // CHeck that double the points are returned (one extra label position for each point)
+        assertLayer(tile, HITS_LAYER, 4096, 66, 3, "_id", "_index", "_mvt_label_position");
+        assertLayer(tile, AGGS_LAYER, 4096, 2, 3);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+        // Check that features exist for label positions
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position");
+        assertFeatureTags(tile, HITS_LAYER, 64, "_id", "_index");
+        assertFeatureTags(tile, HITS_LAYER, 65, "_id", "_index", "_mvt_label_position");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "_mvt_label_position");
+    }
+
+    public void testWithLabelsAndFieldsAndAggs() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("""
+            {
+              "size" : 100,
+              "with_labels": true,
+              "fields": ["name", "value1"],
+              "aggs": {
+                "minVal": {
+                  "min": {"field": "value1"}
+                }
+              }
+            }""");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        // CHeck that double the points are returned (one extra label position for each point)
+        assertLayer(tile, HITS_LAYER, 4096, 66, 5, "_id", "_index", "_mvt_label_position", "name", "value1");
+        assertLayer(tile, AGGS_LAYER, 4096, 2, 4);
+        assertLayer(tile, META_LAYER, 4096, 1, 18); // 5 extra tags for each new aggregation defined
+        // Check that features exist for label positions
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index", "name", "value1");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position", "name", "value1");
+        assertFeatureTags(tile, HITS_LAYER, 64, "_id", "_index", "name", "value1");
+        assertFeatureTags(tile, HITS_LAYER, 65, "_id", "_index", "_mvt_label_position", "name", "value1");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count", "minVal.value");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "minVal.value", "_mvt_label_position");
+    }
+
+    public void testBasicShapeWithLabels() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("{\"with_labels\": true }");
+        final int numAggsFeatures = 2 * 256 * 256; // Twice as many due to additional label position features
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        // Check that there is an extra feature returned, a point label position
+        assertLayer(tile, HITS_LAYER, 4096, 2, 3, "_id", "_index", "_mvt_label_position");
+        assertLayer(tile, AGGS_LAYER, 4096, numAggsFeatures, 3);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", INDEX_POLYGON);
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_id", "polygon");
+        // Check that the polygon and label features have the right tags
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "_mvt_label_position");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 2, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 1, "_key", "_count", "_mvt_label_position");
+    }
+
+    public void testBasicShapeWithLabelsAndFieldsAndAggs() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("""
+            {
+              "size" : 100,
+              "with_labels": true,
+              "fields": ["name", "value1"],
+              "aggs": {
+                "minVal": {
+                  "min": {"field": "value1"}
+                }
+              }
+            }""");
+        final int numAggsFeatures = 2 * 256 * 256; // Twice as many due to additional label position features
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        // Check that there is an extra feature returned, a point label position
+        assertLayer(tile, HITS_LAYER, 4096, 2, 5, "_id", "_index", "_mvt_label_position", "name", "value1");
+        assertLayer(tile, AGGS_LAYER, 4096, numAggsFeatures, 4);
+        assertLayer(tile, META_LAYER, 4096, 1, 18); // 5 extra tags for each new aggregation defined
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", INDEX_POLYGON);
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_id", "polygon");
+        // Check that the polygon and label features have the right tags
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index", "name", "value1");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position", "name", "value1");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count", "minVal.value");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "minVal.value", "_mvt_label_position");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 2, "_key", "_count", "minVal.value");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 1, "_key", "_count", "minVal.value", "_mvt_label_position");
+    }
+
+    public void testMultipolygonWithLabels() throws Exception {
+        final String index = "multipolygon";
+        final Rectangle r1 = new Rectangle(-10, -5, 10, -10);
+        final Rectangle r2 = new Rectangle(5, 10, 10, -10);
+        // Centroid should be outside both polygons, and around 0,0
+        createIndexAndPutGeometry(index, new MultiPolygon(List.of(toPolygon(r1), toPolygon(r2))), "multi_polygon");
+        final Request mvtRequest = new Request(getHttpMethod(), index + "/_mvt/location/0/0/0?grid_precision=1");
+        mvtRequest.setJsonEntity("{\"with_labels\": true }");
+        final int numAggsFeatures = 2 * 2 * 2; // Twice as many due to additional label position features
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 2, 3);
+        assertLayer(tile, AGGS_LAYER, 4096, numAggsFeatures, 3);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", index);
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_id", "multi_polygon");
+        // Check that the polygon and label features have the right tags
+        assertFeatureTags(tile, HITS_LAYER, 0, "_id", "_index");
+        assertFeatureTags(tile, HITS_LAYER, 1, "_id", "_index", "_mvt_label_position");
+        // Check that aggs layer also has label position features
+        assertFeatureTags(tile, AGGS_LAYER, 0, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, 1, "_key", "_count", "_mvt_label_position");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 2, "_key", "_count");
+        assertFeatureTags(tile, AGGS_LAYER, numAggsFeatures - 1, "_key", "_count", "_mvt_label_position");
+
+        final Response response = client().performRequest(new Request(HttpDelete.METHOD_NAME, index));
+        assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
+    }
+
+    public void testGeoTileGrid() throws Exception {
+        doGridAggType(randomBoolean() ? "" : ", \"grid_agg\": \"geotile\"");
+    }
+
+    public void testGeoHexGrid() throws Exception {
+        doGridAggType(", \"grid_agg\": \"geohex\"");
+    }
+
+    private void doGridAggType(String gridAgg) throws Exception {
         {
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity("{\"size\" : 100, \"grid_type\": \"point\" }");
+            mvtRequest.setJsonEntity("{\"size\" : 100" + gridAgg + ",\"grid_type\": \"point\" }");
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 2);
@@ -364,7 +530,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         }
         {
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity("{\"size\" : 100, \"grid_type\": \"grid\" }");
+            mvtRequest.setJsonEntity("{\"size\" : 100" + gridAgg + ", \"grid_type\": \"grid\" }");
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 2);
@@ -374,7 +540,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         }
         {
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity("{\"size\" : 100, \"grid_type\": \"centroid\" }");
+            mvtRequest.setJsonEntity("{\"size\" : 100" + gridAgg + ", \"grid_type\": \"centroid\" }");
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 2);
@@ -388,21 +554,25 @@ public class VectorTileRestIT extends ESRestTestCase {
             final ResponseException ex = expectThrows(ResponseException.class, () -> execute(mvtRequest));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_BAD_REQUEST));
         }
+        {
+            final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
+            mvtRequest.setJsonEntity("{\"grid_agg\": \"invalid_agg\" }");
+            final ResponseException ex = expectThrows(ResponseException.class, () -> execute(mvtRequest));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_BAD_REQUEST));
+        }
     }
 
     public void testInvalidAggName() {
         final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
-        mvtRequest.setJsonEntity(
-            "{\"size\" : 0,"
-                + "  \"aggs\": {\n"
-                + "    \"_mvt_name\": {\n"
-                + "      \"min\": {\n"
-                + "         \"field\": \"value1\"\n"
-                + "        }\n"
-                + "    }\n"
-                + "  }\n"
-                + "}"
-        );
+        mvtRequest.setJsonEntity("""
+            {"size" : 0,  "aggs": {
+                "_mvt_name": {
+                  "min": {
+                     "field": "value1"
+                    }
+                }
+              }
+            }""");
         ResponseException ex = expectThrows(ResponseException.class, () -> execute(mvtRequest));
         // the prefix '_mvt_' is reserved for internal aggregations
         assertThat(ex.getMessage(), Matchers.containsString("Invalid aggregation name [_mvt_name]"));
@@ -549,31 +719,30 @@ public class VectorTileRestIT extends ESRestTestCase {
     }
 
     public void testRuntimeFieldWithSort() throws Exception {
-        String runtimeMapping = "\"runtime_mappings\": {\n"
-            + "  \"width\": {\n"
-            + "    \"script\": "
-            + "\"emit(doc['location'].getBoundingBox().bottomRight().getLon() - doc['location'].getBoundingBox().topLeft().getLon())\",\n"
-            + "    \"type\": \"double\"\n"
-            + "  }\n"
-            + "}\n";
+        String runtimeMapping = """
+            "runtime_mappings": {
+              "width": {
+                "script": "emit(doc['location'].getBoundingBox().bottomRight().getLon() - doc['location'].getBoundingBox().topLeft()\
+            .getLon())",
+                "type": "double"
+              }
+            }
+            """;
         {
             // desc order, polygon should be the first hit
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity(
-                "{\n"
-                    + "  \"size\" : 100,\n"
-                    + "  \"grid_precision\" : 0,\n"
-                    + runtimeMapping
-                    + ","
-                    + "  \"sort\" : [\n"
-                    + "    {\n"
-                    + "      \"width\": {\n"
-                    + "        \"order\": \"desc\"\n"
-                    + "      }\n"
-                    + "    }\n"
-                    + "  ]"
-                    + "}"
-            );
+            mvtRequest.setJsonEntity(Strings.format("""
+                {
+                  "size" : 100,
+                  "grid_precision" : 0,
+                %s,  "sort" : [
+                    {
+                      "width": {
+                        "order": "desc"
+                      }
+                    }
+                ]}
+                """, runtimeMapping));
 
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(2));
@@ -585,21 +754,19 @@ public class VectorTileRestIT extends ESRestTestCase {
         {
             // asc order, polygon should be the last hit
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity(
-                "{\n"
-                    + "  \"size\" : 100,\n"
-                    + "  \"grid_precision\" : 0,\n"
-                    + runtimeMapping
-                    + ","
-                    + "  \"sort\" : [\n"
-                    + "    {\n"
-                    + "      \"width\": {\n"
-                    + "        \"order\": \"asc\"\n"
-                    + "      }\n"
-                    + "    }\n"
-                    + "  ]"
-                    + "}"
-            );
+            mvtRequest.setJsonEntity(Strings.format("""
+                {
+                  "size" : 100,
+                  "grid_precision" : 0,
+                   %s,
+                  "sort" : [
+                    {
+                      "width": {
+                        "order": "asc"
+                      }
+                    }
+                  ]}
+                """, runtimeMapping));
 
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(2));
@@ -612,17 +779,16 @@ public class VectorTileRestIT extends ESRestTestCase {
 
     public void testBasicQueryGet() throws Exception {
         final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
-        mvtRequest.setJsonEntity(
-            "{\n"
-                + "  \"query\": {\n"
-                + "    \"term\": {\n"
-                + "      \"name\": {\n"
-                + "         \"value\": \"point0\"\n"
-                + "        }\n"
-                + "    }\n"
-                + "  }\n"
-                + "}"
-        );
+        mvtRequest.setJsonEntity("""
+            {
+              "query": {
+                "term": {
+                  "name": {
+                     "value": "point0"
+                    }
+                }
+              }
+            }""");
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 2);
@@ -659,19 +825,58 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertLayer(tile, META_LAYER, 4096, 1, 13);
     }
 
+    public void testWithNoExistingFields() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("{\"fields\": [\"otherField\"] }");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 1, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+    }
+
+    public void testWithNullFields() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("{\"fields\": [\"nullField\"] }");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 1, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+    }
+
+    public void testWithIgnoreMalformedValueFields() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("{\"fields\": [ \"ignore_value\"] }");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 1, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+    }
+
+    public void testWithFieldsWildCard() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("{\"fields\": [\"*\"] }");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 1, 5);
+        assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
+    }
+
     public void testSingleValueAgg() throws Exception {
         final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
-        mvtRequest.setJsonEntity(
-            "{\n"
-                + "  \"aggs\": {\n"
-                + "    \"minVal\": {\n"
-                + "      \"min\": {\n"
-                + "         \"field\": \"value1\"\n"
-                + "        }\n"
-                + "    }\n"
-                + "  }\n"
-                + "}"
-        );
+        mvtRequest.setJsonEntity("""
+            {
+              "aggs": {
+                "minVal": {
+                  "min": {
+                     "field": "value1"
+                    }
+                }
+              }
+            }""");
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 2);
@@ -685,18 +890,17 @@ public class VectorTileRestIT extends ESRestTestCase {
 
     public void testMultiValueAgg() throws Exception {
         final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
-        mvtRequest.setJsonEntity(
-            "{\n"
-                + "  \"aggs\": {\n"
-                + "    \"percentilesAgg\": {\n"
-                + "      \"percentiles\": {\n"
-                + "         \"field\": \"value1\",\n"
-                + "         \"percents\": [95, 99, 99.9]\n"
-                + "        }\n"
-                + "    }\n"
-                + "  }\n"
-                + "}"
-        );
+        mvtRequest.setJsonEntity("""
+            {
+              "aggs": {
+                "percentilesAgg": {
+                  "percentiles": {
+                     "field": "value1",
+                     "percents": [95, 99, 99.9]
+                    }
+                }
+              }
+            }""");
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 2);
@@ -712,20 +916,17 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertDoubleTag(metaLayer, metaLayer.getFeatures(0), "aggregations.percentilesAgg.99.9.max", 1.0);
     }
 
-    public void testOverlappingMultipolygon() throws Exception {
-        // Overlapping multipolygon are accepted by Elasticsearch but is invalid for JTS. This
-        // causes and error in the mvt library that gets logged using slf4j
-        final String index = "overlapping_multipolygon";
-        final Rectangle r1 = new Rectangle(-160, 160, 80, -80);
-        final Rectangle r2 = new Rectangle(-159, 161, 79, -81);
-        createIndexAndPutGeometry(index, new MultiPolygon(List.of(toPolygon(r1), toPolygon(r2))), "multi_polygon");
-        final Request mvtRequest = new Request(getHttpMethod(), index + "/_mvt/location/0/0/0?grid_precision=0");
+    public void testGetRuntimeField() throws Exception {
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location_rf/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity(
+            "{\"size\" : 100, \"runtime_mappings\": { \"location_rf\": {\"type\": \"geo_point\", \"script\": "
+                + "{ \"source\": \"emit(doc['location'].lat, doc['location'].lon)\" }}}}"
+        );
         final VectorTile.Tile tile = execute(mvtRequest);
-        assertThat(tile.getLayersCount(), Matchers.equalTo(2));
-        assertLayer(tile, HITS_LAYER, 4096, 0, 0);
-        assertLayer(tile, META_LAYER, 4096, 1, 8);
-        final Response response = client().performRequest(new Request(HttpDelete.METHOD_NAME, index));
-        assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 33, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, 1, 2);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
     }
 
     private String getHttpMethod() {
@@ -740,11 +941,41 @@ public class VectorTileRestIT extends ESRestTestCase {
         }
     }
 
-    private void assertLayer(VectorTile.Tile tile, String name, int extent, int numFeatures, int numTags) {
+    private void assertFeatureTags(VectorTile.Tile tile, String name, int featureIndex, String... tags) {
         final VectorTile.Tile.Layer layer = getLayer(tile, name);
-        assertThat(layer.getExtent(), Matchers.equalTo(extent));
-        assertThat(layer.getFeaturesCount(), Matchers.equalTo(numFeatures));
-        assertThat(layer.getKeysCount(), Matchers.equalTo(numTags));
+        VectorTile.Tile.Feature feature = layer.getFeatures(featureIndex);
+        for (String tag : tags) {
+            boolean found = false;
+            ArrayList<String> featureTags = new ArrayList<>();
+            for (int i = 0; i < feature.getTagsCount(); i += 2) {
+                String key = layer.getKeys(feature.getTags(i));
+                VectorTile.Tile.Value value = layer.getValues(feature.getTags(i + 1));
+                featureTags.add(key + "=" + value.toString().trim());
+                if (tag.equals(key)) {
+                    found = true;
+                }
+            }
+            assertTrue(
+                "Feature " + featureIndex + " did not contain expected tag " + tag + " but contained instead: " + featureTags,
+                found
+            );
+        }
+        assertThat("Feature " + featureIndex + " tag count does not match", feature.getTagsCount(), Matchers.equalTo(2 * tags.length));
+    }
+
+    private void assertLayer(VectorTile.Tile tile, String name, int extent, int numFeatures, int numTags, String... tags) {
+        final VectorTile.Tile.Layer layer = getLayer(tile, name);
+        assertThat("Layer " + name + " extent does not match", layer.getExtent(), Matchers.equalTo(extent));
+        assertThat("Layer " + name + " feature count does not match", layer.getFeaturesCount(), Matchers.equalTo(numFeatures));
+        assertThat("Layer " + name + " tag count does not match", layer.getKeysCount(), Matchers.equalTo(numTags));
+        if (tags.length > 0) {
+            HashSet<String> expected = new HashSet<>();
+            Arrays.stream(tags).forEach(t -> expected.add(t));
+            for (int i = 0; i < layer.getKeysCount(); i++) {
+                String key = layer.getKeys(i);
+                assertTrue("Layer contains unexpected tag " + key, expected.contains(key));
+            }
+        }
     }
 
     private void assertSintTag(VectorTile.Tile.Layer layer, VectorTile.Tile.Feature feature, String tag, long value) {

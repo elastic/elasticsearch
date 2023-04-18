@@ -14,7 +14,6 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.InetAddressRange;
 import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongRange;
-import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -31,6 +30,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Before;
 
@@ -96,47 +96,42 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Object from;
         Object to;
         switch (type) {
-            case LONG: {
+            case LONG -> {
                 long fromValue = randomLong();
                 from = fromValue;
                 to = fromValue + 1;
-                break;
             }
-            case DATE: {
+            case DATE -> {
                 long fromValue = randomInt();
                 from = ZonedDateTime.ofInstant(Instant.ofEpochMilli(fromValue), ZoneOffset.UTC);
                 to = ZonedDateTime.ofInstant(Instant.ofEpochMilli(fromValue + 1), ZoneOffset.UTC);
-                break;
             }
-            case INTEGER: {
+            case INTEGER -> {
                 int fromValue = randomInt();
                 from = fromValue;
                 to = fromValue + 1;
-                break;
             }
-            case DOUBLE: {
+            case DOUBLE -> {
                 double fromValue = randomDoubleBetween(0, 100, true);
                 from = fromValue;
                 to = Math.nextUp(fromValue);
-                break;
             }
-            case FLOAT: {
+            case FLOAT -> {
                 float fromValue = randomFloat();
                 from = fromValue;
                 to = Math.nextUp(fromValue);
-                break;
             }
-            case IP: {
+            case IP -> {
                 byte[] ipv4 = new byte[4];
                 random().nextBytes(ipv4);
                 InetAddress fromValue = InetAddress.getByAddress(ipv4);
                 from = fromValue;
                 to = InetAddressPoint.nextUp(fromValue);
-                break;
             }
-            default:
+            default -> {
                 from = nextFrom();
                 to = nextTo(from);
+            }
         }
         Query rangeQuery = ft.rangeQuery(from, to, false, false, relation, null, null, context);
         assertThat(rangeQuery, instanceOf(IndexOrDocValuesQuery.class));
@@ -146,6 +141,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     /**
      * check that we catch cases where the user specifies larger "from" than "to" value, not counting the include upper/lower settings
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86284")
     public void testFromLargerToErrors() throws Exception {
         SearchExecutionContext context = createContext();
         RangeFieldType ft = createDefaultFieldType();
@@ -217,7 +213,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             null,
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
             null,
@@ -316,20 +312,14 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     private Query getExpectedRangeQuery(ShapeRelation relation, Object from, Object to, boolean includeLower, boolean includeUpper) {
-        switch (type) {
-            case DATE:
-                return getDateRangeQuery(relation, (ZonedDateTime) from, (ZonedDateTime) to, includeLower, includeUpper);
-            case INTEGER:
-                return getIntRangeQuery(relation, (int) from, (int) to, includeLower, includeUpper);
-            case LONG:
-                return getLongRangeQuery(relation, (long) from, (long) to, includeLower, includeUpper);
-            case DOUBLE:
-                return getDoubleRangeQuery(relation, (double) from, (double) to, includeLower, includeUpper);
-            case IP:
-                return getInetAddressRangeQuery(relation, (InetAddress) from, (InetAddress) to, includeLower, includeUpper);
-            default:
-                return getFloatRangeQuery(relation, (float) from, (float) to, includeLower, includeUpper);
-        }
+        return switch (type) {
+            case DATE -> getDateRangeQuery(relation, (ZonedDateTime) from, (ZonedDateTime) to, includeLower, includeUpper);
+            case INTEGER -> getIntRangeQuery(relation, (int) from, (int) to, includeLower, includeUpper);
+            case LONG -> getLongRangeQuery(relation, (long) from, (long) to, includeLower, includeUpper);
+            case DOUBLE -> getDoubleRangeQuery(relation, (double) from, (double) to, includeLower, includeUpper);
+            case IP -> getInetAddressRangeQuery(relation, (InetAddress) from, (InetAddress) to, includeLower, includeUpper);
+            default -> getFloatRangeQuery(relation, (float) from, (float) to, includeLower, includeUpper);
+        };
     }
 
     private Query getDateRangeQuery(
@@ -466,37 +456,25 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     private Object nextFrom() throws Exception {
-        switch (type) {
-            case INTEGER:
-                return (int) (random().nextInt() * 0.5 - DISTANCE);
-            case DATE:
-                return ZonedDateTime.now(ZoneOffset.UTC);
-            case LONG:
-                return (long) (random().nextLong() * 0.5 - DISTANCE);
-            case FLOAT:
-                return (float) (random().nextFloat() * 0.5 - DISTANCE);
-            case IP:
-                return InetAddress.getByName("::ffff:c0a8:107");
-            default:
-                return random().nextDouble() * 0.5 - DISTANCE;
-        }
+        return switch (type) {
+            case INTEGER -> (int) (random().nextInt() * 0.5 - DISTANCE);
+            case DATE -> ZonedDateTime.now(ZoneOffset.UTC);
+            case LONG -> (long) (random().nextLong() * 0.5 - DISTANCE);
+            case FLOAT -> (float) (random().nextFloat() * 0.5 - DISTANCE);
+            case IP -> InetAddress.getByName("::ffff:c0a8:107");
+            default -> random().nextDouble() * 0.5 - DISTANCE;
+        };
     }
 
     private Object nextTo(Object from) throws Exception {
-        switch (type) {
-            case INTEGER:
-                return (Integer) from + DISTANCE;
-            case DATE:
-                return ZonedDateTime.now(ZoneOffset.UTC).plusDays(DISTANCE);
-            case LONG:
-                return (Long) from + DISTANCE;
-            case DOUBLE:
-                return (Double) from + DISTANCE;
-            case IP:
-                return InetAddress.getByName("2001:db8::");
-            default:
-                return (Float) from + DISTANCE;
-        }
+        return switch (type) {
+            case INTEGER -> (Integer) from + DISTANCE;
+            case DATE -> ZonedDateTime.now(ZoneOffset.UTC).plusDays(DISTANCE);
+            case LONG -> (Long) from + DISTANCE;
+            case DOUBLE -> (Double) from + DISTANCE;
+            case IP -> InetAddress.getByName("2001:db8::");
+            default -> (Float) from + DISTANCE;
+        };
     }
 
     public void testParseIp() {
@@ -527,26 +505,26 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.ROOT)
+        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.root(false))
             .fieldType();
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
         MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true).format("yyyy/MM/dd||epoch_millis")
-            .build(MapperBuilderContext.ROOT)
+            .build(MapperBuilderContext.root(false))
             .fieldType();
         Map<String, Object> dateRange = Map.of("lt", "1990/12/29", "gte", 597429487111L);
         assertEquals(List.of(Map.of("lt", "1990/12/29", "gte", "1988/12/06")), fetchSourceValue(dateMapper, dateRange));
     }
 
     public void testParseSourceValueWithFormat() throws IOException {
-        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.ROOT)
+        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.root(false))
             .fieldType();
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
         MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true).format("strict_date_time")
-            .build(MapperBuilderContext.ROOT)
+            .build(MapperBuilderContext.root(false))
             .fieldType();
         Map<String, Object> dateRange = Map.of("lt", "1990-12-29T00:00:00.000Z");
         assertEquals(List.of(Map.of("lt", "1990/12/29")), fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd"));

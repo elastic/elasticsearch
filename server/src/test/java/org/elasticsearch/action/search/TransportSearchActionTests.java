@@ -8,8 +8,11 @@
 
 package org.elasticsearch.action.search;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -17,8 +20,11 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -30,24 +36,33 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -56,6 +71,9 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -73,6 +91,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -81,6 +100,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -89,7 +109,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
@@ -100,6 +119,9 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportSearchActionTests extends ESTestCase {
 
@@ -222,7 +244,15 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testProcessRemoteShards() {
-        try (TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+        try (
+            TransportService transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                null
+            )
+        ) {
             RemoteClusterService service = transportService.getRemoteClusterService();
             assertFalse(service.isCrossClusterSearchEnabled());
             Map<String, ClusterSearchShardsResponse> searchShardsResponseMap = new HashMap<>();
@@ -230,11 +260,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT),
                 new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT) };
             Map<String, AliasFilter> indicesAndAliases = new HashMap<>();
-            indicesAndAliases.put(
-                "foo",
-                new AliasFilter(new TermsQueryBuilder("foo", "bar"), "some_alias_for_foo", "some_other_foo_alias")
-            );
-            indicesAndAliases.put("bar", new AliasFilter(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY));
+            indicesAndAliases.put("foo", AliasFilter.of(new TermsQueryBuilder("foo", "bar"), "some_alias_for_foo", "some_other_foo_alias"));
+            indicesAndAliases.put("bar", AliasFilter.of(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY));
             ClusterSearchShardsGroup[] groups = new ClusterSearchShardsGroup[] {
                 new ClusterSearchShardsGroup(
                     new ShardId("foo", "foo_id", 0),
@@ -262,7 +289,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     new ShardRouting[] { TestShardRouting.newShardRouting("xyz", 0, "node3", true, ShardRoutingState.STARTED) }
                 ) };
             Map<String, AliasFilter> filter = new HashMap<>();
-            filter.put("xyz", new AliasFilter(null, "some_alias_for_xyz"));
+            filter.put("xyz", AliasFilter.of(null, "some_alias_for_xyz"));
             searchShardsResponseMap.put("test_cluster_2", new ClusterSearchShardsResponse(groups2, nodes2, filter));
 
             Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
@@ -342,6 +369,11 @@ public class TransportSearchActionTests extends ESTestCase {
             @Override
             public DiscoveryNode getNode() {
                 return node;
+            }
+
+            @Override
+            public TransportVersion getTransportVersion() {
+                return TransportVersion.CURRENT;
             }
 
             @Override
@@ -430,6 +462,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 "node_remote" + i,
                 knownNodes,
                 Version.CURRENT,
+                TransportVersion.CURRENT,
                 threadPool
             );
             mockTransportServices[i] = remoteSeedTransport;
@@ -465,8 +498,16 @@ public class TransportSearchActionTests extends ESTestCase {
         boolean local = randomBoolean();
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
-        Function<Boolean, InternalAggregation.ReduceContext> reduceContext = finalReduce -> null;
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        Function<Boolean, AggregationReduceContext> reduceContext = finalReduce -> null;
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                settings,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                null
+            )
+        ) {
             service.start();
             service.acceptIncomingRequests();
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -523,7 +564,15 @@ public class TransportSearchActionTests extends ESTestCase {
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         int totalClusters = numClusters + (local ? 1 : 0);
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                settings,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                null
+            )
+        ) {
             service.start();
             service.acceptIncomingRequests();
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -602,8 +651,8 @@ public class TransportSearchActionTests extends ESTestCase {
             }
 
             int numDisconnectedClusters = randomIntBetween(1, numClusters);
-            Set<DiscoveryNode> disconnectedNodes = new HashSet<>(numDisconnectedClusters);
-            Set<Integer> disconnectedNodesIndices = new HashSet<>(numDisconnectedClusters);
+            Set<DiscoveryNode> disconnectedNodes = Sets.newHashSetWithExpectedSize(numDisconnectedClusters);
+            Set<Integer> disconnectedNodesIndices = Sets.newHashSetWithExpectedSize(numDisconnectedClusters);
             while (disconnectedNodes.size() < numDisconnectedClusters) {
                 int i = randomIntBetween(0, numClusters - 1);
                 if (disconnectedNodes.add(nodes[i])) {
@@ -717,7 +766,8 @@ public class TransportSearchActionTests extends ESTestCase {
 
                 }
             }
-            {
+            // put the following in assert busy as connections are lazily reestablished
+            assertBusy(() -> {
                 SearchRequest searchRequest = new SearchRequest();
                 final CountDownLatch latch = new CountDownLatch(1);
                 SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
@@ -753,7 +803,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(totalClusters, searchResponse.getClusters().getTotal());
                 assertEquals(totalClusters, searchResponse.getClusters().getSuccessful());
                 assertEquals(totalClusters == 1 ? 1 : totalClusters + 1, searchResponse.getNumReducePhases());
-            }
+            });
             assertEquals(0, service.getConnectionManager().size());
         } finally {
             for (MockTransportService mockTransportService : mockTransportServices) {
@@ -769,7 +819,15 @@ public class TransportSearchActionTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
         Settings settings = builder.build();
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                settings,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                null
+            )
+        ) {
             service.start();
             service.acceptIncomingRequests();
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -822,8 +880,8 @@ public class TransportSearchActionTests extends ESTestCase {
             }
 
             int numDisconnectedClusters = randomIntBetween(1, numClusters);
-            Set<DiscoveryNode> disconnectedNodes = new HashSet<>(numDisconnectedClusters);
-            Set<Integer> disconnectedNodesIndices = new HashSet<>(numDisconnectedClusters);
+            Set<DiscoveryNode> disconnectedNodes = Sets.newHashSetWithExpectedSize(numDisconnectedClusters);
+            Set<Integer> disconnectedNodesIndices = Sets.newHashSetWithExpectedSize(numDisconnectedClusters);
             while (disconnectedNodes.size() < numDisconnectedClusters) {
                 int i = randomIntBetween(0, numClusters - 1);
                 if (disconnectedNodes.add(nodes[i])) {
@@ -913,7 +971,8 @@ public class TransportSearchActionTests extends ESTestCase {
 
                 }
             }
-            {
+            // run the following under assertBusy as connections are lazily reestablished
+            assertBusy(() -> {
                 final CountDownLatch latch = new CountDownLatch(1);
                 AtomicInteger skippedClusters = new AtomicInteger(0);
                 AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
@@ -937,7 +996,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     assertTrue(map.containsKey(clusterAlias));
                     assertNotNull(map.get(clusterAlias));
                 }
-            }
+            });
             assertEquals(0, service.getConnectionManager().size());
         } finally {
             for (MockTransportService mockTransportService : mockTransportServices) {
@@ -1031,6 +1090,7 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchSourceBuilder source = searchRequest.source();
             if (source != null) {
                 source.pointInTimeBuilder(null);
+                source.knnSearch(List.of());
                 CollapseBuilder collapse = source.collapse();
                 if (collapse != null) {
                     collapse.setInnerHits(Collections.emptyList());
@@ -1040,6 +1100,48 @@ public class TransportSearchActionTests extends ESTestCase {
             assertTrue(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
             searchRequest.setCcsMinimizeRoundtrips(false);
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, null)));
+            searchRequest.source(source);
+
+            searchRequest.setCcsMinimizeRoundtrips(true);
+            assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+            searchRequest.setCcsMinimizeRoundtrips(false);
+            assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+    }
+
+    public void testAdjustSearchType() {
+        {
+            // If the search includes kNN, we should always use DFS_QUERY_THEN_FETCH
+            SearchRequest searchRequest = new SearchRequest();
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, null)));
+            searchRequest.source(source);
+
+            TransportSearchAction.adjustSearchType(searchRequest, randomBoolean());
+            assertEquals(SearchType.DFS_QUERY_THEN_FETCH, searchRequest.searchType());
+        }
+        {
+            // Suggest-only searches should always use QUERY_THEN_FETCH
+            SearchRequest searchRequest = new SearchRequest().searchType(RandomPicks.randomFrom(random(), SearchType.values()));
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.suggest(new SuggestBuilder().addSuggestion("field", new TermSuggestionBuilder("value")));
+            searchRequest.source(source);
+
+            TransportSearchAction.adjustSearchType(searchRequest, randomBoolean());
+            assertFalse(searchRequest.requestCache());
+            assertEquals(SearchType.QUERY_THEN_FETCH, searchRequest.searchType());
+        }
+        {
+            // Single-shard searches should always use QUERY_THEN_FETCH in absence of kNN search
+            SearchRequest searchRequest = new SearchRequest().searchType(RandomPicks.randomFrom(random(), SearchType.values()));
+
+            TransportSearchAction.adjustSearchType(searchRequest, true);
+            assertEquals(SearchType.QUERY_THEN_FETCH, searchRequest.searchType());
         }
     }
 
@@ -1146,7 +1248,6 @@ public class TransportSearchActionTests extends ESTestCase {
         ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder();
         for (int i = 0; i < numIndices; i++) {
             indices[i] = randomAlphaOfLengthBetween(5, 10);
-            ;
             if (--numReadOnly >= 0) {
                 if (randomBoolean()) {
                     blocksBuilder.addIndexBlock(indices[i], IndexMetadata.INDEX_WRITE_BLOCK);
@@ -1271,7 +1372,7 @@ public class TransportSearchActionTests extends ESTestCase {
             } else {
                 // relocated or no longer assigned
                 relocatedContexts.add(new ShardId(indexMetadata.getIndex(), shardId));
-                targetNode = UUIDs.randomBase64UUID();
+                targetNode = randomFrom(clusterState.nodes()).getId();
             }
             contexts.put(
                 new ShardId(indexMetadata.getIndex(), shardId),
@@ -1290,7 +1391,8 @@ public class TransportSearchActionTests extends ESTestCase {
             OriginalIndices.NONE,
             null,
             new SearchContextId(contexts, aliasFilterMap),
-            keepAlive
+            keepAlive,
+            randomBoolean()
         );
         shardIterators.sort(Comparator.comparing(SearchShardIterator::shardId));
         assertThat(shardIterators, hasSize(numberOfShards));
@@ -1307,7 +1409,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     .assignedShards()
                     .stream()
                     .map(ShardRouting::currentNodeId)
-                    .collect(Collectors.toList());
+                    .toList();
                 if (relocatedContexts.contains(shardId)) {
                     targetNodes.add(context.getNode());
                 }
@@ -1316,6 +1418,112 @@ public class TransportSearchActionTests extends ESTestCase {
             assertThat(shardIterator.getTargetNodeIds().get(0), equalTo(context.getNode()));
             assertThat(shardIterator.getSearchContextId(), equalTo(context.getSearchContextId()));
             assertThat(shardIterator.getSearchContextKeepAlive(), equalTo(keepAlive));
+        }
+
+        // Fails when some indices don't exist and `allowPartialSearchResults` is false.
+        ShardId anotherShardId = new ShardId(new Index("another-index", IndexMetadata.INDEX_UUID_NA_VALUE), randomIntBetween(0, 10));
+        contexts.put(
+            anotherShardId,
+            new SearchContextIdForNode(
+                null,
+                randomFrom(clusterState.nodes()).getId(),
+                new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong(), null)
+            )
+        );
+        IndexNotFoundException error = expectThrows(IndexNotFoundException.class, () -> {
+            TransportSearchAction.getLocalLocalShardsIteratorFromPointInTime(
+                clusterState,
+                OriginalIndices.NONE,
+                null,
+                new SearchContextId(contexts, aliasFilterMap),
+                keepAlive,
+                false
+            );
+        });
+        assertThat(error.getIndex().getName(), equalTo("another-index"));
+        // Ok when some indices don't exist and `allowPartialSearchResults` is true.
+        Optional<SearchShardIterator> anotherShardIterator = TransportSearchAction.getLocalLocalShardsIteratorFromPointInTime(
+            clusterState,
+            OriginalIndices.NONE,
+            null,
+            new SearchContextId(contexts, aliasFilterMap),
+            keepAlive,
+            true
+        ).stream().filter(si -> si.shardId().equals(anotherShardId)).findFirst();
+        assertTrue(anotherShardIterator.isPresent());
+        assertThat(anotherShardIterator.get().getTargetNodeIds(), hasSize(1));
+    }
+
+    public void testCCSCompatibilityCheck() throws Exception {
+        Settings settings = Settings.builder()
+            .put("node.name", TransportSearchAction.class.getSimpleName())
+            .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
+            .build();
+        ActionFilters actionFilters = mock(ActionFilters.class);
+        when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
+        ThreadPool threadPool = new ThreadPool(settings);
+        try {
+            TransportService transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool
+            );
+
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder().query(new DummyQueryBuilder() {
+                @Override
+                protected void doWriteTo(StreamOutput out) throws IOException {
+                    throw new IllegalArgumentException("Not serializable to " + Version.CURRENT);
+                }
+            }));
+            NodeClient client = new NodeClient(settings, threadPool);
+
+            SearchService searchService = mock(SearchService.class);
+            when(searchService.getRewriteContext(any())).thenReturn(new QueryRewriteContext(null, null, null, null));
+            ClusterService clusterService = new ClusterService(
+                settings,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool,
+                null
+            );
+            TransportSearchAction action = new TransportSearchAction(
+                threadPool,
+                new NoneCircuitBreakerService(),
+                transportService,
+                searchService,
+                new SearchTransportService(transportService, client, null),
+                null,
+                clusterService,
+                actionFilters,
+                null,
+                null,
+                null
+            );
+
+            CountDownLatch latch = new CountDownLatch(1);
+            action.doExecute(null, searchRequest, new ActionListener<>() {
+
+                @Override
+                public void onResponse(SearchResponse response) {
+                    latch.countDown();
+                    fail("should not be called");
+                }
+
+                @Override
+                public void onFailure(Exception ex) {
+                    assertThat(
+                        ex.getMessage(),
+                        containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version")
+                    );
+                    assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
+                    assertEquals("Not serializable to " + Version.CURRENT, ex.getCause().getMessage());
+                    latch.countDown();
+                }
+            });
+            latch.await();
+        } finally {
+            assertTrue(ESTestCase.terminate(threadPool));
         }
     }
 }

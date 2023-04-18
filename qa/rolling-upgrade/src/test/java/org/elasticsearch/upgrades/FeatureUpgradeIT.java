@@ -8,7 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.XContentTestUtils;
@@ -36,21 +36,23 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
 
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            bulk.setJsonEntity("{\"index\": {\"_index\": \"feature_test_index_old\"}}\n" + "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            bulk.setJsonEntity("""
+                {"index": {"_index": "feature_test_index_old"}}
+                {"f1": "v1", "f2": "v2"}
+                """);
             client().performRequest(bulk);
 
             // start a async reindex job
             Request reindex = new Request("POST", "/_reindex");
-            reindex.setJsonEntity(
-                "{\n"
-                    + "  \"source\":{\n"
-                    + "    \"index\":\"feature_test_index_old\"\n"
-                    + "  },\n"
-                    + "  \"dest\":{\n"
-                    + "    \"index\":\"feature_test_index_reindex\"\n"
-                    + "  }\n"
-                    + "}"
-            );
+            reindex.setJsonEntity("""
+                {
+                  "source":{
+                    "index":"feature_test_index_old"
+                  },
+                  "dest":{
+                    "index":"feature_test_index_reindex"
+                  }
+                }""");
             reindex.addParameter("wait_for_completion", "false");
             Map<String, Object> response = entityAsMap(client().performRequest(reindex));
             String taskId = (String) response.get("task");
@@ -92,7 +94,7 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
 
                 assertThat(feature.size(), equalTo(4));
                 assertThat(feature.get("minimum_index_version"), equalTo(UPGRADE_FROM_VERSION.toString()));
-                if (UPGRADE_FROM_VERSION.before(Version.V_8_0_0)) {
+                if (UPGRADE_FROM_VERSION.before(TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION)) {
                     assertThat(feature.get("migration_status"), equalTo("MIGRATION_NEEDED"));
                 } else {
                     assertThat(feature.get("migration_status"), equalTo("NO_MIGRATION_NEEDED"));

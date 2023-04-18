@@ -222,17 +222,11 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     //
     @Deprecated
     public static Integer dateTimeChrono(Object dateTime, String tzId, String chronoName) {
-        String extractorName = null;
-        switch (chronoName) {
-            case "DAY_OF_WEEK":
-                extractorName = "ISO_DAY_OF_WEEK";
-                break;
-            case "ALIGNED_WEEK_OF_YEAR":
-                extractorName = "ISO_WEEK_OF_YEAR";
-                break;
-            default:
-                extractorName = chronoName;
-        }
+        String extractorName = switch (chronoName) {
+            case "DAY_OF_WEEK" -> "ISO_DAY_OF_WEEK";
+            case "ALIGNED_WEEK_OF_YEAR" -> "ISO_WEEK_OF_YEAR";
+            default -> chronoName;
+        };
         return dateTimeExtract(dateTime, tzId, extractorName);
     }
 
@@ -302,6 +296,10 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
 
     public static Integer datePart(String dateField, Object dateTime, String tzId) {
         return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime), ZoneId.of(tzId));
+    }
+
+    public static String dateFormat(Object dateTime, String pattern, String tzId) {
+        return (String) Formatter.DATE_FORMAT.format(asDateTime(dateTime), pattern, ZoneId.of(tzId));
     }
 
     public static String dateTimeFormat(Object dateTime, String pattern, String tzId) {

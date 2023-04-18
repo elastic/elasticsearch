@@ -10,6 +10,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,7 +41,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
@@ -106,7 +106,11 @@ public class RestRequest implements ToXContent.Params {
             throw new MediaTypeHeaderException(e, "Content-Type");
         }
         this.httpRequest = httpRequest;
-        this.restApiVersion = RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, hasContent());
+        try {
+            this.restApiVersion = RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, hasContent());
+        } catch (ElasticsearchStatusException e) {
+            throw new MediaTypeHeaderException(e, "Accept", "Content-Type");
+        }
         this.parserConfig = parserConfig.restApiVersion().equals(restApiVersion)
             ? parserConfig
             : parserConfig.withRestApiVersion(restApiVersion);
@@ -121,6 +125,9 @@ public class RestRequest implements ToXContent.Params {
         assert other.parserConfig.restApiVersion().equals(other.restApiVersion);
         this.parsedAccept = other.parsedAccept;
         this.parsedContentType = other.parsedContentType;
+        if (other.xContentType.get() != null) {
+            this.xContentType.set(other.xContentType.get());
+        }
         this.restApiVersion = other.restApiVersion;
         this.parserConfig = other.parserConfig;
         this.httpRequest = other.httpRequest;
@@ -137,7 +144,7 @@ public class RestRequest implements ToXContent.Params {
         if (header == null || header.isEmpty()) {
             return null;
         } else if (header.size() > 1) {
-            throw new IllegalArgumentException("Incorrect header [" + headerName + "]. " + "Only one value should be provided");
+            throw new IllegalArgumentException("Incorrect header [" + headerName + "]. Only one value should be provided");
         }
         String rawContentType = header.get(0);
         if (Strings.hasText(rawContentType)) {
@@ -381,7 +388,7 @@ public class RestRequest implements ToXContent.Params {
      * @return the list of currently unconsumed parameters.
      */
     List<String> unconsumedParams() {
-        return params.keySet().stream().filter(p -> consumedParams.contains(p) == false).collect(Collectors.toList());
+        return params.keySet().stream().filter(p -> consumedParams.contains(p) == false).toList();
     }
 
     public float paramAsFloat(String key, float defaultValue) {
@@ -607,20 +614,22 @@ public class RestRequest implements ToXContent.Params {
 
     public static class MediaTypeHeaderException extends RuntimeException {
 
-        private String failedHeaderName;
+        private final String message;
+        private final Set<String> failedHeaderNames;
 
-        MediaTypeHeaderException(final IllegalArgumentException cause, String failedHeaderName) {
+        MediaTypeHeaderException(final RuntimeException cause, String... failedHeaderNames) {
             super(cause);
-            this.failedHeaderName = failedHeaderName;
+            this.failedHeaderNames = Set.of(failedHeaderNames);
+            this.message = "Invalid media-type value on headers " + this.failedHeaderNames;
         }
 
-        public String getFailedHeaderName() {
-            return failedHeaderName;
+        public Set<String> getFailedHeaderNames() {
+            return failedHeaderNames;
         }
 
         @Override
         public String getMessage() {
-            return "Invalid media-type value on header [" + failedHeaderName + "]";
+            return message;
         }
     }
 

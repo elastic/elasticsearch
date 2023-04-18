@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.logstash.action;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.util.HashMap;
 import java.util.Map;
 
 public class GetPipelineResponseTests extends AbstractWireSerializingTestCase<GetPipelineResponse> {
@@ -25,7 +25,7 @@ public class GetPipelineResponseTests extends AbstractWireSerializingTestCase<Ge
     @Override
     protected GetPipelineResponse createTestInstance() {
         final int numPipelines = randomIntBetween(1, 10);
-        final Map<String, BytesReference> map = new HashMap<>(numPipelines);
+        final Map<String, BytesReference> map = Maps.newMapWithExpectedSize(numPipelines);
         for (int i = 0; i < numPipelines; i++) {
             final String name = randomAlphaOfLengthBetween(2, 10);
             final BytesReference ref = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 16)));
@@ -36,7 +36,7 @@ public class GetPipelineResponseTests extends AbstractWireSerializingTestCase<Ge
 
     @Override
     protected GetPipelineResponse mutateInstance(GetPipelineResponse instance) {
-        Map<String, BytesReference> map = new HashMap<>(instance.pipelines().size() + 1);
+        Map<String, BytesReference> map = Maps.newMapWithExpectedSize(instance.pipelines().size() + 1);
         map.putAll(instance.pipelines());
         map.put(randomAlphaOfLengthBetween(2, 10), new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 16))));
         return new GetPipelineResponse(map);

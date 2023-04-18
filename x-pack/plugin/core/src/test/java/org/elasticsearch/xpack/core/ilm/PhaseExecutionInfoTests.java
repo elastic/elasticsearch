@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -20,7 +20,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 
-public class PhaseExecutionInfoTests extends AbstractSerializingTestCase<PhaseExecutionInfo> {
+public class PhaseExecutionInfoTests extends AbstractXContentSerializingTestCase<PhaseExecutionInfo> {
 
     static PhaseExecutionInfo randomPhaseExecutionInfo(String phaseName) {
         return new PhaseExecutionInfo(
@@ -54,26 +54,17 @@ public class PhaseExecutionInfoTests extends AbstractSerializingTestCase<PhaseEx
     }
 
     @Override
-    protected PhaseExecutionInfo mutateInstance(PhaseExecutionInfo instance) throws IOException {
+    protected PhaseExecutionInfo mutateInstance(PhaseExecutionInfo instance) {
         String policyName = instance.getPolicyName();
         Phase phase = instance.getPhase();
         long version = instance.getVersion();
         long modifiedDate = instance.getModifiedDate();
         switch (between(0, 3)) {
-            case 0:
-                policyName = policyName + randomAlphaOfLengthBetween(1, 5);
-                break;
-            case 1:
-                phase = randomValueOtherThan(phase, () -> PhaseTests.randomTestPhase(randomAlphaOfLength(6)));
-                break;
-            case 2:
-                version++;
-                break;
-            case 3:
-                modifiedDate++;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> policyName = policyName + randomAlphaOfLengthBetween(1, 5);
+            case 1 -> phase = randomValueOtherThan(phase, () -> PhaseTests.randomTestPhase(randomAlphaOfLength(6)));
+            case 2 -> version++;
+            case 3 -> modifiedDate++;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new PhaseExecutionInfo(policyName, phase, version, modifiedDate);
     }

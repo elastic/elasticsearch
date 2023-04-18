@@ -17,14 +17,12 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
 
     @After
     public void afterTest() {
-        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), (String) null).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(Settings.builder().putNull(DestructiveOperations.REQUIRES_NAME_SETTING.getKey()));
     }
 
     public void testDeleteIndexDestructiveOperationsRequireName() {
         createIndex("index1");
-        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true));
         {
             IllegalArgumentException illegalArgumentException = expectThrows(
                 IllegalArgumentException.class,
@@ -63,35 +61,32 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
 
     public void testDestructiveOperationsDefaultBehaviour() {
         if (randomBoolean()) {
-            Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false).build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+            updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false));
         }
         createIndex("index1", "index2");
 
         switch (randomIntBetween(0, 2)) {
-            case 0:
+            case 0 -> {
                 assertAcked(client().admin().indices().prepareClose("*"));
                 assertAcked(client().admin().indices().prepareOpen("*"));
                 assertAcked(client().admin().indices().prepareDelete("*"));
-                break;
-            case 1:
+            }
+            case 1 -> {
                 assertAcked(client().admin().indices().prepareClose("_all"));
                 assertAcked(client().admin().indices().prepareOpen("_all"));
                 assertAcked(client().admin().indices().prepareDelete("_all"));
-                break;
-            case 2:
+            }
+            case 2 -> {
                 assertAcked(client().admin().indices().prepareClose("*", "-index1"));
                 assertAcked(client().admin().indices().prepareOpen("*", "-index1"));
                 assertAcked(client().admin().indices().prepareDelete("*", "-index1"));
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
     }
 
     public void testOpenCloseIndexDestructiveOperationsRequireName() {
-        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true));
         {
             IllegalArgumentException illegalArgumentException = expectThrows(
                 IllegalArgumentException.class,

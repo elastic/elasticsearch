@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -67,8 +69,11 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
     public void testBuildResponse() throws Exception {
         final RestGetUserPrivilegesAction.RestListener listener = new RestGetUserPrivilegesAction.RestListener(null);
         final Set<String> cluster = new LinkedHashSet<>(Arrays.asList("monitor", "manage_ml", "manage_watcher"));
-        final Set<ConfigurableClusterPrivilege> conditionalCluster = Collections.singleton(
-            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
+        final Set<ConfigurableClusterPrivilege> conditionalCluster = new LinkedHashSet<>(
+            Arrays.asList(
+                new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList("app*"))),
+                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
+            )
         );
         final Set<GetUserPrivilegesResponse.Indices> index = new LinkedHashSet<>(
             Arrays.asList(
@@ -98,49 +103,147 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                 )
             )
         );
+        final Set<GetUserPrivilegesResponse.RemoteIndices> remoteIndex = randomBoolean()
+            ? Set.of()
+            : new LinkedHashSet<>(
+                Arrays.asList(
+                    new GetUserPrivilegesResponse.RemoteIndices(
+                        new GetUserPrivilegesResponse.Indices(
+                            Arrays.asList("remote-index-1", "remote-index-2", "remote-index-3-*"),
+                            List.of("read"),
+                            new LinkedHashSet<>(
+                                Arrays.asList(
+                                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "public.*" }, new String[0]),
+                                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(
+                                        new String[] { "*" },
+                                        new String[] { "private.*" }
+                                    )
+                                )
+                            ),
+                            new LinkedHashSet<>(
+                                List.of(
+                                    new BytesArray("{ \"term\": { \"access\": \"public\" } }"),
+                                    new BytesArray("{ \"term\": { \"access\": \"standard\" } }")
+                                )
+                            ),
+                            false
+                        ),
+                        new LinkedHashSet<>(List.of("remote-*"))
+                    ),
+                    new GetUserPrivilegesResponse.RemoteIndices(
+                        new GetUserPrivilegesResponse.Indices(
+                            List.of("remote-index-4"),
+                            Collections.singleton("all"),
+                            Collections.emptySet(),
+                            Collections.emptySet(),
+                            true
+                        ),
+                        new LinkedHashSet<>(Arrays.asList("*", "remote-2"))
+                    )
+                )
+            );
         final Set<ApplicationResourcePrivileges> application = Sets.newHashSet(
             ApplicationResourcePrivileges.builder().application("app01").privileges("read", "write").resources("*").build(),
             ApplicationResourcePrivileges.builder().application("app01").privileges("admin").resources("department/1").build(),
             ApplicationResourcePrivileges.builder().application("app02").privileges("all").resources("tenant/42", "tenant/99").build()
         );
         final Set<String> runAs = new LinkedHashSet<>(Arrays.asList("app-user-*", "backup-user"));
-        final GetUserPrivilegesResponse response = new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs);
+        final GetUserPrivilegesResponse response = new GetUserPrivilegesResponse(
+            cluster,
+            conditionalCluster,
+            index,
+            application,
+            runAs,
+            remoteIndex
+        );
         XContentBuilder builder = jsonBuilder();
         listener.buildResponse(response, builder);
 
         String json = Strings.toString(builder);
-        assertThat(
-            json,
-            equalTo(
-                "{"
-                    + "\"cluster\":[\"monitor\",\"manage_ml\",\"manage_watcher\"],"
-                    + "\"global\":["
-                    + "{\"application\":{\"manage\":{\"applications\":[\"app01\",\"app02\"]}}}"
-                    + "],"
-                    + "\"indices\":["
-                    + "{\"names\":[\"index-1\",\"index-2\",\"index-3-*\"],"
-                    + "\"privileges\":[\"read\",\"write\"],"
-                    + "\"field_security\":["
-                    + "{\"grant\":[\"*\"],\"except\":[\"private.*\"]},"
-                    + "{\"grant\":[\"public.*\"]}"
-                    + "],"
-                    + "\"query\":["
-                    + "\"{ \\\"term\\\": { \\\"access\\\": \\\"public\\\" } }\","
-                    + "\"{ \\\"term\\\": { \\\"access\\\": \\\"standard\\\" } }\""
-                    + "],"
-                    + "\"allow_restricted_indices\":false"
-                    + "},"
-                    + "{\"names\":[\"index-4\"],\"privileges\":[\"all\"],\"allow_restricted_indices\":true}"
-                    + "],"
-                    + "\"applications\":["
-                    + "{\"application\":\"app01\",\"privileges\":[\"read\",\"write\"],\"resources\":[\"*\"]},"
-                    + "{\"application\":\"app01\",\"privileges\":[\"admin\"],\"resources\":[\"department/1\"]},"
-                    + "{\"application\":\"app02\",\"privileges\":[\"all\"],\"resources\":[\"tenant/42\",\"tenant/99\"]}"
-                    + "],"
-                    + "\"run_as\":[\"app-user-*\",\"backup-user\"]"
-                    + "}"
-            )
-        );
+        String remoteIndicesSection = remoteIndex.isEmpty() ? "" : """
+            , "remote_indices": [
+                {
+                  "names": [ "remote-index-1", "remote-index-2", "remote-index-3-*" ],
+                  "privileges": [ "read" ],
+                  "field_security": [
+                    {
+                      "grant": [ "*" ],
+                      "except": [ "private.*" ]
+                    },
+                    {
+                      "grant": [ "public.*" ]
+                    }
+                  ],
+                  "query": [ "{ \\"term\\": { \\"access\\": \\"public\\" } }", "{ \\"term\\": { \\"access\\": \\"standard\\" } }" ],
+                  "allow_restricted_indices": false,
+                  "clusters": [ "remote-*" ]
+                },
+                {
+                  "names": [ "remote-index-4" ],
+                  "privileges": [ "all" ],
+                  "allow_restricted_indices": true,
+                  "clusters": [ "*", "remote-2" ]
+                }
+              ]""";
+        assertThat(json, equalTo(XContentHelper.stripWhitespace(Strings.format("""
+            {
+              "cluster": [ "monitor", "manage_ml", "manage_watcher" ],
+              "global": [
+                {
+                  "profile": {
+                    "write": {
+                      "applications": [ "app*" ]
+                    }
+                  }
+                },
+                {
+                  "application": {
+                    "manage": {
+                      "applications": [ "app01", "app02" ]
+                    }
+                  }
+                }
+              ],
+              "indices": [
+                {
+                  "names": [ "index-1", "index-2", "index-3-*" ],
+                  "privileges": [ "read", "write" ],
+                  "field_security": [
+                    {
+                      "grant": [ "*" ],
+                      "except": [ "private.*" ]
+                    },
+                    {
+                      "grant": [ "public.*" ]
+                    }
+                  ],
+                  "query": [ "{ \\"term\\": { \\"access\\": \\"public\\" } }", "{ \\"term\\": { \\"access\\": \\"standard\\" } }" ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [ "index-4" ],
+                  "privileges": [ "all" ],
+                  "allow_restricted_indices": true
+                }
+              ],
+              "applications": [
+                {
+                  "application": "app01",
+                  "privileges": [ "read", "write" ],
+                  "resources": [ "*" ]
+                },
+                {
+                  "application": "app01",
+                  "privileges": [ "admin" ],
+                  "resources": [ "department/1" ]
+                },
+                {
+                  "application": "app02",
+                  "privileges": [ "all" ],
+                  "resources": [ "tenant/42", "tenant/99" ]
+                }
+              ],
+              "run_as": [ "app-user-*", "backup-user" ]%s
+            }""", remoteIndicesSection))));
     }
-
 }

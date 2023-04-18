@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.scriptTransform;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -109,11 +110,11 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67908")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95077")
     public void testVars() throws Exception {
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId(watchId)
             .setSource(
-                watchBuilder().trigger(schedule(cron("0/1 * * * * ?")))
+                watchBuilder().trigger(schedule(interval("1h")))
                     .input(simpleInput("value", 5))
                     .condition(
                         new ScriptCondition(
@@ -133,43 +134,43 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         timeWarp().trigger(watchId);
 
         flush();
-        refresh();
+        assertBusy(() -> {
+            refresh();
+            SearchResponse searchResponse = searchWatchRecords(builder -> {
+                // defaults to match all;
+            });
 
-        SearchResponse searchResponse = searchWatchRecords(builder -> {
-            // defaults to match all;
-        });
+            assertHitCount(searchResponse, 1L);
 
-        assertHitCount(searchResponse, 1L);
+            Map<String, Object> source = searchResponse.getHits().getAt(0).getSourceAsMap();
 
-        Map<String, Object> source = searchResponse.getHits().getAt(0).getSourceAsMap();
+            assertValue(source, "watch_id", is(watchId));
+            assertValue(source, "state", is("executed"));
 
-        assertValue(source, "watch_id", is(watchId));
-        assertValue(source, "state", is("executed"));
+            // we don't store the computed vars in history
+            assertValue(source, "vars", nullValue());
 
-        // we don't store the computed vars in history
-        assertValue(source, "vars", nullValue());
+            assertValue(source, "result.condition.status", is("success"));
+            assertValue(source, "result.transform.status", is("success"));
 
-        assertValue(source, "result.condition.status", is("success"));
-        assertValue(source, "result.transform.status", is("success"));
-
-        List<Map<String, Object>> actions = ObjectPath.eval("result.actions", source);
-        for (Map<String, Object> action : actions) {
-            String id = (String) action.get("id");
-            switch (id) {
-                case "a1":
-                    assertValue(action, "status", is("success"));
-                    assertValue(action, "transform.status", is("success"));
-                    assertValue(action, "transform.payload.a1_transformed_value", equalTo(25));
-                    break;
-                case "a2":
-                    assertValue(action, "status", is("success"));
-                    assertValue(action, "transform.status", is("success"));
-                    assertValue(action, "transform.payload.a2_transformed_value", equalTo(35));
-                    break;
-                default:
-                    fail("there should not be an action result for action with an id other than a1 or a2");
+            List<Map<String, Object>> actions = ObjectPath.eval("result.actions", source);
+            for (Map<String, Object> action : actions) {
+                String id = (String) action.get("id");
+                switch (id) {
+                    case "a1" -> {
+                        assertValue(action, "status", is("success"));
+                        assertValue(action, "transform.status", is("success"));
+                        assertValue(action, "transform.payload.a1_transformed_value", equalTo(25));
+                    }
+                    case "a2" -> {
+                        assertValue(action, "status", is("success"));
+                        assertValue(action, "transform.status", is("success"));
+                        assertValue(action, "transform.payload.a2_transformed_value", equalTo(35));
+                    }
+                    default -> fail("there should not be an action result for action with an id other than a1 or a2");
+                }
             }
-        }
+        });
     }
 
     public void testVarsManual() throws Exception {
@@ -215,18 +216,17 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         for (Map<String, Object> action : actions) {
             String id = (String) action.get("id");
             switch (id) {
-                case "a1":
+                case "a1" -> {
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
                     assertValue(action, "transform.payload.a1_transformed_value", equalTo(25));
-                    break;
-                case "a2":
+                }
+                case "a2" -> {
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
                     assertValue(action, "transform.payload.a2_transformed_value", equalTo(35));
-                    break;
-                default:
-                    fail("there should not be an action result for action with an id other than a1 or a2");
+                }
+                default -> fail("there should not be an action result for action with an id other than a1 or a2");
             }
         }
     }

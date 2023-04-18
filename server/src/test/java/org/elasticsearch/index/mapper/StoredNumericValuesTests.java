@@ -38,7 +38,6 @@ public class StoredNumericValuesTests extends MapperServiceTestCase {
         ParsedDocument doc = mapperService.documentMapper()
             .parse(
                 new SourceToParse(
-                    "test",
                     "1",
                     BytesReference.bytes(
                         XContentFactory.jsonBuilder()

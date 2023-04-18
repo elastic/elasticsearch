@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.expression.predicate.fulltext;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.FullTextPredicate.Operator;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -27,7 +28,7 @@ abstract class FullTextUtils {
             return emptyMap();
         }
         String[] list = Strings.delimitedListToStringArray(options, DELIMITER);
-        Map<String, String> op = new LinkedHashMap<>(list.length);
+        Map<String, String> op = Maps.newLinkedHashMapWithExpectedSize(list.length);
 
         for (String entry : list) {
             String[] split = splitInTwo(entry, "=");

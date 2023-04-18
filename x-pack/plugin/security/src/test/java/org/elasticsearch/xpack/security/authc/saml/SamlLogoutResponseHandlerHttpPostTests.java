@@ -66,17 +66,18 @@ public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerT
     }
 
     private String buildLogoutResponsePayload(Map<String, Object> data, boolean shouldSign) throws Exception {
-        final String template = "<?xml version=\"1.0\"?>\n"
-            + "<samlp:LogoutResponse xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" \n"
-            + "                      ID=\"%(randomId)\"\n"
-            + "                      InResponseTo=\"%(requestId)\" Version=\"2.0\" \n"
-            + "                      IssueInstant=\"%(now)\"\n"
-            + "                      Destination=\"%(SP_LOGOUT_URL)\">\n"
-            + "    <saml:Issuer xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">%(IDP_ENTITY_ID)</saml:Issuer>\n"
-            + "    <samlp:Status>\n"
-            + "        <samlp:StatusCode Value=\"%(status)\"/>\n"
-            + "    </samlp:Status>\n"
-            + "</samlp:LogoutResponse>";
+        final String template = """
+            <?xml version="1.0"?>
+            <samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"\s
+                                  ID="%(randomId)"
+                                  InResponseTo="%(requestId)" Version="2.0"\s
+                                  IssueInstant="%(now)"
+                                  Destination="%(SP_LOGOUT_URL)">
+                <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">%(IDP_ENTITY_ID)</saml:Issuer>
+                <samlp:Status>
+                    <samlp:StatusCode Value="%(status)"/>
+                </samlp:Status>
+            </samlp:LogoutResponse>""";
 
         Map<String, Object> replacements = new HashMap<>(data);
         replacements.putIfAbsent("IDP_ENTITY_ID", IDP_ENTITY_ID);

@@ -100,8 +100,8 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
         out.writeLong(expirationTimeMillis);
     }
 
-    public AsyncSearchResponse clone(String id) {
-        return new AsyncSearchResponse(id, searchResponse, error, isPartial, false, startTimeMillis, expirationTimeMillis);
+    public AsyncSearchResponse clone(String searchId) {
+        return new AsyncSearchResponse(searchId, searchResponse, error, isPartial, false, startTimeMillis, expirationTimeMillis);
     }
 
     /**
@@ -165,8 +165,8 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
     }
 
     @Override
-    public AsyncSearchResponse withExpirationTime(long expirationTimeMillis) {
-        return new AsyncSearchResponse(id, searchResponse, error, isPartial, isRunning, startTimeMillis, expirationTimeMillis);
+    public AsyncSearchResponse withExpirationTime(long expirationTime) {
+        return new AsyncSearchResponse(id, searchResponse, error, isPartial, isRunning, startTimeMillis, expirationTime);
     }
 
     @Override

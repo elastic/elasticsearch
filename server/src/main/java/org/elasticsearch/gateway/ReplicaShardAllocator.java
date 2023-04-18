@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
@@ -86,9 +85,9 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 }
 
                 MatchingNodes matchingNodes = findMatchingNodes(shard, allocation, true, primaryNode, primaryStore, shardStores, false);
-                if (matchingNodes.getNodeWithHighestMatch() != null) {
+                if (matchingNodes.nodeWithHighestMatch() != null) {
                     DiscoveryNode currentNode = allocation.nodes().get(shard.currentNodeId());
-                    DiscoveryNode nodeWithHighestMatch = matchingNodes.getNodeWithHighestMatch();
+                    DiscoveryNode nodeWithHighestMatch = matchingNodes.nodeWithHighestMatch();
                     // current node will not be in matchingNodes as it is filtered away by SameShardAllocationDecider
                     if (currentNode.equals(nodeWithHighestMatch) == false
                         && matchingNodes.canPerformNoopRecovery(nodeWithHighestMatch)
@@ -119,15 +118,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                             null
                         );
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
-                        shardCancellationActions.add(
-                            () -> routingNodes.failShard(
-                                logger,
-                                shard,
-                                unassignedInfo,
-                                metadata.getIndexSafe(shard.index()),
-                                allocation.changes()
-                            )
-                        );
+                        shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo, allocation.changes()));
                     }
                 }
             }
@@ -161,16 +152,13 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         final RoutingNodes routingNodes = allocation.routingNodes();
         final boolean explain = allocation.debugDecision();
         // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
-        Tuple<Decision, Map<String, NodeAllocationResult>> result = canBeAllocatedToAtLeastOneNode(unassignedShard, allocation);
-        Decision allocateDecision = result.v1();
+        PerNodeAllocationResult result = canBeAllocatedToAtLeastOneNode(unassignedShard, allocation);
+        Decision allocateDecision = result.decision();
         if (allocateDecision.type() != Decision.Type.YES && (explain == false || hasInitiatedFetching(unassignedShard) == false)) {
             // only return early if we are not in explain mode, or we are in explain mode but we have not
             // yet attempted to fetch any shard data
             logger.trace("{}: ignoring allocation, can't be allocated on any node", unassignedShard);
-            return AllocateUnassignedDecision.no(
-                UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()),
-                result.v2() != null ? new ArrayList<>(result.v2().values()) : null
-            );
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
         }
 
         AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores = fetchData(unassignedShard, allocation);
@@ -189,10 +177,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             assert explain
                 : "primary should only be null here if we are in explain mode, so we didn't "
                     + "exit early when canBeAllocatedToAtLeastOneNode didn't return a YES decision";
-            return AllocateUnassignedDecision.no(
-                UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()),
-                new ArrayList<>(result.v2().values())
-            );
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), result.nodes());
         }
         assert primaryShard.currentNodeId() != null;
         final DiscoveryNode primaryNode = allocation.nodes().get(primaryShard.currentNodeId());
@@ -217,11 +202,11 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         );
         assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
-        List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.v2(), matchingNodes.nodeDecisions);
+        List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.nodes(), matchingNodes.nodeDecisions);
         if (allocateDecision.type() != Decision.Type.YES) {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.type()), nodeDecisions);
-        } else if (matchingNodes.getNodeWithHighestMatch() != null) {
-            RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.getNodeWithHighestMatch().getId());
+        } else if (matchingNodes.nodeWithHighestMatch() != null) {
+            RoutingNode nodeWithHighestMatch = allocation.routingNodes().node(matchingNodes.nodeWithHighestMatch().getId());
             // we only check on THROTTLE since we checked before on NO
             Decision decision = allocation.deciders()
                 .canAllocateReplicaWhenThereIsRetentionLease(unassignedShard, nodeWithHighestMatch, allocation);
@@ -250,25 +235,38 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             // if we didn't manage to find *any* data (regardless of matching sizes), and the replica is
             // unassigned due to a node leaving, so we delay allocation of this replica to see if the
             // node with the shard copy will rejoin so we can re-use the copy it has
-            logger.debug("{}: allocation of [{}] is delayed", unassignedShard.shardId(), unassignedShard);
-            long remainingDelayMillis = 0L;
-            long totalDelayMillis = 0L;
-            if (explain) {
-                UnassignedInfo unassignedInfo = unassignedShard.unassignedInfo();
-                Metadata metadata = allocation.metadata();
-                IndexMetadata indexMetadata = metadata.index(unassignedShard.index());
-                totalDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).getMillis();
-                long remainingDelayNanos = unassignedInfo.getRemainingDelay(
-                    System.nanoTime(),
-                    indexMetadata.getSettings(),
-                    metadata.nodeShutdowns()
-                );
-                remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
-            }
-            return AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, nodeDecisions);
+            return delayedDecision(unassignedShard, allocation, logger, nodeDecisions);
         }
 
         return AllocateUnassignedDecision.NOT_TAKEN;
+    }
+
+    /**
+     * Return a delayed decision, filling in the right amount of remaining time if decisions are debugged/explained.
+     */
+    public static AllocateUnassignedDecision delayedDecision(
+        ShardRouting unassignedShard,
+        RoutingAllocation allocation,
+        Logger logger,
+        List<NodeAllocationResult> nodeDecisions
+    ) {
+        boolean explain = allocation.debugDecision();
+        logger.debug("{}: allocation of [{}] is delayed", unassignedShard.shardId(), unassignedShard);
+        long remainingDelayMillis = 0L;
+        long totalDelayMillis = 0L;
+        if (explain) {
+            UnassignedInfo unassignedInfo = unassignedShard.unassignedInfo();
+            Metadata metadata = allocation.metadata();
+            IndexMetadata indexMetadata = metadata.index(unassignedShard.index());
+            totalDelayMillis = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetadata.getSettings()).getMillis();
+            long remainingDelayNanos = unassignedInfo.getRemainingDelay(
+                System.nanoTime(),
+                indexMetadata.getSettings(),
+                metadata.nodeShutdowns()
+            );
+            remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
+        }
+        return AllocateUnassignedDecision.delayed(remainingDelayMillis, totalDelayMillis, nodeDecisions);
     }
 
     /**
@@ -279,13 +277,10 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      * YES or THROTTLE).  If in explain mode, also returns the node-level explanations as the second element
      * in the returned tuple.
      */
-    public static Tuple<Decision, Map<String, NodeAllocationResult>> canBeAllocatedToAtLeastOneNode(
-        ShardRouting shard,
-        RoutingAllocation allocation
-    ) {
+    public static PerNodeAllocationResult canBeAllocatedToAtLeastOneNode(ShardRouting shard, RoutingAllocation allocation) {
         Decision madeDecision = Decision.NO;
         final boolean explain = allocation.debugDecision();
-        Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
+        List<NodeAllocationResult> nodeDecisions = explain ? new ArrayList<>() : null;
         for (DiscoveryNode discoveryNode : allocation.nodes().getDataNodes().values()) {
             RoutingNode node = allocation.routingNodes().node(discoveryNode.getId());
             if (node == null) {
@@ -298,36 +293,34 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                 if (explain) {
                     madeDecision = decision;
                 } else {
-                    return Tuple.tuple(decision, null);
+                    return new PerNodeAllocationResult(decision, null);
                 }
             } else if (madeDecision.type() == Decision.Type.NO && decision.type() == Decision.Type.THROTTLE) {
                 madeDecision = decision;
             }
             if (explain) {
-                nodeDecisions.put(node.nodeId(), new NodeAllocationResult(node.node(), null, decision));
+                nodeDecisions.add(new NodeAllocationResult(node.node(), null, decision));
             }
         }
-        return Tuple.tuple(madeDecision, nodeDecisions);
+        return new PerNodeAllocationResult(madeDecision, nodeDecisions);
     }
+
+    public record PerNodeAllocationResult(Decision decision, List<NodeAllocationResult> nodes) {}
 
     /**
      * Takes the store info for nodes that have a shard store and adds them to the node decisions,
      * leaving the node explanations untouched for those nodes that do not have any store information.
      */
-    private static List<NodeAllocationResult> augmentExplanationsWithStoreInfo(
-        Map<String, NodeAllocationResult> nodeDecisions,
+    public static List<NodeAllocationResult> augmentExplanationsWithStoreInfo(
+        List<NodeAllocationResult> nodeDecisions,
         Map<String, NodeAllocationResult> withShardStores
     ) {
         if (nodeDecisions == null || withShardStores == null) {
             return null;
         }
-        List<NodeAllocationResult> augmented = new ArrayList<>();
-        for (Map.Entry<String, NodeAllocationResult> entry : nodeDecisions.entrySet()) {
-            if (withShardStores.containsKey(entry.getKey())) {
-                augmented.add(withShardStores.get(entry.getKey()));
-            } else {
-                augmented.add(entry.getValue());
-            }
+        List<NodeAllocationResult> augmented = new ArrayList<>(nodeDecisions.size());
+        for (NodeAllocationResult nodeAllocationResult : nodeDecisions) {
+            augmented.add(withShardStores.getOrDefault(nodeAllocationResult.getNode().getId(), nodeAllocationResult));
         }
         return augmented;
     }
@@ -418,14 +411,14 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                         "{}: node [{}] has [{}/{}] bytes of re-usable data",
                         shard,
                         discoNode.getName(),
-                        new ByteSizeValue(matchingNode.matchingBytes),
+                        ByteSizeValue.ofBytes(matchingNode.matchingBytes),
                         matchingNode.matchingBytes
                     );
                 }
             }
         }
 
-        return new MatchingNodes(matchingNodes, nodeDecisions);
+        return MatchingNodes.create(matchingNodes, nodeDecisions);
     }
 
     private static long computeMatchingBytes(
@@ -486,55 +479,25 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
      */
     protected abstract boolean hasInitiatedFetching(ShardRouting shard);
 
-    private static class MatchingNode {
+    private record MatchingNode(long matchingBytes, long retainingSeqNo, boolean isNoopRecovery) {
+
         static final Comparator<MatchingNode> COMPARATOR = Comparator.<MatchingNode, Boolean>comparing(m -> m.isNoopRecovery)
             .thenComparing(m -> m.retainingSeqNo)
             .thenComparing(m -> m.matchingBytes);
-
-        final long matchingBytes;
-        final long retainingSeqNo;
-        final boolean isNoopRecovery;
-
-        MatchingNode(long matchingBytes, long retainingSeqNo, boolean isNoopRecovery) {
-            this.matchingBytes = matchingBytes;
-            this.retainingSeqNo = retainingSeqNo;
-            this.isNoopRecovery = isNoopRecovery;
-        }
 
         boolean anyMatch() {
             return isNoopRecovery || retainingSeqNo >= 0 || matchingBytes > 0;
         }
     }
 
-    static class MatchingNodes {
-        private final Map<DiscoveryNode, MatchingNode> matchingNodes;
-        private final DiscoveryNode nodeWithHighestMatch;
-        @Nullable
-        private final Map<String, NodeAllocationResult> nodeDecisions;
-
-        MatchingNodes(Map<DiscoveryNode, MatchingNode> matchingNodes, @Nullable Map<String, NodeAllocationResult> nodeDecisions) {
-            this.matchingNodes = matchingNodes;
-            this.nodeDecisions = nodeDecisions;
-            this.nodeWithHighestMatch = matchingNodes.entrySet()
-                .stream()
-                .filter(e -> e.getValue().anyMatch())
-                .max(Comparator.comparing(Map.Entry::getValue, MatchingNode.COMPARATOR))
-                .map(Map.Entry::getKey)
-                .orElse(null);
-        }
-
-        /**
-         * Returns the node with the highest "non zero byte" match compared to
-         * the primary.
-         */
-        @Nullable
-        public DiscoveryNode getNodeWithHighestMatch() {
-            return this.nodeWithHighestMatch;
-        }
+    private record MatchingNodes(
+        Map<DiscoveryNode, MatchingNode> matchingNodes,
+        @Nullable Map<String, NodeAllocationResult> nodeDecisions,
+        @Nullable DiscoveryNode nodeWithHighestMatch
+    ) {
 
         boolean canPerformNoopRecovery(DiscoveryNode node) {
-            final MatchingNode matchingNode = matchingNodes.get(node);
-            return matchingNode.isNoopRecovery;
+            return matchingNodes.get(node).isNoopRecovery;
         }
 
         /**
@@ -542,6 +505,26 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
          */
         public boolean hasAnyData() {
             return matchingNodes.isEmpty() == false;
+        }
+
+        private static MatchingNodes create(
+            Map<DiscoveryNode, MatchingNode> matchingNodes,
+            @Nullable Map<String, NodeAllocationResult> nodeDecisions
+        ) {
+            return new MatchingNodes(matchingNodes, nodeDecisions, getNodeWithHighestMatch(matchingNodes));
+        }
+
+        /**
+         * Returns the node with the highest "non zero byte" match compared to the primary.
+         */
+        @Nullable
+        private static DiscoveryNode getNodeWithHighestMatch(Map<DiscoveryNode, MatchingNode> matchingNodes) {
+            return matchingNodes.entrySet()
+                .stream()
+                .filter(e -> e.getValue().anyMatch())
+                .max(Map.Entry.comparingByValue(MatchingNode.COMPARATOR))
+                .map(Map.Entry::getKey)
+                .orElse(null);
         }
     }
 }

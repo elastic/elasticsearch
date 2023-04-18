@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.index.IndexCompatibility;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.MappingException;
@@ -18,6 +20,7 @@ import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
+import org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerContext;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer.PreAnalysis;
 import org.elasticsearch.xpack.sql.analysis.analyzer.TableInfo;
@@ -113,8 +116,13 @@ public class SqlSession implements Session {
             return;
         }
 
-        preAnalyze(parsed, c -> {
-            Analyzer analyzer = new Analyzer(configuration, functionRegistry, c, verifier);
+        preAnalyze(parsed, r -> {
+            AnalyzerContext context = new AnalyzerContext(
+                configuration,
+                functionRegistry,
+                IndexCompatibility.compatible(r, Version.fromId(configuration.version().id))
+            );
+            Analyzer analyzer = new Analyzer(context, verifier);
             return analyzer.analyze(parsed, verify);
         }, listener);
     }
@@ -126,7 +134,8 @@ public class SqlSession implements Session {
         }
 
         preAnalyze(parsed, r -> {
-            Analyzer analyzer = new Analyzer(configuration, functionRegistry, r, verifier);
+            AnalyzerContext context = new AnalyzerContext(configuration, functionRegistry, r);
+            Analyzer analyzer = new Analyzer(context, verifier);
             return analyzer.debugAnalyze(parsed);
         }, listener);
     }

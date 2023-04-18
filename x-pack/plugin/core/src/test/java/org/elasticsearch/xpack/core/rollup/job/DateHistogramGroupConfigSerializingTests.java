@@ -11,8 +11,9 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 
@@ -27,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DateHistogramGroupConfigSerializingTests extends AbstractSerializingTestCase<DateHistogramGroupConfig> {
+public class DateHistogramGroupConfigSerializingTests extends AbstractXContentSerializingTestCase<DateHistogramGroupConfig> {
 
     private enum DateHistoType {
         FIXED,
@@ -62,6 +63,11 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
             throw new IllegalStateException("Illegal date histogram legacy interval");
         }
         return config;
+    }
+
+    @Override
+    protected DateHistogramGroupConfig mutateInstance(DateHistogramGroupConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testValidateNoMapping() {
@@ -136,7 +142,7 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
 
         // Have to mock fieldcaps because the ctor's aren't public...
         FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
-        Map<String, FieldCapabilities> types = new HashMap<>(2);
+        Map<String, FieldCapabilities> types = Maps.newMapWithExpectedSize(2);
         types.put("date", fieldCaps);
         types.put("keyword", fieldCaps);
         responseMap.put("my_field", types);

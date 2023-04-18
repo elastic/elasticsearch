@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -24,6 +25,7 @@ import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -31,6 +33,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -42,6 +45,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  */
 public final class BulkRequestParser {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
+    private static final Set<String> SUPPORTED_ACTIONS = Set.of("create", "index", "update", "delete");
+    private static final String STRICT_ACTION_PARSING_WARNING_KEY = "bulk_request_strict_action_parsing";
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
@@ -179,6 +184,15 @@ public final class BulkRequestParser {
                     );
                 }
                 String action = parser.currentName();
+                if (SUPPORTED_ACTIONS.contains(action) == false) {
+                    throw new IllegalArgumentException(
+                        "Malformed action/metadata line ["
+                            + line
+                            + "], expected field [create], [delete], [index] or [update] but found ["
+                            + action
+                            + "]"
+                    );
+                }
 
                 String index = defaultIndex;
                 String type = null;
@@ -292,6 +306,7 @@ public final class BulkRequestParser {
                             + "]"
                     );
                 }
+                checkBulkActionIsProperlyClosed(parser);
 
                 if ("delete".equals(action)) {
                     if (dynamicTemplates.isEmpty() == false) {
@@ -342,6 +357,7 @@ public final class BulkRequestParser {
                                     .setIfSeqNo(ifSeqNo)
                                     .setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                    .setDynamicTemplates(dynamicTemplates)
                                     .setRequireAlias(requireAlias),
                                 type
                             );
@@ -394,7 +410,7 @@ public final class BulkRequestParser {
                         }
                         IndexRequest upsertRequest = updateRequest.upsertRequest();
                         if (upsertRequest != null) {
-                            upsertRequest.setPipeline(defaultPipeline);
+                            upsertRequest.setPipeline(pipeline);
                         }
 
                         updateRequestConsumer.accept(updateRequest);
@@ -403,6 +419,38 @@ public final class BulkRequestParser {
                     from = nextMarker + 1;
                 }
             }
+        }
+    }
+
+    private static void checkBulkActionIsProperlyClosed(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        try {
+            token = parser.nextToken();
+        } catch (XContentEOFException ignore) {
+            assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
+            deprecationLogger.compatibleCritical(
+                STRICT_ACTION_PARSING_WARNING_KEY,
+                "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be "
+                    + "rejected in a future version."
+            );
+            return;
+        }
+        if (token != XContentParser.Token.END_OBJECT) {
+            assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
+            deprecationLogger.compatibleCritical(
+                STRICT_ACTION_PARSING_WARNING_KEY,
+                "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a "
+                    + "future version."
+            );
+            return;
+        }
+        if (parser.nextToken() != null) {
+            assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
+            deprecationLogger.compatibleCritical(
+                STRICT_ACTION_PARSING_WARNING_KEY,
+                "A bulk action contained trailing data after the closing brace. This is currently ignored but will be rejected in a "
+                    + "future version."
+            );
         }
     }
 

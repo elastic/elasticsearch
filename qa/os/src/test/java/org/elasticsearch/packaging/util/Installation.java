@@ -36,6 +36,7 @@ public class Installation {
     public final Path envFile;
     @Nullable
     private String elasticPassword; // auto-configured password upon installation
+    public final int port;
 
     private Installation(
         Shell sh,
@@ -47,7 +48,8 @@ public class Installation {
         Path plugins,
         Path modules,
         Path pidDir,
-        Path envFile
+        Path envFile,
+        int port
     ) {
         this.sh = sh;
         this.distribution = distribution;
@@ -62,6 +64,7 @@ public class Installation {
         this.modules = modules;
         this.pidDir = pidDir;
         this.envFile = envFile;
+        this.port = port;
         this.elasticPassword = null;
     }
 
@@ -76,7 +79,8 @@ public class Installation {
             home.resolve("plugins"),
             home.resolve("modules"),
             null,
-            null
+            null,
+            9200
         );
     }
 
@@ -96,11 +100,12 @@ public class Installation {
             Paths.get("/usr/share/elasticsearch/plugins"),
             Paths.get("/usr/share/elasticsearch/modules"),
             Paths.get("/var/run/elasticsearch"),
-            envFile
+            envFile,
+            9200
         );
     }
 
-    public static Installation ofContainer(Shell sh, Distribution distribution) {
+    public static Installation ofContainer(Shell sh, Distribution distribution, int port) {
         String root = "/usr/share/elasticsearch";
         return new Installation(
             sh,
@@ -112,8 +117,13 @@ public class Installation {
             Paths.get(root + "/plugins"),
             Paths.get(root + "/modules"),
             null,
-            null
+            null,
+            port
         );
+    }
+
+    public static Installation ofContainer(Shell sh, Distribution distribution) {
+        return ofContainer(sh, distribution, 9200);
     }
 
     /**

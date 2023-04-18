@@ -9,7 +9,7 @@
 package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBuilder<
     ClearIndicesCacheRequest,

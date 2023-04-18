@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
 public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchRequest, EqlSearchResponse> {
@@ -53,6 +53,11 @@ public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchReque
 
     public EqlSearchRequestBuilder query(String query) {
         request.query(query);
+        return this;
+    }
+
+    public EqlSearchRequestBuilder maxSamplesPerKey(int maxSamplesPerKey) {
+        request.maxSamplesPerKey(maxSamplesPerKey);
         return this;
     }
 }

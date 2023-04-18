@@ -102,7 +102,7 @@ public class RecallAtKTests extends ESTestCase {
         int k = 5;
         SearchHit[] hits = new SearchHit[k];
         for (int i = 0; i < k; i++) {
-            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "");
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
 
@@ -202,27 +202,21 @@ public class RecallAtKTests extends ESTestCase {
     }
 
     private static RecallAtK mutate(RecallAtK original) {
-        RecallAtK recallAtK;
-        switch (randomIntBetween(0, 1)) {
-            case 0:
-                recallAtK = new RecallAtK(
-                    randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
-                    original.forcedSearchSize().getAsInt()
-                );
-                break;
-            case 1:
-                recallAtK = new RecallAtK(original.getRelevantRatingThreshold(), original.forcedSearchSize().getAsInt() + 1);
-                break;
-            default:
-                throw new IllegalStateException("The test should only allow two parameters mutated");
-        }
+        RecallAtK recallAtK = switch (randomIntBetween(0, 1)) {
+            case 0 -> new RecallAtK(
+                randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
+                original.forcedSearchSize().getAsInt()
+            );
+            case 1 -> new RecallAtK(original.getRelevantRatingThreshold(), original.forcedSearchSize().getAsInt() + 1);
+            default -> throw new IllegalStateException("The test should only allow two parameters mutated");
+        };
         return recallAtK;
     }
 
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index) {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
-            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "");
             hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
         }
         return hits;

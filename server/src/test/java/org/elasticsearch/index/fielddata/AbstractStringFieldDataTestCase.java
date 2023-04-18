@@ -33,10 +33,10 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -53,6 +53,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -318,7 +319,8 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             randomBoolean() ? numDocs : randomIntBetween(10, numDocs),
             new Sort(sortField)
         );
-        assertEquals(numDocs, topDocs.totalHits.value);
+
+        assertThat(topDocs.totalHits.value, lessThanOrEqualTo((long) numDocs));
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
             final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");
@@ -387,21 +389,12 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = new IndexSearcher(directoryReader);
         IndexFieldData<?> fieldData = getForField("text");
-        final Object missingValue;
-        switch (randomInt(4)) {
-            case 0:
-                missingValue = "_first";
-                break;
-            case 1:
-                missingValue = "_last";
-                break;
-            case 2:
-                missingValue = new BytesRef(RandomPicks.randomFrom(random(), values));
-                break;
-            default:
-                missingValue = new BytesRef(TestUtil.randomSimpleString(random()));
-                break;
-        }
+        final Object missingValue = switch (randomInt(4)) {
+            case 0 -> "_first";
+            case 1 -> "_last";
+            case 2 -> new BytesRef(RandomPicks.randomFrom(random(), values));
+            default -> new BytesRef(TestUtil.randomSimpleString(random()));
+        };
         Query parentFilter = new TermQuery(new Term("type", "parent"));
         Query childFilter = Queries.not(parentFilter);
         Nested nested = createNested(searcher, parentFilter, childFilter);

@@ -44,13 +44,13 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
                 if (leases.isEmpty() == false && rarely()) {
                     RetentionLease leaseToRemove = randomFrom(leases);
                     leases.remove(leaseToRemove);
-                    group.removeRetentionLease(leaseToRemove.id(), ActionListener.wrap(latch::countDown));
+                    group.removeRetentionLease(leaseToRemove.id(), ActionListener.running(latch::countDown));
                 } else {
                     RetentionLease newLease = group.addRetentionLease(
                         Integer.toString(i),
                         randomNonNegativeLong(),
                         "test-" + i,
-                        ActionListener.wrap(latch::countDown)
+                        ActionListener.running(latch::countDown)
                     );
                     leases.add(newLease);
                 }
@@ -75,8 +75,8 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
         IndexMetadata indexMetadata = buildIndexMetadata(numberOfReplicas, settings, indexMapping);
         try (ReplicationGroup group = new ReplicationGroup(indexMetadata) {
             @Override
-            protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
-                listener.onResponse(new SyncRetentionLeasesResponse(new RetentionLeaseSyncAction.Request(shardId, leases)));
+            protected void syncRetentionLeases(ShardId id, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
+                listener.onResponse(new SyncRetentionLeasesResponse(new RetentionLeaseSyncAction.Request(id, leases)));
             }
         }) {
             group.startAll();
@@ -102,8 +102,8 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
         IndexMetadata indexMetadata = buildIndexMetadata(numberOfReplicas, settings, indexMapping);
         try (ReplicationGroup group = new ReplicationGroup(indexMetadata) {
             @Override
-            protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
-                listener.onResponse(new SyncRetentionLeasesResponse(new RetentionLeaseSyncAction.Request(shardId, leases)));
+            protected void syncRetentionLeases(ShardId id, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
+                listener.onResponse(new SyncRetentionLeasesResponse(new RetentionLeaseSyncAction.Request(id, leases)));
             }
         }) {
             group.startAll();

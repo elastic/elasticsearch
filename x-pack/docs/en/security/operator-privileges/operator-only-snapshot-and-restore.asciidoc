@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="enterprise"]
 [[operator-only-snapshot-and-restore]]
 === Operator privileges for snapshot and restore
 

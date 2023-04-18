@@ -77,7 +77,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         final int count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);
         logger.debug("using [node] query cache with size [{}] max filter count [{}]", size, count);
         if (INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings)) {
-            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), context -> true, 1f);
+            // Use the default skip_caching_factor (i.e., 10f) in Lucene
+            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), context -> true, 10f);
         } else {
             cache = new ElasticsearchLRUQueryCache(count, size.getBytes());
         }
@@ -138,6 +139,12 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             shardKeyMap.add(context.reader());
             return in.explain(context, doc);
+        }
+
+        @Override
+        public int count(LeafReaderContext context) throws IOException {
+            shardKeyMap.add(context.reader());
+            return in.count(context);
         }
 
         @Override
@@ -242,7 +249,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
     }
 
-    private boolean empty(Stats stats) {
+    private static boolean empty(Stats stats) {
         if (stats == null) {
             return true;
         }
@@ -273,13 +280,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         private Stats getOrCreateStats(Object coreKey) {
-            final ShardId shardId = shardKeyMap.getShardId(coreKey);
-            Stats stats = shardStats.get(shardId);
-            if (stats == null) {
-                stats = new Stats(shardId);
-                shardStats.put(shardId, stats);
-            }
-            return stats;
+            return shardStats.computeIfAbsent(shardKeyMap.getShardId(coreKey), Stats::new);
         }
 
         // It's ok to not protect these callbacks by a lock since it is

@@ -9,10 +9,10 @@
 package org.elasticsearch.ingest.useragent;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.ingest.useragent.UserAgentParser.VersionedName;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.ingest.useragent.UserAgentParser.VersionedName;
 import static org.elasticsearch.ingest.useragent.UserAgentParser.readParserConfigurations;
 
 public class DeviceTypeParser {
@@ -40,9 +39,8 @@ public class DeviceTypeParser {
     private final HashMap<String, ArrayList<DeviceTypeSubPattern>> deviceTypePatterns = new HashMap<>();
 
     public void init(InputStream regexStream) throws IOException {
-        // EMPTY is safe here because we don't use namedObject
         XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML)
-            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, regexStream);
+            .createParser(XContentParserConfiguration.EMPTY, regexStream);
 
         XContentParser.Token token = yamlParser.nextToken();
 
@@ -92,18 +90,18 @@ public class DeviceTypeParser {
             String deviceType = null;
             switch (patternKey) {
                 case OS_PARSERS:
-                    if (os != null && os.name != null) {
-                        deviceType = findMatch(deviceTypePatterns.get(patternKey), os.name);
+                    if (os != null && os.name() != null) {
+                        deviceType = findMatch(deviceTypePatterns.get(patternKey), os.name());
                     }
                     break;
                 case BROWSER_PARSER:
-                    if (userAgent != null && userAgent.name != null) {
-                        deviceType = findMatch(deviceTypePatterns.get(patternKey), userAgent.name);
+                    if (userAgent != null && userAgent.name() != null) {
+                        deviceType = findMatch(deviceTypePatterns.get(patternKey), userAgent.name());
                     }
                     break;
                 case DEVICE_PARSER:
-                    if (device != null && device.name != null) {
-                        deviceType = findMatch(deviceTypePatterns.get(patternKey), device.name);
+                    if (device != null && device.name() != null) {
+                        deviceType = findMatch(deviceTypePatterns.get(patternKey), device.name());
                     }
                     break;
                 default:

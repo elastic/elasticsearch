@@ -8,8 +8,9 @@
 package org.elasticsearch.xpack.ml.aggs.inference;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +30,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
@@ -230,8 +231,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                 );
             }
 
-            if (inferenceConfig instanceof ClassificationConfigUpdate) {
-                ClassificationConfigUpdate classUpdate = (ClassificationConfigUpdate) inferenceConfig;
+            if (inferenceConfig instanceof ClassificationConfigUpdate classUpdate) {
 
                 // error if the top classes result field is set and not equal to the only acceptable value
                 String topClassesField = classUpdate.getTopClassesResultsField();
@@ -264,11 +264,11 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
         SetOnce<LocalModel> loadedModel = new SetOnce<>();
         BiConsumer<Client, ActionListener<?>> modelLoadAction = (client, listener) -> modelLoadingService.get()
-            .getModelForSearch(modelId, listener.delegateFailure((delegate, model) -> {
-                loadedModel.set(model);
+            .getModelForSearch(modelId, listener.delegateFailure((delegate, localModel) -> {
+                loadedModel.set(localModel);
 
-                boolean isLicensed = model.getLicenseLevel() == License.OperationMode.BASIC
-                    || MachineLearningField.ML_API_FEATURE.check(licenseState);
+                boolean isLicensed = localModel.getLicenseLevel() == License.OperationMode.BASIC
+                    || MachineLearning.INFERENCE_AGG_FEATURE.check(licenseState);
                 if (isLicensed) {
                     delegate.onResponse(null);
                 } else {
@@ -376,5 +376,10 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         return Objects.equals(bucketPathMap, other.bucketPathMap)
             && Objects.equals(modelId, other.modelId)
             && Objects.equals(inferenceConfig, other.inferenceConfig);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_9_0;
     }
 }

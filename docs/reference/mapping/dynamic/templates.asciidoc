@@ -22,9 +22,10 @@ Use the `{name}` and `{dynamic_type}` <<template-variables,template variables>>
 in the mapping specification as placeholders.
 
 IMPORTANT: Dynamic field mappings are only added when a field contains a
-concrete value -- not `null` or an empty array. If the
-`null_value` option is used in a `dynamic_template`, it will only be applied
-after the first document with a concrete value for the field has been
+concrete value. {es} doesn't add a dynamic field mapping when the field contains
+`null` or an empty array. If the `null_value` option is used in a
+`dynamic_template`, it will only be applied after the first document with a
+concrete value for the field has been
 indexed.
 
 Dynamic templates are specified as an array of named objects:
@@ -119,8 +120,13 @@ to map `string` fields as either indexed fields or runtime fields.
 
 The `match_mapping_type` is the data type detected by the JSON parser. Because
 JSON doesn't distinguish a `long` from an `integer` or a `double` from
-a `float`, it always chooses the wider data type such as `long` for integers
-and `double` for floating-point numbers.
+a `float`, any parsed floating point number is considered a `double` JSON data
+type, while any parsed `integer` number is considered a `long`.
+
+NOTE: With dynamic mappings, {es} will always choose the wider data type. The
+one exception is `float`, which requires less storage space than `double` and
+is precise enough for most applications. Runtime fields do not support `float`,
+which is why `"dynamic":"runtime"` uses `double`.
 
 {es} automatically detects the following data types:
 

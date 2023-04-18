@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.search;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
@@ -67,66 +67,47 @@ public class AsyncSearchResponseTests extends ESTestCase {
     }
 
     protected final AsyncSearchResponse assertSerialization(AsyncSearchResponse testInstance) throws IOException {
-        return assertSerialization(testInstance, Version.CURRENT);
+        return assertSerialization(testInstance, TransportVersion.CURRENT);
     }
 
-    protected final AsyncSearchResponse assertSerialization(AsyncSearchResponse testInstance, Version version) throws IOException {
+    protected final AsyncSearchResponse assertSerialization(AsyncSearchResponse testInstance, TransportVersion version) throws IOException {
         AsyncSearchResponse deserializedInstance = copyInstance(testInstance, version);
         assertEqualInstances(testInstance, deserializedInstance);
         return deserializedInstance;
     }
 
     protected final AsyncSearchResponse copyInstance(AsyncSearchResponse instance) throws IOException {
-        return copyInstance(instance, Version.CURRENT);
+        return copyInstance(instance, TransportVersion.CURRENT);
     }
 
-    protected AsyncSearchResponse copyInstance(AsyncSearchResponse instance, Version version) throws IOException {
+    protected AsyncSearchResponse copyInstance(AsyncSearchResponse instance, TransportVersion version) throws IOException {
         return copyWriteable(instance, namedWriteableRegistry, instanceReader(), version);
     }
 
     static AsyncSearchResponse randomAsyncSearchResponse(String searchId, SearchResponse searchResponse) {
         int rand = randomIntBetween(0, 2);
-        switch (rand) {
-            case 0:
-                return new AsyncSearchResponse(
-                    searchId,
-                    randomBoolean(),
-                    randomBoolean(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong()
-                );
-
-            case 1:
-                return new AsyncSearchResponse(
-                    searchId,
-                    searchResponse,
-                    null,
-                    randomBoolean(),
-                    randomBoolean(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong()
-                );
-
-            case 2:
-                return new AsyncSearchResponse(
-                    searchId,
-                    searchResponse,
-                    new ScriptException(
-                        "messageData",
-                        new Exception("causeData"),
-                        Arrays.asList("stack1", "stack2"),
-                        "sourceData",
-                        "langData"
-                    ),
-                    randomBoolean(),
-                    randomBoolean(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong()
-                );
-
-            default:
-                throw new AssertionError();
-        }
+        return switch (rand) {
+            case 0 -> new AsyncSearchResponse(searchId, randomBoolean(), randomBoolean(), randomNonNegativeLong(), randomNonNegativeLong());
+            case 1 -> new AsyncSearchResponse(
+                searchId,
+                searchResponse,
+                null,
+                randomBoolean(),
+                randomBoolean(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
+            case 2 -> new AsyncSearchResponse(
+                searchId,
+                searchResponse,
+                new ScriptException("messageData", new Exception("causeData"), Arrays.asList("stack1", "stack2"), "sourceData", "langData"),
+                randomBoolean(),
+                randomBoolean(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
+            default -> throw new AssertionError();
+        };
     }
 
     static SearchResponse randomSearchResponse() {
@@ -134,7 +115,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
-        InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
+        InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
         return new SearchResponse(
             internalSearchResponse,
             null,
@@ -164,20 +145,14 @@ public class AsyncSearchResponseTests extends ESTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
             asyncSearchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals(
-                "{\n"
-                    + "  \"id\" : \"id\",\n"
-                    + "  \"is_partial\" : true,\n"
-                    + "  \"is_running\" : true,\n"
-                    + "  \"start_time_in_millis\" : "
-                    + date.getTime()
-                    + ",\n"
-                    + "  \"expiration_time_in_millis\" : "
-                    + date.getTime()
-                    + "\n"
-                    + "}",
-                Strings.toString(builder)
-            );
+            assertEquals(Strings.format("""
+                {
+                  "id" : "id",
+                  "is_partial" : true,
+                  "is_running" : true,
+                  "start_time_in_millis" : %s,
+                  "expiration_time_in_millis" : %s
+                }""", date.getTime(), date.getTime()), Strings.toString(builder));
         }
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
@@ -185,23 +160,22 @@ public class AsyncSearchResponseTests extends ESTestCase {
             builder.humanReadable(true);
             asyncSearchResponse.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
             assertEquals(
-                "{\n"
-                    + "  \"id\" : \"id\",\n"
-                    + "  \"is_partial\" : true,\n"
-                    + "  \"is_running\" : true,\n"
-                    + "  \"start_time\" : \""
-                    + XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant())
-                    + "\",\n"
-                    + "  \"start_time_in_millis\" : "
-                    + date.getTime()
-                    + ",\n"
-                    + "  \"expiration_time\" : \""
-                    + XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant())
-                    + "\",\n"
-                    + "  \"expiration_time_in_millis\" : "
-                    + date.getTime()
-                    + "\n"
-                    + "}",
+                Strings.format(
+                    """
+                        {
+                          "id" : "id",
+                          "is_partial" : true,
+                          "is_running" : true,
+                          "start_time" : "%s",
+                          "start_time_in_millis" : %s,
+                          "expiration_time" : "%s",
+                          "expiration_time_in_millis" : %s
+                        }""",
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()),
+                    date.getTime(),
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()),
+                    date.getTime()
+                ),
                 Strings.toString(builder)
             );
         }

@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -51,8 +52,14 @@ public class RolloverResponseTests extends AbstractWireSerializingTestCase<Rollo
     static {
         conditionSuppliers.add(() -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
         conditionSuppliers.add(() -> new MaxDocsCondition(randomNonNegativeLong()));
-        conditionSuppliers.add(() -> new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
-        conditionSuppliers.add(() -> new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxPrimaryShardDocsCondition(randomNonNegativeLong()));
+        conditionSuppliers.add(() -> new MinAgeCondition(new TimeValue(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MinDocsCondition(randomNonNegativeLong()));
+        conditionSuppliers.add(() -> new MinSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MinPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MinPrimaryShardDocsCondition(randomNonNegativeLong()));
     }
 
     @Override
@@ -89,7 +96,7 @@ public class RolloverResponseTests extends AbstractWireSerializingTestCase<Rollo
                 if (response.getConditionStatus().isEmpty()) {
                     results = randomResults(false);
                 } else {
-                    results = new HashMap<>(response.getConditionStatus().size());
+                    results = Maps.newMapWithExpectedSize(response.getConditionStatus().size());
                     List<String> keys = randomSubsetOf(
                         randomIntBetween(1, response.getConditionStatus().size()),
                         response.getConditionStatus().keySet()

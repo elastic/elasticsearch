@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="enterprise"]
 [[autoscaling-get-autoscaling-capacity]]
 === Get autoscaling capacity API
 ++++
@@ -86,6 +85,10 @@ Bytes of storage required per node.
 (integer)
 Bytes of memory required per node.
 
+`processors`::
+(float)
+Number of processors (vCPUs) required per node.
+
 =======
 `total`::
 (object)
@@ -101,6 +104,11 @@ Total bytes of storage required for the policy.
 `memory`::
 (integer)
 Total bytes of memory required for the policy.
+
+`processors`::
+(float)
+Total number of processors (vCPUs) required for the policy.
+
 =======
 ======
 `current_capacity`::
@@ -126,6 +134,10 @@ Maximum bytes of storage of a node.
 (integer)
 Maximum bytes of memory of a node.
 
+`processors`::
+(float)
+Maximum number of processors (vCPUs) of a node.
+
 =======
 `total`::
 (object)
@@ -141,6 +153,10 @@ Current bytes of storage available for the policy.
 `memory`::
 (integer)
 Current bytes of memory available for the policy.
+
+`processors`::
+Current number of processors (vCPUs) available for the policy.
+
 =======
 ======
 `current_nodes`::
@@ -192,6 +208,10 @@ Bytes of storage required per node.
 (integer)
 Bytes of memory required per node.
 
+`processors`::
+(float)
+Number of processors (vCPUs) required per node.
+
 ==========
 `total`::
 (object)
@@ -207,6 +227,11 @@ Total bytes of storage required for the policy.
 `memory`::
 (integer)
 Total bytes of memory required for the policy.
+
+`processors`::
+(float)
+Total number of processors (vCPUs) required for the policy.
+
 ==========
 =========
 `reason_summary`::

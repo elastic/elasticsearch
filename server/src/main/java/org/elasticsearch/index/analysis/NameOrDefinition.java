@@ -56,7 +56,7 @@ public class NameOrDefinition implements Writeable, ToXContentFragment {
         boolean isNotNullDefinition = this.definition != null;
         out.writeBoolean(isNotNullDefinition);
         if (isNotNullDefinition) {
-            Settings.writeSettingsToStream(definition, out);
+            definition.writeTo(out);
         }
     }
 

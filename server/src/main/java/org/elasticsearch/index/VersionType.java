@@ -46,7 +46,7 @@ public enum VersionType implements Writeable {
             return "current version [" + currentVersion + "] is different than the one provided [" + expectedVersion + "]";
         }
 
-        private boolean isVersionConflict(long currentVersion, long expectedVersion, boolean deleted) {
+        private static boolean isVersionConflict(long currentVersion, long expectedVersion, boolean deleted) {
             if (expectedVersion == Versions.MATCH_ANY) {
                 return false;
             }

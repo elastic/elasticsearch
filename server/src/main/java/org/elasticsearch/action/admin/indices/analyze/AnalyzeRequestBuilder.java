@@ -8,7 +8,7 @@
 package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 import java.util.Map;
 

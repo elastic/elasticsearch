@@ -44,8 +44,8 @@ public class HistogramGroupSource extends SingleGroupSource {
             String field = (String) args[0];
             ScriptConfig scriptConfig = (ScriptConfig) args[1];
             boolean missingBucket = args[2] == null ? false : (boolean) args[2];
-            double interval = (double) args[3];
-            return new HistogramGroupSource(field, scriptConfig, missingBucket, interval);
+            double intervalValue = (double) args[3];
+            return new HistogramGroupSource(field, scriptConfig, missingBucket, intervalValue);
         });
         declareValuesSourceFields(parser, lenient);
         parser.declareDouble(optionalConstructorArg(), INTERVAL);

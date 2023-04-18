@@ -26,11 +26,15 @@ public class IndexFeatureStatsTests extends AbstractWireSerializingTestCase<Inde
         return indexFeatureStats;
     }
 
+    @Override
+    protected IndexFeatureStats mutateInstance(IndexFeatureStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testToXContent() {
         IndexFeatureStats testInstance = createTestInstance();
-        assertEquals(
-            "{\"name\":\"" + testInstance.name + "\",\"count\":" + testInstance.count + ",\"index_count\":" + testInstance.indexCount + "}",
-            Strings.toString(testInstance)
-        );
+        assertEquals(Strings.format("""
+            {"name":"%s","count":%s,"index_count":%s}\
+            """, testInstance.name, testInstance.count, testInstance.indexCount), Strings.toString(testInstance));
     }
 }

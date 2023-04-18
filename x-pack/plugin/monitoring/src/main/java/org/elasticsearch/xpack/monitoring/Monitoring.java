@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -32,6 +34,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -72,6 +75,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
@@ -124,7 +128,9 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationService allocationService
     ) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, getLicenseState());
@@ -188,7 +194,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
+        Settings unused,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -201,25 +207,25 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        List<Setting<?>> settings = new ArrayList<>();
-        settings.add(MonitoringField.HISTORY_DURATION);
-        settings.add(MonitoringService.ENABLED);
-        settings.add(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED);
-        settings.add(MonitoringService.INTERVAL);
-        settings.add(MonitoringTemplateRegistry.MONITORING_TEMPLATES_ENABLED);
-        settings.add(Collector.INDICES);
-        settings.add(ClusterStatsCollector.CLUSTER_STATS_TIMEOUT);
-        settings.add(IndexRecoveryCollector.INDEX_RECOVERY_TIMEOUT);
-        settings.add(IndexRecoveryCollector.INDEX_RECOVERY_ACTIVE_ONLY);
-        settings.add(IndexStatsCollector.INDEX_STATS_TIMEOUT);
-        settings.add(JobStatsCollector.JOB_STATS_TIMEOUT);
-        settings.add(StatsCollector.CCR_STATS_TIMEOUT);
-        settings.add(NodeStatsCollector.NODE_STATS_TIMEOUT);
-        settings.add(EnrichStatsCollector.STATS_TIMEOUT);
-        settings.addAll(Exporters.getSettings());
-        settings.add(Monitoring.MIGRATION_DECOMMISSION_ALERTS);
-        settings.addAll(MonitoringDeprecatedSettings.getSettings());
-        return Collections.unmodifiableList(settings);
+        List<Setting<?>> settingsList = new ArrayList<>();
+        settingsList.add(MonitoringField.HISTORY_DURATION);
+        settingsList.add(MonitoringService.ENABLED);
+        settingsList.add(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED);
+        settingsList.add(MonitoringService.INTERVAL);
+        settingsList.add(MonitoringTemplateRegistry.MONITORING_TEMPLATES_ENABLED);
+        settingsList.add(Collector.INDICES);
+        settingsList.add(ClusterStatsCollector.CLUSTER_STATS_TIMEOUT);
+        settingsList.add(IndexRecoveryCollector.INDEX_RECOVERY_TIMEOUT);
+        settingsList.add(IndexRecoveryCollector.INDEX_RECOVERY_ACTIVE_ONLY);
+        settingsList.add(IndexStatsCollector.INDEX_STATS_TIMEOUT);
+        settingsList.add(JobStatsCollector.JOB_STATS_TIMEOUT);
+        settingsList.add(StatsCollector.CCR_STATS_TIMEOUT);
+        settingsList.add(NodeStatsCollector.NODE_STATS_TIMEOUT);
+        settingsList.add(EnrichStatsCollector.STATS_TIMEOUT);
+        settingsList.addAll(Exporters.getSettings());
+        settingsList.add(Monitoring.MIGRATION_DECOMMISSION_ALERTS);
+        settingsList.addAll(MonitoringDeprecatedSettings.getSettings());
+        return Collections.unmodifiableList(settingsList);
     }
 
     @Override
@@ -229,11 +235,26 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     }
 
     @Override
-    public void reload(Settings settings) throws Exception {
-        final List<String> changedExporters = HttpExporter.loadSettings(settings);
+    public void reload(Settings settingsToLoad) throws Exception {
+        final List<String> changedExporters = HttpExporter.loadSettings(settingsToLoad);
         for (String changedExporter : changedExporters) {
-            final Settings settingsForChangedExporter = settings.filter(x -> x.startsWith("xpack.monitoring.exporters." + changedExporter));
+            final Settings settingsForChangedExporter = settingsToLoad.filter(
+                x -> x.startsWith("xpack.monitoring.exporters." + changedExporter)
+            );
             exporters.setExportersSetting(settingsForChangedExporter);
         }
+    }
+
+    @Override
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
+        return map -> {
+            // this template was not migrated to typeless due to the possibility of the old /_monitoring/bulk API being used
+            // see {@link org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils#OLD_TEMPLATE_VERSION}
+            // however the bulk API is not typed (the type field is for the docs, a field inside the docs) so it's safe to remove this
+            // old template and rely on the updated, typeless, .monitoring-alerts-7 template
+            map.remove(".monitoring-alerts");
+            return map;
+        };
+
     }
 }

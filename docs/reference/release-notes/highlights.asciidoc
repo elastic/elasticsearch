@@ -1,27 +1,48 @@
 [[release-highlights]]
 == What's new in {minor-version}
 
-Here are the highlights of what's new and improved in {es} {minor-version}!
+coming::[{minor-version}]
 
+Here are the highlights of what's new and improved in {es} {minor-version}!
+ifeval::[\{release-state}\"!=\"unreleased\"]
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
+endif::[]
 
 // Add previous release to the list
-// Other versions: 
-// {ref-bare}/7.last/release-highlights.html[7.last] 
-// | {ref-bare}/8.0/release-highlights.html[8.0]
+Other versions:
 
-// Use the notable-highlights tag to mark entries that 
-// should be featured in the Stack Installation and Upgrade Guide:
-// tag::notable-highlights[] 
-// [discrete]
-// === Heading
-//
-// Description. 
+{ref-bare}/8.7/release-highlights.html[8.7]
+| {ref-bare}/8.6/release-highlights.html[8.6]
+| {ref-bare}/8.5/release-highlights.html[8.5]
+| {ref-bare}/8.4/release-highlights.html[8.4]
+| {ref-bare}/8.3/release-highlights.html[8.3]
+| {ref-bare}/8.2/release-highlights.html[8.2]
+| {ref-bare}/8.1/release-highlights.html[8.1]
+| {ref-bare}/8.0/release-highlights.html[8.0]
+
+// tag::notable-highlights[]
+
+[discrete]
+[[add_new_similarity_field_to_knn_clause_in_search]]
+=== Add new `similarity` field to `knn` clause in `_search`
+This adds a new parameter to `knn` that allows filtering nearest
+neighbor results that are outside a given similarity.
+
+`num_candidates` and `k` are still required as this controls the
+nearest-neighbor vector search accuracy and exploration. For each shard
+the query will search `num_candidates` and only keep those that are
+within the provided `similarity` boundary, and then finally reduce to
+only the global top `k` as normal.
+
+For example, when using the `l2_norm` indexed similarity value, this
+could be considered a `radius` post-filter on `knn`.
+
+relates to: https://github.com/elastic/elasticsearch/issues/84929 &&
+https://github.com/elastic/elasticsearch/pull/93574
+
+{es-pull}94828[#94828]
+
 // end::notable-highlights[]
 
-// Omit the notable highlights tag for entries that only need to appear in the ES ref:
-// [discrete] 
-// === Heading
-//
-// Description. 
+

@@ -27,7 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Random;
 
-import static org.apache.lucene.util.LuceneTestCase.assumeTrue;
+import static org.apache.lucene.tests.util.LuceneTestCase.assumeTrue;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;

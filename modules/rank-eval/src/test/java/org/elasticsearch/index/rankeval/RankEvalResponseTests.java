@@ -19,9 +19,10 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -35,7 +36,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
@@ -43,7 +43,6 @@ import java.util.function.Predicate;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.instanceOf;
@@ -53,7 +52,6 @@ public class RankEvalResponseTests extends ESTestCase {
     private static final Exception[] RANDOM_EXCEPTIONS = new Exception[] {
         new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),
         new CircuitBreakingException("Data too large", 123, 456, CircuitBreaker.Durability.PERMANENT),
-        new SearchParseException(SHARD_TARGET, "Parse failure", new XContentLocation(12, 98)),
         new IllegalArgumentException("Closed resource", new RuntimeException("Resource")),
         new SearchPhaseExecutionException(
             "search",
@@ -71,7 +69,7 @@ public class RankEvalResponseTests extends ESTestCase {
 
     private static RankEvalResponse createRandomResponse() {
         int numberOfRequests = randomIntBetween(0, 5);
-        Map<String, EvalQueryQuality> partials = new HashMap<>(numberOfRequests);
+        Map<String, EvalQueryQuality> partials = Maps.newMapWithExpectedSize(numberOfRequests);
         for (int i = 0; i < numberOfRequests; i++) {
             String id = randomAlphaOfLengthBetween(3, 10);
             EvalQueryQuality evalQuality = new EvalQueryQuality(id, randomDoubleBetween(0.0, 1.0, true));
@@ -84,7 +82,7 @@ public class RankEvalResponseTests extends ESTestCase {
             partials.put(id, evalQuality);
         }
         int numberOfErrors = randomIntBetween(0, 2);
-        Map<String, Exception> errors = new HashMap<>(numberOfRequests);
+        Map<String, Exception> errors = Maps.newMapWithExpectedSize(numberOfRequests);
         for (int i = 0; i < numberOfErrors; i++) {
             errors.put(randomAlphaOfLengthBetween(3, 10), randomFrom(RANDOM_EXCEPTIONS));
         }
@@ -154,36 +152,49 @@ public class RankEvalResponseTests extends ESTestCase {
         );
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         String xContent = BytesReference.bytes(response.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
-        assertEquals(
-            ("{"
-                + "    \"metric_score\": 0.123,"
-                + "    \"details\": {"
-                + "        \"coffee_query\": {"
-                + "            \"metric_score\": 0.1,"
-                + "            \"unrated_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}],"
-                + "            \"hits\":[{\"hit\":{\"_index\":\"index\",\"_id\":\"123\",\"_score\":1.0},"
-                + "                       \"rating\":5},"
-                + "                      {\"hit\":{\"_index\":\"index\",\"_id\":\"456\",\"_score\":1.0},"
-                + "                       \"rating\":null}"
-                + "                     ]"
-                + "        }"
-                + "    },"
-                + "    \"failures\": {"
-                + "        \"beer_query\": {"
-                + "          \"error\" : {\"root_cause\": [{\"type\":\"parsing_exception\", \"reason\":\"someMsg\",\"line\":0,\"col\":0}],"
-                + "                       \"type\":\"parsing_exception\","
-                + "                       \"reason\":\"someMsg\","
-                + "                       \"line\":0,\"col\":0"
-                + "                      }"
-                + "        }"
-                + "    }"
-                + "}").replaceAll("\\s+", ""),
-            xContent
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "metric_score": 0.123,
+              "details": {
+                "coffee_query": {
+                  "metric_score": 0.1,
+                  "unrated_docs": [ { "_index": "index", "_id": "456" } ],
+                  "hits": [
+                    {
+                      "hit": {
+                        "_index": "index",
+                        "_id": "123",
+                        "_score": 1.0
+                      },
+                      "rating": 5
+                    },
+                    {
+                      "hit": {
+                        "_index": "index",
+                        "_id": "456",
+                        "_score": 1.0
+                      },
+                      "rating": null
+                    }
+                  ]
+                }
+              },
+              "failures": {
+                "beer_query": {
+                  "error": {
+                    "root_cause": [ { "type": "parsing_exception", "reason": "someMsg", "line": 0, "col": 0 } ],
+                    "type": "parsing_exception",
+                    "reason": "someMsg",
+                    "line": 0,
+                    "col": 0
+                  }
+                }
+              }
+            }"""), xContent);
     }
 
     private static RatedSearchHit searchHit(String index, int docId, Integer rating) {
-        SearchHit hit = new SearchHit(docId, docId + "", Collections.emptyMap(), Collections.emptyMap());
+        SearchHit hit = new SearchHit(docId, docId + "");
         hit.shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
         hit.score(1.0f);
         return new RatedSearchHit(hit, rating != null ? OptionalInt.of(rating) : OptionalInt.empty());

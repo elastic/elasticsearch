@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -59,16 +58,13 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final ClusterApplierService clusterApplierService = new ClusterApplierService("test", settings, clusterSettings, threadPool) {
             @Override
             protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-                return new MockSinglePrioritizingExecutor("mock-executor", "", deterministicTaskQueue, threadPool);
+                return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();
             }
         };
 
-        final MasterService masterService = new FakeThreadPoolMasterService(
-            "test",
-            "masterService",
-            threadPool,
-            r -> { fail("master service should not run any tasks"); }
-        );
+        final MasterService masterService = new FakeThreadPoolMasterService("test", threadPool, r -> {
+            fail("master service should not run any tasks");
+        });
 
         final ClusterService clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
 
@@ -106,6 +102,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             setFlagOnSuccess(becameMaster2)
         );
         runUntilFlag(deterministicTaskQueue, becameMaster2);
+        deterministicTaskQueue.runAllRunnableTasks();
 
         for (int i = 0; i < 3; i++) {
             final int initialRequestCount = client.requestCount;

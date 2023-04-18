@@ -29,16 +29,15 @@ public class HeaderWarningAppender extends AbstractAppender {
     public void append(LogEvent event) {
         final Message message = event.getMessage();
 
-        if (message instanceof ESLogMessage) {
-            final ESLogMessage esLogMessage = (ESLogMessage) message;
+        if (message instanceof final ESLogMessage esLogMessage) {
 
             String messagePattern = esLogMessage.getMessagePattern();
             Object[] arguments = esLogMessage.getArguments();
 
-            HeaderWarning.addWarning(event.getLevel(), messagePattern, arguments);
+            HeaderWarning.addWarning(messagePattern, arguments);
         } else {
             final String formattedMessage = event.getMessage().getFormattedMessage();
-            HeaderWarning.addWarning(event.getLevel(), formattedMessage);
+            HeaderWarning.addWarning(formattedMessage);
         }
     }
 

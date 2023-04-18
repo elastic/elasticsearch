@@ -14,12 +14,11 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsReques
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -71,14 +70,14 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
             boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
             final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
             if (includeTypeName == false && types.length > 0) {
-                throw new IllegalArgumentException("Types cannot be specified unless include_type_name" + " is set to true.");
+                throw new IllegalArgumentException("Types cannot be specified unless include_type_name is set to true.");
             }
 
             if (request.hasParam("local")) {
                 request.param("local");
                 deprecationLogger.compatibleCritical(
                     "get_field_mapping_local",
-                    "Use [local] in get field mapping requests is deprecated. " + "The parameter will be removed in the next major version"
+                    "Use [local] in get field mapping requests is deprecated. The parameter will be removed in the next major version"
                 );
             }
         }
@@ -96,7 +95,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                     status = NOT_FOUND;
                 }
                 response.toXContent(builder, request);
-                return new BytesRestResponse(status, builder);
+                return new RestResponse(status, builder);
             }
         });
     }

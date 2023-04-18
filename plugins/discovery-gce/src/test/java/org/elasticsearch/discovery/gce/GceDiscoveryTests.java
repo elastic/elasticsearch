@@ -8,6 +8,7 @@
 
 package org.elasticsearch.discovery.gce;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
 import org.elasticsearch.cloud.gce.GceMetadataService;
@@ -85,7 +86,13 @@ public class GceDiscoveryTests extends ESTestCase {
 
     @Before
     public void createTransportService() {
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
+        transportService = MockTransportService.createNewService(
+            Settings.EMPTY,
+            Version.CURRENT,
+            TransportVersion.CURRENT,
+            threadPool,
+            null
+        );
     }
 
     @After
@@ -271,5 +278,18 @@ public class GceDiscoveryTests extends ESTestCase {
 
         List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
         assertThat(dynamicHosts, hasSize(1));
+    }
+
+    public void testNodesWithPagination() {
+        Settings nodeSettings = Settings.builder()
+            .put(GceInstancesServiceImpl.PROJECT_SETTING.getKey(), projectName)
+            .put(GceInstancesServiceImpl.ZONE_SETTING.getKey(), "europe-west1-b")
+            .putList(GceSeedHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
+            .build();
+        mock = new GceInstancesServiceMock(nodeSettings);
+        List<TransportAddress> dynamicHosts = buildDynamicNodes(mock, nodeSettings);
+        assertThat(dynamicHosts, hasSize(2));
+        assertEquals("10.240.79.59", dynamicHosts.get(0).getAddress());
+        assertEquals("10.240.79.60", dynamicHosts.get(1).getAddress());
     }
 }

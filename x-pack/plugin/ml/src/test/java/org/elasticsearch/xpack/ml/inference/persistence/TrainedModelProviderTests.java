@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -24,12 +24,17 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.TreeSet;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -63,14 +68,14 @@ public class TrainedModelProviderTests extends ESTestCase {
         TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
         for (String modelId : TrainedModelProvider.MODELS_STORED_AS_RESOURCE) {
             PlainActionFuture<TrainedModelConfig> future = new PlainActionFuture<>();
-            trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), future);
+            trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), null, future);
             TrainedModelConfig configWithDefinition = future.actionGet();
 
             assertThat(configWithDefinition.getModelId(), equalTo(modelId));
             assertThat(configWithDefinition.ensureParsedDefinition(xContentRegistry()).getModelDefinition(), is(not(nullValue())));
 
             PlainActionFuture<TrainedModelConfig> futureNoDefinition = new PlainActionFuture<>();
-            trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), futureNoDefinition);
+            trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), null, futureNoDefinition);
             TrainedModelConfig configWithoutDefinition = futureNoDefinition.actionGet();
 
             assertThat(configWithoutDefinition.getModelId(), equalTo(modelId));
@@ -118,12 +123,12 @@ public class TrainedModelProviderTests extends ESTestCase {
 
         assertThat(
             TrainedModelProvider.collectIds(new PageParams(1, 1), Collections.singleton("c"), new HashSet<>(Arrays.asList("a", "b"))),
-            equalTo(new TreeSet<>(Arrays.asList("b")))
+            equalTo(new TreeSet<>(List.of("b")))
         );
 
         assertThat(
             TrainedModelProvider.collectIds(new PageParams(1, 1), Collections.singleton("b"), new HashSet<>(Arrays.asList("a", "c"))),
-            equalTo(new TreeSet<>(Arrays.asList("b")))
+            equalTo(new TreeSet<>(List.of("b")))
         );
 
         assertThat(
@@ -181,6 +186,144 @@ public class TrainedModelProviderTests extends ESTestCase {
             start += size;
             end = Math.min(end + size, totalLength);
         }
+    }
+
+    public void testGetDefinitionFromDocsTruncated() {
+        String modelId = randomAlphaOfLength(10);
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> TrainedModelProvider.getDefinitionFromDocs(
+                List.of(
+                    new TrainedModelDefinitionDoc(
+                        new BytesArray(randomByteArrayOfLength(10)),
+                        modelId,
+                        0,
+                        randomLongBetween(11, 100),
+                        10,
+                        1,
+                        randomBoolean()
+                    )
+                ),
+                modelId
+            )
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("Model definition truncated. Unable to deserialize trained model definition [" + modelId + "]")
+        );
+
+        ex = expectThrows(
+            Exception.class,
+            () -> TrainedModelProvider.getDefinitionFromDocs(
+                List.of(
+                    new TrainedModelDefinitionDoc(
+                        new BytesArray(randomByteArrayOfLength(10)),
+                        modelId,
+                        0,
+                        randomLongBetween(21, 100),
+                        10,
+                        1,
+                        randomBoolean()
+                    ),
+                    new TrainedModelDefinitionDoc(
+                        new BytesArray(randomByteArrayOfLength(10)),
+                        modelId,
+                        0,
+                        randomLongBetween(21, 100),
+                        10,
+                        1,
+                        randomBoolean()
+                    )
+                ),
+                modelId
+            )
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("Model definition truncated. Unable to deserialize trained model definition [" + modelId + "]")
+        );
+
+        ex = expectThrows(
+            Exception.class,
+            () -> TrainedModelProvider.getDefinitionFromDocs(
+                List.of(
+                    new TrainedModelDefinitionDoc(
+                        new BytesArray(randomByteArrayOfLength(10)),
+                        modelId,
+                        0,
+                        randomFrom((Long) null, 20L),
+                        10,
+                        1,
+                        randomBoolean()
+                    ),
+                    new TrainedModelDefinitionDoc(
+                        new BytesArray(randomByteArrayOfLength(10)),
+                        modelId,
+                        1,
+                        randomFrom((Long) null, 20L),
+                        10,
+                        1,
+                        false
+                    )
+                ),
+                modelId
+            )
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("Model definition truncated. Unable to deserialize trained model definition [" + modelId + "]")
+        );
+    }
+
+    public void testGetDefinitionFromDocs() {
+        String modelId = randomAlphaOfLength(10);
+
+        int byteArrayLength = randomIntBetween(1, 1000);
+        BytesReference bytesReference = TrainedModelProvider.getDefinitionFromDocs(
+            List.of(
+                new TrainedModelDefinitionDoc(
+                    new BytesArray(randomByteArrayOfLength(byteArrayLength)),
+                    modelId,
+                    0,
+                    randomFrom((Long) null, (long) byteArrayLength),
+                    byteArrayLength,
+                    1,
+                    true
+                )
+            ),
+            modelId
+        );
+        // None of the following should throw
+        ByteBuffer bb = Base64.getEncoder()
+            .encode(ByteBuffer.wrap(bytesReference.array(), bytesReference.arrayOffset(), bytesReference.length()));
+        assertThat(new String(bb.array(), StandardCharsets.UTF_8), is(not(emptyString())));
+
+        bytesReference = TrainedModelProvider.getDefinitionFromDocs(
+            List.of(
+                new TrainedModelDefinitionDoc(
+                    new BytesArray(randomByteArrayOfLength(byteArrayLength)),
+                    modelId,
+                    0,
+                    randomFrom((Long) null, (long) byteArrayLength * 2),
+                    byteArrayLength,
+                    1,
+                    false
+                ),
+                new TrainedModelDefinitionDoc(
+                    new BytesArray(randomByteArrayOfLength(byteArrayLength)),
+                    modelId,
+                    1,
+                    randomFrom((Long) null, (long) byteArrayLength * 2),
+                    byteArrayLength,
+                    1,
+                    true
+                )
+            ),
+            modelId
+        );
+
+        bb = Base64.getEncoder().encode(ByteBuffer.wrap(bytesReference.array(), bytesReference.arrayOffset(), bytesReference.length()));
+        assertThat(new String(bb.array(), StandardCharsets.UTF_8), is(not(emptyString())));
     }
 
     @Override

@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -74,8 +74,21 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
     }
 
     public void testQueryParsing() throws Exception {
-        final String query1 = "{\"query\":{\"bool\":{\"must\":[{\"terms\":{\"name\":[\"k1\",\"k2\"]}}],"
-            + "\"should\":[{\"prefix\":{\"metadata.environ\":\"prod\"}}]}}}";
+        final String query1 = """
+            {
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "terms": {
+                        "name": [ "k1", "k2" ]
+                      }
+                    }
+                  ],
+                  "should": [ { "prefix": { "metadata.environ": "prod" } } ]
+                }
+              }
+            }""";
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(query1),
             XContentType.JSON
@@ -123,9 +136,16 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
     }
 
     public void testParsingSearchParameters() throws Exception {
-        final String requestBody = "{\"query\":{\"match_all\":{}},\"from\":42,\"size\":20,"
-            + "\"sort\":[\"name\",{\"creation_time\":{\"order\":\"desc\",\"format\":\"strict_date_time\"}},\"username\"],"
-            + "\"search_after\":[\"key-2048\",\"2021-07-01T00:00:59.000Z\"]}\n";
+        final String requestBody = """
+            {
+              "query": {
+                "match_all": {}
+              },
+              "from": 42,
+              "size": 20,
+              "sort": [ "name", { "creation_time": { "order": "desc", "format": "strict_date_time" } }, "username" ],
+              "search_after": [ "key-2048", "2021-07-01T00:00:59.000Z" ]
+            }""";
 
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestBody),

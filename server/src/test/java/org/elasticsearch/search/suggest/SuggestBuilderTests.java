@@ -78,11 +78,9 @@ public class SuggestBuilderTests extends ESTestCase {
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
             // explicit about type parameters, see: https://bugs.eclipse.org/bugs/show_bug.cgi?id=481649
-            EqualsHashCodeTestUtils.<SuggestBuilder>checkEqualsAndHashCode(
-                randomSuggestBuilder(),
-                original -> { return copyWriteable(original, namedWriteableRegistry, SuggestBuilder::new); },
-                this::createMutation
-            );
+            EqualsHashCodeTestUtils.<SuggestBuilder>checkEqualsAndHashCode(randomSuggestBuilder(), original -> {
+                return copyWriteable(original, namedWriteableRegistry, SuggestBuilder::new);
+            }, this::createMutation);
         }
     }
 
@@ -142,16 +140,12 @@ public class SuggestBuilderTests extends ESTestCase {
     }
 
     private static SuggestionBuilder<?> randomSuggestionBuilder() {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return TermSuggestionBuilderTests.randomTermSuggestionBuilder();
-            case 1:
-                return PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder();
-            case 2:
-                return CompletionSuggesterBuilderTests.randomCompletionSuggestionBuilder();
-            default:
-                return TermSuggestionBuilderTests.randomTermSuggestionBuilder();
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> TermSuggestionBuilderTests.randomTermSuggestionBuilder();
+            case 1 -> PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder();
+            case 2 -> CompletionSuggesterBuilderTests.randomCompletionSuggestionBuilder();
+            default -> TermSuggestionBuilderTests.randomTermSuggestionBuilder();
+        };
     }
 
     @Override

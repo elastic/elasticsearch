@@ -15,9 +15,9 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -49,6 +48,7 @@ import static org.junit.Assert.assertThat;
  * - endgame-140       - for existing data
  * - endgame-140-nanos - same as endgame-140, but with nano-precision timestamps
  * - extra             - additional data
+ * - sample*         - data for "sample" functionality
  *
  * While the loader could be made generic, the queries are bound to each index and generalizing that would make things way too complicated.
  */
@@ -57,6 +57,8 @@ public class DataLoader {
     public static final String TEST_INDEX = "endgame-140";
     public static final String TEST_EXTRA_INDEX = "extra";
     public static final String TEST_NANOS_INDEX = "endgame-140-nanos";
+    public static final String TEST_SAMPLE = "sample1,sample2,sample3";
+    public static final String TEST_SAMPLE_MULTI = "sample-multi";
 
     private static final Map<String, String[]> replacementPatterns = Collections.unmodifiableMap(getReplacementPatterns());
 
@@ -67,7 +69,7 @@ public class DataLoader {
     private static boolean main = false;
 
     private static Map<String, String[]> getReplacementPatterns() {
-        final Map<String, String[]> map = new HashMap<>(1);
+        final Map<String, String[]> map = Maps.newMapWithExpectedSize(1);
         map.put("[runtime_random_keyword_type]", new String[] { "keyword", "wildcard" });
         return map;
     }
@@ -100,35 +102,36 @@ public class DataLoader {
         // chosen Windows filetime timestamps (2017+) can coincidentally also be readily used as nano-resolution unix timestamps (1973+).
         // There are mixed values with and without nanos precision so that the filtering is properly tested for both cases.
         load(client, TEST_NANOS_INDEX, TEST_INDEX, DataLoader::timestampToUnixNanos, p);
+        load(client, TEST_SAMPLE, null, null, p);
+        load(client, TEST_SAMPLE_MULTI, null, null, p);
     }
 
     private static void load(
         RestHighLevelClient client,
-        String indexName,
+        String indexNames,
         String dataName,
         Consumer<Map<String, Object>> datasetTransform,
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p
     ) throws IOException {
-        String name = "/data/" + indexName + ".mapping";
-        URL mapping = DataLoader.class.getResource(name);
-        if (mapping == null) {
-            throw new IllegalArgumentException("Cannot find resource " + name);
+        String[] splitNames = indexNames.split(",");
+        for (String indexName : splitNames) {
+            String name = "/data/" + indexName + ".mapping";
+            URL mapping = DataLoader.class.getResource(name);
+            if (mapping == null) {
+                throw new IllegalArgumentException("Cannot find resource " + name);
+            }
+            name = "/data/" + (dataName != null ? dataName : indexName) + ".data";
+            URL data = DataLoader.class.getResource(name);
+            if (data == null) {
+                throw new IllegalArgumentException("Cannot find resource " + name);
+            }
+            createTestIndex(client, indexName, readMapping(mapping));
+            loadData(client, indexName, datasetTransform, data, p);
         }
-        name = "/data/" + (dataName != null ? dataName : indexName) + ".data";
-        URL data = DataLoader.class.getResource(name);
-        if (data == null) {
-            throw new IllegalArgumentException("Cannot find resource " + name);
-        }
-        createTestIndex(client, indexName, readMapping(mapping));
-        loadData(client, indexName, datasetTransform, data, p);
     }
 
     private static void createTestIndex(RestHighLevelClient client, String indexName, String mapping) throws IOException {
-        CreateIndexRequest request = new CreateIndexRequest(indexName);
-        if (mapping != null) {
-            request.mapping(mapping, XContentType.JSON);
-        }
-        client.indices().create(request, RequestOptions.DEFAULT);
+        ESRestTestCase.createIndex(client.getLowLevelClient(), indexName, null, mapping, null);
     }
 
     /**

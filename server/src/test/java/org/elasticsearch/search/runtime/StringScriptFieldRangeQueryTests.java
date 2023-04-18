@@ -82,38 +82,33 @@ public class StringScriptFieldRangeQueryTests extends AbstractStringScriptFieldQ
         boolean includeLower = orig.includeLower();
         boolean includeUpper = orig.includeUpper();
         switch (randomInt(5)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> {
                 lower = mutate(lower);
                 if (lower == null) {
                     includeLower = true;
                 }
-                break;
-            case 3:
+            }
+            case 3 -> {
                 upper = mutate(upper);
                 if (upper == null) {
                     includeUpper = true;
                 }
-                break;
-            case 4:
+            }
+            case 4 -> {
                 if (lower == null) {
                     lower = mutate(lower);
                 }
                 includeLower = includeLower == false;
-                break;
-            case 5:
+            }
+            case 5 -> {
                 if (upper == null) {
                     upper = mutate(upper);
                 }
                 includeUpper = includeUpper == false;
-                break;
-            default:
-                fail();
+            }
+            default -> fail();
         }
         return new StringScriptFieldRangeQuery(script, leafFactory, fieldName, lower, upper, includeLower, includeUpper);
     }

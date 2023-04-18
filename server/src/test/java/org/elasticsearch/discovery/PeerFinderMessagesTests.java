@@ -20,7 +20,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -33,7 +32,7 @@ public class PeerFinderMessagesTests extends ESTestCase {
     public void testPeersRequestEqualsHashCodeSerialization() {
         final PeersRequest initialPeersRequest = new PeersRequest(
             createNode(randomAlphaOfLength(10)),
-            Arrays.stream(generateRandomStringArray(10, 10, false)).map(this::createNode).collect(Collectors.toList())
+            Arrays.stream(generateRandomStringArray(10, 10, false)).map(this::createNode).toList()
         );
 
         // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
@@ -60,7 +59,7 @@ public class PeerFinderMessagesTests extends ESTestCase {
         } else {
             initialPeersResponse = new PeersResponse(
                 Optional.empty(),
-                Arrays.stream(generateRandomStringArray(10, 10, false, false)).map(this::createNode).collect(Collectors.toList()),
+                Arrays.stream(generateRandomStringArray(10, 10, false, false)).map(this::createNode).toList(),
                 initialTerm
             );
         }

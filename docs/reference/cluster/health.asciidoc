@@ -97,11 +97,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
     provided or better, i.e. `green` > `yellow` > `red`. By default, will not
     wait for any status.
 
-`return_200_for_cluster_health_timeout`::
-   (Optional, Boolean) A boolean value which controls whether to return HTTP 200
-   status code instead of HTTP 408 in case of a cluster health timeout from
-   the server side. Defaults to false.
-
 [[cluster-health-api-response-body]]
 ==== {api-response-body-title}
 
@@ -186,7 +181,7 @@ with a single index with one shard and one replica:
   "active_shards_percent_as_number": 50.0
 }
 --------------------------------------------------
-// TESTRESPONSE[s/testcluster/integTest/]
+// TESTRESPONSE[s/testcluster/yamlRestTest/]
 // TESTRESPONSE[s/"number_of_pending_tasks" : 0,/"number_of_pending_tasks" : $body.number_of_pending_tasks,/]
 // TESTRESPONSE[s/"task_max_waiting_in_queue_millis": 0/"task_max_waiting_in_queue_millis": $body.task_max_waiting_in_queue_millis/]
 

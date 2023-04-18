@@ -69,12 +69,22 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public static final String ML_CATEGORY_FIELD = "mlcategory";
     public static final Set<String> AUTO_CREATED_FIELDS = new HashSet<>(Collections.singletonList(ML_CATEGORY_FIELD));
 
+    // Since the C++ backend truncates the categorization field at length 1000 (see model::CCategoryExamplesCollector::MAX_EXAMPLE_LENGTH),
+    // adding an ellipsis on truncation, it makes no sense to send potentially very long strings to it. For the backend logic still to work
+    // we need to send more than that, hence we truncate at length 1001.
+    //
+    // Also, because we do the tokenization on the Java side now the tokens will still be sent correctly (separately) to the C++ backend
+    // even if they extend beyond the length of a truncated example.
+    public static final int MAX_CATEGORIZATION_FIELD_LENGTH = 1001;
+
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> LENIENT_PARSER = createParser(true);
     public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> STRICT_PARSER = createParser(false);
 
     // The minimum number of buckets considered acceptable for the model_prune_window field
     public static final long MINIMUM_MODEL_PRUNE_WINDOW_BUCKETS = 2;
+
+    public static final TimeValue DEFAULT_MODEL_PRUNE_WINDOW = TimeValue.timeValueDays(30);
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<AnalysisConfig.Builder, Void> createParser(boolean ignoreUnknownFields) {
@@ -164,13 +174,13 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public AnalysisConfig(StreamInput in) throws IOException {
         bucketSpan = in.readTimeValue();
         categorizationFieldName = in.readOptionalString();
-        categorizationFilters = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
+        categorizationFilters = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
         categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
         perPartitionCategorizationConfig = new PerPartitionCategorizationConfig(in);
         latency = in.readOptionalTimeValue();
         summaryCountFieldName = in.readOptionalString();
-        detectors = Collections.unmodifiableList(in.readList(Detector::new));
-        influencers = Collections.unmodifiableList(in.readStringList());
+        detectors = in.readImmutableList(Detector::new);
+        influencers = in.readImmutableList(StreamInput::readString);
 
         multivariateByFields = in.readOptionalBoolean();
         modelPruneWindow = in.readOptionalTimeValue();

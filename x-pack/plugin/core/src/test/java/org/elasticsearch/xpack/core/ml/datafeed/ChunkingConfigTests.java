@@ -8,10 +8,9 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -19,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
-public class ChunkingConfigTests extends AbstractSerializingTestCase<ChunkingConfig> {
+public class ChunkingConfigTests extends AbstractXContentSerializingTestCase<ChunkingConfig> {
 
     @Override
     protected ChunkingConfig createTestInstance() {
@@ -69,11 +68,11 @@ public class ChunkingConfigTests extends AbstractSerializingTestCase<ChunkingCon
     }
 
     @Override
-    protected ChunkingConfig mutateInstance(ChunkingConfig instance) throws IOException {
+    protected ChunkingConfig mutateInstance(ChunkingConfig instance) {
         ChunkingConfig.Mode mode = instance.getMode();
         TimeValue timeSpan = instance.getTimeSpan();
         switch (between(0, 1)) {
-            case 0:
+            case 0 -> {
                 List<ChunkingConfig.Mode> modes = new ArrayList<>(Arrays.asList(ChunkingConfig.Mode.values()));
                 modes.remove(mode);
                 mode = randomFrom(modes);
@@ -82,8 +81,8 @@ public class ChunkingConfigTests extends AbstractSerializingTestCase<ChunkingCon
                 } else {
                     timeSpan = null;
                 }
-                break;
-            case 1:
+            }
+            case 1 -> {
                 if (timeSpan == null) {
                     timeSpan = randomPositiveSecondsMinutesHours();
                 } else {
@@ -91,9 +90,8 @@ public class ChunkingConfigTests extends AbstractSerializingTestCase<ChunkingCon
                 }
                 // only manual mode allows a timespan
                 mode = ChunkingConfig.Mode.MANUAL;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new ChunkingConfig(mode, timeSpan);
     }

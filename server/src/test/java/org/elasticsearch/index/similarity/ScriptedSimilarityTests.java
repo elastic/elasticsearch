@@ -28,7 +28,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.script.SimilarityScript;
 import org.elasticsearch.script.SimilarityWeightScript;
@@ -87,10 +87,9 @@ public class ScriptedSimilarityTests extends ESTestCase {
                 ) {
 
                     StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
-                    if (Arrays.stream(stackTraceElements)
-                        .anyMatch(
-                            ste -> { return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score"); }
-                        ) == false) {
+                    if (Arrays.stream(stackTraceElements).anyMatch(ste -> {
+                        return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score");
+                    }) == false) {
                         // this might happen when computing max scores
                         return Float.MAX_VALUE;
                     }
@@ -186,10 +185,9 @@ public class ScriptedSimilarityTests extends ESTestCase {
                 ) {
 
                     StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
-                    if (Arrays.stream(stackTraceElements)
-                        .anyMatch(
-                            ste -> { return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score"); }
-                        ) == false) {
+                    if (Arrays.stream(stackTraceElements).anyMatch(ste -> {
+                        return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score");
+                    }) == false) {
                         // this might happen when computing max scores
                         return Float.MAX_VALUE;
                     }

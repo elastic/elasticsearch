@@ -15,12 +15,12 @@ import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -41,7 +41,7 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         KeyValueProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
+        assertThat(processor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
         assertThat(processor.getFieldSplit(), equalTo("&"));
         assertThat(processor.getValueSplit(), equalTo("="));
         assertThat(processor.getIncludeKeys(), is(nullValue()));
@@ -55,18 +55,18 @@ public class KeyValueProcessorFactoryTests extends ESTestCase {
         config.put("field_split", "&");
         config.put("value_split", "=");
         config.put("target_field", "target");
-        config.put("include_keys", Arrays.asList("a", "b"));
-        config.put("exclude_keys", Collections.emptyList());
+        config.put("include_keys", List.of("a", "b"));
+        config.put("exclude_keys", List.of());
         config.put("ignore_missing", true);
         String processorTag = randomAlphaOfLength(10);
         KeyValueProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
+        assertThat(processor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
         assertThat(processor.getFieldSplit(), equalTo("&"));
         assertThat(processor.getValueSplit(), equalTo("="));
         assertThat(processor.getIncludeKeys(), equalTo(Sets.newHashSet("a", "b")));
-        assertThat(processor.getExcludeKeys(), equalTo(Collections.emptySet()));
-        assertThat(processor.getTargetField().newInstance(Collections.emptyMap()).execute(), equalTo("target"));
+        assertThat(processor.getExcludeKeys(), equalTo(Set.of()));
+        assertThat(processor.getTargetField().newInstance(Map.of()).execute(), equalTo("target"));
         assertTrue(processor.isIgnoreMissing());
     }
 

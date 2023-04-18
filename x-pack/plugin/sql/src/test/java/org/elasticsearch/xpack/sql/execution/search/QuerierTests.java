@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.sql.execution.search.ScrollCursorTests.randomHitExtractor;
+import static org.elasticsearch.xpack.sql.execution.search.SearchHitCursorTests.randomHitExtractor;
 
 public class QuerierTests extends ESTestCase {
 

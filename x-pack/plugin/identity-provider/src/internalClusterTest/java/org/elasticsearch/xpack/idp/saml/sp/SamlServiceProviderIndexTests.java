@@ -12,7 +12,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -75,7 +74,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
     @After
     public void deleteTemplateAndIndex() {
         client().admin().indices().delete(new DeleteIndexRequest(SamlServiceProviderIndex.INDEX_NAME + "*")).actionGet();
-        client().admin().indices().deleteTemplate(new DeleteIndexTemplateRequest(SamlServiceProviderIndex.TEMPLATE_NAME)).actionGet();
+        client().admin().indices().prepareDeleteTemplate(SamlServiceProviderIndex.TEMPLATE_NAME).get();
         serviceProviderIndex.close();
     }
 
@@ -83,7 +82,6 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         final int count = randomIntBetween(3, 5);
         List<SamlServiceProviderDocument> documents = new ArrayList<>(count);
 
-        final ClusterService clusterService = super.getInstanceFromNode(ClusterService.class);
         // Install the template
         assertTrue("Template should have been installed", installTemplate());
         // No need to install it again
@@ -102,7 +100,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertThat(indexMetadata, notNullValue());
         assertThat(indexMetadata.getSettings().get("index.format"), equalTo("1"));
         assertThat(indexMetadata.getAliases().size(), equalTo(1));
-        assertThat(indexMetadata.getAliases().keys().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
+        assertThat(indexMetadata.getAliases().keySet().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
 
         refresh();
 
@@ -140,7 +138,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertThat(indexMetadata, notNullValue());
         assertThat(indexMetadata.getSettings().get("index.format"), equalTo("1"));
         assertThat(indexMetadata.getAliases().size(), equalTo(1));
-        assertThat(indexMetadata.getAliases().keys().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
+        assertThat(indexMetadata.getAliases().keySet().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
 
         SamlServiceProviderDocument document = randomDocument(1);
         writeDocument(document);

@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
@@ -34,13 +33,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
-    private boolean return200ForClusterHealthTimeout;
-
-    /**
-     * Only used by the high-level REST Client. Controls the details level of the health information returned.
-     * The default value is 'cluster'.
-     */
-    private Level level = Level.CLUSTER;
 
     public ClusterHealthRequest() {}
 
@@ -63,7 +55,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         }
         waitForNoInitializingShards = in.readBoolean();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        return200ForClusterHealthTimeout = in.readBoolean();
     }
 
     @Override
@@ -92,7 +83,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         }
         out.writeBoolean(waitForNoInitializingShards);
         indicesOptions.writeIndicesOptions(out);
-        out.writeBoolean(return200ForClusterHealthTimeout);
     }
 
     @Override
@@ -236,42 +226,8 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         return this.waitForEvents;
     }
 
-    public boolean doesReturn200ForClusterHealthTimeout() {
-        return return200ForClusterHealthTimeout;
-    }
-
-    /**
-     * Sets whether to return HTTP 200 status code instead of HTTP 408 in case of a
-     * cluster health timeout from the server side.
-     */
-    public void return200ForClusterHealthTimeout(boolean return200ForClusterHealthTimeout) {
-        this.return200ForClusterHealthTimeout = return200ForClusterHealthTimeout;
-    }
-
-    /**
-     * Set the level of detail for the health information to be returned.
-     * Only used by the high-level REST Client.
-     */
-    public void level(Level level) {
-        this.level = Objects.requireNonNull(level, "level must not be null");
-    }
-
-    /**
-     * Get the level of detail for the health information to be returned.
-     * Only used by the high-level REST Client.
-     */
-    public Level level() {
-        return level;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    public enum Level {
-        CLUSTER,
-        INDICES,
-        SHARDS
     }
 }

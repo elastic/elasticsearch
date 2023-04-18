@@ -9,6 +9,7 @@
 package org.elasticsearch.join.aggregations;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -174,5 +175,10 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return ValuesSourceRegistry.UNREGISTERED_KEY;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

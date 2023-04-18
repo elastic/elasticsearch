@@ -9,14 +9,16 @@ package org.elasticsearch.license.licensor.tools;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.LoggingAwareCommand;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.license.CryptUtils;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseVerifier;
 import org.elasticsearch.xcontent.ToXContent;
@@ -28,7 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public class LicenseVerificationTool extends LoggingAwareCommand {
+public class LicenseVerificationTool extends Command {
 
     private final OptionSpec<String> publicKeyPathOption;
     private final OptionSpec<String> licenseOption;
@@ -43,12 +45,8 @@ public class LicenseVerificationTool extends LoggingAwareCommand {
         licenseFileOption = parser.accepts("licenseFile", "license json spec file").withRequiredArg();
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new LicenseVerificationTool().main(args, Terminal.DEFAULT));
-    }
-
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         Path publicKeyPath = parsePath(publicKeyPathOption.value(options));
         if (Files.exists(publicKeyPath) == false) {
             throw new UserException(ExitCodes.USAGE, publicKeyPath + " does not exist");
@@ -70,7 +68,7 @@ public class LicenseVerificationTool extends LoggingAwareCommand {
         }
 
         // verify
-        if (LicenseVerifier.verifyLicense(licenseSpec, Files.readAllBytes(publicKeyPath)) == false) {
+        if (LicenseVerifier.verifyLicense(licenseSpec, CryptUtils.readPublicKey(Files.readAllBytes(publicKeyPath))) == false) {
             throw new UserException(ExitCodes.DATA_ERROR, "Invalid License!");
         }
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

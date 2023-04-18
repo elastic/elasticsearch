@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.watcher.notification.slack.message;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
@@ -246,21 +245,11 @@ public class SlackMessageTests extends ESTestCase {
                                         currentFieldName = parser.currentName();
                                     } else if (token.isValue()) {
                                         switch (currentFieldName) {
-                                            case "url":
-                                                action.setUrl(new TextTemplate(parser.text()));
-                                                break;
-                                            case "name":
-                                                action.setName(new TextTemplate(parser.text()));
-                                                break;
-                                            case "style":
-                                                action.setStyle(new TextTemplate(parser.text()));
-                                                break;
-                                            case "text":
-                                                action.setText(new TextTemplate(parser.text()));
-                                                break;
-                                            case "type":
-                                                action.setType(new TextTemplate(parser.text()));
-                                                break;
+                                            case "url" -> action.setUrl(new TextTemplate(parser.text()));
+                                            case "name" -> action.setName(new TextTemplate(parser.text()));
+                                            case "style" -> action.setStyle(new TextTemplate(parser.text()));
+                                            case "text" -> action.setText(new TextTemplate(parser.text()));
+                                            case "type" -> action.setType(new TextTemplate(parser.text()));
                                         }
                                     }
 
@@ -663,7 +652,7 @@ public class SlackMessageTests extends ESTestCase {
             try (
                 XContentParser parser = builder.contentType()
                     .xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, Strings.toString(builder))
+                    .createParser(XContentParserConfiguration.EMPTY, Strings.toString(builder))
             ) {
                 parser.map();
             }
@@ -675,7 +664,7 @@ public class SlackMessageTests extends ESTestCase {
             try (
                 XContentParser parser = builder.contentType()
                     .xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, Strings.toString(builder))
+                    .createParser(XContentParserConfiguration.EMPTY, Strings.toString(builder))
             ) {
                 parser.map();
             }

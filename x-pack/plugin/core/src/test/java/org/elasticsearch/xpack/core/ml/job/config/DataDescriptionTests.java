@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.job.config;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescription> {
+public class DataDescriptionTests extends AbstractXContentSerializingTestCase<DataDescription> {
 
     public void testDefault() {
         DataDescription dataDescription = new DataDescription.Builder().build();
@@ -125,18 +125,13 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
     }
 
     @Override
-    protected DataDescription mutateInstance(DataDescription instance) throws java.io.IOException {
+    protected DataDescription mutateInstance(DataDescription instance) {
         String timeField = instance.getTimeField();
         String timeFormat = instance.getTimeFormat();
         switch (between(0, 1)) {
-            case 0:
-                timeField += randomAlphaOfLengthBetween(1, 10);
-                break;
-            case 1:
-                timeFormat = "yyyy-MM-dd-HH-mm-ss";
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> timeField += randomAlphaOfLengthBetween(1, 10);
+            case 1 -> timeFormat = "yyyy-MM-dd-HH-mm-ss";
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new DataDescription(timeField, timeFormat);
     }

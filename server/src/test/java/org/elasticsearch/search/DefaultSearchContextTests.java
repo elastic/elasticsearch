@@ -9,13 +9,13 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -106,6 +106,8 @@ public class DefaultSearchContextTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         when(indexService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(indexSettings);
+        when(searchExecutionContext.indexVersionCreated()).thenReturn(indexSettings.getIndexVersionCreated());
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
 
@@ -273,7 +275,6 @@ public class DefaultSearchContextTests extends ESTestCase {
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess();
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
 
-            when(searchExecutionContext.getIndexSettings()).thenReturn(indexSettings);
             when(searchExecutionContext.getFieldType(anyString())).thenReturn(mock(MappedFieldType.class));
 
             readerContext.close();

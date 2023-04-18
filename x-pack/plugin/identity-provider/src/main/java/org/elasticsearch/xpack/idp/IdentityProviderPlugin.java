@@ -11,9 +11,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -31,6 +32,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -78,7 +80,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     private static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("xpack.idp.enabled", false, Setting.Property.NodeScope);
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(IdentityProviderPlugin.class);
     private boolean enabled;
     private Settings settings;
 
@@ -94,7 +96,9 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationService allocationService
     ) {
         settings = environment.settings();
         enabled = ENABLED_SETTING.get(settings);
@@ -148,7 +152,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
+        Settings unused,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -170,16 +174,16 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        List<Setting<?>> settings = new ArrayList<>();
-        settings.add(ENABLED_SETTING);
-        settings.addAll(SamlIdentityProviderBuilder.getSettings());
-        settings.addAll(ServiceProviderCacheSettings.getSettings());
-        settings.addAll(ServiceProviderDefaults.getSettings());
-        settings.addAll(WildcardServiceProviderResolver.getSettings());
-        settings.addAll(ApplicationActionsResolver.getSettings());
-        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getEnabledSettings());
-        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getEnabledSettings());
-        return Collections.unmodifiableList(settings);
+        List<Setting<?>> settingList = new ArrayList<>();
+        settingList.add(ENABLED_SETTING);
+        settingList.addAll(SamlIdentityProviderBuilder.getSettings());
+        settingList.addAll(ServiceProviderCacheSettings.getSettings());
+        settingList.addAll(ServiceProviderDefaults.getSettings());
+        settingList.addAll(WildcardServiceProviderResolver.getSettings());
+        settingList.addAll(ApplicationActionsResolver.getSettings());
+        settingList.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getEnabledSettings());
+        settingList.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getEnabledSettings());
+        return Collections.unmodifiableList(settingList);
     }
 
     protected XPackLicenseState getLicenseState() {

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -18,6 +17,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
@@ -136,7 +136,11 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
                 .collect(Collectors.joining())
         );
         flushJob(job.getId(), true);
+        String forecastId = forecast(job.getId(), TimeValue.timeValueHours(10), TimeValue.timeValueDays(100));
+        waitForecastToFinish(job.getId(), forecastId);
         closeJob(job.getId());
+        long numForecastDocs = countForecastDocs(job.getId(), forecastId);
+        assertThat(numForecastDocs, greaterThan(0L));
 
         ModelSizeStats modelSizeStats1 = getJobStats(job.getId()).get(0).getModelSizeStats();
         Quantiles quantiles1 = getQuantiles(job.getId());
@@ -220,6 +224,9 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         // Check annotations with event type from {delayed_data, model_change} have been removed if deleteInterveningResults flag is set
         assertThatNumberOfAnnotationsIsEqualTo(deleteInterveningResults ? 3 : 5);
 
+        // Reverting should not have deleted any forecast docs
+        assertThat(countForecastDocs(job.getId(), forecastId), is(numForecastDocs));
+
         // Re-run 2nd half of data
         openJob(job.getId());
         postData(
@@ -239,6 +246,9 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         assertThat(finalPostRevertPointBucket.getTimestamp(), equalTo(finalPreRevertPointBucket.getTimestamp()));
         assertThat(finalPostRevertPointBucket.getAnomalyScore(), equalTo(finalPreRevertPointBucket.getAnomalyScore()));
         assertThat(finalPostRevertPointBucket.getEventCount(), equalTo(finalPreRevertPointBucket.getEventCount()));
+
+        // Re-running should not have deleted any forecast docs
+        assertThat(countForecastDocs(job.getId(), forecastId), is(numForecastDocs));
     }
 
     private Job.Builder buildAndRegisterJob(String jobId, TimeValue bucketSpan) throws Exception {
@@ -291,8 +301,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         assertThat(hits.getTotalHits().value, equalTo(1L));
         try {
             XContentParser parser = JsonXContent.jsonXContent.createParser(
-                null,
-                LoggingDeprecationHandler.INSTANCE,
+                XContentParserConfiguration.EMPTY,
                 hits.getAt(0).getSourceAsString()
             );
             return Quantiles.LENIENT_PARSER.apply(parser, null);

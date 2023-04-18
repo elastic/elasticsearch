@@ -11,6 +11,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
@@ -48,7 +49,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     private TemplateScript.Factory scriptFactory;
     private boolean prune = DEFAULT_COLLATE_PRUNE;
     private List<DirectCandidateGenerator> generators = new ArrayList<>();
-    private Map<String, Object> collateScriptParams = new HashMap<>(1);
+    private Map<String, Object> collateScriptParams = Maps.newMapWithExpectedSize(1);
     private WordScorer.WordScorerFactory scorer = DEFAULT_SCORER;
 
     PhraseSuggestionContext(SearchExecutionContext searchExecutionContext) {

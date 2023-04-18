@@ -19,8 +19,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.client.support.AbstractClient;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -46,10 +47,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.emptyMap;
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class ClientScrollableHitSourceTests extends ESTestCase {
 
@@ -75,19 +74,12 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         dotestBasicsWithRetry(retries, 0, retries, e -> fail());
     }
 
-    private static class ExpectedException extends RuntimeException {
-        ExpectedException(Throwable cause) {
-            super(cause);
-        }
-    }
-
     public void testRetryFail() {
         int retries = randomInt(10);
-        ExpectedException ex = expectThrows(
-            ExpectedException.class,
-            () -> { dotestBasicsWithRetry(retries, retries + 1, retries + 1, e -> { throw new ExpectedException(e); }); }
+        expectThrows(
+            EsRejectedExecutionException.class,
+            () -> PlainActionFuture.get(f -> dotestBasicsWithRetry(retries, retries + 1, retries + 1, f::onFailure), 0, TimeUnit.SECONDS)
         );
-        assertThat(ex.getCause(), instanceOf(EsRejectedExecutionException.class));
     }
 
     private void dotestBasicsWithRetry(int retries, int minFailures, int maxFailures, Consumer<Exception> failureHandler)
@@ -111,6 +103,9 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         hitSource.start();
         for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
             client.fail(SearchAction.INSTANCE, new EsRejectedExecutionException());
+            if (retry >= retries) {
+                return;
+            }
             client.awaitOperation();
             ++expectedSearchRetries;
         }
@@ -160,7 +155,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
     private SearchResponse createSearchResponse() {
         // create a simulated response.
-        SearchHit hit = new SearchHit(0, "id", emptyMap(), emptyMap()).sourceRef(new BytesArray("{}"));
+        SearchHit hit = new SearchHit(0, "id").sourceRef(new BytesArray("{}"));
         SearchHits hits = new SearchHits(
             IntStream.range(0, randomIntBetween(0, 20)).mapToObj(i -> hit).toArray(SearchHit[]::new),
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
@@ -203,18 +198,18 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             this.listener = listener;
         }
 
-        public void respond(ActionType<Response> action, Function<Request, Response> response) {
-            assertEquals(action, this.action);
+        public void respond(ActionType<Response> actionType, Function<Request, Response> response) {
+            assertEquals(actionType, this.action);
             listener.onResponse(response.apply(request));
         }
 
-        public void fail(ActionType<Response> action, Exception response) {
-            assertEquals(action, this.action);
+        public void fail(ActionType<Response> actionType, Exception response) {
+            assertEquals(actionType, this.action);
             listener.onFailure(response);
         }
 
-        public void validateRequest(ActionType<Response> action, Consumer<? super Request> validator) {
-            assertEquals(action, this.action);
+        public void validateRequest(ActionType<Response> actionType, Consumer<? super Request> validator) {
+            assertEquals(actionType, this.action);
             validator.accept(request);
         }
     }
@@ -242,12 +237,12 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             ActionType<Response> action,
             Function<Request, Response> response
         ) {
-            ExecuteRequest<?, ?> executeRequest;
+            ExecuteRequest<?, ?> executeRequestCopy;
             synchronized (this) {
-                executeRequest = this.executeRequest;
+                executeRequestCopy = this.executeRequest;
                 this.executeRequest = null;
             }
-            ((ExecuteRequest<Request, Response>) executeRequest).respond(action, response);
+            ((ExecuteRequest<Request, Response>) executeRequestCopy).respond(action, response);
         }
 
         public <Response extends ActionResponse> void respond(ActionType<Response> action, Response response) {
@@ -256,12 +251,12 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         public <Response extends ActionResponse> void fail(ActionType<Response> action, Exception response) {
-            ExecuteRequest<?, ?> executeRequest;
+            ExecuteRequest<?, ?> executeRequestCopy;
             synchronized (this) {
-                executeRequest = this.executeRequest;
+                executeRequestCopy = this.executeRequest;
                 this.executeRequest = null;
             }
-            ((ExecuteRequest<?, Response>) executeRequest).fail(action, response);
+            ((ExecuteRequest<?, Response>) executeRequestCopy).fail(action, response);
         }
 
         @SuppressWarnings("unchecked")

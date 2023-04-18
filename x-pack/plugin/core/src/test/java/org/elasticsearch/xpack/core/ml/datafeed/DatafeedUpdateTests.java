@@ -7,9 +7,14 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.aggregations.AggregationsPlugin;
+import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -27,26 +32,25 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
-import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -63,8 +67,20 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpdate> {
+public class DatafeedUpdateTests extends AbstractXContentSerializingTestCase<DatafeedUpdate> {
+
+    private ClusterState clusterState;
+
+    @Before
+    public void init() {
+        clusterState = mock(ClusterState.class);
+        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
+    }
 
     @Override
     protected DatafeedUpdate createTestInstance() {
@@ -151,55 +167,55 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new AggregationsPlugin()));
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of(new AggregationsPlugin()));
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
-    private static final String MULTIPLE_AGG_DEF_DATAFEED = "{\n"
-        + "    \"datafeed_id\": \"farequote-datafeed\",\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"frequency\": \"1h\",\n"
-        + "    \"indices\": [\"farequote1\", \"farequote2\"],\n"
-        + "    \"aggregations\": {\n"
-        + "    \"buckets\": {\n"
-        + "      \"date_histogram\": {\n"
-        + "        \"field\": \"time\",\n"
-        + "        \"fixed_interval\": \"360s\",\n"
-        + "        \"time_zone\": \"UTC\"\n"
-        + "      },\n"
-        + "      \"aggregations\": {\n"
-        + "        \"time\": {\n"
-        + "          \"max\": {\"field\": \"time\"}\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  },"
-        + "    \"aggs\": {\n"
-        + "    \"buckets2\": {\n"
-        + "      \"date_histogram\": {\n"
-        + "        \"field\": \"time\",\n"
-        + "        \"fixed_interval\": \"360s\",\n"
-        + "        \"time_zone\": \"UTC\"\n"
-        + "      },\n"
-        + "      \"aggregations\": {\n"
-        + "        \"time\": {\n"
-        + "          \"max\": {\"field\": \"time\"}\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    private static final String MULTIPLE_AGG_DEF_DATAFEED = """
+        {
+            "datafeed_id": "farequote-datafeed",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "indices": ["farequote1", "farequote2"],
+            "aggregations": {
+            "buckets": {
+              "date_histogram": {
+                "field": "time",
+                "fixed_interval": "360s",
+                "time_zone": "UTC"
+              },
+              "aggregations": {
+                "time": {
+                  "max": {"field": "time"}
+                }
+              }
+            }
+          },    "aggs": {
+            "buckets2": {
+              "date_histogram": {
+                "field": "time",
+                "fixed_interval": "360s",
+                "time_zone": "UTC"
+              },
+              "aggregations": {
+                "time": {
+                  "max": {"field": "time"}
+                }
+              }
+            }
+          }
+        }""";
 
     public void testMultipleDefinedAggParse() throws IOException {
         try (
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MULTIPLE_AGG_DEF_DATAFEED)
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), MULTIPLE_AGG_DEF_DATAFEED)
         ) {
             XContentParseException ex = expectThrows(XContentParseException.class, () -> DatafeedUpdate.PARSER.apply(parser, null));
             assertThat(ex.getMessage(), equalTo("[32:3] [datafeed_update] failed to parse field [aggs]"));
@@ -210,20 +226,20 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
     public void testApply_failBecauseTargetDatafeedHasDifferentId() {
         DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
-        expectThrows(IllegalArgumentException.class, () -> createRandomized(datafeed.getId() + "_2").apply(datafeed, null));
+        expectThrows(IllegalArgumentException.class, () -> createRandomized(datafeed.getId() + "_2").apply(datafeed, null, clusterState));
     }
 
     public void testApply_failBecauseJobIdChanged() {
         DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
 
         DatafeedUpdate datafeedUpdateWithUnchangedJobId = new DatafeedUpdate.Builder(datafeed.getId()).setJobId("foo").build();
-        DatafeedConfig updatedDatafeed = datafeedUpdateWithUnchangedJobId.apply(datafeed, Collections.emptyMap());
+        DatafeedConfig updatedDatafeed = datafeedUpdateWithUnchangedJobId.apply(datafeed, Collections.emptyMap(), clusterState);
         assertThat(updatedDatafeed, equalTo(datafeed));
 
         DatafeedUpdate datafeedUpdateWithChangedJobId = new DatafeedUpdate.Builder(datafeed.getId()).setJobId("bar").build();
         ElasticsearchStatusException ex = expectThrows(
             ElasticsearchStatusException.class,
-            () -> datafeedUpdateWithChangedJobId.apply(datafeed, Collections.emptyMap())
+            () -> datafeedUpdateWithChangedJobId.apply(datafeed, Collections.emptyMap(), clusterState)
         );
         assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ex.getMessage(), equalTo(DatafeedUpdate.ERROR_MESSAGE_ON_JOB_ID_UPDATE));
@@ -231,7 +247,8 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
     public void testApply_givenEmptyUpdate() {
         DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
-        DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId()).build().apply(datafeed, Collections.emptyMap());
+        DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId()).build()
+            .apply(datafeed, Collections.emptyMap(), clusterState);
         assertThat(datafeed, equalTo(updatedDatafeed));
     }
 
@@ -242,7 +259,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
         DatafeedUpdate.Builder updated = new DatafeedUpdate.Builder(datafeed.getId());
         updated.setScrollSize(datafeed.getScrollSize() + 1);
-        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap());
+        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap(), clusterState);
 
         DatafeedConfig.Builder expectedDatafeed = new DatafeedConfig.Builder(datafeed);
         expectedDatafeed.setScrollSize(datafeed.getScrollSize() + 1);
@@ -270,7 +287,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         field.put("updated_runtime_field_foo", settings);
         update.setRuntimeMappings(field);
 
-        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap());
+        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap(), clusterState);
 
         assertThat(updatedDatafeed.getJobId(), equalTo("foo-feed"));
         assertThat(updatedDatafeed.getIndices(), equalTo(Collections.singletonList("i_2")));
@@ -303,7 +320,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         );
         update.setAggregations(aggProvider);
 
-        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap());
+        DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap(), clusterState);
 
         assertThat(updatedDatafeed.getIndices(), equalTo(Collections.singletonList("i_1")));
         assertThat(updatedDatafeed.getParsedAggregations(xContentRegistry()), equalTo(aggProvider.getParsedAggs()));
@@ -314,7 +331,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
         DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId()).setIndicesOptions(
             IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN
-        ).build().apply(datafeed, Collections.emptyMap());
+        ).build().apply(datafeed, Collections.emptyMap(), clusterState);
         assertThat(datafeed.getIndicesOptions(), is(not(equalTo(updatedDatafeed.getIndicesOptions()))));
         assertThat(updatedDatafeed.getIndicesOptions(), equalTo(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN));
     }
@@ -332,26 +349,25 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 update = createRandomized(datafeed.getId(), datafeed);
             }
 
-            DatafeedConfig updatedDatafeed = update.apply(datafeed, Collections.emptyMap());
+            DatafeedConfig updatedDatafeed = update.apply(datafeed, Collections.emptyMap(), clusterState);
 
             assertThat("update was " + update, datafeed, not(equalTo(updatedDatafeed)));
         }
     }
 
     public void testSerializationOfComplexAggsBetweenVersions() throws IOException {
-        MaxAggregationBuilder maxTime = AggregationBuilders.max("timestamp").field("timestamp");
-        AvgAggregationBuilder avgAggregationBuilder = AggregationBuilders.avg("bytes_in_avg").field("system.network.in.bytes");
-        DerivativePipelineAggregationBuilder derivativePipelineAggregationBuilder = PipelineAggregatorBuilders.derivative(
+        MaxAggregationBuilder maxTime = new MaxAggregationBuilder("timestamp").field("timestamp");
+        AvgAggregationBuilder avgAggregationBuilder = new AvgAggregationBuilder("bytes_in_avg").field("system.network.in.bytes");
+        DerivativePipelineAggregationBuilder derivativePipelineAggregationBuilder = new DerivativePipelineAggregationBuilder(
             "bytes_in_derivative",
             "bytes_in_avg"
         );
-        BucketScriptPipelineAggregationBuilder bucketScriptPipelineAggregationBuilder = PipelineAggregatorBuilders.bucketScript(
+        BucketScriptPipelineAggregationBuilder bucketScriptPipelineAggregationBuilder = new BucketScriptPipelineAggregationBuilder(
             "non_negative_bytes",
             Collections.singletonMap("bytes", "bytes_in_derivative"),
             new Script("params.bytes > 0 ? params.bytes : null")
         );
-        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("histogram_buckets")
-            .field("timestamp")
+        DateHistogramAggregationBuilder dateHistogram = new DateHistogramAggregationBuilder("histogram_buckets").field("timestamp")
             .fixedInterval(new DateHistogramInterval("300000ms"))
             .timeZone(ZoneOffset.UTC)
             .subAggregation(maxTime)
@@ -374,14 +390,11 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         );
         DatafeedUpdate datafeedUpdate = datafeedUpdateBuilder.build();
 
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.CURRENT);
+            output.setTransportVersion(TransportVersion.CURRENT);
             datafeedUpdate.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(Version.CURRENT);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                in.setTransportVersion(TransportVersion.CURRENT);
                 DatafeedUpdate streamedDatafeedUpdate = new DatafeedUpdate(in);
                 assertEquals(datafeedUpdate, streamedDatafeedUpdate);
 

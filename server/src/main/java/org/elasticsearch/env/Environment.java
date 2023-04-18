@@ -8,9 +8,12 @@
 
 package org.elasticsearch.env;
 
+import org.apache.lucene.util.Constants;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.StatelessSecureSettings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -27,7 +30,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * The environment of where things exists.
@@ -54,7 +56,6 @@ public class Environment {
         Property.NodeScope
     );
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
-    public static final Setting<String> NODE_PIDFILE_SETTING = Setting.simpleString("node.pidfile", Property.NodeScope);
 
     private final Settings settings;
 
@@ -77,9 +78,6 @@ public class Environment {
     private final Path libFile;
 
     private final Path logsFile;
-
-    /** Path to the PID file (can be null if no PID file is configured) **/
-    private final Path pidFile;
 
     /** Path to the temporary file directory used by the JDK */
     private final Path tmpFile;
@@ -138,12 +136,6 @@ public class Environment {
             logsFile = homeFile.resolve("logs");
         }
 
-        if (NODE_PIDFILE_SETTING.exists(settings)) {
-            pidFile = PathUtils.get(NODE_PIDFILE_SETTING.get(settings)).toAbsolutePath().normalize();
-        } else {
-            pidFile = null;
-        }
-
         binFile = homeFile.resolve("bin");
         libFile = homeFile.resolve("lib");
         modulesFile = homeFile.resolve("modules");
@@ -151,10 +143,7 @@ public class Environment {
         final Settings.Builder finalSettings = Settings.builder().put(settings);
         if (PATH_DATA_SETTING.exists(settings)) {
             if (dataPathUsesList(settings)) {
-                finalSettings.putList(
-                    PATH_DATA_SETTING.getKey(),
-                    Arrays.stream(dataFiles).map(Path::toString).collect(Collectors.toList())
-                );
+                finalSettings.putList(PATH_DATA_SETTING.getKey(), Arrays.stream(dataFiles).map(Path::toString).toList());
             } else {
                 assert dataFiles.length == 1;
                 finalSettings.put(PATH_DATA_SETTING.getKey(), dataFiles[0]);
@@ -163,20 +152,19 @@ public class Environment {
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
         finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile.toString());
         if (PATH_REPO_SETTING.exists(settings)) {
-            finalSettings.putList(
-                Environment.PATH_REPO_SETTING.getKey(),
-                Arrays.stream(repoFiles).map(Path::toString).collect(Collectors.toList())
-            );
+            finalSettings.putList(Environment.PATH_REPO_SETTING.getKey(), Arrays.stream(repoFiles).map(Path::toString).toList());
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             assert sharedDataFile != null;
             finalSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataFile.toString());
         }
-        if (NODE_PIDFILE_SETTING.exists(settings)) {
-            assert pidFile != null;
-            finalSettings.put(Environment.NODE_PIDFILE_SETTING.getKey(), pidFile.toString());
+
+        if (DiscoveryNode.isStateless(settings)
+            && (Objects.isNull(finalSettings.getSecureSettings()) || finalSettings.getSecureSettings().getSettingNames().isEmpty())) {
+            this.settings = StatelessSecureSettings.install(finalSettings.build());
+        } else {
+            this.settings = finalSettings.build();
         }
-        this.settings = finalSettings.build();
     }
 
     /**
@@ -290,13 +278,6 @@ public class Environment {
         return logsFile;
     }
 
-    /**
-     * The PID file location (can be null if no PID file is configured)
-     */
-    public Path pidFile() {
-        return pidFile;
-    }
-
     /** Path to the default temp directory used by the JDK */
     public Path tmpFile() {
         return tmpFile;
@@ -304,12 +285,48 @@ public class Environment {
 
     /** Ensure the configured temp directory is a valid directory */
     public void validateTmpFile() throws IOException {
-        if (Files.exists(tmpFile) == false) {
-            throw new FileNotFoundException("Temporary file directory [" + tmpFile + "] does not exist or is not accessible");
+        validateTemporaryDirectory("Temporary directory", tmpFile);
+    }
+
+    /**
+     * Ensure the temp directories needed for JNA are set up correctly.
+     */
+    public void validateNativesConfig() throws IOException {
+        validateTmpFile();
+        if (Constants.LINUX) {
+            validateTemporaryDirectory(LIBFFI_TMPDIR_ENVIRONMENT_VARIABLE + " environment variable", getLibffiTemporaryDirectory());
         }
-        if (Files.isDirectory(tmpFile) == false) {
-            throw new IOException("Configured temporary file directory [" + tmpFile + "] is not a directory");
+    }
+
+    private static void validateTemporaryDirectory(String description, Path path) throws IOException {
+        if (path == null) {
+            throw new NullPointerException(description + " was not specified");
         }
+        if (Files.exists(path) == false) {
+            throw new FileNotFoundException(description + " [" + path + "] does not exist or is not accessible");
+        }
+        if (Files.isDirectory(path) == false) {
+            throw new IOException(description + " [" + path + "] is not a directory");
+        }
+    }
+
+    private static final String LIBFFI_TMPDIR_ENVIRONMENT_VARIABLE = "LIBFFI_TMPDIR";
+
+    @SuppressForbidden(reason = "using PathUtils#get since libffi resolves paths without interference from the JVM")
+    private static Path getLibffiTemporaryDirectory() {
+        final String environmentVariable = System.getenv(LIBFFI_TMPDIR_ENVIRONMENT_VARIABLE);
+        if (environmentVariable == null) {
+            return null;
+        }
+        // Explicitly resolve into an absolute path since the working directory might be different from the one in which we were launched
+        // and it would be confusing to report that the given relative path doesn't exist simply because it's being resolved relative to a
+        // different location than the one the user expects.
+        final String workingDirectory = System.getProperty("user.dir");
+        if (workingDirectory == null) {
+            assert false;
+            return null;
+        }
+        return PathUtils.get(workingDirectory).resolve(environmentVariable);
     }
 
     /** Returns true if the data path is a list, false otherwise */
@@ -348,7 +365,6 @@ public class Environment {
         assertEquals(actual.libFile(), expected.libFile(), "libFile");
         assertEquals(actual.modulesFile(), expected.modulesFile(), "modulesFile");
         assertEquals(actual.logsFile(), expected.logsFile(), "logsFile");
-        assertEquals(actual.pidFile(), expected.pidFile(), "pidFile");
         assertEquals(actual.tmpFile(), expected.tmpFile(), "tmpFile");
     }
 

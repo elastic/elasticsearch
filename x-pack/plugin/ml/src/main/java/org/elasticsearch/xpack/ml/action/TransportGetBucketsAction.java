@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -40,7 +40,7 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
 
     @Override
     protected void doExecute(Task task, GetBucketsAction.Request request, ActionListener<GetBucketsAction.Response> listener) {
-        jobManager.jobExists(request.getJobId(), ActionListener.wrap(ok -> {
+        jobManager.jobExists(request.getJobId(), null, ActionListener.wrap(ok -> {
             BucketsQueryBuilder query = new BucketsQueryBuilder().expand(request.isExpand())
                 .includeInterim(request.isExcludeInterim() == false)
                 .start(request.getStart())

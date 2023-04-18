@@ -81,7 +81,7 @@ public class BitArrayTests extends ESTestCase {
     }
 
     public void testAllocation() {
-        MockBigArrays.assertFitsIn(new ByteSizeValue(100), bigArrays -> new BitArray(1, bigArrays));
+        MockBigArrays.assertFitsIn(ByteSizeValue.ofBytes(100), bigArrays -> new BitArray(1, bigArrays));
     }
 
     public void testOr() {

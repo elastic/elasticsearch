@@ -10,7 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -117,7 +117,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             builder = deleteResponseBuilder;
             itemParser = (deleteParser) -> DeleteResponse.parseXContentFields(deleteParser, deleteResponseBuilder);
         } else {
-            throwUnknownField(currentFieldName, parser.getTokenLocation());
+            throwUnknownField(currentFieldName, parser);
         }
 
         RestStatus status = null;
@@ -237,7 +237,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
          */
         public Failure(StreamInput in) throws IOException {
             index = in.readString();
-            if (in.getVersion().before(Version.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                 in.readString();
                 // can't make an assertion about type names here because too many tests still set their own
                 // types bypassing various checks
@@ -253,7 +253,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            if (out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                 out.writeString(MapperService.SINGLE_MAPPING_NAME);
             }
             out.writeOptionalString(id);
@@ -339,10 +339,6 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             builder.endObject();
             builder.field(STATUS_FIELD, status.getStatus());
             return builder;
-        }
-
-        public static Failure fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         @Override
@@ -523,33 +519,23 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
     private static DocWriteResponse readResponse(ShardId shardId, StreamInput in) throws IOException {
         int type = in.readByte();
-        switch (type) {
-            case 0:
-                return new IndexResponse(shardId, in);
-            case 1:
-                return new DeleteResponse(shardId, in);
-            case 2:
-                return null;
-            case 3:
-                return new UpdateResponse(shardId, in);
-            default:
-                throw new IllegalArgumentException("Unexpected type [" + type + "]");
-        }
+        return switch (type) {
+            case 0 -> new IndexResponse(shardId, in);
+            case 1 -> new DeleteResponse(shardId, in);
+            case 2 -> null;
+            case 3 -> new UpdateResponse(shardId, in);
+            default -> throw new IllegalArgumentException("Unexpected type [" + type + "]");
+        };
     }
 
     private static DocWriteResponse readResponse(StreamInput in) throws IOException {
         int type = in.readByte();
-        switch (type) {
-            case 0:
-                return new IndexResponse(in);
-            case 1:
-                return new DeleteResponse(in);
-            case 2:
-                return null;
-            case 3:
-                return new UpdateResponse(in);
-            default:
-                throw new IllegalArgumentException("Unexpected type [" + type + "]");
-        }
+        return switch (type) {
+            case 0 -> new IndexResponse(in);
+            case 1 -> new DeleteResponse(in);
+            case 2 -> null;
+            case 3 -> new UpdateResponse(in);
+            default -> throw new IllegalArgumentException("Unexpected type [" + type + "]");
+        };
     }
 }

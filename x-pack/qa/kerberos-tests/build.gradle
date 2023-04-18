@@ -1,20 +1,18 @@
 import java.nio.file.Path
 import java.nio.file.Paths
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "peppa"
 
 dependencies {
-  testImplementation project(':x-pack:plugin:core')
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(testArtifact(project(xpackModule('security'))))
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   // force localhost IPv4 otherwise it is a chicken and egg problem where we need the keytab for the hostname when starting the cluster
   // but do not know the exact address that is first in the http ports file
@@ -48,7 +46,7 @@ tasks.register("copyKeytabToGeneratedResources", Copy) {
 }
 
 String realm = "BUILD.ELASTIC.CO"
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   Path peppaKeytab = Paths.get("${project.buildDir}", "generated-resources", "keytabs", "peppa.keytab")
   nonInputProperties.systemProperty 'test.userkt', "peppa@${realm}"
   nonInputProperties.systemProperty 'test.userkt.keytab', "${peppaKeytab}"

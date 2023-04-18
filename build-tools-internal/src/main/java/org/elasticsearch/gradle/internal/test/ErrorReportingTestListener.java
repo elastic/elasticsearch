@@ -7,15 +7,16 @@
  */
 package org.elasticsearch.gradle.internal.test;
 
+import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.gradle.api.internal.tasks.testing.logging.FullExceptionFormatter;
 import org.gradle.api.internal.tasks.testing.logging.TestExceptionFormatter;
 import org.gradle.api.logging.Logger;
+import org.gradle.api.tasks.testing.Test;
 import org.gradle.api.tasks.testing.TestDescriptor;
 import org.gradle.api.tasks.testing.TestListener;
 import org.gradle.api.tasks.testing.TestOutputEvent;
 import org.gradle.api.tasks.testing.TestOutputListener;
 import org.gradle.api.tasks.testing.TestResult;
-import org.gradle.api.tasks.testing.logging.TestLogging;
 
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
@@ -32,13 +33,13 @@ import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ErrorReportingTestListener implements TestOutputListener, TestListener {
     private static final String REPRODUCE_WITH_PREFIX = "REPRODUCE WITH";
 
+    private final Test testTask;
     private final TestExceptionFormatter formatter;
     private final File outputDirectory;
     private final Logger taskLogger;
@@ -46,9 +47,10 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
     private Map<Descriptor, Deque<String>> reproductionLines = new ConcurrentHashMap<>();
     private Set<Descriptor> failedTests = new LinkedHashSet<>();
 
-    public ErrorReportingTestListener(TestLogging testLogging, Logger taskLogger, File outputDirectory) {
-        this.formatter = new FullExceptionFormatter(testLogging);
-        this.taskLogger = taskLogger;
+    public ErrorReportingTestListener(Test testTask, File outputDirectory) {
+        this.testTask = testTask;
+        this.formatter = new FullExceptionFormatter(testTask.getTestLogging());
+        this.taskLogger = testTask.getLogger();
         this.outputDirectory = outputDirectory;
     }
 
@@ -81,34 +83,37 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
         Descriptor descriptor = Descriptor.of(suite);
 
         try {
-            // if the test suite failed, report all captured output
-            if (result.getResultType().equals(TestResult.ResultType.FAILURE)) {
-                EventWriter eventWriter = eventWriters.get(descriptor);
+            if (isDumpOutputEnabled()) {
+                // if the test suite failed, report all captured output
+                if (result.getResultType().equals(TestResult.ResultType.FAILURE)) {
+                    EventWriter eventWriter = eventWriters.get(descriptor);
 
-                if (eventWriter != null) {
-                    // It's not explicit what the threading guarantees are for TestListener method execution so we'll
-                    // be explicitly safe here to avoid interleaving output from multiple test suites
-                    synchronized (this) {
-                        // make sure we've flushed everything to disk before reading
-                        eventWriter.flush();
+                    if (eventWriter != null) {
+                        // It's not explicit what the threading guarantees are for TestListener method execution so we'll
+                        // be explicitly safe here to avoid interleaving output from multiple test suites
+                        synchronized (this) {
+                            // make sure we've flushed everything to disk before reading
+                            eventWriter.flush();
 
-                        System.err.println("\n\nSuite: " + suite);
+                            System.err.println("\n\nSuite: " + suite);
 
-                        try (BufferedReader reader = eventWriter.reader()) {
-                            PrintStream out = System.out;
-                            for (String message = reader.readLine(); message != null; message = reader.readLine()) {
-                                if (message.startsWith("  1> ")) {
-                                    out = System.out;
-                                } else if (message.startsWith("  2> ")) {
-                                    out = System.err;
+                            try (BufferedReader reader = eventWriter.reader()) {
+                                PrintStream out = System.out;
+                                for (String message = reader.readLine(); message != null; message = reader.readLine()) {
+                                    if (message.startsWith("  1> ")) {
+                                        out = System.out;
+                                    } else if (message.startsWith("  2> ")) {
+                                        out = System.err;
+                                    }
+
+                                    out.println(message);
                                 }
-
-                                out.println(message);
                             }
                         }
                     }
                 }
             }
+
             if (suite.getParent() == null) {
                 // per test task top level gradle test run suite finished
                 if (getFailedTests().size() > 0) {
@@ -184,40 +189,14 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
      * use this a the key for our HashMap, it's best to control the implementation as there's no guarantee that Gradle's
      * various {@link TestDescriptor} implementations reliably implement equals and hashCode.
      */
-    public static class Descriptor {
-        private final String name;
-        private final String className;
-        private final String parent;
-
-        private Descriptor(String name, String className, String parent) {
-            this.name = name;
-            this.className = className;
-            this.parent = parent;
-        }
+    public record Descriptor(String name, String className, String parent) {
 
         public static Descriptor of(TestDescriptor d) {
             return new Descriptor(d.getName(), d.getClassName(), d.getParent() == null ? null : d.getParent().toString());
         }
 
-        public String getClassName() {
-            return className;
-        }
-
         public String getFullName() {
             return className + "." + name;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Descriptor that = (Descriptor) o;
-            return Objects.equals(name, that.name) && Objects.equals(className, that.className) && Objects.equals(parent, that.parent);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, className, parent);
         }
     }
 
@@ -226,7 +205,7 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
         private final Writer writer;
 
         EventWriter(Descriptor descriptor) {
-            this.outputFile = new File(outputDirectory, descriptor.getClassName() + ".out");
+            this.outputFile = new File(outputDirectory, descriptor.className() + ".out");
 
             FileOutputStream fos;
             try {
@@ -276,5 +255,11 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
             // there's no need to keep this stuff on disk after suite execution
             outputFile.delete();
         }
+    }
+
+    private boolean isDumpOutputEnabled() {
+        return (Boolean) testTask.getInputs()
+            .getProperties()
+            .getOrDefault(ElasticsearchTestBasePlugin.DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
     }
 }

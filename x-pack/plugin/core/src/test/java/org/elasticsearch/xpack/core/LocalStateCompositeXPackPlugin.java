@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -17,7 +18,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.bootstrap.BootstrapCheck;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -25,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -41,16 +43,17 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -61,6 +64,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -75,6 +79,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
@@ -83,8 +88,10 @@ import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -121,6 +128,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NetworkPlugin,
         ClusterPlugin,
         DiscoveryPlugin,
+        ClusterCoordinationPlugin,
         MapperPlugin,
         AnalysisPlugin,
         PersistentTaskPlugin,
@@ -128,7 +136,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         IndexStorePlugin,
         SystemIndexPlugin,
         SearchPlugin,
-        ShutdownAwarePlugin {
+        ShutdownAwarePlugin,
+        RestInterceptorActionPlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -137,7 +146,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     protected List<Plugin> plugins = new ArrayList<>();
 
     public LocalStateCompositeXPackPlugin(final Settings settings, final Path configPath) {
-        super(settings, configPath);
+        super(settings);
     }
 
     // Get around all the setOnce nonsense in the plugin
@@ -193,7 +202,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationService allocationService
     ) {
         List<Object> components = new ArrayList<>();
         components.addAll(
@@ -208,7 +219,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 nodeEnvironment,
                 namedWriteableRegistry,
                 expressionResolver,
-                repositoriesServiceSupplier
+                repositoriesServiceSupplier,
+                tracer,
+                allocationService
             )
         );
 
@@ -226,7 +239,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         nodeEnvironment,
                         namedWriteableRegistry,
                         expressionResolver,
-                        repositoriesServiceSupplier
+                        repositoriesServiceSupplier,
+                        tracer,
+                        allocationService
                     )
                 )
             );
@@ -398,7 +413,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        ClusterSettings clusterSettings
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
+        ClusterSettings clusterSettings,
+        Tracer tracer
     ) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).stream()
@@ -413,7 +430,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         xContentRegistry,
                         networkService,
                         dispatcher,
-                        clusterSettings
+                        perRequestThreadContext,
+                        clusterSettings,
+                        tracer
                     )
                 )
             );
@@ -428,11 +447,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+    public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
 
         // There can be only one.
         List<UnaryOperator<RestHandler>> items = filterPlugins(ActionPlugin.class).stream()
-            .map(p -> p.getRestHandlerWrapper(threadContext))
+            .filter(RestInterceptorActionPlugin.class::isInstance)
+            .map(RestInterceptorActionPlugin.class::cast)
+            .map(p -> p.getRestHandlerInterceptor(threadContext))
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
 
@@ -465,15 +486,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     @Override
     public Map<String, ElectionStrategy> getElectionStrategies() {
         Map<String, ElectionStrategy> electionStrategies = new HashMap<>();
-        filterPlugins(DiscoveryPlugin.class).stream().forEach(p -> electionStrategies.putAll(p.getElectionStrategies()));
+        filterPlugins(ClusterCoordinationPlugin.class).stream().forEach(p -> electionStrategies.putAll(p.getElectionStrategies()));
         return electionStrategies;
     }
 
     @Override
-    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         Set<IndexSettingProvider> providers = new HashSet<>();
-        filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalIndexSettingProviders()));
-        providers.addAll(super.getAdditionalIndexSettingProviders());
+        filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalIndexSettingProviders(parameters)));
+        providers.addAll(super.getAdditionalIndexSettingProviders(parameters));
         return providers;
 
     }
@@ -509,7 +530,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     @Override
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         // There can be only one.
-        List<BiConsumer<DiscoveryNode, ClusterState>> items = filterPlugins(DiscoveryPlugin.class).stream()
+        List<BiConsumer<DiscoveryNode, ClusterState>> items = filterPlugins(ClusterCoordinationPlugin.class).stream()
             .map(p -> p.getJoinValidator())
             .collect(Collectors.toList());
         if (items.size() > 1) {
@@ -566,6 +587,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
             r -> internalRepositories.putAll(r.getInternalRepositories(env, namedXContentRegistry, clusterService, recoverySettings))
         );
         return internalRepositories;
+    }
+
+    @Override
+    public BiConsumer<Snapshot, Version> addPreRestoreVersionCheck() {
+        List<BiConsumer<Snapshot, Version>> checks = filterPlugins(RepositoryPlugin.class).stream()
+            .map(RepositoryPlugin::addPreRestoreVersionCheck)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+        return checks.isEmpty() ? null : (s, v) -> checks.forEach(c -> c.accept(s, v));
     }
 
     @Override
@@ -683,7 +713,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
             .stream()
             .map(SearchPlugin::getRequestCacheKeyDifferentiator)
             .filter(Objects::nonNull)
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
 
         if (differentiators.size() > 1) {
             throw new UnsupportedOperationException("Only the security SearchPlugin should provide the request cache key differentiator");
@@ -704,11 +734,17 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         List<SystemIndexPlugin> systemPlugins = filterPlugins(SystemIndexPlugin.class);
 
         GroupedActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> allListeners = new GroupedActionListener<>(
-            ActionListener.wrap(
-                listenerResults -> finalListener.onResponse(ResetFeatureStateStatus.success(getFeatureName())),
-                finalListener::onFailure
-            ),
-            systemPlugins.size()
+            systemPlugins.size(),
+            ActionListener.wrap(listenerResults -> {
+                // If the clean-up produced only one result, use that to pass along. In most
+                // cases it should be 1-1 mapping of feature to response. Passing back success
+                // prevents us from writing validation tests on this API.
+                if (listenerResults != null && listenerResults.size() == 1) {
+                    finalListener.onResponse(listenerResults.stream().findFirst().get());
+                } else {
+                    finalListener.onResponse(ResetFeatureStateStatus.success(getFeatureName()));
+                }
+            }, finalListener::onFailure)
         );
         systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, client, allListeners));
     }

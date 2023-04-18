@@ -1,0 +1,9 @@
+rac_user_role:
+  cluster:
+    - "monitor"
+  indices:
+    - names: ['rac_index_*' ]
+      privileges:
+        - read
+        - write
+        - create_index

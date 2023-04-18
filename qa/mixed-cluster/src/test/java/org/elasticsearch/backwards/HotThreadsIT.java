@@ -23,7 +23,7 @@ public class HotThreadsIT extends ESRestTestCase {
         assumeFalse("no bwc node found", nodes.getBWCNodes().isEmpty());
         assumeTrue(
             "new nodes are higher version than BWC nodes",
-            nodes.getNewNodes().get(0).getVersion().compareTo(nodes.getBWCNodes().get(0).getVersion()) > 0
+            nodes.getNewNodes().get(0).version().compareTo(nodes.getBWCNodes().get(0).version()) > 0
         );
         final Request request = new Request("GET", "/_nodes/hot_threads");
         final Response response = client().performRequest(request);

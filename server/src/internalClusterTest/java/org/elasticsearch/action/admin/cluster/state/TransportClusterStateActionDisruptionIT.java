@@ -192,7 +192,7 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
         final List<MockTransportService> mockTransportServices = StreamSupport.stream(
             internalCluster().getInstances(TransportService.class).spliterator(),
             false
-        ).map(ts -> (MockTransportService) ts).collect(Collectors.toList());
+        ).map(ts -> (MockTransportService) ts).toList();
 
         assertingThread.start();
         updatingThread.start();

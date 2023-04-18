@@ -22,6 +22,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -222,7 +223,7 @@ public class BulkProcessorTests extends ESTestCase {
                 countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
                 concurrentBulkRequests,
                 maxBatchSize,
-                new ByteSizeValue(Integer.MAX_VALUE),
+                ByteSizeValue.ofBytes(Integer.MAX_VALUE),
                 null,
                 (command, delay, executor) -> null,
                 () -> called.set(true),
@@ -234,7 +235,10 @@ public class BulkProcessorTests extends ESTestCase {
             CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
 
             IndexRequest indexRequest = new IndexRequest();
-            String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
+            String bulkRequest = """
+                { "index" : { "_index" : "test", "_id" : "1" } }
+                { "field1" : "value1" }
+                """;
             BytesReference bytesReference = BytesReference.fromByteBuffers(
                 new ByteBuffer[] { ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) }
             );
@@ -274,31 +278,29 @@ public class BulkProcessorTests extends ESTestCase {
                 if (exceptionRef.get() != null) {
                     logger.error("exception(s) caught during test", exceptionRef.get());
                 }
+                String message = """
+
+                    Expected Bulks: %s
+                    Requested Bulks: %s
+                    Successful Bulks: %s
+                    Failed Bulks: %ds
+                    Max Documents: %s
+                    Max Batch Size: %s
+                    Concurrent Clients: %s
+                    Concurrent Bulk Requests: %s
+                    """;
                 fail(
-                    "\nExpected Bulks: "
-                        + expectedExecutions
-                        + "\n"
-                        + "Requested Bulks: "
-                        + requestCount.get()
-                        + "\n"
-                        + "Successful Bulks: "
-                        + successCount.get()
-                        + "\n"
-                        + "Failed Bulks: "
-                        + failureCount.get()
-                        + "\n"
-                        + "Max Documents: "
-                        + maxDocuments
-                        + "\n"
-                        + "Max Batch Size: "
-                        + maxBatchSize
-                        + "\n"
-                        + "Concurrent Clients: "
-                        + concurrentClients
-                        + "\n"
-                        + "Concurrent Bulk Requests: "
-                        + concurrentBulkRequests
-                        + "\n"
+                    Strings.format(
+                        message,
+                        expectedExecutions,
+                        requestCount.get(),
+                        successCount.get(),
+                        failureCount.get(),
+                        maxDocuments,
+                        maxBatchSize,
+                        concurrentClients,
+                        concurrentBulkRequests
+                    )
                 );
             }
         }
@@ -340,7 +342,7 @@ public class BulkProcessorTests extends ESTestCase {
                 countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
                 concurrentBulkRequests,
                 maxBatchSize,
-                new ByteSizeValue(Integer.MAX_VALUE),
+                ByteSizeValue.ofBytes(Integer.MAX_VALUE),
                 TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
                 (command, delay, executor) -> Scheduler.wrapAsScheduledCancellable(
                     flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
@@ -362,7 +364,10 @@ public class BulkProcessorTests extends ESTestCase {
 
             ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
             IndexRequest indexRequest = new IndexRequest();
-            String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
+            String bulkRequest = """
+                { "index" : { "_index" : "test", "_id" : "1" } }
+                { "field1" : "value1" }
+                """;
             BytesReference bytesReference = BytesReference.fromByteBuffers(
                 new ByteBuffer[] { ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) }
             );
@@ -404,31 +409,29 @@ public class BulkProcessorTests extends ESTestCase {
             if (exceptionRef.get() != null) {
                 logger.error("exception(s) caught during test", exceptionRef.get());
             }
+            String message = """
+
+                Requested Bulks: %d
+                Successful Bulks: %d
+                Failed Bulks: %d
+                Total Documents: %d
+                Max Documents: %d
+                Max Batch Size: %d
+                Concurrent Clients: %d
+                Concurrent Bulk Requests: %d
+                """;
             fail(
-                "\nRequested Bulks: "
-                    + requestCount.get()
-                    + "\n"
-                    + "Successful Bulks: "
-                    + successCount.get()
-                    + "\n"
-                    + "Failed Bulks: "
-                    + failureCount.get()
-                    + "\n"
-                    + "Total Documents: "
-                    + docCount.get()
-                    + "\n"
-                    + "Max Documents: "
-                    + maxDocuments
-                    + "\n"
-                    + "Max Batch Size: "
-                    + maxBatchSize
-                    + "\n"
-                    + "Concurrent Clients: "
-                    + concurrentClients
-                    + "\n"
-                    + "Concurrent Bulk Requests: "
-                    + concurrentBulkRequests
-                    + "\n"
+                Strings.format(
+                    message,
+                    requestCount.get(),
+                    successCount.get(),
+                    failureCount.get(),
+                    docCount.get(),
+                    maxDocuments,
+                    maxBatchSize,
+                    concurrentClients,
+                    concurrentBulkRequests
+                )
             );
         }
     }
@@ -442,7 +445,7 @@ public class BulkProcessorTests extends ESTestCase {
             emptyListener(),
             0,
             10,
-            new ByteSizeValue(1000),
+            ByteSizeValue.ofBytes(1000),
             null,
             (command, delay, executor) -> null,
             () -> called.set(true),
@@ -452,6 +455,48 @@ public class BulkProcessorTests extends ESTestCase {
         assertFalse(called.get());
         bulkProcessor.awaitClose(100, TimeUnit.MILLISECONDS);
         assertTrue(called.get());
+    }
+
+    public void testDisableFlush() {
+        final AtomicInteger attemptRef = new AtomicInteger();
+
+        BulkResponse bulkResponse = new BulkResponse(
+            new BulkItemResponse[] { BulkItemResponse.success(0, randomFrom(DocWriteRequest.OpType.values()), mockResponse()) },
+            0
+        );
+
+        final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {
+            listener.onResponse(bulkResponse);
+        };
+
+        final BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {}
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                attemptRef.incrementAndGet();
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
+        };
+
+        AtomicBoolean flushEnabled = new AtomicBoolean(false);
+        try (
+            BulkProcessor bulkProcessor = BulkProcessor.builder(consumer, listener, "BulkProcessorTests")
+                .setFlushCondition(flushEnabled::get)
+                .build()
+        ) {
+            bulkProcessor.add(new IndexRequest());
+            bulkProcessor.flush();
+            assertThat(attemptRef.get(), equalTo(0));
+
+            flushEnabled.set(true);
+            bulkProcessor.flush();
+            assertThat(attemptRef.get(), equalTo(1));
+        }
     }
 
     private BulkProcessor.Listener emptyListener() {

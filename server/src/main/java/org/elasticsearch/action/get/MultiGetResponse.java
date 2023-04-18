@@ -9,8 +9,9 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,7 +28,6 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -57,7 +57,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
         Failure(StreamInput in) throws IOException {
             index = in.readString();
-            if (in.getVersion().before(Version.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                 in.readOptionalString();
             }
             id = in.readString();
@@ -88,7 +88,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            if (out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
                 out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
             }
             out.writeString(id);
@@ -130,7 +130,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
     @Override
     public Iterator<MultiGetItemResponse> iterator() {
-        return Arrays.stream(responses).iterator();
+        return Iterators.forArray(responses);
     }
 
     @Override

@@ -10,11 +10,13 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,8 +40,10 @@ public class OperationRouting {
     );
 
     private boolean useAdaptiveReplicaSelection;
+    private final boolean isStateless;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
+        this.isStateless = DiscoveryNode.isStateless(settings);
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
     }
@@ -75,6 +79,19 @@ public class OperationRouting {
         );
     }
 
+    public ShardIterator useOnlyPromotableShardsForStateless(ShardIterator shards) {
+        // If it is stateless, only route promotable shards. This is a temporary workaround until a more cohesive solution can be
+        // implemented for search shards.
+        if (isStateless && shards != null) {
+            return new PlainShardIterator(
+                shards.shardId(),
+                shards.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
+            );
+        } else {
+            return shards;
+        }
+    }
+
     public GroupShardsIterator<ShardIterator> searchShards(
         ClusterState clusterState,
         String[] concreteIndices,
@@ -93,7 +110,7 @@ public class OperationRouting {
         @Nullable Map<String, Long> nodeCounts
     ) {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
-        final Set<ShardIterator> set = new HashSet<>(shards.size());
+        final Set<ShardIterator> set = Sets.newHashSetWithExpectedSize(shards.size());
         for (IndexShardRoutingTable shard : shards) {
             ShardIterator iterator = preferenceActiveShardIterator(
                 shard,
@@ -104,7 +121,8 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                set.add(iterator);
+                var searchableShards = iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList();
+                set.add(new PlainShardIterator(iterator.shardId(), searchableShards));
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
@@ -117,7 +135,7 @@ public class OperationRouting {
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
 
-    private Set<IndexShardRoutingTable> computeTargetedShards(
+    private static Set<IndexShardRoutingTable> computeTargetedShards(
         ClusterState clusterState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing
@@ -135,8 +153,8 @@ public class OperationRouting {
                     indexRouting.collectSearchShards(r, s -> set.add(RoutingTable.shardRoutingTable(indexRoutingTable, s)));
                 }
             } else {
-                for (IndexShardRoutingTable indexShard : indexRoutingTable) {
-                    set.add(indexShard);
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    set.add(indexRoutingTable.shard(i));
                 }
             }
         }
@@ -185,21 +203,24 @@ public class OperationRouting {
                     preference = preference.substring(index + 1);
                 }
             }
-            preferenceType = Preference.parse(preference);
-            switch (preferenceType) {
-                case PREFER_NODES:
-                    final Set<String> nodesIds = Arrays.stream(preference.substring(Preference.PREFER_NODES.type().length() + 1).split(","))
-                        .collect(Collectors.toSet());
-                    return indexShard.preferNodeActiveInitializingShardsIt(nodesIds);
-                case LOCAL:
-                    return indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
-                case ONLY_LOCAL:
-                    return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
-                case ONLY_NODES:
-                    String nodeAttributes = preference.substring(Preference.ONLY_NODES.type().length() + 1);
-                    return indexShard.onlyNodeSelectorActiveInitializingShardsIt(nodeAttributes.split(","), nodes);
-                default:
-                    throw new IllegalArgumentException("unknown preference [" + preferenceType + "]");
+            if (preference.charAt(0) == '_') {
+                preferenceType = Preference.parse(preference);
+                switch (preferenceType) {
+                    case PREFER_NODES:
+                        final Set<String> nodesIds = Arrays.stream(
+                            preference.substring(Preference.PREFER_NODES.type().length() + 1).split(",")
+                        ).collect(Collectors.toSet());
+                        return indexShard.preferNodeActiveInitializingShardsIt(nodesIds);
+                    case LOCAL:
+                        return indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
+                    case ONLY_LOCAL:
+                        return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
+                    case ONLY_NODES:
+                        String nodeAttributes = preference.substring(Preference.ONLY_NODES.type().length() + 1);
+                        return indexShard.onlyNodeSelectorActiveInitializingShardsIt(nodeAttributes.split(","), nodes);
+                    default:
+                        throw new IllegalArgumentException("unknown preference [" + preferenceType + "]");
+                }
             }
         }
         // if not, then use it as the index
@@ -220,7 +241,7 @@ public class OperationRouting {
         }
     }
 
-    protected IndexRoutingTable indexRoutingTable(ClusterState clusterState, String index) {
+    protected static IndexRoutingTable indexRoutingTable(ClusterState clusterState, String index) {
         IndexRoutingTable indexRouting = clusterState.routingTable().index(index);
         if (indexRouting == null) {
             throw new IndexNotFoundException(index);
@@ -228,7 +249,7 @@ public class OperationRouting {
         return indexRouting;
     }
 
-    private IndexMetadata indexMetadata(ClusterState clusterState, String index) {
+    private static IndexMetadata indexMetadata(ClusterState clusterState, String index) {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
         if (indexMetadata == null) {
             throw new IndexNotFoundException(index);

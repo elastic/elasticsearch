@@ -38,7 +38,7 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             try {
                 applyScript((Map<String, Object> ctx) -> ctx.put(ctxVar, randomFrom(options)));
             } catch (IllegalArgumentException e) {
-                assertThat(e.getMessage(), containsString("Modifying [" + ctxVar + "] not allowed"));
+                assertThat(e.getMessage(), containsString(ctxVar + " cannot be updated"));
             }
         }
     }

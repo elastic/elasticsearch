@@ -454,7 +454,7 @@ public class IndicesOptionsTests extends ESTestCase {
                 ),
                 null
             )
-            : defaults.getExpandWildcards();
+            : defaults.expandWildcards();
         final boolean includeIgnoreUnavailable = randomBoolean();
         final boolean ignoreUnavailable = includeIgnoreUnavailable ? randomBoolean() : defaults.ignoreUnavailable();
         final boolean includeAllowNoIndices = randomBoolean();
@@ -487,7 +487,7 @@ public class IndicesOptionsTests extends ESTestCase {
         }
         assertEquals(ignoreUnavailable, fromXContentOptions.ignoreUnavailable());
         assertEquals(allowNoIndices, fromXContentOptions.allowNoIndices());
-        assertEquals(expectedWildcardStates, fromXContentOptions.getExpandWildcards());
+        assertEquals(expectedWildcardStates, fromXContentOptions.expandWildcards());
     }
 
     private BytesReference toXContentBytes(IndicesOptions indicesOptions, XContentType type) throws IOException {

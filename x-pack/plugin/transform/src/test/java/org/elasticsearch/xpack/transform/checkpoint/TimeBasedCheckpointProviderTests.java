@@ -12,18 +12,12 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.get.GetIndexAction;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -34,7 +28,9 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -52,6 +48,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
 import java.time.Clock;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -61,8 +58,8 @@ import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -94,10 +91,25 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             TransformCheckpoint.EMPTY,
+            VersionUtils.randomVersionBetween(random(), Version.V_7_15_0, Version.CURRENT),
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
             tuple(0L, 123000000L)
+        );
+    }
+
+    public void testSourceHasChanged_NotChanged_DoNotAlignCheckpointsBecauseOfVersion() throws InterruptedException {
+        testSourceHasChanged(
+            0,
+            false,
+            TransformCheckpoint.EMPTY,
+            Version.V_7_14_0,
+            TIMESTAMP_FIELD,
+            TimeValue.timeValueMinutes(10),
+            TimeValue.ZERO,
+            // Checkpoint alignment doesn't work here because the transform was created without alignment.
+            tuple(0L, 123456789L)
         );
     }
 
@@ -106,6 +118,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             1,
             true,
             TransformCheckpoint.EMPTY,
+            Version.CURRENT,
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
@@ -118,6 +131,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             new TransformCheckpoint("", 100000000L, 7, emptyMap(), null),
+            Version.CURRENT,
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
@@ -130,6 +144,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             new TransformCheckpoint("", 100000000L, 7, emptyMap(), 120000000L),
+            Version.CURRENT,
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
@@ -142,6 +157,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             new TransformCheckpoint("", 100000000L, 7, emptyMap(), 120000000L),
+            Version.CURRENT,
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.timeValueMinutes(5),
@@ -153,6 +169,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         long totalHits,
         boolean expectedHasChangedValue,
         TransformCheckpoint lastCheckpoint,
+        Version transformVersion,
         String dateHistogramField,
         TimeValue dateHistogramInterval,
         TimeValue delay,
@@ -162,6 +179,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         String transformId = getTestName();
         TransformConfig transformConfig = newTransformConfigWithDateHistogram(
             transformId,
+            transformVersion,
             dateHistogramField,
             dateHistogramInterval,
             delay
@@ -233,22 +251,12 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         TransformCheckpoint lastCheckpoint,
         TransformCheckpoint expectedNextCheckpoint
     ) throws InterruptedException {
-        GetIndexResponse getIndexResponse = new GetIndexResponse(
-            new String[] { "some-index" },
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
-        );
-        doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
-        IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
-        when(indicesStatsResponse.getShards()).thenReturn(new ShardStats[0]);
-        when(indicesStatsResponse.getFailedShards()).thenReturn(0);
-        doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Collections.emptyMap());
+        doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
 
         TransformConfig transformConfig = newTransformConfigWithDateHistogram(
             transformId,
+            Version.CURRENT,
             dateHistogramField,
             dateHistogramInterval,
             delay
@@ -280,6 +288,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
 
     private static TransformConfig newTransformConfigWithDateHistogram(
         String transformId,
+        Version transformVersion,
         String dateHistogramField,
         TimeValue dateHistogramInterval,
         TimeValue delay
@@ -289,6 +298,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             null,
             false,
             new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval(dateHistogramInterval.getStringRep())),
+            null,
             null
         );
         Supplier<SingleGroupSource> singleGroupSourceSupplier = new Supplier<>() {
@@ -316,7 +326,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         } else {
             // Leave align_checkpoints setting unset. This will be interpreted as "true".
         }
-        return new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId)).setSettings(
+        return new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId, transformVersion)).setSettings(
             settingsConfigBuilder.build()
         ).setPivotConfig(pivotConfigWithDateHistogramSource).setSyncConfig(new TimeSyncConfig(TIMESTAMP_FIELD, delay)).build();
     }

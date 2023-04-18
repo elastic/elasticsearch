@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -55,21 +56,20 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        assert isAsync() == false;
+
         Object o = ingestDocument.getFieldValue(field, Object.class, ignoreMissing);
         if (o == null) {
             if (ignoreMissing) {
-                handler.accept(ingestDocument, null);
+                return ingestDocument;
             } else {
-                handler.accept(null, new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements."));
+                throw new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements.");
             }
-        } else if (o instanceof Map) {
-            Map<?, ?> map = (Map<?, ?>) o;
-            List<?> keys = new ArrayList<>(map.keySet());
-            innerExecuteMap(0, new HashMap<Object, Object>(map), keys, new HashMap<>(map.size()), ingestDocument, handler);
-        } else if (o instanceof List) {
-            List<?> list = (List<?>) o;
-            innerExecuteList(0, new ArrayList<>(list), new ArrayList<>(list.size()), ingestDocument, handler);
+        } else if (o instanceof Map<?, ?> map) {
+            return iterateMap(ingestDocument, map);
+        } else if (o instanceof List<?> list) {
+            return iterateList(ingestDocument, list);
         } else {
             throw new IllegalArgumentException(
                 "field [" + field + "] of type [" + o.getClass().getName() + "] cannot be cast to a " + "list or map"
@@ -77,7 +77,69 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
         }
     }
 
-    void innerExecuteMap(
+    private IngestDocument iterateMap(IngestDocument document, Map<?, ?> map) throws Exception {
+        var newValues = Maps.newHashMapWithExpectedSize(map.size());
+        for (Map.Entry<?, ?> e : map.entrySet()) {
+            String key = (String) e.getKey();
+            Object previousKey = document.getIngestMetadata().put("_key", key);
+            Object value = e.getValue();
+            Object previousValue = document.getIngestMetadata().put("_value", value);
+            try {
+                processor.execute(document);
+            } finally {
+                String newKey = (String) document.getIngestMetadata().get("_key");
+                if (Strings.hasText(newKey)) {
+                    newValues.put(newKey, document.getIngestMetadata().put("_value", previousValue));
+                }
+                document.getIngestMetadata().put("_key", previousKey);
+            }
+        }
+
+        document.setFieldValue(field, new HashMap<>(newValues));
+        return document;
+    }
+
+    private IngestDocument iterateList(IngestDocument ingestDocument, List<?> values) throws Exception {
+        List<Object> newValues = new ArrayList<>(values.size());
+        List<?> iterableValues = new ArrayList<>(values);
+        for (Object value : iterableValues) {
+            Object previousValue = ingestDocument.getIngestMetadata().put("_value", value);
+            try {
+                ingestDocument = processor.execute(ingestDocument);
+                if (ingestDocument == null) {
+                    return null;
+                }
+            } finally {
+                newValues.add(ingestDocument.getIngestMetadata().put("_value", previousValue));
+            }
+        }
+        ingestDocument.setFieldValue(field, newValues);
+        return ingestDocument;
+    }
+
+    @Override
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        assert isAsync();
+        Object o = ingestDocument.getFieldValue(field, Object.class, ignoreMissing);
+        if (o == null) {
+            if (ignoreMissing) {
+                handler.accept(ingestDocument, null);
+            } else {
+                handler.accept(null, new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements."));
+            }
+        } else if (o instanceof Map<?, ?> map) {
+            List<?> keys = new ArrayList<>(map.keySet());
+            iterateMapAsync(0, new HashMap<Object, Object>(map), keys, Maps.newMapWithExpectedSize(map.size()), ingestDocument, handler);
+        } else if (o instanceof List<?> list) {
+            iterateListAsync(0, new ArrayList<>(list), new ArrayList<>(list.size()), ingestDocument, handler);
+        } else {
+            throw new IllegalArgumentException(
+                "field [" + field + "] of type [" + o.getClass().getName() + "] cannot be cast to a " + "list or map"
+            );
+        }
+    }
+
+    void iterateMapAsync(
         int keyIndex,
         Map<?, ?> map,
         List<?> keys,
@@ -101,13 +163,14 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 if (e != null || result == null) {
                     handler.accept(result, e);
                 } else if (shouldContinueHere.getAndSet(true)) {
-                    innerExecuteMap(nextIndex, map, keys, newValues, document, handler);
+                    iterateMapAsync(nextIndex, map, keys, newValues, document, handler);
                 }
             });
 
             if (shouldContinueHere.getAndSet(true) == false) {
                 return;
             }
+
         }
 
         if (keyIndex == keys.size()) {
@@ -116,7 +179,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
         }
     }
 
-    void innerExecuteList(
+    void iterateListAsync(
         int index,
         List<?> values,
         List<Object> newValues,
@@ -133,24 +196,20 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 if (e != null || result == null) {
                     handler.accept(result, e);
                 } else if (shouldContinueHere.getAndSet(true)) {
-                    innerExecuteList(nextIndex, values, newValues, document, handler);
+                    iterateListAsync(nextIndex, values, newValues, document, handler);
                 }
             });
 
             if (shouldContinueHere.getAndSet(true) == false) {
                 return;
             }
+
         }
 
         if (index == values.size()) {
             document.setFieldValue(field, new ArrayList<>(newValues));
             handler.accept(document, null);
         }
-    }
-
-    @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        throw new UnsupportedOperationException("this method should not get executed");
     }
 
     @Override

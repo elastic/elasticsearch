@@ -13,18 +13,22 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
@@ -37,6 +41,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.junit.Before;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -95,7 +100,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         );
         for (int i = 0; i < numResponses; i++) {
             SearchResponse searchResponse = new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 null,
                 1,
                 1,
@@ -145,7 +150,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 priorityQueue.add(Tuple.tuple(searchShardTarget, failure));
             }
             SearchResponse searchResponse = new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 null,
                 1,
                 1,
@@ -196,7 +201,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 priorityQueue.add(Tuple.tuple(shardId, failure));
             }
             SearchResponse searchResponse = new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 null,
                 1,
                 1,
@@ -243,7 +248,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 expectedFailures.add(shardSearchFailure);
             }
             SearchResponse searchResponse = new SearchResponse(
-                InternalSearchResponse.empty(),
+                InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                 null,
                 1,
                 1,
@@ -450,29 +455,74 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
     }
 
-    public void testMergeAggs() throws InterruptedException {
+    /** Test merging results where one result has a raw format, for instance if
+     * searching over multiple indexes where the field isn't mapped in all indexes.
+     */
+    public void testMergeEmptyFormat() throws InterruptedException {
+        DateFormatter dateFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+        Max max1 = Max.createEmptyMax("field1", DocValueFormat.RAW, Collections.emptyMap());
+        Max max2 = new Max(
+            "field1",
+            dateFormatter.parseMillis("2021-05-01T00:00:00.000Z"),
+            new DocValueFormat.DateTime(dateFormatter, ZoneId.of("UTC"), DateFieldMapper.Resolution.MILLISECONDS),
+            Collections.emptyMap()
+        );
+
+        SearchHits searchHits = new SearchHits(new SearchHit[0], null, Float.NaN);
         SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
             0,
             0,
             0,
             new SearchTimeProvider(0, 0, () -> 0),
-            emptyReduceContextBuilder()
+            emptyReduceContextBuilder(new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("field1")))
         );
+        for (Max max : Arrays.asList(max1, max2)) {
+            InternalAggregations aggs = InternalAggregations.from(Arrays.asList(max));
+            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits, aggs, null, null, false, null, 1);
+            SearchResponse searchResponse = new SearchResponse(
+                internalSearchResponse,
+                null,
+                1,
+                1,
+                0,
+                randomLong(),
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            );
+            searchResponseMerger.add(searchResponse);
+        }
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+        SearchResponse searchResponse = searchResponseMerger.getMergedResponse(clusters);
+        Max mergedMax = searchResponse.getAggregations().get("field1");
+        assertEquals(mergedMax.getValueAsString(), "2021-05-01T00:00:00.000Z");
+    }
+
+    public void testMergeAggs() throws InterruptedException {
         String maxAggName = randomAlphaOfLengthBetween(5, 8);
         String rangeAggName = randomAlphaOfLengthBetween(5, 8);
+        SearchResponseMerger searchResponseMerger = new SearchResponseMerger(
+            0,
+            0,
+            0,
+            new SearchTimeProvider(0, 0, () -> 0),
+            emptyReduceContextBuilder(
+                new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
+                    .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
+            )
+        );
         int totalCount = 0;
         double maxValue = Double.MIN_VALUE;
         for (int i = 0; i < numResponses; i++) {
             double value = randomDouble();
             maxValue = Math.max(value, maxValue);
-            InternalMax max = new InternalMax(maxAggName, value, DocValueFormat.RAW, Collections.emptyMap());
+            Max max = new Max(maxAggName, value, DocValueFormat.RAW, Collections.emptyMap());
             InternalDateRange.Factory factory = new InternalDateRange.Factory();
             int count = randomIntBetween(1, 1000);
             totalCount += count;
             InternalDateRange.Bucket bucket = factory.createBucket(
                 "bucket",
-                0,
-                10000,
+                0D,
+                10000D,
                 count,
                 InternalAggregations.EMPTY,
                 false,
@@ -507,7 +557,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertEquals(0, mergedResponse.getHits().getHits().length);
         assertEquals(2, mergedResponse.getAggregations().asList().size());
         Max max = mergedResponse.getAggregations().get(maxAggName);
-        assertEquals(maxValue, max.getValue(), 0d);
+        assertEquals(maxValue, max.value(), 0d);
         Range range = mergedResponse.getAggregations().get(rangeAggName);
         assertEquals(1, range.getBuckets().size());
         Range.Bucket bucket = range.getBuckets().get(0);
@@ -834,16 +884,12 @@ public class SearchResponseMergerTests extends ESTestCase {
     }
 
     private static Tuple<Integer, TotalHits.Relation> randomTrackTotalHits() {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return Tuple.tuple(SearchContext.TRACK_TOTAL_HITS_DISABLED, null);
-            case 1:
-                return Tuple.tuple(randomIntBetween(10, 1000), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
-            case 2:
-                return Tuple.tuple(SearchContext.TRACK_TOTAL_HITS_ACCURATE, TotalHits.Relation.EQUAL_TO);
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> Tuple.tuple(SearchContext.TRACK_TOTAL_HITS_DISABLED, null);
+            case 1 -> Tuple.tuple(randomIntBetween(10, 1000), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+            case 2 -> Tuple.tuple(SearchContext.TRACK_TOTAL_HITS_ACCURATE, TotalHits.Relation.EQUAL_TO);
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     private static SearchHit[] randomSearchHitArray(

@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
-import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
-import org.elasticsearch.xpack.sql.stats.Metrics;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -39,7 +37,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
-import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
@@ -54,7 +52,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        Analyzer analyzer = analyzer(getIndexResult);
         VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         String message = e.getMessage();
         assertTrue(message.startsWith("Found "));
@@ -74,7 +72,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
-        Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics()));
+        Analyzer analyzer = analyzer(resolution);
         return analyzer.analyze(parser.createStatement(sql), true);
     }
 
@@ -158,32 +156,26 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMultipleColumnsWithWildcard1() {
-        assertEquals(
-            "1:14: Unknown column [a]\n"
-                + "line 1:17: Unknown column [b]\n"
-                + "line 1:22: Unknown column [c]\n"
-                + "line 1:25: Unknown column [tex], did you mean [text]?",
-            error("SELECT bool, a, b.*, c, tex.* FROM test")
-        );
+        assertEquals("""
+            1:14: Unknown column [a]
+            line 1:17: Unknown column [b]
+            line 1:22: Unknown column [c]
+            line 1:25: Unknown column [tex], did you mean [text]?""", error("SELECT bool, a, b.*, c, tex.* FROM test"));
     }
 
     public void testMultipleColumnsWithWildcard2() {
-        assertEquals(
-            "1:8: Unknown column [tex], did you mean [text]?\n"
-                + "line 1:21: Unknown column [a]\n"
-                + "line 1:24: Unknown column [dat], did you mean [date]?\n"
-                + "line 1:31: Unknown column [c]",
-            error("SELECT tex.*, bool, a, dat.*, c FROM test")
-        );
+        assertEquals("""
+            1:8: Unknown column [tex], did you mean [text]?
+            line 1:21: Unknown column [a]
+            line 1:24: Unknown column [dat], did you mean [date]?
+            line 1:31: Unknown column [c]""", error("SELECT tex.*, bool, a, dat.*, c FROM test"));
     }
 
     public void testMultipleColumnsWithWildcard3() {
-        assertEquals(
-            "1:8: Unknown column [ate], did you mean [date]?\n"
-                + "line 1:21: Unknown column [keyw], did you mean [keyword]?\n"
-                + "line 1:29: Unknown column [da], did you mean [date]?",
-            error("SELECT ate.*, bool, keyw.*, da FROM test")
-        );
+        assertEquals("""
+            1:8: Unknown column [ate], did you mean [date]?
+            line 1:21: Unknown column [keyw], did you mean [keyword]?
+            line 1:29: Unknown column [da], did you mean [date]?""", error("SELECT ate.*, bool, keyw.*, da FROM test"));
     }
 
     public void testMisspelledColumn() {
@@ -361,6 +353,23 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals(
             "1:8: Unknown value ['dz'] for first argument of [DATE_DIFF('dz', int, date)]; " + "did you mean [dd, dw, dy, d]?",
             error("SELECT DATE_DIFF('dz', int, date) FROM test")
+        );
+    }
+
+    public void testDateFormatValidArgs() {
+        accept("SELECT DATE_FORMAT(date, '%H:%i:%s.%f') FROM test");
+        accept("SELECT DATE_FORMAT(date::date, '%m/%d/%Y') FROM test");
+        accept("SELECT DATE_FORMAT(date::time, '%H:%i:%s') FROM test");
+    }
+
+    public void testDateFormatInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [DATE_FORMAT(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
+            error("SELECT DATE_FORMAT(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [DATE_FORMAT(date, int)] must be [string], found value [int] type [integer]",
+            error("SELECT DATE_FORMAT(date, int) FROM test")
         );
     }
 
@@ -1463,6 +1472,20 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         );
     }
 
+    public void testMinOnUnsignedLongGroupByHavingUnsupported() {
+        assertEquals(
+            "1:62: HAVING filter is unsupported for function [MIN(unsigned_long)]",
+            error("SELECT MIN(unsigned_long) min FROM test GROUP BY text HAVING min > 10")
+        );
+    }
+
+    public void testMaxOnUnsignedLongGroupByHavingUnsupported() {
+        assertEquals(
+            "1:62: HAVING filter is unsupported for function [MAX(unsigned_long)]",
+            error("SELECT MAX(unsigned_long) max FROM test GROUP BY text HAVING max > 10")
+        );
+    }
+
     public void testProjectAliasInFilter() {
         accept("SELECT int AS i FROM test WHERE i > 10");
     }
@@ -1731,6 +1754,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         checkMsg.accept("SELECT c FROM (SELECT SUM(int) c FROM test) GROUP BY c HAVING COUNT(*) > 10");
         checkMsg.accept("SELECT COUNT(*) FROM (SELECT int i FROM test GROUP BY i)");
         checkMsg.accept("SELECT a.i, COUNT(a.c) FROM (SELECT int i, COUNT(int) c FROM test GROUP BY int) a GROUP BY c");
+        // directly related to https://github.com/elastic/elasticsearch/issues/81577
+        // before the fix, this query was throwing a StackOverflowError
+        checkMsg.accept(
+            "SELECT MAX(int) AS int, AVG(int) AS int, AVG(int) AS s FROM (SELECT MAX(int) AS int FROM test GROUP BY int) WHERE s > 0 "
+        );
     }
 
     private String randomTopHitsFunction() {

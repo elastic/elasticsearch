@@ -7,14 +7,18 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -23,24 +27,26 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.hamcrest.core.IsNull;
 import org.junit.Before;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.singleton;
-import static java.util.Collections.singletonMap;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,16 +60,20 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         allocationService = mock(AllocationService.class);
-        when(allocationService.reroute(any(ClusterState.class), any(String.class))).thenAnswer(
+        when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).thenAnswer(
             mockInvocation -> mockInvocation.getArguments()[0]
         );
-        service = new MetadataDeleteIndexService(Settings.EMPTY, null, allocationService);
+        service = new MetadataDeleteIndexService(
+            Settings.EMPTY,
+            ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+            allocationService
+        );
     }
 
     public void testDeleteMissing() {
         Index index = new Index("missing", "doesn't matter");
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> service.deleteIndices(state, singleton(index)));
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> service.deleteIndices(state, Set.of(index)));
         assertEquals(index, e.getIndex());
     }
 
@@ -71,17 +81,17 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         String index = randomAlphaOfLength(5);
         Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
         SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
-            new SnapshotsInProgress.Entry(
+            SnapshotsInProgress.Entry.snapshot(
                 snapshot,
                 true,
                 false,
                 SnapshotsInProgress.State.INIT,
-                singletonMap(index, new IndexId(index, "doesn't matter")),
+                Map.of(index, new IndexId(index, "doesn't matter")),
                 Collections.emptyList(),
                 Collections.emptyList(),
                 System.currentTimeMillis(),
                 (long) randomIntBetween(0, 1000),
-                ImmutableOpenMap.of(),
+                Map.of(),
                 null,
                 SnapshotInfoTestUtils.randomUserMetadata(),
                 VersionUtils.randomVersion(random())
@@ -90,7 +100,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterState(index)).putCustom(SnapshotsInProgress.TYPE, snaps).build();
         Exception e = expectThrows(
             SnapshotInProgressException.class,
-            () -> service.deleteIndices(state, singleton(state.metadata().getIndices().get(index).getIndex()))
+            () -> service.deleteIndices(state, Set.of(state.metadata().getIndices().get(index).getIndex()))
         );
         assertEquals(
             "Cannot delete indices that are being snapshotted: [["
@@ -101,16 +111,24 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         );
     }
 
-    public void testDeleteUnassigned() {
+    public void testDeleteUnassigned() throws Exception {
         // Create an unassigned index
         String index = randomAlphaOfLength(5);
         ClusterState before = clusterState(index);
 
         // Mock the built reroute
-        when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
+        when(allocationService.reroute(any(ClusterState.class), anyString(), any())).then(i -> i.getArguments()[0]);
 
         // Remove it
-        ClusterState after = service.deleteIndices(before, singleton(before.metadata().getIndices().get(index).getIndex()));
+        final ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            before,
+            service.executor,
+            List.of(
+                new DeleteIndexClusterStateUpdateRequest(ActionListener.noop()).indices(
+                    new Index[] { before.metadata().getIndices().get(index).getIndex() }
+                )
+            )
+        );
 
         // It is gone
         assertNull(after.metadata().getIndices().get(index));
@@ -118,7 +136,32 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertNull(after.blocks().indices().get(index));
 
         // Make sure we actually attempted to reroute
-        verify(allocationService).reroute(any(ClusterState.class), any(String.class));
+        verify(allocationService).reroute(any(ClusterState.class), any(String.class), any());
+    }
+
+    public void testDeleteIndexWithAnAlias() {
+        String index = randomAlphaOfLength(5);
+        String alias = randomAlphaOfLength(5);
+
+        IndexMetadata idxMetadata = IndexMetadata.builder(index)
+            .settings(Settings.builder().put("index.version.created", VersionUtils.randomVersion(random())))
+            .putAlias(AliasMetadata.builder(alias).writeIndex(true).build())
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        ClusterState before = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(idxMetadata, false))
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(idxMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(idxMetadata))
+            .build();
+
+        ClusterState after = service.deleteIndices(before, Set.of(before.metadata().getIndices().get(index).getIndex()));
+
+        assertNull(after.metadata().getIndices().get(index));
+        assertNull(after.routingTable().index(index));
+        assertNull(after.blocks().indices().get(index));
+        assertNull(after.metadata().getIndicesLookup().get(alias));
+        assertThat(after.metadata().aliasedIndices(alias), empty());
     }
 
     public void testDeleteBackingIndexForDataStream() {
@@ -134,12 +177,9 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)).getIndex();
         ClusterState after = service.deleteIndices(before, Set.of(indexToDelete));
 
-        assertThat(after.metadata().getIndices().get(indexToDelete.getName()), IsNull.nullValue());
+        assertThat(after.metadata().getIndices().get(indexToDelete.getName()), nullValue());
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - 1));
-        assertThat(
-            after.metadata().getIndices().get(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)),
-            IsNull.nullValue()
-        );
+        assertThat(after.metadata().getIndices().get(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)), nullValue());
     }
 
     public void testDeleteMultipleBackingIndexForDataStream() {
@@ -153,7 +193,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
         List<Integer> indexNumbersToDelete = randomSubsetOf(
             numBackingIndicesToDelete,
-            IntStream.rangeClosed(1, numBackingIndices - 1).boxed().collect(Collectors.toList())
+            IntStream.rangeClosed(1, numBackingIndices - 1).boxed().toList()
         );
 
         Set<Index> indicesToDelete = new HashSet<>();
@@ -163,10 +203,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         ClusterState after = service.deleteIndices(before, indicesToDelete);
 
         DataStream dataStream = after.metadata().dataStreams().get(dataStreamName);
-        assertThat(dataStream, IsNull.notNullValue());
+        assertThat(dataStream, notNullValue());
         assertThat(dataStream.getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
         for (Index i : indicesToDelete) {
-            assertThat(after.metadata().getIndices().get(i.getName()), IsNull.nullValue());
+            assertThat(after.metadata().getIndices().get(i.getName()), nullValue());
             assertFalse(dataStream.getIndices().contains(i));
         }
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
@@ -199,7 +239,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
             .build();
         return ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata, false))
-            .routingTable(RoutingTable.builder().addAsNew(indexMetadata).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build())
             .blocks(ClusterBlocks.builder().addBlocks(indexMetadata))
             .build();
     }

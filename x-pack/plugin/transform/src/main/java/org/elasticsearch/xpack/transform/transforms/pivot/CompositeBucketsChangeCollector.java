@@ -384,6 +384,10 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             if (missingBucket) {
                 return null;
             }
+            // filterByChanges has been called before collectChangesFromAggregations
+            if (lowerBound == 0 && upperBound == 0) {
+                return null;
+            }
             return new RangeQueryBuilder(sourceFieldName).gte(lowerBound).lte(upperBound).format("epoch_millis");
         }
 
@@ -480,11 +484,15 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
 
         @Override
         public QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
+
             if (missingBucket) {
                 return null;
             }
-
-            // (upperBound - lowerBound) >= interval, so never 0
+            // filterByChanges has been called before collectChangesFromAggregations
+            if (lowerBound == 0 && upperBound == 0) {
+                return null;
+            }
+            // (upperBound - lowerBound) >= interval, so never 0.
             if ((maxUpperBound - minLowerBound) / (upperBound - lowerBound) < MIN_CUT_OFF) {
                 return null;
             }
@@ -819,59 +827,42 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             }
 
             switch (entry.getValue().getType()) {
-                case TERMS:
-                    fieldCollectors.put(
+                case TERMS -> fieldCollectors.put(
+                    entry.getKey(),
+                    new TermsFieldCollector(entry.getValue().getField(), entry.getKey(), entry.getValue().getMissingBucket())
+                );
+                case HISTOGRAM -> fieldCollectors.put(
+                    entry.getKey(),
+                    new HistogramFieldCollector(
+                        entry.getValue().getField(),
                         entry.getKey(),
-                        new CompositeBucketsChangeCollector.TermsFieldCollector(
-                            entry.getValue().getField(),
-                            entry.getKey(),
-                            entry.getValue().getMissingBucket()
-                        )
-                    );
-                    break;
-                case HISTOGRAM:
-                    fieldCollectors.put(
-                        entry.getKey(),
-                        new CompositeBucketsChangeCollector.HistogramFieldCollector(
-                            entry.getValue().getField(),
-                            entry.getKey(),
-                            entry.getValue().getMissingBucket(),
-                            ((HistogramGroupSource) entry.getValue()).getInterval()
-                        )
-                    );
-                    break;
-                case DATE_HISTOGRAM:
-                    fieldCollectors.put(
-                        entry.getKey(),
-                        entry.getValue().getMissingBucket() == false
-                            && entry.getValue().getField() != null
-                            && entry.getValue().getField().equals(synchronizationField)
-                                ? new CompositeBucketsChangeCollector.DateHistogramFieldCollectorSynchronized(
-                                    entry.getValue().getField(),
-                                    entry.getKey(),
-                                    entry.getValue().getMissingBucket(),
-                                    ((DateHistogramGroupSource) entry.getValue()).getRounding()
-                                )
-                                : new CompositeBucketsChangeCollector.DateHistogramFieldCollector(
-                                    entry.getValue().getField(),
-                                    entry.getKey(),
-                                    entry.getValue().getMissingBucket(),
-                                    ((DateHistogramGroupSource) entry.getValue()).getRounding()
-                                )
-                    );
-                    break;
-                case GEOTILE_GRID:
-                    fieldCollectors.put(
-                        entry.getKey(),
-                        new CompositeBucketsChangeCollector.GeoTileFieldCollector(
-                            entry.getValue().getField(),
-                            entry.getKey(),
-                            entry.getValue().getMissingBucket()
-                        )
-                    );
-                    break;
-                default:
-                    throw new IllegalArgumentException("unknown type");
+                        entry.getValue().getMissingBucket(),
+                        ((HistogramGroupSource) entry.getValue()).getInterval()
+                    )
+                );
+                case DATE_HISTOGRAM -> fieldCollectors.put(
+                    entry.getKey(),
+                    entry.getValue().getMissingBucket() == false
+                        && entry.getValue().getField() != null
+                        && entry.getValue().getField().equals(synchronizationField)
+                            ? new DateHistogramFieldCollectorSynchronized(
+                                entry.getValue().getField(),
+                                entry.getKey(),
+                                entry.getValue().getMissingBucket(),
+                                ((DateHistogramGroupSource) entry.getValue()).getRounding()
+                            )
+                            : new DateHistogramFieldCollector(
+                                entry.getValue().getField(),
+                                entry.getKey(),
+                                entry.getValue().getMissingBucket(),
+                                ((DateHistogramGroupSource) entry.getValue()).getRounding()
+                            )
+                );
+                case GEOTILE_GRID -> fieldCollectors.put(
+                    entry.getKey(),
+                    new GeoTileFieldCollector(entry.getValue().getField(), entry.getKey(), entry.getValue().getMissingBucket())
+                );
+                default -> throw new IllegalArgumentException("unknown type");
             }
         }
         return fieldCollectors;

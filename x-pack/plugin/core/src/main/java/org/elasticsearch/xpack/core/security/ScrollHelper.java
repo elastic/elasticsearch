@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.core.security;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 
@@ -54,7 +53,7 @@ public final class ScrollHelper {
                     clearScrollRequest,
                     ActionListener.wrap(
                         (r) -> {},
-                        e -> LOGGER.warn(new ParameterizedMessage("clear scroll failed for scroll id [{}]", response.getScrollId()), e)
+                        e -> LOGGER.warn(() -> "clear scroll failed for scroll id [" + response.getScrollId() + "]", e)
                     )
                 );
             }

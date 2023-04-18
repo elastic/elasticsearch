@@ -14,8 +14,10 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.util.Optional;
+import java.util.Set;
 
 public class MessagesTests extends ESTestCase {
 
@@ -36,55 +38,54 @@ public class MessagesTests extends ESTestCase {
             initialJoin,
             (CopyFunction<Join>) join -> copyWriteable(join, writableRegistry(), Join::new),
             join -> {
-                switch (randomInt(4)) {
-                    case 0:
+                return switch (randomInt(4)) {
+                    case 0 ->
                         // change sourceNode
-                        return new Join(
+                        new Join(
                             createNode(randomAlphaOfLength(20)),
                             join.getTargetNode(),
                             join.getTerm(),
                             join.getLastAcceptedTerm(),
                             join.getLastAcceptedVersion()
                         );
-                    case 1:
+                    case 1 ->
                         // change targetNode
-                        return new Join(
+                        new Join(
                             join.getSourceNode(),
                             createNode(randomAlphaOfLength(20)),
                             join.getTerm(),
                             join.getLastAcceptedTerm(),
                             join.getLastAcceptedVersion()
                         );
-                    case 2:
+                    case 2 ->
                         // change term
-                        return new Join(
+                        new Join(
                             join.getSourceNode(),
                             join.getTargetNode(),
                             randomValueOtherThan(join.getTerm(), ESTestCase::randomNonNegativeLong),
                             join.getLastAcceptedTerm(),
                             join.getLastAcceptedVersion()
                         );
-                    case 3:
+                    case 3 ->
                         // change last accepted term
-                        return new Join(
+                        new Join(
                             join.getSourceNode(),
                             join.getTargetNode(),
                             join.getTerm(),
                             randomValueOtherThan(join.getLastAcceptedTerm(), ESTestCase::randomNonNegativeLong),
                             join.getLastAcceptedVersion()
                         );
-                    case 4:
+                    case 4 ->
                         // change version
-                        return new Join(
+                        new Join(
                             join.getSourceNode(),
                             join.getTargetNode(),
                             join.getTerm(),
                             join.getLastAcceptedTerm(),
                             randomValueOtherThan(join.getLastAcceptedVersion(), ESTestCase::randomNonNegativeLong)
                         );
-                    default:
-                        throw new AssertionError();
-                }
+                    default -> throw new AssertionError();
+                };
             }
         );
     }
@@ -105,22 +106,21 @@ public class MessagesTests extends ESTestCase {
             initialPublishResponse,
             (CopyFunction<PublishResponse>) publishResponse -> copyWriteable(publishResponse, writableRegistry(), PublishResponse::new),
             publishResponse -> {
-                switch (randomInt(1)) {
-                    case 0:
+                return switch (randomInt(1)) {
+                    case 0 ->
                         // change term
-                        return new PublishResponse(
+                        new PublishResponse(
                             randomValueOtherThan(publishResponse.getTerm(), ESTestCase::randomNonNegativeLong),
                             publishResponse.getVersion()
                         );
-                    case 1:
+                    case 1 ->
                         // change version
-                        return new PublishResponse(
+                        new PublishResponse(
                             publishResponse.getTerm(),
                             randomValueOtherThan(publishResponse.getVersion(), ESTestCase::randomNonNegativeLong)
                         );
-                    default:
-                        throw new AssertionError();
-                }
+                    default -> throw new AssertionError();
+                };
             }
         );
     }
@@ -181,19 +181,18 @@ public class MessagesTests extends ESTestCase {
             initialStartJoinRequest,
             (CopyFunction<StartJoinRequest>) startJoinRequest -> copyWriteable(startJoinRequest, writableRegistry(), StartJoinRequest::new),
             startJoinRequest -> {
-                switch (randomInt(1)) {
-                    case 0:
+                return switch (randomInt(1)) {
+                    case 0 ->
                         // change sourceNode
-                        return new StartJoinRequest(createNode(randomAlphaOfLength(20)), startJoinRequest.getTerm());
-                    case 1:
+                        new StartJoinRequest(createNode(randomAlphaOfLength(20)), startJoinRequest.getTerm());
+                    case 1 ->
                         // change term
-                        return new StartJoinRequest(
+                        new StartJoinRequest(
                             startJoinRequest.getSourceNode(),
                             randomValueOtherThan(startJoinRequest.getTerm(), ESTestCase::randomNonNegativeLong)
                         );
-                    default:
-                        throw new AssertionError();
-                }
+                    default -> throw new AssertionError();
+                };
             }
         );
     }
@@ -209,27 +208,26 @@ public class MessagesTests extends ESTestCase {
             initialApplyCommit,
             (CopyFunction<ApplyCommitRequest>) applyCommit -> copyWriteable(applyCommit, writableRegistry(), ApplyCommitRequest::new),
             applyCommit -> {
-                switch (randomInt(2)) {
-                    case 0:
+                return switch (randomInt(2)) {
+                    case 0 ->
                         // change sourceNode
-                        return new ApplyCommitRequest(createNode(randomAlphaOfLength(20)), applyCommit.getTerm(), applyCommit.getVersion());
-                    case 1:
+                        new ApplyCommitRequest(createNode(randomAlphaOfLength(20)), applyCommit.getTerm(), applyCommit.getVersion());
+                    case 1 ->
                         // change term
-                        return new ApplyCommitRequest(
+                        new ApplyCommitRequest(
                             applyCommit.getSourceNode(),
                             randomValueOtherThan(applyCommit.getTerm(), ESTestCase::randomNonNegativeLong),
                             applyCommit.getVersion()
                         );
-                    case 2:
+                    case 2 ->
                         // change version
-                        return new ApplyCommitRequest(
+                        new ApplyCommitRequest(
                             applyCommit.getSourceNode(),
                             applyCommit.getTerm(),
                             randomValueOtherThan(applyCommit.getVersion(), ESTestCase::randomNonNegativeLong)
                         );
-                    default:
-                        throw new AssertionError();
-                }
+                    default -> throw new AssertionError();
+                };
             }
         );
     }
@@ -244,6 +242,7 @@ public class MessagesTests extends ESTestCase {
         );
         JoinRequest initialJoinRequest = new JoinRequest(
             initialJoin.getSourceNode(),
+            TransportVersionUtils.randomVersion(),
             randomNonNegativeLong(),
             randomBoolean() ? Optional.empty() : Optional.of(initialJoin)
         );
@@ -255,12 +254,21 @@ public class MessagesTests extends ESTestCase {
                 if (randomBoolean() && joinRequest.getOptionalJoin().isPresent() == false) {
                     return new JoinRequest(
                         createNode(randomAlphaOfLength(10)),
+                        joinRequest.getTransportVersion(),
                         joinRequest.getMinimumTerm(),
                         joinRequest.getOptionalJoin()
                     );
                 } else if (randomBoolean()) {
                     return new JoinRequest(
                         joinRequest.getSourceNode(),
+                        TransportVersionUtils.randomVersion(Set.of(joinRequest.getTransportVersion())),
+                        joinRequest.getMinimumTerm(),
+                        joinRequest.getOptionalJoin()
+                    );
+                } else if (randomBoolean()) {
+                    return new JoinRequest(
+                        joinRequest.getSourceNode(),
+                        joinRequest.getTransportVersion(),
                         randomValueOtherThan(joinRequest.getMinimumTerm(), ESTestCase::randomNonNegativeLong),
                         joinRequest.getOptionalJoin()
                     );
@@ -280,7 +288,12 @@ public class MessagesTests extends ESTestCase {
                             )
                         );
                     }
-                    return new JoinRequest(joinRequest.getSourceNode(), joinRequest.getMinimumTerm(), newOptionalJoin);
+                    return new JoinRequest(
+                        joinRequest.getSourceNode(),
+                        joinRequest.getTransportVersion(),
+                        joinRequest.getMinimumTerm(),
+                        newOptionalJoin
+                    );
                 }
             }
         );

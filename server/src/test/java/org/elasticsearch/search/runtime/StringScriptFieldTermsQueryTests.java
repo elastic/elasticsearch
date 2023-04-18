@@ -41,18 +41,13 @@ public class StringScriptFieldTermsQueryTests extends AbstractStringScriptFieldQ
         String fieldName = orig.fieldName();
         Set<String> terms = orig.terms();
         switch (randomInt(2)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> {
                 terms = new TreeSet<>(orig.terms());
                 terms.add(randomAlphaOfLength(7));
-                break;
-            default:
-                fail();
+            }
+            default -> fail();
         }
         return new StringScriptFieldTermsQuery(script, leafFactory, fieldName, terms);
     }

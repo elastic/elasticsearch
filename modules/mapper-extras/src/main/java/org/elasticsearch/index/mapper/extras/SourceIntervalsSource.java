@@ -21,6 +21,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 
 import java.io.IOException;
@@ -28,7 +29,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * A wrapper of {@link IntervalsSource} for the case when positions are not indexed.
@@ -37,13 +37,13 @@ public final class SourceIntervalsSource extends IntervalsSource {
 
     private final IntervalsSource in;
     private final Query approximation;
-    private final Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
+    private final IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider;
     private final Analyzer indexAnalyzer;
 
     public SourceIntervalsSource(
         IntervalsSource in,
         Query approximation,
-        Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
+        IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider,
         Analyzer indexAnalyzer
     ) {
         this.in = Objects.requireNonNull(in);
@@ -76,7 +76,7 @@ public final class SourceIntervalsSource extends IntervalsSource {
         if (scorer == null) {
             return null;
         }
-        final DocIdSetIterator approximation = scorer.iterator();
+        final DocIdSetIterator approximationIter = scorer.iterator();
 
         final CheckedIntFunction<List<Object>, IOException> valueFetcher = valueFetcherProvider.apply(ctx);
         return new IntervalIterator() {
@@ -85,27 +85,27 @@ public final class SourceIntervalsSource extends IntervalsSource {
 
             @Override
             public int docID() {
-                return approximation.docID();
+                return approximationIter.docID();
             }
 
             @Override
             public long cost() {
-                return approximation.cost();
+                return approximationIter.cost();
             }
 
             @Override
             public int nextDoc() throws IOException {
-                return doNext(approximation.nextDoc());
+                return doNext(approximationIter.nextDoc());
             }
 
             @Override
             public int advance(int target) throws IOException {
-                return doNext(approximation.advance(target));
+                return doNext(approximationIter.advance(target));
             }
 
             private int doNext(int doc) throws IOException {
                 while (doc != NO_MORE_DOCS && setIterator(doc) == false) {
-                    doc = approximation.nextDoc();
+                    doc = approximationIter.nextDoc();
                 }
                 return doc;
             }

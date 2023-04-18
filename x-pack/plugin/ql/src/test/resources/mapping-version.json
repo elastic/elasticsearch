@@ -1,0 +1,7 @@
+{
+    "properties" : {
+        "version_number" : {
+            "type" : "version"
+        }
+    }
+}

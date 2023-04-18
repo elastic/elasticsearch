@@ -20,6 +20,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -91,17 +92,19 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(LocalStateMonitoring.class, MockIngestPlugin.class, CommonAnalysisPlugin.class);
+        return Arrays.asList(LocalStateMonitoring.class, MockIngestPlugin.class, CommonAnalysisPlugin.class, MapperExtrasPlugin.class);
     }
 
     private String createBulkEntity() {
-        return "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n"
-            + "{\"foo\":{\"bar\":0}}\n"
-            + "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n"
-            + "{\"foo\":{\"bar\":1}}\n"
-            + "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n"
-            + "{\"foo\":{\"bar\":2}}\n"
-            + "\n";
+        return """
+            {"index":{"_type":"monitoring_data_type"}}
+            {"foo":{"bar":0}}
+            {"index":{"_type":"monitoring_data_type"}}
+            {"foo":{"bar":1}}
+            {"index":{"_type":"monitoring_data_type"}}
+            {"foo":{"bar":2}}
+
+            """;
     }
 
     /**

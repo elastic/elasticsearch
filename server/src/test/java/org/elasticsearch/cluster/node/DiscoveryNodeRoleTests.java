@@ -27,24 +27,20 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
             r -> new DiscoveryNodeRole.UnknownRole(r.roleName(), r.roleNameAbbreviation(), r.canContainData()),
             r -> {
                 final int value = randomIntBetween(0, 2);
-                switch (value) {
-                    case 0:
-                        return new DiscoveryNodeRole.UnknownRole(
-                            randomAlphaOfLength(21 - r.roleName().length()),
-                            r.roleNameAbbreviation(),
-                            r.canContainData()
-                        );
-                    case 1:
-                        return new DiscoveryNodeRole.UnknownRole(
-                            r.roleName(),
-                            randomAlphaOfLength(3 - r.roleNameAbbreviation().length()),
-                            r.canContainData()
-                        );
-                    case 2:
-                        return new DiscoveryNodeRole.UnknownRole(r.roleName(), r.roleNameAbbreviation(), r.canContainData() == false);
-                    default:
-                        throw new AssertionError("unexpected value [" + value + "] not between 0 and 2");
-                }
+                return switch (value) {
+                    case 0 -> new DiscoveryNodeRole.UnknownRole(
+                        randomAlphaOfLength(21 - r.roleName().length()),
+                        r.roleNameAbbreviation(),
+                        r.canContainData()
+                    );
+                    case 1 -> new DiscoveryNodeRole.UnknownRole(
+                        r.roleName(),
+                        randomAlphaOfLength(3 - r.roleNameAbbreviation().length()),
+                        r.canContainData()
+                    );
+                    case 2 -> new DiscoveryNodeRole.UnknownRole(r.roleName(), r.roleNameAbbreviation(), r.canContainData() == false);
+                    default -> throw new AssertionError("unexpected value [" + value + "] not between 0 and 2");
+                };
             }
         );
 

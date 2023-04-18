@@ -10,9 +10,12 @@ package org.elasticsearch.search.searchafter;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -22,6 +25,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -49,39 +53,17 @@ public class SearchAfterBuilderTests extends ESTestCase {
         for (int i = 0; i < numSearchFrom; i++) {
             int branch = randomInt(10);
             switch (branch) {
-                case 0:
-                    values[i] = randomInt();
-                    break;
-                case 1:
-                    values[i] = randomFloat();
-                    break;
-                case 2:
-                    values[i] = randomLong();
-                    break;
-                case 3:
-                    values[i] = randomDouble();
-                    break;
-                case 4:
-                    values[i] = randomAlphaOfLengthBetween(5, 20);
-                    break;
-                case 5:
-                    values[i] = randomBoolean();
-                    break;
-                case 6:
-                    values[i] = randomByte();
-                    break;
-                case 7:
-                    values[i] = randomShort();
-                    break;
-                case 8:
-                    values[i] = new Text(randomAlphaOfLengthBetween(5, 20));
-                    break;
-                case 9:
-                    values[i] = null;
-                    break;
-                case 10:
-                    values[i] = randomBigInteger();
-                    break;
+                case 0 -> values[i] = randomInt();
+                case 1 -> values[i] = randomFloat();
+                case 2 -> values[i] = randomLong();
+                case 3 -> values[i] = randomDouble();
+                case 4 -> values[i] = randomAlphaOfLengthBetween(5, 20);
+                case 5 -> values[i] = randomBoolean();
+                case 6 -> values[i] = randomByte();
+                case 7 -> values[i] = randomShort();
+                case 8 -> values[i] = new Text(randomAlphaOfLengthBetween(5, 20));
+                case 9 -> values[i] = null;
+                case 10 -> values[i] = randomBigInteger();
             }
         }
         searchAfterBuilder.setSortValues(values);
@@ -100,36 +82,16 @@ public class SearchAfterBuilderTests extends ESTestCase {
         for (int i = 0; i < numSearchAfter; i++) {
             int branch = randomInt(9);
             switch (branch) {
-                case 0:
-                    jsonBuilder.value(randomInt());
-                    break;
-                case 1:
-                    jsonBuilder.value(randomFloat());
-                    break;
-                case 2:
-                    jsonBuilder.value(randomLong());
-                    break;
-                case 3:
-                    jsonBuilder.value(randomDouble());
-                    break;
-                case 4:
-                    jsonBuilder.value(randomAlphaOfLengthBetween(5, 20));
-                    break;
-                case 5:
-                    jsonBuilder.value(randomBoolean());
-                    break;
-                case 6:
-                    jsonBuilder.value(randomByte());
-                    break;
-                case 7:
-                    jsonBuilder.value(randomShort());
-                    break;
-                case 8:
-                    jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
-                    break;
-                case 9:
-                    jsonBuilder.nullValue();
-                    break;
+                case 0 -> jsonBuilder.value(randomInt());
+                case 1 -> jsonBuilder.value(randomFloat());
+                case 2 -> jsonBuilder.value(randomLong());
+                case 3 -> jsonBuilder.value(randomDouble());
+                case 4 -> jsonBuilder.value(randomAlphaOfLengthBetween(5, 20));
+                case 5 -> jsonBuilder.value(randomBoolean());
+                case 6 -> jsonBuilder.value(randomByte());
+                case 7 -> jsonBuilder.value(randomShort());
+                case 8 -> jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
+                case 9 -> jsonBuilder.nullValue();
             }
         }
         jsonBuilder.endArray();
@@ -254,7 +216,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
             }
 
             @Override
-            public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
+            public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
                 return null;
             }
 
@@ -278,5 +240,27 @@ public class SearchAfterBuilderTests extends ESTestCase {
 
         type = extractSortType(new SortedSetSortField("field", false));
         assertThat(type, equalTo(SortField.Type.STRING));
+    }
+
+    public void testBuildFieldDocWithCollapse() {
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SearchAfterBuilder.buildFieldDoc(
+                new SortAndFormats(new Sort(), new DocValueFormat[] { DocValueFormat.RAW }),
+                new Object[] { 1 },
+                "collapse_field"
+            )
+        );
+        assertThat(e.getMessage(), containsString("Cannot use [collapse] in conjunction with"));
+
+        FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(
+            new SortAndFormats(
+                new Sort(new SortField("collapse_field", SortField.Type.STRING)),
+                new DocValueFormat[] { DocValueFormat.RAW }
+            ),
+            new Object[] { "foo" },
+            "collapse_field"
+        );
+        assertEquals(fieldDoc.toString(), new FieldDoc(Integer.MAX_VALUE, 0, new Object[] { new BytesRef("foo") }).toString());
     }
 }

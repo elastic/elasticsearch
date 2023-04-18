@@ -10,6 +10,7 @@ package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FilterCollector;
 import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.LeafCollector;
@@ -62,6 +63,11 @@ final class ProfileCollector extends FilterCollector {
                 } finally {
                     time += Math.max(1, System.nanoTime() - start);
                 }
+            }
+
+            @Override
+            public DocIdSetIterator competitiveIterator() throws IOException {
+                return in.competitiveIterator();
             }
 
             @Override

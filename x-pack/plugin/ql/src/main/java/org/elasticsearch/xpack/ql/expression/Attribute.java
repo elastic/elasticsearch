@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.expression;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.ql.util.StringUtils.splitQualifiedIndex;
 
 /**
  * {@link Expression}s that can be materialized and describe properties of the derived table.
@@ -31,6 +33,8 @@ public abstract class Attribute extends NamedExpression {
     // empty - such as a top level attribute in SELECT cause
     // present - table name or a table name alias
     private final String qualifier;
+    // cluster name in the qualifier (if any)
+    private final String cluster;
 
     // can the attr be null - typically used in JOINs
     private final Nullability nullability;
@@ -45,7 +49,14 @@ public abstract class Attribute extends NamedExpression {
 
     public Attribute(Source source, String name, String qualifier, Nullability nullability, NameId id, boolean synthetic) {
         super(source, name, emptyList(), id, synthetic);
-        this.qualifier = qualifier;
+        if (qualifier != null) {
+            Tuple<String, String> splitQualifier = splitQualifiedIndex(qualifier);
+            this.cluster = splitQualifier.v1();
+            this.qualifier = splitQualifier.v2();
+        } else {
+            this.cluster = null;
+            this.qualifier = null;
+        }
         this.nullability = nullability;
     }
 

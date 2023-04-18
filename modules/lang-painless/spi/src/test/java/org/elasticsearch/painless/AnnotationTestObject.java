@@ -14,31 +14,8 @@ import java.util.Map;
 
 public class AnnotationTestObject {
 
-    public static class TestAnnotation {
-
+    public record TestAnnotation(String one, String two, String three) {
         public static final String NAME = "test_annotation";
-
-        private final String one;
-        private final String two;
-        private final String three;
-
-        public TestAnnotation(String one, String two, String three) {
-            this.one = one;
-            this.two = two;
-            this.three = three;
-        }
-
-        public String getOne() {
-            return one;
-        }
-
-        public String getTwo() {
-            return two;
-        }
-
-        public String getThree() {
-            return three;
-        }
     }
 
     public static class TestAnnotationParser implements WhitelistAnnotationParser {

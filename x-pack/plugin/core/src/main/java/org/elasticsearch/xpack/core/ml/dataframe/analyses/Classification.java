@@ -68,7 +68,7 @@ public class Classification implements DataFrameAnalysis {
     /**
      * The max number of classes classification supports
      */
-    public static final int MAX_DEPENDENT_VARIABLE_CARDINALITY = 30;
+    public static final int MAX_DEPENDENT_VARIABLE_CARDINALITY = 100;
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<Classification, Void> createParser(boolean lenient) {
@@ -329,6 +329,7 @@ public class Classification implements DataFrameAnalysis {
             );
         }
         params.put(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
+        params.put(RANDOMIZE_SEED.getPreferredName(), randomizeSeed);
         return params;
     }
 
@@ -336,17 +337,13 @@ public class Classification implements DataFrameAnalysis {
         if (predictionFieldType == null) {
             return null;
         }
-        switch (predictionFieldType) {
-            case NUMBER:
+        return switch (predictionFieldType) {
+            case NUMBER ->
                 // C++ process uses int64_t type, so it is safe for the dependent variable to use long numbers.
-                return "int";
-            case STRING:
-                return "string";
-            case BOOLEAN:
-                return "bool";
-            default:
-                return null;
-        }
+                "int";
+            case STRING -> "string";
+            case BOOLEAN -> "bool";
+        };
     }
 
     public static PredictionFieldType getPredictionFieldType(Set<String> dependentVariableTypes) {

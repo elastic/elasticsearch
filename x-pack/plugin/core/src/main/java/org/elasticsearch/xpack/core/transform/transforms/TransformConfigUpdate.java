@@ -34,7 +34,7 @@ public class TransformConfigUpdate implements Writeable {
 
     public static final String NAME = "data_frame_transform_config_update";
 
-    public static TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+    public static final TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
 
     private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -63,11 +63,15 @@ public class TransformConfigUpdate implements Writeable {
         PARSER.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, false), TransformField.SETTINGS);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), TransformField.METADATA);
-        PARSER.declareNamedObject(
-            optionalConstructorArg(),
-            (p, c, n) -> p.namedObject(RetentionPolicyConfig.class, n, c),
-            TransformField.RETENTION_POLICY
-        );
+        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> {
+            XContentParser.Token token = p.nextToken();
+            assert token == XContentParser.Token.FIELD_NAME;
+            String currentName = p.currentName();
+            RetentionPolicyConfig namedObject = p.namedObject(RetentionPolicyConfig.class, currentName, c);
+            token = p.nextToken();
+            assert token == XContentParser.Token.END_OBJECT;
+            return namedObject;
+        }, NullRetentionPolicyConfig.INSTANCE, TransformField.RETENTION_POLICY);
     }
 
     private final SourceConfig source;
@@ -112,21 +116,9 @@ public class TransformConfigUpdate implements Writeable {
         if (in.readBoolean()) {
             setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
         }
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            settings = in.readOptionalWriteable(SettingsConfig::new);
-        } else {
-            settings = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-            metadata = in.readMap();
-        } else {
-            metadata = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
-        } else {
-            retentionPolicyConfig = null;
-        }
+        settings = in.readOptionalWriteable(SettingsConfig::new);
+        metadata = in.readMap();
+        retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
     }
 
     public SourceConfig getSource() {
@@ -186,15 +178,9 @@ public class TransformConfigUpdate implements Writeable {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeOptionalWriteable(settings);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeMap(metadata);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalNamedWriteable(retentionPolicyConfig);
-        }
+        out.writeOptionalWriteable(settings);
+        out.writeGenericMap(metadata);
+        out.writeOptionalNamedWriteable(retentionPolicyConfig);
     }
 
     @Override
@@ -249,6 +235,10 @@ public class TransformConfigUpdate implements Writeable {
         return isNullOrEqual(settings, config.getSettings()) == false;
     }
 
+    public boolean changesHeaders(TransformConfig config) {
+        return isNullOrEqual(headers, config.getHeaders()) == false;
+    }
+
     private boolean isNullOrEqual(Object lft, Object rgt) {
         return lft == null || lft.equals(rgt);
     }
@@ -299,7 +289,11 @@ public class TransformConfigUpdate implements Writeable {
             builder.setMetadata(metadata);
         }
         if (retentionPolicyConfig != null) {
-            builder.setRetentionPolicyConfig(retentionPolicyConfig);
+            if (NullRetentionPolicyConfig.INSTANCE.equals(retentionPolicyConfig)) {
+                builder.setRetentionPolicyConfig(null);
+            } else {
+                builder.setRetentionPolicyConfig(retentionPolicyConfig);
+            }
         }
 
         builder.setVersion(Version.CURRENT);

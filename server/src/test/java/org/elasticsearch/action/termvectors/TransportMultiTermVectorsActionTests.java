@@ -15,7 +15,7 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.get.TransportMultiGetActionTests;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -230,7 +230,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             }
         };
 
-        ActionTestUtils.execute(transportAction, task, request.request(), new ActionListenerAdapter());
+        ActionTestUtils.execute(transportAction, task, request.request(), ActionListener.noop());
         assertTrue(shardActionInvoked.get());
     }
 
@@ -263,7 +263,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             }
         };
 
-        ActionTestUtils.execute(transportAction, task, request.request(), new ActionListenerAdapter());
+        ActionTestUtils.execute(transportAction, task, request.request(), ActionListener.noop());
         assertTrue(shardActionInvoked.get());
     }
 
@@ -290,12 +290,4 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         }
     }
 
-    static class ActionListenerAdapter implements ActionListener<MultiTermVectorsResponse> {
-
-        @Override
-        public void onResponse(MultiTermVectorsResponse response) {}
-
-        @Override
-        public void onFailure(Exception e) {}
-    }
 }

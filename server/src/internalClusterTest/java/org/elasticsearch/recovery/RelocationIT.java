@@ -8,12 +8,8 @@
 
 package org.elasticsearch.recovery;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.procedures.IntProcedure;
-
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
@@ -22,7 +18,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -203,7 +199,7 @@ public class RelocationIT extends ESIntegTestCase {
         }
 
         int numDocs = scaledRandomIntBetween(200, 2500);
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type1", client(), numDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", client(), numDocs)) {
             logger.info("--> waiting for {} docs to be indexed ...", numDocs);
             waitForDocs(numDocs, indexer);
             logger.info("--> {} docs indexed", numDocs);
@@ -260,14 +256,14 @@ public class RelocationIT extends ESIntegTestCase {
                     for (int hit = 0; hit < indexer.totalIndexedDocs(); hit++) {
                         hitIds[hit] = hit + 1;
                     }
-                    IntHashSet set = IntHashSet.from(hitIds);
+                    Set<Integer> set = Arrays.stream(hitIds).boxed().collect(Collectors.toSet());
                     for (SearchHit hit : hits.getHits()) {
                         int id = Integer.parseInt(hit.getId());
                         if (set.remove(id) == false) {
                             logger.error("Extra id [{}]", id);
                         }
                     }
-                    set.forEach((IntProcedure) value -> { logger.error("Missing id [{}]", value); });
+                    set.forEach(value -> logger.error("Missing id [{}]", value));
                 }
                 assertThat(hits.getTotalHits().value, equalTo(indexer.totalIndexedDocs()));
                 logger.info("--> DONE search test round {}", i + 1);
@@ -435,24 +431,11 @@ public class RelocationIT extends ESIntegTestCase {
                 );
             }
         }
-
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-            .get();
-
+        setReplicaCount(1, indexName);
         corruptionCount.await();
 
         logger.info("--> stopping replica assignment");
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
-                )
-        );
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
 
         logger.info("--> wait for all replica shards to be removed, on all nodes");
         assertBusy(() -> {
@@ -539,12 +522,10 @@ public class RelocationIT extends ESIntegTestCase {
         assertHitCount(countResponse, numDocs);
 
         logger.info(" --> moving index to new nodes");
-        Settings build = Settings.builder()
-            .put("index.routing.allocation.exclude.color", "red")
-            .put("index.routing.allocation.include.color", "blue")
-            .build();
-        client().admin().indices().prepareUpdateSettings("test").setSettings(build).execute().actionGet();
-
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.exclude.color", "red").put("index.routing.allocation.include.color", "blue"),
+            "test"
+        );
         // index while relocating
         logger.info(" --> indexing [{}] more docs", numDocs);
         for (int i = 0; i < numDocs; i++) {
@@ -729,11 +710,7 @@ public class RelocationIT extends ESIntegTestCase {
         ensureGreen("test");
         assertBusy(() -> assertAllShardsOnNodes(indexName, blueNodes));
         assertActiveCopiesEstablishedPeerRecoveryRetentionLeases();
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put("index.routing.allocation.include.color", "red"))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include.color", "red"), indexName);
         assertBusy(() -> assertAllShardsOnNodes(indexName, redNodes));
         ensureGreen("test");
         assertActiveCopiesEstablishedPeerRecoveryRetentionLeases();
@@ -741,8 +718,8 @@ public class RelocationIT extends ESIntegTestCase {
 
     private void assertActiveCopiesEstablishedPeerRecoveryRetentionLeases() throws Exception {
         assertBusy(() -> {
-            for (ObjectCursor<String> it : client().admin().cluster().prepareState().get().getState().metadata().indices().keys()) {
-                Map<ShardId, List<ShardStats>> byShardId = Stream.of(client().admin().indices().prepareStats(it.value).get().getShards())
+            for (String index : client().admin().cluster().prepareState().get().getState().metadata().indices().keySet()) {
+                Map<ShardId, List<ShardStats>> byShardId = Stream.of(client().admin().indices().prepareStats(index).get().getShards())
                     .collect(Collectors.groupingBy(l -> l.getShardRouting().shardId()));
                 for (List<ShardStats> shardStats : byShardId.values()) {
                     Set<String> expectedLeaseIds = shardStats.stream()

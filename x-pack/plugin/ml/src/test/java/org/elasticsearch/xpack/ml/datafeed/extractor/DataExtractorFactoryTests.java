@@ -10,8 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -81,6 +82,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         fieldsCapabilities = mock(FieldCapabilitiesResponse.class);
+        when(fieldsCapabilities.getIndices()).thenReturn(new String[] { "test_index_1" });
         givenAggregatableField("time", "date");
         givenAggregatableField("field", "keyword");
 
@@ -98,6 +100,33 @@ public class DataExtractorFactoryTests extends ESTestCase {
             listener.onResponse(getRollupIndexResponse);
             return null;
         }).when(client).execute(same(GetRollupIndexCapsAction.INSTANCE), any(), any());
+    }
+
+    public void testCreateDataExtractorFactoryGivenDefaultScrollAndNoMatchingIndices() {
+        when(fieldsCapabilities.getIndices()).thenReturn(new String[0]);
+
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedRunnerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+        DatafeedConfig datafeedConfig = DatafeedRunnerTests.createDatafeedConfig("datafeed1", "foo").build();
+
+        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
+            dataExtractorFactory -> fail("factory creation should have failed as there are no matching indices"),
+            e -> assertThat(
+                e.getMessage(),
+                equalTo("datafeed [datafeed1] cannot retrieve data because no index " + "matches datafeed's indices [myIndex]")
+            )
+        );
+
+        DataExtractorFactory.create(
+            client,
+            datafeedConfig,
+            jobBuilder.build(new Date()),
+            xContentRegistry(),
+            timingStatsReporter,
+            listener
+        );
     }
 
     public void testCreateDataExtractorFactoryGivenDefaultScroll() {
@@ -315,10 +344,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
                         .field("time")
                 )
         );
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> { assertThat(dataExtractorFactory, instanceOf(RollupDataExtractorFactory.class)); },
-            e -> fail()
-        );
+        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(dataExtractorFactory -> {
+            assertThat(dataExtractorFactory, instanceOf(RollupDataExtractorFactory.class));
+        }, e -> fail());
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
@@ -353,10 +381,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
 
         // Test with remote index, aggregation, and no chunking
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> { assertThat(dataExtractorFactory, instanceOf(AggregationDataExtractorFactory.class)); },
-            e -> fail()
-        );
+        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(dataExtractorFactory -> {
+            assertThat(dataExtractorFactory, instanceOf(AggregationDataExtractorFactory.class));
+        }, e -> fail());
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
@@ -437,10 +464,9 @@ public class DataExtractorFactoryTests extends ESTestCase {
                         .field("time")
                 )
         );
-        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
-            dataExtractorFactory -> { assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)); },
-            e -> fail()
-        );
+        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(dataExtractorFactory -> {
+            assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class));
+        }, e -> fail());
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
@@ -617,7 +643,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
         RollupJobCaps rollupJobCaps = new RollupJobCaps(rollupJobConfig);
         RollableIndexCaps rollableIndexCaps = new RollableIndexCaps("myIndex_rollup", Collections.singletonList(rollupJobCaps));
-        Map<String, RollableIndexCaps> jobs = new HashMap<>(1);
+        Map<String, RollableIndexCaps> jobs = Maps.newMapWithExpectedSize(1);
         jobs.put("rollupJob1", rollableIndexCaps);
         when(getRollupIndexResponse.getJobs()).thenReturn(jobs);
     }

@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -42,6 +41,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.shard.IndexShardState.CLOSED;
@@ -89,11 +89,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node2).setNewDelegate(listener);
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node3).setNewDelegate(listener);
 
-        client().admin()
-            .indices()
-            .prepareCreate("test")
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-            .get();
+        createIndex("test", 3, 1);
         ensureGreen("test");
         assertThat("beforeIndexAddedToCluster called only once", beforeAddedCount.get(), equalTo(1));
         assertThat("beforeIndexCreated called on each data node", allCreatedCount.get(), greaterThanOrEqualTo(3));
@@ -104,7 +100,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
             ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-            assertFalse(resp.getState().routingTable().indicesRouting().keys().contains("failed"));
+            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
         }
     }
 
@@ -112,13 +108,9 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
      * Tests that if an *index* structure creation fails on relocation to a new node, the shard
      * is not stuck but properly failed.
      */
-    public void testIndexShardFailedOnRelocation() throws Throwable {
+    public void testIndexShardFailedOnRelocation() {
         String node1 = internalCluster().startNode();
-        client().admin()
-            .indices()
-            .prepareCreate("index1")
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-            .get();
+        createIndex("index1", 1, 0);
         ensureGreen("index1");
         String node2 = internalCluster().startNode();
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node2)
@@ -134,6 +126,23 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         List<ShardRouting> shard = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         assertThat(shard, hasSize(1));
         assertThat(state.nodes().resolveNode(shard.get(0).currentNodeId()).getName(), Matchers.equalTo(node1));
+    }
+
+    public void testRelocationFailureNotRetriedForever() {
+        String node1 = internalCluster().startNode();
+        createIndex("index1", 1, 0);
+        ensureGreen("index1");
+        for (int i = 0; i < 2; i++) {
+            internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, internalCluster().startNode())
+                .setNewDelegate(new IndexShardStateChangeListener() {
+                    @Override
+                    public void beforeIndexCreated(Index index, Settings indexSettings) {
+                        throw new RuntimeException("FAIL");
+                    }
+                });
+        }
+        updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node1), "index1");
+        ensureGreen("index1");
     }
 
     public void testIndexStateShardChanged() throws Throwable {
@@ -154,16 +163,11 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         } catch (ElasticsearchException e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
             ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-            assertFalse(resp.getState().routingTable().indicesRouting().keys().contains("failed"));
+            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
         }
 
         // create an index
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 6).put(SETTING_NUMBER_OF_REPLICAS, 0))
-        );
+        createIndex("test", 6, 0);
         ensureGreen();
         assertThat(stateChangeListenerNode1.creationSettings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1), equalTo(6));
         assertThat(stateChangeListenerNode1.creationSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(0));
@@ -173,27 +177,13 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
         // add a node: 3 out of the 6 shards will be relocated to it
         // disable allocation before starting a new node, as we need to register the listener first
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
-                )
-        );
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
         String node2 = internalCluster().startNode();
         IndexShardStateChangeListener stateChangeListenerNode2 = new IndexShardStateChangeListener();
         // add a listener that keeps track of the shard state changes
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node2).setNewDelegate(stateChangeListenerNode2);
         // re-enable allocation
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")
-                )
-        );
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all"));
         ensureGreen();
 
         // the 3 relocated shards get closed on the first node
@@ -202,9 +192,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         assertShardStatesMatch(stateChangeListenerNode2, 3, CREATED, RECOVERING, POST_RECOVERY, STARTED);
 
         // increase replicas from 0 to 1
-        assertAcked(
-            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
-        );
+        setReplicaCount(1, "test");
         ensureGreen();
 
         // 3 replicas are allocated to the first node
@@ -244,16 +232,11 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         try {
             assertBusy(waitPredicate, 1, TimeUnit.MINUTES);
         } catch (AssertionError ae) {
-            fail(
-                "failed to observe expect shard states\n"
-                    + "expected: ["
-                    + numShards
-                    + "] shards with states: "
-                    + Strings.arrayToCommaDelimitedString(shardStates)
-                    + "\n"
-                    + "observed:\n"
-                    + stateChangeListener
-            );
+            fail(Strings.format("""
+                failed to observe expect shard states
+                expected: [%d] shards with states: %s
+                observed:
+                %s""", numShards, Strings.arrayToCommaDelimitedString(shardStates), stateChangeListener));
         }
 
         stateChangeListener.shardStates.clear();
@@ -272,12 +255,12 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             IndexShardState newState,
             @Nullable String reason
         ) {
-            List<IndexShardState> shardStates = this.shardStates.putIfAbsent(
+            List<IndexShardState> shardStateList = this.shardStates.putIfAbsent(
                 indexShard.shardId(),
                 new CopyOnWriteArrayList<>(new IndexShardState[] { newState })
             );
-            if (shardStates != null) {
-                shardStates.add(newState);
+            if (shardStateList != null) {
+                shardStateList.add(newState);
             }
         }
 

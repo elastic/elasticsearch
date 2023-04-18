@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.Collections;
 
@@ -103,18 +104,26 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
         assertEquals(DateUtils.asDateTimeWithMillis(value, zoneId), extractor.extract(bucket));
     }
 
+    public void testExtractUnsignedLong() {
+        BigInteger bi = randomBigInteger();
+        Object value = bi.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0 ? bi.longValue() : bi;
+
+        TopHitsAggExtractor extractor = new TopHitsAggExtractor(randomAlphaOfLength(10), DataTypes.UNSIGNED_LONG, randomZone());
+        Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null);
+        Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
+        assertEquals(bi, extractor.extract(bucket));
+    }
+
     private SearchHits searchHitsOf(Object value) {
         TotalHits totalHits = new TotalHits(10, TotalHits.Relation.EQUAL_TO);
-        return new SearchHits(
-            new SearchHit[] {
-                new SearchHit(
-                    1,
-                    "docId",
-                    null,
-                    Collections.singletonMap("topHitsAgg", new DocumentField("field", Collections.singletonList(value)))
-                ) },
-            totalHits,
-            0.0f
+        SearchHit searchHit = new SearchHit(1, "docId");
+        searchHit.addDocumentFields(
+            Collections.singletonMap("topHitsAgg", new DocumentField("field", Collections.singletonList(value))),
+            Collections.singletonMap(
+                "topHitsAgg",
+                new DocumentField("_ignored", Collections.singletonList(randomValueOtherThan(value, () -> randomAlphaOfLength(5))))
+            )
         );
+        return new SearchHits(new SearchHit[] { searchHit }, totalHits, 0.0f);
     }
 }

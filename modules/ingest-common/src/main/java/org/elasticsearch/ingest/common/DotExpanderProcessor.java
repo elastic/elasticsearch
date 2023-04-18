@@ -38,59 +38,63 @@ public final class DotExpanderProcessor extends AbstractProcessor {
     @Override
     @SuppressWarnings("unchecked")
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        String path;
+        String pathToExpand;
         Map<String, Object> map;
         if (this.path != null) {
-            path = this.path + "." + field;
+            pathToExpand = this.path + "." + field;
             map = ingestDocument.getFieldValue(this.path, Map.class);
         } else {
-            path = field;
+            pathToExpand = field;
             map = ingestDocument.getSourceAndMetadata();
         }
 
         if (this.field.equals("*")) {
             for (String key : new ArrayList<>(map.keySet())) {
                 if (key.indexOf('.') > 0) {
-                    path = this.path != null ? this.path + "." + key : key;
-                    expandDot(ingestDocument, path, key, map);
+                    pathToExpand = this.path != null ? this.path + "." + key : key;
+                    expandDot(ingestDocument, pathToExpand, key, map);
                 }
             }
         } else {
-            expandDot(ingestDocument, path, field, map);
+            expandDot(ingestDocument, pathToExpand, field, map);
         }
 
         return ingestDocument;
     }
 
-    private void expandDot(IngestDocument ingestDocument, String path, String field, Map<String, Object> map) {
-        if (map.containsKey(field)) {
-            if (ingestDocument.hasField(path)) {
-                Object value = map.remove(field);
+    private void expandDot(IngestDocument ingestDocument, String pathToExpand, String fieldName, Map<String, Object> map) {
+        if (map.containsKey(fieldName)) {
+            if (ingestDocument.hasField(pathToExpand)) {
+                Object value = map.remove(fieldName);
                 if (override) {
-                    ingestDocument.setFieldValue(path, value);
+                    ingestDocument.setFieldValue(pathToExpand, value);
                 } else {
-                    ingestDocument.appendFieldValue(path, value);
+                    ingestDocument.appendFieldValue(pathToExpand, value);
                 }
             } else {
                 // check whether we actually can expand the field in question into an object field.
                 // part of the path may already exist and if part of it would be a value field (string, integer etc.)
                 // then we can't override it with an object field and we should fail with a good reason.
                 // IngestDocument#setFieldValue(...) would fail too, but the error isn't very understandable
-                for (int index = path.indexOf('.'); index != -1; index = path.indexOf('.', index + 1)) {
-                    String partialPath = path.substring(0, index);
+                for (int index = pathToExpand.indexOf('.'); index != -1; index = pathToExpand.indexOf('.', index + 1)) {
+                    String partialPath = pathToExpand.substring(0, index);
                     if (ingestDocument.hasField(partialPath)) {
                         Object val = ingestDocument.getFieldValue(partialPath, Object.class);
                         if ((val instanceof Map) == false) {
                             throw new IllegalArgumentException(
-                                "cannot expend [" + path + "], because [" + partialPath + "] is not an object field, but a value field"
+                                "cannot expand ["
+                                    + pathToExpand
+                                    + "], because ["
+                                    + partialPath
+                                    + "] is not an object field, but a value field"
                             );
                         }
                     } else {
                         break;
                     }
                 }
-                Object value = map.remove(field);
-                ingestDocument.setFieldValue(path, value);
+                Object value = map.remove(fieldName);
+                ingestDocument.setFieldValue(pathToExpand, value);
             }
         }
     }

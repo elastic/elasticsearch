@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.versioning;
 
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -19,13 +19,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -33,7 +33,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
@@ -229,10 +228,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         assertThat(deleteResponse.getVersion(), equalTo(20L));
 
         // Make sure that the next delete will be GC. Note we do it on the index settings so it will be cleaned up
-        HashMap<String, Object> newSettings = new HashMap<>();
-        newSettings.put("index.gc_deletes", -1);
-        client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet();
-
+        updateIndexSettings(Settings.builder().put("index.gc_deletes", -1), "test");
         Thread.sleep(300); // gc works based on estimated sampled time. Give it a chance...
 
         // And now we have previous version return -1
@@ -258,9 +254,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             // expected
             assertTrue(
                 iae.getMessage()
-                    .contains(
-                        "failed to parse setting [index.gc_deletes] with value [42] as a time value: unit is " + "missing or unrecognized"
-                    )
+                    .contains("failed to parse setting [index.gc_deletes] with value [42] as a time value: unit is missing or unrecognized")
             );
         }
     }
@@ -435,33 +429,32 @@ public class SimpleVersioningIT extends ESIntegTestCase {
     }
 
     private IDSource getRandomIDs() {
-        IDSource ids;
         final Random random = random();
-        switch (random.nextInt(6)) {
-            case 0:
+        return switch (random.nextInt(6)) {
+            case 0 -> {
                 // random simple
                 logger.info("--> use random simple ids");
-                ids = new IDSource() {
+                yield new IDSource() {
                     @Override
                     public String next() {
                         return TestUtil.randomSimpleString(random, 1, 10);
                     }
                 };
-                break;
-            case 1:
+            }
+            case 1 -> {
                 // random realistic unicode
                 logger.info("--> use random realistic unicode ids");
-                ids = new IDSource() {
+                yield new IDSource() {
                     @Override
                     public String next() {
                         return TestUtil.randomRealisticUnicodeString(random, 1, 20);
                     }
                 };
-                break;
-            case 2:
+            }
+            case 2 -> {
                 // sequential
                 logger.info("--> use sequential ids");
-                ids = new IDSource() {
+                yield new IDSource() {
                     int upto;
 
                     @Override
@@ -469,12 +462,12 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                         return Integer.toString(upto++);
                     }
                 };
-                break;
-            case 3:
+            }
+            case 3 -> {
                 // zero-pad sequential
                 logger.info("--> use zero-padded sequential ids");
-                ids = new IDSource() {
-                    final String zeroPad = String.format(Locale.ROOT, "%0" + TestUtil.nextInt(random, 4, 20) + "d", 0);
+                yield new IDSource() {
+                    final String zeroPad = Strings.format("%0" + TestUtil.nextInt(random, 4, 20) + "d", 0);
                     int upto;
 
                     @Override
@@ -483,11 +476,11 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                         return zeroPad.substring(zeroPad.length() - s.length()) + s;
                     }
                 };
-                break;
-            case 4:
+            }
+            case 4 -> {
                 // random long
                 logger.info("--> use random long ids");
-                ids = new IDSource() {
+                yield new IDSource() {
                     final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
 
                     @Override
@@ -495,11 +488,11 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                         return Long.toString(random.nextLong() & 0x3ffffffffffffffL, radix);
                     }
                 };
-                break;
-            case 5:
+            }
+            case 5 -> {
                 // zero-pad random long
                 logger.info("--> use zero-padded random long ids");
-                ids = new IDSource() {
+                yield new IDSource() {
                     final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
 
                     @Override
@@ -507,12 +500,9 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                         return Long.toString(random.nextLong() & 0x3ffffffffffffffL, radix);
                     }
                 };
-                break;
-            default:
-                throw new AssertionError();
-        }
-
-        return ids;
+            }
+            default -> throw new AssertionError();
+        };
     }
 
     private static class IDAndVersion {
@@ -547,8 +537,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             sb.append(alreadyExists);
 
             if (response != null) {
-                if (response instanceof DeleteResponse) {
-                    DeleteResponse deleteResponse = (DeleteResponse) response;
+                if (response instanceof DeleteResponse deleteResponse) {
                     sb.append(" response:");
                     sb.append(" index=");
                     sb.append(deleteResponse.getIndex());
@@ -558,8 +547,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                     sb.append(deleteResponse.getVersion());
                     sb.append(" found=");
                     sb.append(deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
-                } else if (response instanceof IndexResponse) {
-                    IndexResponse indexResponse = (IndexResponse) response;
+                } else if (response instanceof IndexResponse indexResponse) {
                     sb.append(" index=");
                     sb.append(indexResponse.getIndex());
                     sb.append(" id=");
@@ -589,10 +577,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // TODO: not great we don't test deletes GC here:
 
         // We test deletes, but can't rely on wall-clock delete GC:
-        HashMap<String, Object> newSettings = new HashMap<>();
-        newSettings.put("index.gc_deletes", "1000000h");
-        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet());
-
+        updateIndexSettings(Settings.builder().put("index.gc_deletes", "1000000h"), "test");
         Random random = random();
 
         // Generate random IDs:
@@ -789,10 +774,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        HashMap<String, Object> newSettings = new HashMap<>();
-        newSettings.put("index.gc_deletes", "10ms");
-        newSettings.put("index.refresh_interval", "-1");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet();
+        updateIndexSettings(Settings.builder().put("index.gc_deletes", "10ms").put("index.refresh_interval", "-1"), "test");
 
         // Index a doc:
         client().prepareIndex("test")
@@ -831,10 +813,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         ensureGreen();
 
         // We test deletes, but can't rely on wall-clock delete GC:
-        HashMap<String, Object> newSettings = new HashMap<>();
-        newSettings.put("index.gc_deletes", "0ms");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet();
-
+        updateIndexSettings(Settings.builder().put("index.gc_deletes", "0ms"), "test");
         // Index a doc:
         client().prepareIndex("test")
             .setId("id")
@@ -894,11 +873,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             .actionGet();
         assertThat(doc4.getVersion(), equalTo(4L));
         // Make sure that these versions are replicated correctly
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-            .get();
+        setReplicaCount(1, "test");
         ensureGreen("test");
     }
 }

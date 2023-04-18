@@ -9,7 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -40,19 +40,20 @@ public class InboundPipeline implements Releasable {
     private boolean isClosed = false;
 
     public InboundPipeline(
-        Version version,
+        TransportVersion version,
         StatsTracker statsTracker,
         Recycler<BytesRef> recycler,
         LongSupplier relativeTimeInMillis,
         Supplier<CircuitBreaker> circuitBreaker,
         Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
-        BiConsumer<TcpChannel, InboundMessage> messageHandler
+        BiConsumer<TcpChannel, InboundMessage> messageHandler,
+        boolean ignoreDeserializationErrors
     ) {
         this(
             statsTracker,
             relativeTimeInMillis,
             new InboundDecoder(version, recycler),
-            new InboundAggregator(circuitBreaker, registryFunction),
+            new InboundAggregator(circuitBreaker, registryFunction, ignoreDeserializationErrors),
             messageHandler
         );
     }
@@ -143,9 +144,12 @@ public class InboundPipeline implements Releasable {
                 messageHandler.accept(channel, PING_MESSAGE);
             } else if (fragment == InboundDecoder.END_CONTENT) {
                 assert aggregator.isAggregating();
-                try (InboundMessage aggregated = aggregator.finishAggregation()) {
+                InboundMessage aggregated = aggregator.finishAggregation();
+                try {
                     statsTracker.markMessageReceived();
                     messageHandler.accept(channel, aggregated);
+                } finally {
+                    aggregated.decRef();
                 }
             } else {
                 assert aggregator.isAggregating();
@@ -155,7 +159,7 @@ public class InboundPipeline implements Releasable {
         }
     }
 
-    private boolean endOfMessage(Object fragment) {
+    private static boolean endOfMessage(Object fragment) {
         return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT || fragment instanceof Exception;
     }
 

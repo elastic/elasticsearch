@@ -11,15 +11,15 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
@@ -124,7 +124,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
         @Override
         public void onResponse(CreateTokenResponse createTokenResponse) {
             try (XContentBuilder builder = channel.newBuilder()) {
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, createTokenResponse.toXContent(builder, request)));
+                channel.sendResponse(new RestResponse(RestStatus.OK, createTokenResponse.toXContent(builder, request)));
             } catch (IOException e) {
                 onFailure(e);
             }
@@ -133,8 +133,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
         @Override
         public void onFailure(Exception e) {
             logger.debug("Failed to create token", e);
-            if (e instanceof ActionRequestValidationException) {
-                ActionRequestValidationException validationException = (ActionRequestValidationException) e;
+            if (e instanceof ActionRequestValidationException validationException) {
                 final TokenRequestError error;
                 if (validationException.validationErrors().stream().anyMatch(s -> s.contains("grant_type"))) {
                     error = TokenRequestError.UNSUPPORTED_GRANT_TYPE;
@@ -185,7 +184,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
                     .field("error", error.toString().toLowerCase(Locale.ROOT))
                     .field("error_description", description)
                     .endObject();
-                channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, builder));
+                channel.sendResponse(new RestResponse(RestStatus.BAD_REQUEST, builder));
             } catch (IOException ioe) {
                 ioe.addSuppressed(e);
                 sendFailure(e);
@@ -194,7 +193,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
 
         void sendFailure(Exception e) {
             try {
-                channel.sendResponse(new BytesRestResponse(channel, e));
+                channel.sendResponse(new RestResponse(channel, e));
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 logger.error("failed to send failure response", inner);

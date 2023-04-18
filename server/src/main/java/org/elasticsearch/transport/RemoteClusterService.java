@@ -10,22 +10,26 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -47,13 +51,14 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.enumSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 
 /**
  * Basic service for accessing remote clusters via gateway nodes
  */
-public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
+public final class RemoteClusterService extends RemoteClusterAware implements Closeable, ReportingService<RemoteClusterServerInfo> {
 
-    private final Logger logger = LogManager.getLogger(RemoteClusterService.class);
+    private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
     /**
      * The initial connect timeout for remote cluster connections
@@ -119,19 +124,39 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         )
     );
 
+    public static final Setting.AffixSetting<SecureString> REMOTE_CLUSTER_CREDENTIALS = Setting.affixKeySetting(
+        "cluster.remote.",
+        "credentials",
+        key -> SecureSetting.secureString(key, null)
+    );
+
+    public static final String REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME = "cluster:internal/remote_cluster/handshake";
+
     private final boolean enabled;
+    private final boolean remoteClusterServerEnabled;
 
     public boolean isEnabled() {
         return enabled;
     }
 
+    public boolean isRemoteClusterServerEnabled() {
+        return remoteClusterServerEnabled;
+    }
+
     private final TransportService transportService;
     private final Map<String, RemoteClusterConnection> remoteClusters = ConcurrentCollections.newConcurrentMap();
+    private final Set<String> credentialsProtectedRemoteClusters;
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
         this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
+        this.remoteClusterServerEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
         this.transportService = transportService;
+        this.credentialsProtectedRemoteClusters = REMOTE_CLUSTER_CREDENTIALS.getAsMap(settings).keySet();
+
+        if (remoteClusterServerEnabled) {
+            registerRemoteClusterHandshakeRequestHandler(transportService);
+        }
     }
 
     public DiscoveryNode getLocalNode() {
@@ -248,14 +273,24 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     @Override
     protected void updateRemoteCluster(String clusterAlias, Settings settings) {
         CountDownLatch latch = new CountDownLatch(1);
-        updateRemoteCluster(clusterAlias, settings, ActionListener.wrap(latch::countDown));
+        updateRemoteCluster(clusterAlias, settings, ActionListener.runAfter(new ActionListener<>() {
+            @Override
+            public void onResponse(Void o) {
+                logger.debug("connected to new remote cluster [{}]", clusterAlias);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug(() -> "connection to new remote cluster [" + clusterAlias + "] failed", e);
+            }
+        }, latch::countDown));
 
         try {
             // Wait 10 seconds for a connections. We must use a latch instead of a future because we
             // are on the cluster state thread and our custom future implementation will throw an
             // assertion.
             if (latch.await(10, TimeUnit.SECONDS) == false) {
-                logger.warn("failed to connect to new remote cluster {} within {}", clusterAlias, TimeValue.timeValueSeconds(10));
+                logger.warn("failed to connect to new remote cluster [{}] within {}", clusterAlias, TimeValue.timeValueSeconds(10));
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -289,7 +324,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (remote == null) {
             // this is a new cluster we have to add a new representation
             Settings finalSettings = Settings.builder().put(this.settings, false).put(newSettings, false).build();
-            remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService);
+            remote = new RemoteClusterConnection(
+                finalSettings,
+                clusterAlias,
+                transportService,
+                credentialsProtectedRemoteClusters.contains(clusterAlias)
+            );
             remoteClusters.put(clusterAlias, remote);
             remote.ensureConnected(listener);
         } else if (remote.shouldRebuildConnection(newSettings)) {
@@ -301,7 +341,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             }
             remoteClusters.remove(clusterAlias);
             Settings finalSettings = Settings.builder().put(this.settings, false).put(newSettings, false).build();
-            remote = new RemoteClusterConnection(finalSettings, clusterAlias, transportService);
+            remote = new RemoteClusterConnection(
+                finalSettings,
+                clusterAlias,
+                transportService,
+                credentialsProtectedRemoteClusters.contains(clusterAlias)
+            );
             remoteClusters.put(clusterAlias, remote);
             remote.ensureConnected(listener);
         } else {
@@ -316,14 +361,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     void initializeRemoteClusters() {
         final TimeValue timeValue = REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
-        final PlainActionFuture<Collection<Void>> future = new PlainActionFuture<>();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         Set<String> enabledClusters = RemoteClusterAware.getEnabledRemoteClusters(settings);
 
         if (enabledClusters.isEmpty()) {
             return;
         }
 
-        GroupedActionListener<Void> listener = new GroupedActionListener<>(future, enabledClusters.size());
+        CountDownActionListener listener = new CountDownActionListener(enabledClusters.size(), future);
         for (String clusterAlias : enabledClusters) {
             updateRemoteCluster(clusterAlias, settings, listener);
         }
@@ -339,7 +384,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         } catch (TimeoutException ex) {
             logger.warn("failed to connect to remote clusters within {}", timeValue.toString());
         } catch (Exception e) {
-            throw new IllegalStateException("failed to connect to remote clusters", e);
+            logger.warn("failed to connect to remote clusters", e);
         }
     }
 
@@ -350,6 +395,15 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     public Stream<RemoteConnectionInfo> getRemoteConnectionInfos() {
         return remoteClusters.values().stream().map(RemoteClusterConnection::getConnectionInfo);
+    }
+
+    @Override
+    public RemoteClusterServerInfo info() {
+        if (remoteClusterServerEnabled) {
+            return new RemoteClusterServerInfo(transportService.boundRemoteAccessAddress());
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -398,11 +452,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     /**
      * Returns a client to the remote cluster if the given cluster alias exists.
      *
-     * @param threadPool   the {@link ThreadPool} for the client
-     * @param clusterAlias the cluster alias the remote cluster is registered under
+     * @param threadPool      the {@link ThreadPool} for the client
+     * @param clusterAlias    the cluster alias the remote cluster is registered under
+     * @param ensureConnected whether requests should wait for a connection attempt when there isn't a connection available
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
-    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
+    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias, boolean ensureConnected) {
         if (transportService.getRemoteClusterService().isEnabled() == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
@@ -411,11 +466,56 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
-        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);
+        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias, ensureConnected);
+    }
+
+    /**
+     * Returns a client to the remote cluster if the given cluster alias exists.
+     *
+     * @param threadPool   the {@link ThreadPool} for the client
+     * @param clusterAlias the cluster alias the remote cluster is registered under
+     * @throws IllegalArgumentException if the given clusterAlias doesn't exist
+     */
+    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
+        return getRemoteClusterClient(
+            threadPool,
+            clusterAlias,
+            transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false
+        );
     }
 
     Collection<RemoteClusterConnection> getConnections() {
         return remoteClusters.values();
+    }
+
+    static void registerRemoteClusterHandshakeRequestHandler(TransportService transportService) {
+        transportService.registerRequestHandler(
+            REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            false,
+            TransportService.HandshakeRequest::new,
+            (request, channel, task) -> {
+                if (false == RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE.equals(channel.getProfileName())) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "remote cluster handshake action requires channel profile to be [%s], but got [%s]",
+                            RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE,
+                            channel.getProfileName()
+                        )
+                    );
+                }
+                logger.trace("handling remote cluster handshake request");
+                channel.sendResponse(
+                    new TransportService.HandshakeResponse(
+                        transportService.getLocalNode().getVersion(),
+                        Build.CURRENT.hash(),
+                        transportService.getLocalNode().withTransportAddress(transportService.boundRemoteAccessAddress().publishAddress()),
+                        transportService.clusterName
+                    )
+                );
+            }
+        );
     }
 
     private static class RemoteConnectionEnabled<T> implements Setting.Validator<T> {

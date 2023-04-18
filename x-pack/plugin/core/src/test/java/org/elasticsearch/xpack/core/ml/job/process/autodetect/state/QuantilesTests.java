@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
-public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
+public class QuantilesTests extends AbstractXContentSerializingTestCase<Quantiles> {
 
     public void testExtractJobId_GivenValidDocId() {
         assertThat(Quantiles.extractJobId("foo_quantiles"), equalTo("foo"));
@@ -90,6 +90,11 @@ public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
         return createRandomized();
     }
 
+    @Override
+    protected Quantiles mutateInstance(Quantiles instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Quantiles createRandomized() {
         return new Quantiles(
             randomAlphaOfLengthBetween(1, 20),
@@ -109,7 +114,8 @@ public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
     }
 
     public void testStrictParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123456789, \"quantile_state\":\"...\", \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123456789, "quantile_state":"...", "foo":"bar"}""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Quantiles.STRICT_PARSER.apply(parser, null));
 
@@ -118,7 +124,8 @@ public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123456789, \"quantile_state\":\"...\", \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123456789, "quantile_state":"...", "foo":"bar"}""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             Quantiles.LENIENT_PARSER.apply(parser, null);
         }

@@ -1,0 +1,47 @@
+[discrete]
+[[breaking_80_painless_changes]]
+==== Painless changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+.The `JodaCompatibleZonedDateTime` class has been removed.
+[%collapsible]
+====
+*Details* +
+As a transition from Joda datetime to Java datetime, scripting used
+an intermediate class called `JodaCompatibleZonedDateTime`. This class
+has been removed and is replaced by `ZonedDateTime`. Any use of casting
+to a `JodaCompatibleZonedDateTime` or use of method calls only available
+in `JodaCompatibleZonedDateTime` in a script will result in a compilation
+error, and may not allow the upgraded node to start.
+
+*Impact* +
+Before upgrading, replace `getDayOfWeek` with `getDayOfWeekEnum().value` in any
+scripts. Any use of `getDayOfWeek` expecting a return value of `int` will result
+in a compilation error or runtime error and may not allow the upgraded node to
+start.
+
+The following `JodaCompatibleZonedDateTime` methods must be replaced using
+`ZonedDateTime` methods prior to upgrade:
+
+* `getMillis()` -> `toInstant().toEpochMilli()`
+* `getCenturyOfEra()` -> `get(ChronoField.YEAR_OF_ERA) / 100`
+* `getEra()` -> `get(ChronoField.ERA)`
+* `getHourOfDay()` -> `getHour()`
+* `getMillisOfDay()` -> `get(ChronoField.MILLI_OF_DAY)`
+* `getMillisOfSecond()` -> `get(ChronoField.MILLI_OF_SECOND)`
+* `getMinuteOfDay()` -> `get(ChronoField.MINUTE_OF_DAY)`
+* `getMinuteOfHour()` -> `getMinute()`
+* `getMonthOfYear()` -> `getMonthValue()`
+* `getSecondOfDay()` -> `get(ChronoField.SECOND_OF_DAY)`
+* `getSecondOfMinute()` -> `getSecond()`
+* `getWeekOfWeekyear()` -> `get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)`
+* `getWeekyear()` -> `get(IsoFields.WEEK_BASED_YEAR)`
+* `getYearOfCentury()` -> `get(ChronoField.YEAR_OF_ERA) % 100`
+* `getYearOfEra()` -> `get(ChronoField.YEAR_OF_ERA)`
+* `toString(String)` -> a DateTimeFormatter
+* `toString(String, Locale)` -> a DateTimeFormatter
+====
+//end::notable-breaking-changes[]

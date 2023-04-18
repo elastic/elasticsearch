@@ -9,8 +9,9 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -41,11 +42,19 @@ public final class XContentTestUtils {
 
     }
 
+    public static Map<String, Object> convertToMap(ChunkedToXContent chunkedToXContent) throws IOException {
+        return convertToMap(ChunkedToXContent.wrapAsToXContent(chunkedToXContent));
+    }
+
     public static Map<String, Object> convertToMap(ToXContent part) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        part.toXContent(builder, EMPTY_PARAMS);
-        builder.endObject();
+        if (part.isFragment()) {
+            builder.startObject();
+            part.toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
+        } else {
+            part.toXContent(builder, EMPTY_PARAMS);
+        }
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
     }
 
@@ -269,7 +278,7 @@ public final class XContentTestUtils {
             currentPath.push(parser.currentName().replaceAll("\\.", "\\\\."));
         }
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            validPaths.add(String.join(".", currentPath.toArray(new String[currentPath.size()])));
+            validPaths.add(String.join(".", currentPath.toArray(String[]::new)));
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 if (parser.currentToken() == XContentParser.Token.START_OBJECT
                     || parser.currentToken() == XContentParser.Token.START_ARRAY) {
@@ -338,7 +347,7 @@ public final class XContentTestUtils {
                 } else if (context instanceof List) {
                     context = ((List<Object>) context).get(Integer.parseInt(key));
                 } else {
-                    throw new IllegalStateException("neither list nor map");
+                    return null; // node does not exist
                 }
             }
             return (T) context;

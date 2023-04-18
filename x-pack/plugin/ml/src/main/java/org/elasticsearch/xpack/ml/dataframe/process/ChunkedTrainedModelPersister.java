@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -21,6 +20,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
@@ -52,6 +52,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.core.Strings.format;
 
 public class ChunkedTrainedModelPersister {
 
@@ -158,17 +159,15 @@ public class ChunkedTrainedModelPersister {
         // Latch is attached to this action as it is the last one to execute.
         ActionListener<RefreshResponse> refreshListener = new LatchedActionListener<>(ActionListener.wrap(refreshed -> {
             if (refreshed != null) {
-                LOGGER.debug(() -> new ParameterizedMessage("[{}] refreshed inference index after model store", analytics.getId()));
+                LOGGER.debug(() -> "[" + analytics.getId() + "] refreshed inference index after model store");
             }
-        }, e -> LOGGER.warn(new ParameterizedMessage("[{}] failed to refresh inference index after model store", analytics.getId()), e)),
-            latch
-        );
+        }, e -> LOGGER.warn(() -> "[" + analytics.getId() + "] failed to refresh inference index after model store", e)), latch);
 
         // First, store the model and refresh is necessary
         ActionListener<Void> storeListener = ActionListener.wrap(r -> {
             LOGGER.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] stored trained model definition chunk [{}] [{}]",
+                () -> format(
+                    "[%s] stored trained model definition chunk [%s] [%s]",
                     analytics.getId(),
                     trainedModelDefinitionDoc.getModelId(),
                     trainedModelDefinitionDoc.getDocNum()
@@ -184,8 +183,8 @@ public class ChunkedTrainedModelPersister {
             provider.refreshInferenceIndex(refreshListener);
         }, e -> {
             LOGGER.error(
-                new ParameterizedMessage(
-                    "[{}] error storing trained model definition chunk [{}] with id [{}]",
+                () -> format(
+                    "[%s] error storing trained model definition chunk [%s] with id [%s]",
                     analytics.getId(),
                     trainedModelDefinitionDoc.getDocNum(),
                     trainedModelDefinitionDoc.getModelId()
@@ -213,16 +212,9 @@ public class ChunkedTrainedModelPersister {
         // Latch is attached to this action as it is the last one to execute.
         ActionListener<RefreshResponse> refreshListener = new LatchedActionListener<>(ActionListener.wrap(refreshed -> {
             if (refreshed != null) {
-                LOGGER.debug(
-                    () -> new ParameterizedMessage("[{}] refreshed inference index after model metadata store", analytics.getId())
-                );
+                LOGGER.debug(() -> "[" + analytics.getId() + "] refreshed inference index after model metadata store");
             }
-        },
-            e -> LOGGER.warn(
-                new ParameterizedMessage("[{}] failed to refresh inference index after model metadata store", analytics.getId()),
-                e
-            )
-        ), latch);
+        }, e -> LOGGER.warn(() -> "[" + analytics.getId() + "] failed to refresh inference index after model metadata store", e)), latch);
 
         // First, store the model and refresh is necessary
         ActionListener<Void> storeListener = ActionListener.wrap(r -> {
@@ -231,8 +223,8 @@ public class ChunkedTrainedModelPersister {
             provider.refreshInferenceIndex(refreshListener);
         }, e -> {
             LOGGER.error(
-                new ParameterizedMessage(
-                    "[{}] error storing trained model metadata with id [{}]",
+                () -> format(
+                    "[%s] error storing trained model metadata with id [%s]",
                     analytics.getId(),
                     trainedModelMetadata.getModelId()
                 ),
@@ -260,11 +252,7 @@ public class ChunkedTrainedModelPersister {
             }
         }, e -> {
             LOGGER.error(
-                new ParameterizedMessage(
-                    "[{}] error storing trained model config with id [{}]",
-                    analytics.getId(),
-                    trainedModelConfig.getModelId()
-                ),
+                () -> format("[%s] error storing trained model config with id [%s]", analytics.getId(), trainedModelConfig.getModelId()),
                 e
             );
             readyToStoreNewModel.set(true);
@@ -278,13 +266,14 @@ public class ChunkedTrainedModelPersister {
 
     private long customProcessorSize() {
         List<PreProcessor> preProcessors = new ArrayList<>();
-        if (analytics.getAnalysis() instanceof Classification) {
-            preProcessors = ((Classification) analytics.getAnalysis()).getFeatureProcessors();
-        } else if (analytics.getAnalysis() instanceof Regression) {
-            preProcessors = ((Regression) analytics.getAnalysis()).getFeatureProcessors();
+        final DataFrameAnalysis analysis = analytics.getAnalysis();
+        if (analysis instanceof Classification classification) {
+            preProcessors = classification.getFeatureProcessors();
+        } else if (analysis instanceof Regression regression) {
+            preProcessors = regression.getFeatureProcessors();
         }
-        return preProcessors.stream().mapToLong(PreProcessor::ramBytesUsed).sum() + RamUsageEstimator.NUM_BYTES_OBJECT_REF * preProcessors
-            .size();
+        return preProcessors.stream().mapToLong(PreProcessor::ramBytesUsed).sum() + RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            * (long) preProcessors.size();
     }
 
     private TrainedModelConfig createTrainedModelConfig(TrainedModelType trainedModelType, ModelSizeInfo modelSize) {
@@ -317,7 +306,7 @@ public class ChunkedTrainedModelPersister {
                     XContentHelper.convertToMap(JsonXContent.jsonXContent, analytics.toString(), true)
                 )
             )
-            .setEstimatedHeapMemory(modelSize.ramBytesUsed() + customProcessorSize)
+            .setModelSize(modelSize.ramBytesUsed() + customProcessorSize)
             .setEstimatedOperations(modelSize.numOperations())
             .setInput(new TrainedModelInput(fieldNamesWithoutDependentVariable))
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
@@ -327,11 +316,12 @@ public class ChunkedTrainedModelPersister {
     }
 
     private String getDependentVariable() {
-        if (analytics.getAnalysis() instanceof Classification) {
-            return ((Classification) analytics.getAnalysis()).getDependentVariable();
+        final DataFrameAnalysis analysis = analytics.getAnalysis();
+        if (analysis instanceof Classification classification) {
+            return classification.getDependentVariable();
         }
-        if (analytics.getAnalysis() instanceof Regression) {
-            return ((Regression) analytics.getAnalysis()).getDependentVariable();
+        if (analysis instanceof Regression regression) {
+            return regression.getDependentVariable();
         }
         return null;
     }

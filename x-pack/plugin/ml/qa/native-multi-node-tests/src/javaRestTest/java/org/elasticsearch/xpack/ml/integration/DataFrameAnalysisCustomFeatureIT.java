@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
@@ -74,29 +75,21 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
 
     @Before
     public void setupLogging() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
-                    .put("logger.org.elasticsearch.xpack.core.ml.inference", "DEBUG")
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
+                .put("logger.org.elasticsearch.xpack.core.ml.inference", "DEBUG")
+        );
     }
 
     @After
     public void cleanup() {
         cleanUp();
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .putNull("logger.org.elasticsearch.xpack.ml.dataframe")
-                    .putNull("logger.org.elasticsearch.xpack.core.ml.inference")
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder()
+                .putNull("logger.org.elasticsearch.xpack.ml.dataframe")
+                .putNull("logger.org.elasticsearch.xpack.core.ml.inference")
+        );
     }
 
     @Override
@@ -154,7 +147,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
                     null
                 )
             )
-            .setAnalyzedFields(new FetchSourceContext(true, new String[] { TEXT_FIELD, NUMERICAL_FIELD }, new String[] {}))
+            .setAnalyzedFields(FetchSourceContext.of(true, new String[] { TEXT_FIELD, NUMERICAL_FIELD }, new String[] {}))
             .build();
         putAnalytics(config);
 
@@ -199,59 +192,52 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
     }
 
     private static void createIndex(String index, boolean isDatastream) {
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"date\"\n"
-            + "        },"
-            + "        \""
-            + BOOLEAN_FIELD
-            + "\": {\n"
-            + "          \"type\": \"boolean\"\n"
-            + "        },"
-            + "        \""
-            + NUMERICAL_FIELD
-            + "\": {\n"
-            + "          \"type\": \"double\"\n"
-            + "        },"
-            + "        \""
-            + DISCRETE_NUMERICAL_FIELD
-            + "\": {\n"
-            + "          \"type\": \"unsigned_long\"\n"
-            + "        },"
-            + "        \""
-            + TEXT_FIELD
-            + "\": {\n"
-            + "          \"type\": \"text\"\n"
-            + "        },"
-            + "        \""
-            + KEYWORD_FIELD
-            + "\": {\n"
-            + "          \"type\": \"keyword\"\n"
-            + "        },"
-            + "        \""
-            + NESTED_FIELD
-            + "\": {\n"
-            + "          \"type\": \"keyword\"\n"
-            + "        },"
-            + "        \""
-            + ALIAS_TO_KEYWORD_FIELD
-            + "\": {\n"
-            + "          \"type\": \"alias\",\n"
-            + "          \"path\": \""
-            + KEYWORD_FIELD
-            + "\"\n"
-            + "        },"
-            + "        \""
-            + ALIAS_TO_NESTED_FIELD
-            + "\": {\n"
-            + "          \"type\": \"alias\",\n"
-            + "          \"path\": \""
-            + NESTED_FIELD
-            + "\"\n"
-            + "        }"
-            + "      }\n"
-            + "    }";
+        String mapping = Strings.format(
+            """
+                {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date"
+                    },
+                    "%s": {
+                      "type": "boolean"
+                    },
+                    "%s": {
+                      "type": "double"
+                    },
+                    "%s": {
+                      "type": "unsigned_long"
+                    },
+                    "%s": {
+                      "type": "text"
+                    },
+                    "%s": {
+                      "type": "keyword"
+                    },
+                    "%s": {
+                      "type": "keyword"
+                    },
+                    "%s": {
+                      "type": "alias",
+                      "path": "%s"
+                    },
+                    "%s": {
+                      "type": "alias",
+                      "path": "%s"
+                    }
+                  }
+                }""",
+            BOOLEAN_FIELD,
+            NUMERICAL_FIELD,
+            DISCRETE_NUMERICAL_FIELD,
+            TEXT_FIELD,
+            KEYWORD_FIELD,
+            NESTED_FIELD,
+            ALIAS_TO_KEYWORD_FIELD,
+            KEYWORD_FIELD,
+            ALIAS_TO_NESTED_FIELD,
+            NESTED_FIELD
+        );
         if (isDatastream) {
             try {
                 createDataStreamAndTemplate(index, mapping);

@@ -13,7 +13,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.ActionConfigStatsTests;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PhaseStats;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 public class PhaseStatsTests extends AbstractWireSerializingTestCase<PhaseStats> {
@@ -30,22 +29,19 @@ public class PhaseStatsTests extends AbstractWireSerializingTestCase<PhaseStats>
     }
 
     @Override
-    protected PhaseStats mutateInstance(PhaseStats instance) throws IOException {
+    protected PhaseStats mutateInstance(PhaseStats instance) {
         TimeValue minimumAge = instance.getAfter();
         String[] actionNames = instance.getActionNames();
         switch (between(0, 1)) {
-            case 0:
-                minimumAge = randomValueOtherThan(
-                    minimumAge,
-                    () -> TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after")
-                );
-                break;
-            case 1:
+            case 0 -> minimumAge = randomValueOtherThan(
+                minimumAge,
+                () -> TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after")
+            );
+            case 1 -> {
                 actionNames = Arrays.copyOf(actionNames, actionNames.length + 1);
                 actionNames[actionNames.length - 1] = randomAlphaOfLengthBetween(10, 20);
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new PhaseStats(minimumAge, actionNames, instance.getConfigurations());
     }

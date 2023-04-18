@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
@@ -42,7 +43,7 @@ public class ClusterPermissionTests extends ESTestCase {
     @Before
     public void setup() {
         mockTransportRequest = mock(TransportRequest.class);
-        mockAuthentication = mock(Authentication.class);
+        mockAuthentication = AuthenticationTestHelper.builder().build();
     }
 
     public void testClusterPermissionBuilder() {
@@ -50,7 +51,7 @@ public class ClusterPermissionTests extends ESTestCase {
         assertNotNull(builder);
         assertThat(builder.build(), is(ClusterPermission.NONE));
 
-        builder = ClusterPrivilegeResolver.MANAGE_SECURITY.buildPermission(builder);
+        builder = ClusterPrivilegeResolver.READ_SECURITY.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
         final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 = new MockConfigurableClusterPrivilege(
             r -> r == mockTransportRequest
@@ -68,7 +69,7 @@ public class ClusterPermissionTests extends ESTestCase {
         assertThat(
             privileges,
             containsInAnyOrder(
-                ClusterPrivilegeResolver.MANAGE_SECURITY,
+                ClusterPrivilegeResolver.READ_SECURITY,
                 ClusterPrivilegeResolver.MANAGE_ILM,
                 mockConfigurableClusterPrivilege1,
                 mockConfigurableClusterPrivilege2
@@ -155,7 +156,7 @@ public class ClusterPermissionTests extends ESTestCase {
 
     public void testNoneClusterPermissionIsImpliedByAny() {
         ClusterPermission.Builder builder = ClusterPermission.builder();
-        builder = ClusterPrivilegeResolver.MANAGE_SECURITY.buildPermission(builder);
+        builder = ClusterPrivilegeResolver.READ_SECURITY.buildPermission(builder);
         builder = ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(builder);
         final MockConfigurableClusterPrivilege mockConfigurableClusterPrivilege1 = new MockConfigurableClusterPrivilege(
             r -> r == mockTransportRequest
@@ -252,14 +253,30 @@ public class ClusterPermissionTests extends ESTestCase {
         assertThat(allClusterPermission.implies(otherClusterPermission), is(true));
     }
 
+    public void testReadSecurityPrivilegeNoImplyApiKeyManagement() {
+        assertFalse(ClusterPrivilegeResolver.READ_SECURITY.permission().implies(ClusterPrivilegeResolver.MANAGE_API_KEY.permission()));
+        assertFalse(ClusterPrivilegeResolver.MANAGE_API_KEY.permission().implies(ClusterPrivilegeResolver.READ_SECURITY.permission()));
+        assertFalse(ClusterPrivilegeResolver.READ_SECURITY.permission().implies(ClusterPrivilegeResolver.MANAGE_OWN_API_KEY.permission()));
+        assertFalse(ClusterPrivilegeResolver.MANAGE_OWN_API_KEY.permission().implies(ClusterPrivilegeResolver.READ_SECURITY.permission()));
+    }
+
     public void testImpliesOnSecurityPrivilegeHierarchy() {
-        final List<ClusterPermission> highToLow = List.of(
+        List<ClusterPermission> highToLow = List.of(
             ClusterPrivilegeResolver.ALL.permission(),
             ClusterPrivilegeResolver.MANAGE_SECURITY.permission(),
             ClusterPrivilegeResolver.MANAGE_API_KEY.permission(),
             ClusterPrivilegeResolver.MANAGE_OWN_API_KEY.permission()
         );
+        assertImpliesHierarchy(highToLow);
+        highToLow = List.of(
+            ClusterPrivilegeResolver.ALL.permission(),
+            ClusterPrivilegeResolver.MANAGE_SECURITY.permission(),
+            ClusterPrivilegeResolver.READ_SECURITY.permission()
+        );
+        assertImpliesHierarchy(highToLow);
+    }
 
+    private void assertImpliesHierarchy(List<ClusterPermission> highToLow) {
         for (int i = 0; i < highToLow.size(); i++) {
             ClusterPermission high = highToLow.get(i);
             for (int j = i; j < highToLow.size(); j++) {

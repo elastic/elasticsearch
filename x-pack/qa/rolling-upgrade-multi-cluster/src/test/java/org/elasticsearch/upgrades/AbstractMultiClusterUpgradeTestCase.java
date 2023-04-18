@@ -13,7 +13,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
@@ -38,18 +39,13 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         ALL;
 
         public static UpgradeState parse(String value) {
-            switch (value) {
-                case "none":
-                    return NONE;
-                case "one_third":
-                    return ONE_THIRD;
-                case "two_third":
-                    return TWO_THIRD;
-                case "all":
-                    return ALL;
-                default:
-                    throw new AssertionError("unknown cluster type: " + value);
-            }
+            return switch (value) {
+                case "none" -> NONE;
+                case "one_third" -> ONE_THIRD;
+                case "two_third" -> TWO_THIRD;
+                case "all" -> ALL;
+                default -> throw new AssertionError("unknown cluster type: " + value);
+            };
         }
     }
 
@@ -60,14 +56,11 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         FOLLOWER;
 
         public static ClusterName parse(String value) {
-            switch (value) {
-                case "leader":
-                    return LEADER;
-                case "follower":
-                    return FOLLOWER;
-                default:
-                    throw new AssertionError("unknown cluster type: " + value);
-            }
+            return switch (value) {
+                case "leader" -> LEADER;
+                case "follower" -> FOLLOWER;
+                default -> throw new AssertionError("unknown cluster type: " + value);
+            };
         }
     }
 
@@ -118,7 +111,12 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         if (leaderRemoteClusterSeed != null) {
             logger.info("Configuring leader remote cluster [{}]", leaderRemoteClusterSeed);
             Request request = new Request("PUT", "/_cluster/settings");
-            request.setJsonEntity("{\"persistent\": {\"cluster.remote.leader.seeds\": \"" + leaderRemoteClusterSeed + "\"}}");
+            request.setJsonEntity(Strings.format("""
+                {
+                  "persistent": {
+                    "cluster.remote.leader.seeds": "%s"
+                  }
+                }""", leaderRemoteClusterSeed));
             assertThat(leaderClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
             if (followerClient != null) {
                 assertThat(followerClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
@@ -133,7 +131,12 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         if (followerRemoteClusterSeed != null) {
             logger.info("Configuring follower remote cluster [{}]", followerRemoteClusterSeed);
             Request request = new Request("PUT", "/_cluster/settings");
-            request.setJsonEntity("{\"persistent\": {\"cluster.remote.follower.seeds\": \"" + followerRemoteClusterSeed + "\"}}");
+            request.setJsonEntity(Strings.format("""
+                {
+                  "persistent": {
+                    "cluster.remote.follower.seeds": "%s"
+                  }
+                }""", followerRemoteClusterSeed));
             assertThat(leaderClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
             assertThat(followerClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
         } else {

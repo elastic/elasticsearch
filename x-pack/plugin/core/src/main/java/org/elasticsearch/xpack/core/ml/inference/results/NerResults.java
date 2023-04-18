@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.results;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -161,6 +162,11 @@ public class NerResults extends NlpInferenceResults {
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
 
         public Map<String, Object> toMap() {

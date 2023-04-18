@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -37,11 +35,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Predicate;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(TransportClusterStateAction.class);
 
     @Inject
     public TransportClusterStateAction(
@@ -61,7 +60,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             ClusterStateRequest::new,
             indexNameExpressionResolver,
             ClusterStateResponse::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.MANAGEMENT
         );
     }
 
@@ -124,13 +123,11 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        try {
-                            if (cancellableTask.notifyIfCancelled(listener) == false) {
-                                listener.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
+                        ActionListener.run(listener, l -> {
+                            if (cancellableTask.notifyIfCancelled(l) == false) {
+                                l.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
                             }
-                        } catch (Exception e) {
-                            listener.onFailure(e);
-                        }
+                        });
                     }
                 }, clusterState -> cancellableTask.isCancelled() || acceptableClusterStateOrFailedPredicate.test(clusterState));
         }
@@ -144,6 +141,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
+            builder.transportVersions(currentState.transportVersions());
         }
         if (request.routingTable()) {
             if (request.indices().length > 0) {
@@ -175,13 +173,13 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                     // If the requested index is part of a data stream then that data stream should also be included:
                     IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(filteredIndex);
                     if (indexAbstraction.getParentDataStream() != null) {
-                        DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
-                        mdBuilder.put(dataStream);
+                        DataStream dataStream = indexAbstraction.getParentDataStream();
                         // Also the IMD of other backing indices need to be included, otherwise the cluster state api
                         // can't create a valid cluster state instance:
                         for (Index backingIndex : dataStream.getIndices()) {
                             mdBuilder.put(currentState.metadata().index(backingIndex), false);
                         }
+                        mdBuilder.put(dataStream);
                     } else {
                         IndexMetadata indexMetadata = currentState.metadata().index(filteredIndex);
                         if (indexMetadata != null) {
@@ -194,18 +192,18 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             }
 
             // filter out metadata that shouldn't be returned by the API
-            for (ObjectObjectCursor<String, Custom> custom : currentState.metadata().customs()) {
-                if (custom.value.context().contains(Metadata.XContentContext.API) == false) {
-                    mdBuilder.removeCustom(custom.key);
+            for (Map.Entry<String, Custom> custom : currentState.metadata().customs().entrySet()) {
+                if (custom.getValue().context().contains(Metadata.XContentContext.API) == false) {
+                    mdBuilder.removeCustom(custom.getKey());
                 }
             }
         }
         builder.metadata(mdBuilder);
 
         if (request.customs()) {
-            for (ObjectObjectCursor<String, ClusterState.Custom> custom : currentState.customs()) {
-                if (custom.value.isPrivate() == false) {
-                    builder.putCustom(custom.key, custom.value);
+            for (Map.Entry<String, ClusterState.Custom> custom : currentState.customs().entrySet()) {
+                if (custom.getValue().isPrivate() == false) {
+                    builder.putCustom(custom.getKey(), custom.getValue());
                 }
             }
         }

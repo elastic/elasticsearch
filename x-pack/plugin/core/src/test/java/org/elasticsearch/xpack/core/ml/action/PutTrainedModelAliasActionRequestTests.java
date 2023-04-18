@@ -31,6 +31,11 @@ public class PutTrainedModelAliasActionRequestTests extends AbstractWireSerializ
     }
 
     @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
     }
@@ -48,7 +53,7 @@ public class PutTrainedModelAliasActionRequestTests extends AbstractWireSerializ
             assertThat(ex.getMessage(), containsString("model_alias [foo] cannot equal model_id [foo]"));
         }
         { // model_alias cannot end in numbers
-            String modelAlias = randomAlphaOfLength(10) + randomIntBetween(0, Integer.MAX_VALUE);
+            modelAlias = randomAlphaOfLength(10) + randomIntBetween(0, Integer.MAX_VALUE);
             ActionRequestValidationException ex = new Request(modelAlias, "foo", randomBoolean()).validate();
             assertThat(ex, not(nullValue()));
             assertThat(

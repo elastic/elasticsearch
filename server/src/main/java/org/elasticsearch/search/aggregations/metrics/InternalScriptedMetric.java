@@ -8,13 +8,15 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -43,7 +45,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     public InternalScriptedMetric(StreamInput in) throws IOException {
         super(in);
         reduceScript = in.readOptionalWriteable(Script::new);
-        if (in.getVersion().before(Version.V_7_8_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_7_8_0)) {
             aggregations = singletonList(in.readGenericValue());
         } else {
             aggregations = in.readList(StreamInput::readGenericValue);
@@ -53,7 +55,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(reduceScript);
-        if (out.getVersion().before(Version.V_7_8_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_7_8_0)) {
             if (aggregations.size() > 1) {
                 /*
                  * If aggregations has more than one entry we're trying to
@@ -87,7 +89,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         List<Object> aggregationObjects = new ArrayList<>();
         for (InternalAggregation aggregation : aggregations) {
             InternalScriptedMetric mapReduceAggregation = (InternalScriptedMetric) aggregation;
@@ -117,6 +119,11 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
             aggregation = aggregationObjects;
         }
         return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.reduceScript, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
     }
 
     @Override
@@ -155,4 +162,8 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
         return Objects.hash(super.hashCode(), reduceScript, aggregations);
     }
 
+    @Override
+    public String toString() {
+        return "InternalScriptedMetric{" + reduceScript + "}";
+    }
 }

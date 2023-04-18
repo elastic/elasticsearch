@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ItemUsage;
@@ -79,14 +79,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                         )
                         .put(
                             IndexMetadata.builder("myindex")
-                                .settings(
-                                    Settings.builder()
-                                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                        .put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy")
-                                        .build()
-                                )
+                                .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
                         )
                         .build()
                 )
@@ -111,14 +104,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                         )
                         .put(
                             IndexMetadata.builder("myindex")
-                                .settings(
-                                    Settings.builder()
-                                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                        .put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy")
-                                        .build()
-                                )
+                                .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
                         )
                         .putCustom(
                             ComposableIndexTemplateMetadata.TYPE,
@@ -161,36 +147,15 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                 )
                 .put(
                     IndexMetadata.builder("myindex")
-                        .settings(
-                            Settings.builder()
-                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                .put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy")
-                                .build()
-                        )
+                        .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
                 )
                 .put(
                     IndexMetadata.builder("another")
-                        .settings(
-                            Settings.builder()
-                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                .put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy")
-                                .build()
-                        )
+                        .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
                 )
                 .put(
                     IndexMetadata.builder("other")
-                        .settings(
-                            Settings.builder()
-                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                .put(LifecycleSettings.LIFECYCLE_NAME, "otherpolicy")
-                                .build()
-                        )
+                        .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "otherpolicy"))
                 )
 
                 .putCustom(
@@ -211,13 +176,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                     )
                 );
             // Need to get the real Index instance of myindex:
-            mBuilder.put(
-                new DataStream(
-                    "myds",
-                    new DataStream.TimestampField("@timestamp"),
-                    Collections.singletonList(mBuilder.get("myindex").getIndex())
-                )
-            );
+            mBuilder.put(DataStreamTestHelper.newInstance("myds", Collections.singletonList(mBuilder.get("myindex").getIndex())));
 
             // Test where policy exists and is used by an index, datastream, and template
             ClusterState state = ClusterState.builder(new ClusterName("mycluster")).metadata(mBuilder.build()).build();

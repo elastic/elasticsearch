@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -59,8 +58,7 @@ public class TaskExecutorTests extends ESTestCase {
             getClass().getName() + "/" + getTestName(),
             daemonThreadFactory(Settings.EMPTY, "test_thread"),
             threadPool.getThreadContext(),
-            threadPool.scheduler(),
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            threadPool.scheduler()
         );
     }
 
@@ -70,9 +68,9 @@ public class TaskExecutorTests extends ESTestCase {
     }
 
     protected interface TestListener {
-        void onFailure(String source, Exception e);
+        void onFailure(Exception e);
 
-        default void processed(String source) {
+        default void processed() {
             // do nothing by default
         }
     }
@@ -93,10 +91,7 @@ public class TaskExecutorTests extends ESTestCase {
         }
     }
 
-    /**
-     * Task class that works for single tasks as well as batching (see {@link TaskBatcherTests})
-     */
-    protected abstract static class TestTask implements TestExecutor<TestTask>, TestListener, ClusterStateTaskConfig {
+    protected abstract static class TestTask implements TestExecutor<TestTask>, TestListener {
 
         @Override
         public void execute(List<TestTask> tasks) {
@@ -104,12 +99,10 @@ public class TaskExecutorTests extends ESTestCase {
         }
 
         @Nullable
-        @Override
         public TimeValue timeout() {
             return null;
         }
 
-        @Override
         public Priority priority() {
             return Priority.NORMAL;
         }
@@ -129,7 +122,7 @@ public class TaskExecutorTests extends ESTestCase {
         public void run() {
             logger.trace("will process {}", source);
             testTask.execute(Collections.singletonList(testTask));
-            testTask.processed(source);
+            testTask.processed();
         }
     }
 
@@ -140,7 +133,7 @@ public class TaskExecutorTests extends ESTestCase {
         if (timeout != null) {
             threadExecutor.execute(task, timeout, () -> threadPool.generic().execute(() -> {
                 logger.debug("task [{}] timed out after [{}]", task, timeout);
-                testTask.onFailure(source, new ProcessClusterEventTimeoutException(timeout, source));
+                testTask.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
             }));
         } else {
             threadExecutor.execute(task);
@@ -163,7 +156,7 @@ public class TaskExecutorTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new RuntimeException(e);
             }
         };
@@ -178,7 +171,7 @@ public class TaskExecutorTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 block2.countDown();
             }
 
@@ -207,7 +200,7 @@ public class TaskExecutorTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new RuntimeException(e);
             }
         };
@@ -228,7 +221,7 @@ public class TaskExecutorTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 timedOut.countDown();
             }
         };
@@ -245,7 +238,7 @@ public class TaskExecutorTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new RuntimeException(e);
             }
         };
@@ -312,7 +305,7 @@ public class TaskExecutorTests extends ESTestCase {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {}
+        public void onFailure(Exception e) {}
 
         @Override
         public Priority priority() {
@@ -349,7 +342,7 @@ public class TaskExecutorTests extends ESTestCase {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             latch.countDown();
         }
     }

@@ -17,17 +17,19 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -40,14 +42,20 @@ public class LifecyclePolicyUtils {
     /**
      * Loads a built-in index lifecycle policy and returns its source.
      */
-    public static LifecyclePolicy loadPolicy(String name, String resource, NamedXContentRegistry xContentRegistry) {
+    public static LifecyclePolicy loadPolicy(
+        String name,
+        String resource,
+        Map<String, String> variables,
+        NamedXContentRegistry xContentRegistry
+    ) {
         try {
             BytesReference source = load(resource);
+            source = replaceVariables(source, variables);
             validate(source);
 
             try (
                 XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, source.utf8ToString())
+                    .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), source.utf8ToString())
             ) {
                 LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
                 policy.validate();
@@ -68,6 +76,21 @@ public class LifecyclePolicyUtils {
                 return new BytesArray(out.toByteArray());
             }
         }
+    }
+
+    private static BytesReference replaceVariables(BytesReference input, Map<String, String> variables) {
+        String template = input.utf8ToString();
+        for (Map.Entry<String, String> variable : variables.entrySet()) {
+            template = replaceVariable(template, variable.getKey(), variable.getValue());
+        }
+        return new BytesArray(template);
+    }
+
+    /**
+     * Replaces all occurrences of given variable with the value
+     */
+    public static String replaceVariable(String input, String variable, String value) {
+        return Pattern.compile("${" + variable + "}", Pattern.LITERAL).matcher(input).replaceAll(value);
     }
 
     /**
@@ -100,7 +123,7 @@ public class LifecyclePolicyUtils {
             .indices()
             .values()
             .stream()
-            .filter(indexMetadata -> policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings())))
+            .filter(indexMetadata -> policyName.equals(indexMetadata.getLifecyclePolicyName()))
             .map(indexMetadata -> indexMetadata.getIndex().getName())
             .collect(Collectors.toList());
 

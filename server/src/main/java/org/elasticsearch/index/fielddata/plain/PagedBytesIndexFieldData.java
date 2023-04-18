@@ -11,6 +11,7 @@ import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -50,18 +52,36 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         private final double minFrequency, maxFrequency;
         private final int minSegmentSize;
         private final ValuesSourceType valuesSourceType;
+        private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
-        public Builder(String name, double minFrequency, double maxFrequency, int minSegmentSize, ValuesSourceType valuesSourceType) {
+        public Builder(
+            String name,
+            double minFrequency,
+            double maxFrequency,
+            int minSegmentSize,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
+        ) {
             this.name = name;
             this.minFrequency = minFrequency;
             this.maxFrequency = maxFrequency;
             this.minSegmentSize = minSegmentSize;
             this.valuesSourceType = valuesSourceType;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
         public IndexOrdinalsFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new PagedBytesIndexFieldData(name, valuesSourceType, cache, breakerService, minFrequency, maxFrequency, minSegmentSize);
+            return new PagedBytesIndexFieldData(
+                name,
+                valuesSourceType,
+                cache,
+                breakerService,
+                minFrequency,
+                maxFrequency,
+                minSegmentSize,
+                toScriptFieldFactory
+            );
         }
     }
 
@@ -72,9 +92,10 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         CircuitBreakerService breakerService,
         double minFrequency,
         double maxFrequency,
-        int minSegmentSize
+        int minSegmentSize,
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) {
-        super(fieldName, valuesSourceType, cache, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        super(fieldName, valuesSourceType, cache, breakerService, toScriptFieldFactory);
         this.minFrequency = minFrequency;
         this.maxFrequency = maxFrequency;
         this.minSegmentSize = minSegmentSize;
@@ -117,7 +138,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         );
         Terms terms = reader.terms(getFieldName());
         if (terms == null) {
-            data = AbstractLeafOrdinalsFieldData.empty();
+            data = AbstractLeafOrdinalsFieldData.empty(toScriptFieldFactory);
             estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
@@ -148,7 +169,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             PagedBytes.Reader bytesReader = bytes.freeze(true);
             final Ordinals ordinals = builder.build();
 
-            data = new PagedBytesLeafFieldData(bytesReader, termOrdToBytesOffset.build(), ordinals);
+            data = new PagedBytesLeafFieldData(bytesReader, termOrdToBytesOffset.build(), ordinals, toScriptFieldFactory);
             success = true;
             return data;
         } finally {

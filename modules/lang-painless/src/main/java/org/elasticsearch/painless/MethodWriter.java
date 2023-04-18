@@ -61,21 +61,10 @@ import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_SHORT_IMPLICIT
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_STRING_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_STRING_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
-import static org.elasticsearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
-import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
+import static org.elasticsearch.painless.WriterConstants.MAX_STRING_CONCAT_ARGS;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
-import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_BOOLEAN;
-import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_CHAR;
-import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_DOUBLE;
-import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_FLOAT;
-import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_INT;
-import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_LONG;
-import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_OBJECT;
-import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_STRING;
-import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_CONSTRUCTOR;
-import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_TOSTRING;
-import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_TYPE;
+import static org.elasticsearch.painless.WriterConstants.STRING_CONCAT_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.STRING_TO_CHAR;
 import static org.elasticsearch.painless.WriterConstants.STRING_TYPE;
 import static org.elasticsearch.painless.WriterConstants.UTILITY_TYPE;
@@ -90,7 +79,7 @@ public final class MethodWriter extends GeneratorAdapter {
     private final BitSet statements;
     private final CompilerSettings settings;
 
-    private final Deque<List<Type>> stringConcatArgs = (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ? null : new ArrayDeque<>();
+    private final Deque<List<Type>> stringConcatArgs = new ArrayDeque<>();
 
     public MethodWriter(int access, Method method, ClassVisitor cw, BitSet statements, CompilerSettings settings) {
         super(
@@ -266,57 +255,28 @@ public final class MethodWriter extends GeneratorAdapter {
     /** Starts a new string concat.
      * @return the size of arguments pushed to stack (the object that does string concats, e.g. a StringBuilder)
      */
-    public int writeNewStrings() {
-        if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
-            // Java 9+: we just push our argument collector onto deque
-            stringConcatArgs.push(new ArrayList<>());
-            return 0; // nothing added to stack
-        } else {
-            // Java 8: create a StringBuilder in bytecode
-            newInstance(STRINGBUILDER_TYPE);
-            dup();
-            invokeConstructor(STRINGBUILDER_TYPE, STRINGBUILDER_CONSTRUCTOR);
-            return 1; // StringBuilder on stack
-        }
+    public List<Type> writeNewStrings() {
+        List<Type> list = new ArrayList<>();
+        stringConcatArgs.push(list);
+        return list;
     }
 
     public void writeAppendStrings(Class<?> clazz) {
-        if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
-            // Java 9+: record type information
-            stringConcatArgs.peek().add(getType(clazz));
-            // prevent too many concat args.
-            // If there are too many, do the actual concat:
-            if (stringConcatArgs.peek().size() >= MAX_INDY_STRING_CONCAT_ARGS) {
-                writeToStrings();
-                writeNewStrings();
-                // add the return value type as new first param for next concat:
-                stringConcatArgs.peek().add(STRING_TYPE);
-            }
-        } else {
-            // Java 8: push a StringBuilder append
-            if (clazz == boolean.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_BOOLEAN);
-            else if (clazz == char.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_CHAR);
-            else if (clazz == byte.class || clazz == short.class || clazz == int.class) invokeVirtual(
-                STRINGBUILDER_TYPE,
-                STRINGBUILDER_APPEND_INT
-            );
-            else if (clazz == long.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_LONG);
-            else if (clazz == float.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_FLOAT);
-            else if (clazz == double.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_DOUBLE);
-            else if (clazz == String.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_STRING);
-            else invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_OBJECT);
+        List<Type> currentConcat = stringConcatArgs.peek();
+        currentConcat.add(getType(clazz));
+        // prevent too many concat args.
+        // If there are too many, do the actual concat:
+        if (currentConcat.size() >= MAX_STRING_CONCAT_ARGS) {
+            writeToStrings();
+            currentConcat = writeNewStrings();
+            // add the return value type as new first param for next concat:
+            currentConcat.add(STRING_TYPE);
         }
     }
 
     public void writeToStrings() {
-        if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
-            // Java 9+: use type information and push invokeDynamic
-            final String desc = Type.getMethodDescriptor(STRING_TYPE, stringConcatArgs.pop().stream().toArray(Type[]::new));
-            invokeDynamic("concat", desc, INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
-        } else {
-            // Java 8: call toString() on StringBuilder
-            invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_TOSTRING);
-        }
+        final String desc = Type.getMethodDescriptor(STRING_TYPE, stringConcatArgs.pop().toArray(Type[]::new));
+        invokeDynamic("concat", desc, STRING_CONCAT_BOOTSTRAP_HANDLE);
     }
 
     /** Writes a dynamic binary instruction: returnType, lhs, and rhs can be different */
@@ -331,16 +291,10 @@ public final class MethodWriter extends GeneratorAdapter {
         Type methodType = Type.getMethodType(getType(returnType), getType(lhs), getType(rhs));
 
         switch (operation) {
-            case MUL:
-                invokeDefCall("mul", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            case DIV:
-                invokeDefCall("div", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            case REM:
-                invokeDefCall("rem", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            case ADD:
+            case MUL -> invokeDefCall("mul", methodType, DefBootstrap.BINARY_OPERATOR, flags);
+            case DIV -> invokeDefCall("div", methodType, DefBootstrap.BINARY_OPERATOR, flags);
+            case REM -> invokeDefCall("rem", methodType, DefBootstrap.BINARY_OPERATOR, flags);
+            case ADD -> {
                 // if either side is primitive, then the + operator should always throw NPE on null,
                 // so we don't need a special NPE guard.
                 // otherwise, we need to allow nulls for possible string concatenation.
@@ -349,30 +303,15 @@ public final class MethodWriter extends GeneratorAdapter {
                     flags |= DefBootstrap.OPERATOR_ALLOWS_NULL;
                 }
                 invokeDefCall("add", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            case SUB:
-                invokeDefCall("sub", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            case LSH:
-                invokeDefCall("lsh", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
-                break;
-            case USH:
-                invokeDefCall("ush", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
-                break;
-            case RSH:
-                invokeDefCall("rsh", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
-                break;
-            case BWAND:
-                invokeDefCall("and", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            case XOR:
-                invokeDefCall("xor", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            case BWOR:
-                invokeDefCall("or", methodType, DefBootstrap.BINARY_OPERATOR, flags);
-                break;
-            default:
-                throw location.createError(new IllegalStateException("Illegal tree structure."));
+            }
+            case SUB -> invokeDefCall("sub", methodType, DefBootstrap.BINARY_OPERATOR, flags);
+            case LSH -> invokeDefCall("lsh", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
+            case USH -> invokeDefCall("ush", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
+            case RSH -> invokeDefCall("rsh", methodType, DefBootstrap.SHIFT_OPERATOR, flags);
+            case BWAND -> invokeDefCall("and", methodType, DefBootstrap.BINARY_OPERATOR, flags);
+            case XOR -> invokeDefCall("xor", methodType, DefBootstrap.BINARY_OPERATOR, flags);
+            case BWOR -> invokeDefCall("or", methodType, DefBootstrap.BINARY_OPERATOR, flags);
+            default -> throw location.createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
@@ -389,41 +328,18 @@ public final class MethodWriter extends GeneratorAdapter {
         }
 
         switch (operation) {
-            case MUL:
-                math(GeneratorAdapter.MUL, getType(clazz));
-                break;
-            case DIV:
-                math(GeneratorAdapter.DIV, getType(clazz));
-                break;
-            case REM:
-                math(GeneratorAdapter.REM, getType(clazz));
-                break;
-            case ADD:
-                math(GeneratorAdapter.ADD, getType(clazz));
-                break;
-            case SUB:
-                math(GeneratorAdapter.SUB, getType(clazz));
-                break;
-            case LSH:
-                math(GeneratorAdapter.SHL, getType(clazz));
-                break;
-            case USH:
-                math(GeneratorAdapter.USHR, getType(clazz));
-                break;
-            case RSH:
-                math(GeneratorAdapter.SHR, getType(clazz));
-                break;
-            case BWAND:
-                math(GeneratorAdapter.AND, getType(clazz));
-                break;
-            case XOR:
-                math(GeneratorAdapter.XOR, getType(clazz));
-                break;
-            case BWOR:
-                math(GeneratorAdapter.OR, getType(clazz));
-                break;
-            default:
-                throw location.createError(new IllegalStateException("Illegal tree structure."));
+            case MUL -> math(GeneratorAdapter.MUL, getType(clazz));
+            case DIV -> math(GeneratorAdapter.DIV, getType(clazz));
+            case REM -> math(GeneratorAdapter.REM, getType(clazz));
+            case ADD -> math(GeneratorAdapter.ADD, getType(clazz));
+            case SUB -> math(GeneratorAdapter.SUB, getType(clazz));
+            case LSH -> math(GeneratorAdapter.SHL, getType(clazz));
+            case USH -> math(GeneratorAdapter.USHR, getType(clazz));
+            case RSH -> math(GeneratorAdapter.SHR, getType(clazz));
+            case BWAND -> math(GeneratorAdapter.AND, getType(clazz));
+            case XOR -> math(GeneratorAdapter.XOR, getType(clazz));
+            case BWOR -> math(GeneratorAdapter.OR, getType(clazz));
+            default -> throw location.createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
@@ -484,26 +400,26 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     public void invokeMethodCall(PainlessMethod painlessMethod) {
-        Type type = Type.getType(painlessMethod.javaMethod.getDeclaringClass());
-        Method method = Method.getMethod(painlessMethod.javaMethod);
+        Type type = Type.getType(painlessMethod.javaMethod().getDeclaringClass());
+        Method method = Method.getMethod(painlessMethod.javaMethod());
 
-        if (Modifier.isStatic(painlessMethod.javaMethod.getModifiers())) {
+        if (Modifier.isStatic(painlessMethod.javaMethod().getModifiers())) {
             // invokeStatic assumes that the owner class is not an interface, so this is a
             // special case for interfaces where the interface method boolean needs to be set to
             // true to reference the appropriate class constant when calling a static interface
             // method since java 8 did not check, but java 9 and 10 do
-            if (painlessMethod.javaMethod.getDeclaringClass().isInterface()) {
+            if (painlessMethod.javaMethod().getDeclaringClass().isInterface()) {
                 visitMethodInsn(
                     Opcodes.INVOKESTATIC,
                     type.getInternalName(),
-                    painlessMethod.javaMethod.getName(),
+                    painlessMethod.javaMethod().getName(),
                     method.getDescriptor(),
                     true
                 );
             } else {
                 invokeStatic(type, method);
             }
-        } else if (painlessMethod.javaMethod.getDeclaringClass().isInterface()) {
+        } else if (painlessMethod.javaMethod().getDeclaringClass().isInterface()) {
             invokeInterface(type, method);
         } else {
             invokeVirtual(type, method);

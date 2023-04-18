@@ -73,12 +73,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
         @Override
         public List<QuerySpec<?>> getQueries() {
-            return Arrays.asList(
-                new QuerySpec<>(
-                    BlockingQueryBuilder.NAME,
-                    BlockingQueryBuilder::new,
-                    p -> { throw new IllegalStateException("not implemented"); }
-                ),
+            return Arrays.asList(new QuerySpec<>(BlockingQueryBuilder.NAME, BlockingQueryBuilder::new, p -> {
+                throw new IllegalStateException("not implemented");
+            }),
                 new QuerySpec<>(
                     ThrowingQueryBuilder.NAME,
                     ThrowingQueryBuilder::new,
@@ -93,7 +90,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 new AggregationSpec(
                     CancellingAggregationBuilder.NAME,
                     CancellingAggregationBuilder::new,
-                    (ContextParser<String, CancellingAggregationBuilder>) (p, c) -> { throw new IllegalStateException("not implemented"); }
+                    (ContextParser<String, CancellingAggregationBuilder>) (p, c) -> {
+                        throw new IllegalStateException("not implemented");
+                    }
                 ).addResultReader(InternalFilter::new)
             );
         }
@@ -149,7 +148,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         AsyncExecutionId searchId = AsyncExecutionId.decode(id);
         final ClusterStateResponse clusterState = client().admin().cluster().prepareState().clear().setNodes(true).get();
         DiscoveryNode node = clusterState.getState().nodes().get(searchId.getTaskId().getNodeId());
+
+        // Temporarily stop garbage collection, making sure to wait for any in-flight tasks to complete
         stopMaintenanceService();
+        ensureAllSearchContextsReleased();
+
         internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
         });
         startMaintenanceService();

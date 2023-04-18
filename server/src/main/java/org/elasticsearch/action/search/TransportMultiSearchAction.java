@@ -11,7 +11,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -108,7 +108,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     static int defaultMaxConcurrentSearches(final int allocatedProcessors, final ClusterState state) {
         int numDateNodes = state.getNodes().getDataNodes().size();
         // we bound the default concurrency to preserve some search thread pool capacity for other searches
-        final int defaultSearchThreadPoolSize = Math.min(ThreadPool.searchThreadPoolSize(allocatedProcessors), 10);
+        final int defaultSearchThreadPoolSize = Math.min(ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors), 10);
         return Math.max(1, numDateNodes * defaultSearchThreadPoolSize);
     }
 
@@ -191,14 +191,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         });
     }
 
-    static final class SearchRequestSlot {
+    record SearchRequestSlot(SearchRequest request, int responseSlot) {
 
-        final SearchRequest request;
-        final int responseSlot;
-
-        SearchRequestSlot(SearchRequest request, int responseSlot) {
-            this.request = request;
-            this.responseSlot = responseSlot;
-        }
     }
 }

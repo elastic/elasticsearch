@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -28,15 +28,21 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -49,6 +55,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveLifecycle;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 
 public class TransportSimulateIndexTemplateAction extends TransportMasterNodeReadAction<
@@ -58,7 +65,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     private final MetadataIndexTemplateService indexTemplateService;
     private final NamedXContentRegistry xContentRegistry;
     private final IndicesService indicesService;
-    private final AliasValidator aliasValidator;
+    private final SystemIndices systemIndices;
+    private final Set<IndexSettingProvider> indexSettingProviders;
+    private final ClusterSettings clusterSettings;
 
     @Inject
     public TransportSimulateIndexTemplateAction(
@@ -69,7 +78,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
-        IndicesService indicesService
+        IndicesService indicesService,
+        SystemIndices systemIndices,
+        IndexSettingProviders indexSettingProviders
     ) {
         super(
             SimulateIndexTemplateAction.NAME,
@@ -85,7 +96,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
-        this.aliasValidator = new AliasValidator();
+        this.systemIndices = systemIndices;
+        this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+        this.clusterSettings = clusterService.getClusterSettings();
     }
 
     @Override
@@ -105,14 +118,17 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate()
             );
-            stateWithTemplate = indexTemplateService.addIndexTemplateV2(
-                state,
-                request.getIndexTemplateRequest().create(),
-                simulateTemplateToAdd,
-                request.getIndexTemplateRequest().indexTemplate()
+            stateWithTemplate = removeExistingAbstractions(
+                indexTemplateService.addIndexTemplateV2(
+                    state,
+                    request.getIndexTemplateRequest().create(),
+                    simulateTemplateToAdd,
+                    request.getIndexTemplateRequest().indexTemplate()
+                ),
+                request.getIndexName()
             );
         } else {
-            stateWithTemplate = state;
+            stateWithTemplate = removeExistingAbstractions(state, request.getIndexName());
         }
 
         String matchingTemplate = findV2Template(stateWithTemplate.metadata(), request.getIndexName(), false);
@@ -131,14 +147,35 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             stateWithTemplate,
             xContentRegistry,
             indicesService,
-            aliasValidator
+            systemIndices,
+            indexSettingProviders
         );
 
         final Map<String, List<String>> overlapping = new HashMap<>();
         overlapping.putAll(findConflictingV1Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
         overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
 
-        listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
+        if (request.includeDefaults() && DataLifecycle.isEnabled()) {
+            listener.onResponse(
+                new SimulateIndexTemplateResponse(
+                    template,
+                    overlapping,
+                    clusterSettings.get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING)
+                )
+            );
+        } else {
+            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
+        }
+    }
+
+    /**
+     * Removes the alias, data stream, or existing index from the cluster state if it matches the given index name
+     */
+    private static ClusterState removeExistingAbstractions(ClusterState state, String indexName) {
+        Metadata metadata = state.metadata();
+        return ClusterState.builder(state)
+            .metadata(Metadata.builder(metadata).removeDataStream(indexName).removeAllIndices().build())
+            .build();
     }
 
     @Override
@@ -174,7 +211,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
 
     /**
      * Take a template and index name as well as state where the template exists, and return a final
-     * {@link Template} that represents all the resolved Settings, Mappings, and Aliases
+     * {@link Template} that represents all the resolved Settings, Mappings, Aliases and Lifecycle
      */
     public static Template resolveTemplate(
         final String matchingTemplate,
@@ -182,23 +219,53 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         final ClusterState simulatedState,
         final NamedXContentRegistry xContentRegistry,
         final IndicesService indicesService,
-        final AliasValidator aliasValidator
+        final SystemIndices systemIndices,
+        Set<IndexSettingProvider> indexSettingProviders
     ) throws Exception {
-        Settings settings = resolveSettings(simulatedState.metadata(), matchingTemplate);
+        var metadata = simulatedState.getMetadata();
+        Settings templateSettings = resolveSettings(simulatedState.metadata(), matchingTemplate);
 
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(
             simulatedState.metadata(),
             matchingTemplate
         );
 
+        ComposableIndexTemplate template = simulatedState.metadata().templatesV2().get(matchingTemplate);
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
-        Settings dummySettings = Settings.builder()
+        Settings.Builder dummySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(settings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .build();
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+
+        // empty request mapping as the user can't specify any explicit mappings via the simulate api
+        List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
+            null,
+            simulatedState,
+            matchingTemplate,
+            xContentRegistry,
+            indexName
+        );
+
+        // First apply settings sourced from index settings providers
+        final var now = Instant.now();
+        Settings.Builder additionalSettings = Settings.builder();
+        for (var provider : indexSettingProviders) {
+            Settings result = provider.getAdditionalIndexSettings(
+                indexName,
+                template.getDataStreamTemplate() != null ? indexName : null,
+                template.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(template),
+                simulatedState.getMetadata(),
+                now,
+                templateSettings,
+                mappings
+            );
+            dummySettings.put(result);
+            additionalSettings.put(result);
+        }
+        // Then apply settings resolved from templates:
+        dummySettings.put(templateSettings);
+
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(dummySettings).build();
 
         final ClusterState tempClusterState = ClusterState.builder(simulatedState)
@@ -212,34 +279,23 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 Set.of(),
                 resolvedAliases,
                 tempClusterState.metadata(),
-                aliasValidator,
                 xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                tempIndexService.dateMathExpressionResolverAt()
+                IndexService.dateMathExpressionResolverAt(),
+                systemIndices::isSystemName
             )
         );
 
         Map<String, AliasMetadata> aliasesByName = aliases.stream().collect(Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
 
-        // empty request mapping as the user can't specify any explicit mappings via the simulate api
-        List<Map<String, Object>> mappings = MetadataCreateIndexService.collectV2Mappings(
-            "{}",
-            simulatedState,
-            matchingTemplate,
-            xContentRegistry,
-            indexName
-        );
-
         CompressedXContent mergedMapping = indicesService.<CompressedXContent, Exception>withTempIndexService(
             indexMetadata,
             tempIndexService -> {
                 MapperService mapperService = tempIndexService.mapperService();
-                for (Map<String, Object> mapping : mappings) {
-                    if (mapping.isEmpty() == false) {
-                        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
-                    }
+                for (CompressedXContent mapping : mappings) {
+                    mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
                 }
 
                 DocumentMapper documentMapper = mapperService.documentMapper();
@@ -247,6 +303,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             }
         );
 
-        return new Template(settings, mergedMapping, aliasesByName);
+        Settings settings = Settings.builder().put(templateSettings).put(additionalSettings.build()).build();
+        DataLifecycle lifecycle = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
+        return new Template(settings, mergedMapping, aliasesByName, lifecycle);
     }
 }

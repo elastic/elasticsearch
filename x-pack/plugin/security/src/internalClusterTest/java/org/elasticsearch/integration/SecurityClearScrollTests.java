@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xcontent.XContentType;
@@ -51,14 +52,16 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return super.configRoles()
-            + "\nallowed_role:\n"
-            + "  cluster:\n"
-            + "    - cluster:admin/indices/scroll/clear_all \n"
-            + "denied_role:\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ALL]\n";
+        return Strings.format("""
+            %s
+            allowed_role:
+              cluster:
+                - cluster:admin/indices/scroll/clear_all\s
+            denied_role:
+              indices:
+                - names: '*'
+                  privileges: [ALL]
+            """, super.configRoles());
     }
 
     @Before
@@ -96,7 +99,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
         ClearScrollResponse clearScrollResponse = client().filterWithHeader(headers).prepareClearScroll().addScrollId("_all").get();
         assertThat(clearScrollResponse.isSucceeded(), is(true));
 
-        assertThatScrollIdsDoNotExist(scrollIds);
+        assertThatScrollIdsDoNotExist();
     }
 
     public void testThatClearingAllScrollIdsRequirePermissions() throws Exception {
@@ -116,10 +119,10 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
         assertThat(clearByIdScrollResponse.isSucceeded(), is(true));
 
         // test with each id, that they do not exist
-        assertThatScrollIdsDoNotExist(scrollIds);
+        assertThatScrollIdsDoNotExist();
     }
 
-    private void assertThatScrollIdsDoNotExist(List<String> scrollIds) {
+    private void assertThatScrollIdsDoNotExist() {
         for (String scrollId : scrollIds) {
             SearchPhaseExecutionException expectedException = expectThrows(
                 SearchPhaseExecutionException.class,

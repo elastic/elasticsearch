@@ -9,13 +9,16 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -25,8 +28,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -127,6 +130,21 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertThat(searchService.getActiveContexts(), equalTo(0));
         assertThat(searchService.getOpenScrollContexts(), equalTo(0));
         super.tearDown();
+        var deleteDataStreamsRequest = new DeleteDataStreamAction.Request("*");
+        deleteDataStreamsRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
+        try {
+            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest).actionGet());
+        } catch (IllegalStateException e) {
+            // Ignore if action isn't registered, because data streams is a module and
+            // if the delete action isn't registered then there no data streams to delete.
+            if (e.getMessage().startsWith("failed to find action") == false) {
+                throw e;
+            }
+        }
+        var deleteComposableIndexTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
+        assertAcked(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteComposableIndexTemplateRequest).actionGet());
+        var deleteComponentTemplateRequest = new DeleteComponentTemplateAction.Request("*");
+        assertAcked(client().execute(DeleteComponentTemplateAction.INSTANCE, deleteComponentTemplateRequest).actionGet());
         assertAcked(
             client().admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get()
         );
@@ -168,6 +186,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     @AfterClass
     public static void tearDownClass() throws Exception {
         stopNode();
+        ESIntegTestCase.awaitGlobalNettyThreadsFinish();
     }
 
     /**
@@ -205,10 +224,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected List<String> filteredWarnings() {
         return Stream.concat(
             super.filteredWarnings().stream(),
-            List.of(
-                "[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version."
-            ).stream()
+            List.of("[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release.").stream()
         ).collect(Collectors.toList());
     }
 
@@ -242,9 +258,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
 
-        Collection<Class<? extends Plugin>> plugins = getPlugins();
+        Collection<Class<? extends Plugin>> plugins = new ArrayList<>(getPlugins());
         if (plugins.contains(getTestTransportPlugin()) == false) {
-            plugins = new ArrayList<>(plugins);
             plugins.add(getTestTransportPlugin());
         }
         if (addMockHttpTransport()) {
@@ -327,9 +342,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         // changes that would have been done locally
         ClusterHealthResponse health = client().admin()
             .cluster()
-            .health(
-                Requests.clusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)
-            )
+            .health(new ClusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true))
             .actionGet();
         assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
@@ -371,8 +384,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         ClusterHealthResponse actionGet = client().admin()
             .cluster()
             .health(
-                Requests.clusterHealthRequest(indices)
-                    .timeout(timeout)
+                new ClusterHealthRequest(indices).timeout(timeout)
                     .waitForGreenStatus()
                     .waitForEvents(Priority.LANGUID)
                     .waitForNoRelocatingShards(true)
@@ -408,7 +420,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected void ensureNoInitializingShards() {
         ClusterHealthResponse actionGet = client().admin()
             .cluster()
-            .health(Requests.clusterHealthRequest("_all").waitForNoInitializingShards(true))
+            .health(new ClusterHealthRequest("_all").waitForNoInitializingShards(true))
             .actionGet();
 
         assertFalse("timed out waiting for shards to initialize", actionGet.isTimedOut());

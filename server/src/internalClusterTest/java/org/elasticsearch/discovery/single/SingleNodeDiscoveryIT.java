@@ -9,13 +9,10 @@
 package org.elasticsearch.discovery.single;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -31,6 +28,9 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.function.Function;
 
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.MULTI_NODE_DISCOVERY_TYPE;
+import static org.elasticsearch.discovery.DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -47,7 +47,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("discovery.type", "single-node")
+            .put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE)
             .put("transport.port", getPortRange())
             .build();
     }
@@ -59,7 +59,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             @Override
             public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings.builder()
-                    .put("discovery.type", "single-node")
+                    .put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE)
                     .put("transport.type", getTestTransportType())
                     /*
                      * We align the port ranges of the two as then with zen discovery these two
@@ -102,7 +102,6 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
 
     public void testCannotJoinNodeWithSingleNodeDiscovery() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation("test", JoinHelper.class.getCanonicalName(), Level.INFO, "failed to join") {
 
@@ -125,7 +124,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             @Override
             public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings.builder()
-                    .put("discovery.type", "zen")
+                    .put(DISCOVERY_TYPE_SETTING.getKey(), MULTI_NODE_DISCOVERY_TYPE)
                     .put("transport.type", getTestTransportType())
                     .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
                     /*
@@ -155,20 +154,13 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 "other",
                 Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
                 Function.identity()
-            )
+            );
+            var ignored = mockAppender.capturing(JoinHelper.class)
         ) {
-
-            Logger clusterLogger = LogManager.getLogger(JoinHelper.class);
-            Loggers.addAppender(clusterLogger, mockAppender);
-            try {
-                other.beforeTest(random());
-                final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
-                assertThat(first.nodes().getSize(), equalTo(1));
-                assertBusy(() -> mockAppender.assertAllExpectationsMatched());
-            } finally {
-                Loggers.removeAppender(clusterLogger, mockAppender);
-                mockAppender.stop();
-            }
+            other.beforeTest(random());
+            final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
+            assertThat(first.nodes().getSize(), equalTo(1));
+            assertBusy(mockAppender::assertAllExpectationsMatched);
         }
     }
 

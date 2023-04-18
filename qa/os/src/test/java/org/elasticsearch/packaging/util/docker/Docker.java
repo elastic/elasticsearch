@@ -8,6 +8,7 @@
 
 package org.elasticsearch.packaging.util.docker;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -34,13 +35,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.test.PackagingTestCase.assertBusy;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.p444;
 import static org.elasticsearch.packaging.util.FileMatcher.p555;
@@ -83,7 +87,7 @@ public class Docker {
      * @param distribution details about the docker image to potentially load.
      */
     public static void ensureImageIsLoaded(Distribution distribution) {
-        final long count = sh.run("docker image ls --format '{{.Repository}}' " + getImageName(distribution)).stdout.lines().count();
+        final long count = sh.run("docker image ls --format '{{.Repository}}' " + getImageName(distribution)).stdout().lines().count();
 
         if (count != 0) {
             return;
@@ -121,6 +125,27 @@ public class Docker {
     }
 
     /**
+     * Runs an Elasticsearch Docker container without removing any existing containers first,
+     * and checks that it has started up successfully.
+     *
+     * @param distribution details about the docker image being tested
+     * @param builder the command to run
+     * @param restPort the port to expose the REST endpoint on
+     * @param transportPort the port to expose the transport endpoint on
+     * @return an installation that models the running container
+     */
+    public static Installation runAdditionalContainer(Distribution distribution, DockerRun builder, int restPort, int transportPort) {
+        // TODO Maybe revisit this as part of https://github.com/elastic/elasticsearch/issues/79688
+        final String command = builder.distribution(distribution)
+            .extraArgs("--publish", transportPort + ":9300", "--publish", restPort + ":9200")
+            .build();
+        logger.info("Running command: " + command);
+        containerId = sh.run(command).stdout().trim();
+        waitForElasticsearchToStart();
+        return Installation.ofContainer(dockerShell, distribution, restPort);
+    }
+
+    /**
      * Similar to {@link #runContainer(Distribution, DockerRun)} in that it runs an Elasticsearch Docker
      * container, expect that the container expecting it to exit e.g. due to configuration problem.
      *
@@ -142,7 +167,7 @@ public class Docker {
         final String command = builder.distribution(distribution).build();
 
         logger.info("Running command: " + command);
-        containerId = sh.run(command).stdout.trim();
+        containerId = sh.run(command).stdout().trim();
     }
 
     /**
@@ -161,7 +186,7 @@ public class Docker {
                 Thread.sleep(STARTUP_SLEEP_INTERVAL_MILLISECONDS);
 
                 // Set COLUMNS so that `ps` doesn't truncate its output
-                psOutput = dockerShell.run("bash -c 'COLUMNS=2000 ps ax'").stdout;
+                psOutput = dockerShell.run("bash -c 'COLUMNS=2000 ps ax'").stdout();
 
                 if (psOutput.contains("org.elasticsearch.bootstrap.Elasticsearch")) {
                     isElasticsearchRunning = true;
@@ -174,14 +199,18 @@ public class Docker {
 
         if (isElasticsearchRunning == false) {
             final Shell.Result dockerLogs = getContainerLogs();
-            fail(
-                "Elasticsearch container did not start successfully.\n\nps output:\n"
-                    + psOutput
-                    + "\n\nStdout:\n"
-                    + dockerLogs.stdout
-                    + "\n\nStderr:\n"
-                    + dockerLogs.stderr
-            );
+            fail(String.format(Locale.ROOT, """
+                Elasticsearch container did not start successfully.
+
+                ps output:
+                %s
+
+                stdout():
+                %s
+
+                Stderr:
+                %s\
+                """, psOutput, dockerLogs.stdout(), dockerLogs.stderr()));
         }
     }
 
@@ -195,20 +224,51 @@ public class Docker {
         do {
             try {
                 // Give the container a chance to exit out
-                Thread.sleep(1000);
+                Thread.sleep(2000);
 
-                if (sh.run("docker ps --quiet --no-trunc").stdout.contains(containerId) == false) {
+                if (sh.run("docker ps --quiet --no-trunc").stdout().contains(containerId) == false) {
                     isElasticsearchRunning = false;
                     break;
                 }
             } catch (Exception e) {
                 logger.warn("Caught exception while waiting for ES to exit", e);
             }
-        } while (attempt++ < 8);
+        } while (attempt++ < 60);
 
         if (isElasticsearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();
-            fail("Elasticsearch container didn't exit.\n\nStdout:\n" + dockerLogs.stdout + "\n\nStderr:\n" + dockerLogs.stderr);
+            fail(String.format(Locale.ROOT, """
+                Elasticsearch container didn't exit.
+
+                stdout():
+                %s
+
+                Stderr:
+                %s\
+                """, dockerLogs.stdout(), dockerLogs.stderr()));
+        }
+    }
+
+    /**
+     * Removes the container with a given id
+     */
+    public static void removeContainer(String containerId) {
+        if (containerId != null) {
+            // Remove the container, forcibly killing it if necessary
+            logger.debug("Removing container " + containerId);
+            final String command = "docker rm -f " + containerId;
+            final Shell.Result result = sh.runIgnoreExitCode(command);
+
+            if (result.isSuccess() == false) {
+                boolean isErrorAcceptable = result.stderr().contains("removal of container " + containerId + " is already in progress")
+                    || result.stderr().contains("Error: No such container: " + containerId);
+
+                // I'm not sure why we're already removing this container, but that's OK.
+                if (isErrorAcceptable == false) {
+                    throw new RuntimeException("Command was not successful: [" + command + "] result: " + result);
+                }
+            }
+
         }
     }
 
@@ -216,28 +276,13 @@ public class Docker {
      * Removes the currently running container.
      */
     public static void removeContainer() {
-        if (containerId != null) {
-            try {
-                // Remove the container, forcibly killing it if necessary
-                logger.debug("Removing container " + containerId);
-                final String command = "docker rm -f " + containerId;
-                final Shell.Result result = sh.runIgnoreExitCode(command);
-
-                if (result.isSuccess() == false) {
-                    boolean isErrorAcceptable = result.stderr.contains("removal of container " + containerId + " is already in progress")
-                        || result.stderr.contains("Error: No such container: " + containerId);
-
-                    // I'm not sure why we're already removing this container, but that's OK.
-                    if (isErrorAcceptable == false) {
-                        throw new RuntimeException("Command was not successful: [" + command + "] result: " + result);
-                    }
-                }
-            } finally {
-                // Null out the containerId under all circumstances, so that even if the remove command fails
-                // for some reason, the other tests will still proceed. Otherwise they can get stuck, continually
-                // trying to remove a non-existent container ID.
-                containerId = null;
-            }
+        try {
+            removeContainer(containerId);
+        } finally {
+            // Null out the containerId under all circumstances, so that even if the remove command fails
+            // for some reason, the other tests will still proceed. Otherwise they can get stuck, continually
+            // trying to remove a non-existent container ID.
+            containerId = null;
         }
     }
 
@@ -286,8 +331,8 @@ public class Docker {
         logger.debug("Trying to look for " + pattern + " ( " + type + ") in " + base + " in the container");
         final String script = "docker exec " + containerId + " find " + base + " -type " + type + " -iname " + pattern;
         final Shell.Result result = sh.run(script);
-        if (result.isSuccess() && Strings.isNullOrEmpty(result.stdout) == false) {
-            String path = result.stdout;
+        if (result.isSuccess() && Strings.isNullOrEmpty(result.stdout()) == false) {
+            String path = result.stdout();
             if (path.split(System.lineSeparator()).length > 1) {
                 path = path.split(System.lineSeparator())[1];
             }
@@ -303,6 +348,9 @@ public class Docker {
      * @param containerPath The path to mount localPath inside the container.
      */
     private static void executePrivilegeEscalatedShellCmd(String shellCmd, Path localPath, Path containerPath) {
+        final String image = "alpine:3.13";
+        ensureImageIsPulled(image);
+
         final List<String> args = new ArrayList<>();
 
         args.add("docker run");
@@ -314,7 +362,7 @@ public class Docker {
         args.add("--volume \"" + localPath.getParent() + ":" + containerPath.getParent() + "\"");
 
         // Use a lightweight musl libc based small image
-        args.add("alpine:3.13");
+        args.add(image);
 
         // And run inline commands via the POSIX shell
         args.add("/bin/sh -c \"" + shellCmd + "\"");
@@ -322,6 +370,33 @@ public class Docker {
         final String command = String.join(" ", args);
         logger.info("Running command: " + command);
         sh.run(command);
+    }
+
+    private static void ensureImageIsPulled(String image) {
+        // Don't pull if the image already exists. This does also mean that we never refresh it, but that
+        // isn't an issue in CI.
+        if (sh.runIgnoreExitCode("docker image inspect -f '{{ .Id }}' " + image).isSuccess()) {
+            return;
+        }
+
+        Shell.Result result = null;
+        int i = 0;
+        while (true) {
+            result = sh.runIgnoreExitCode("docker pull " + image);
+            if (result.isSuccess()) {
+                return;
+            }
+
+            if (++i == 3) {
+                throw new RuntimeException("Failed to pull Docker image [" + image + "]: " + result);
+            }
+
+            try {
+                Thread.sleep(10_000L);
+            } catch (InterruptedException e) {
+                // ignore
+            }
+        }
     }
 
     /**
@@ -413,7 +488,7 @@ public class Docker {
         dockerShell.run("getent group elasticsearch");
 
         final Shell.Result passwdResult = dockerShell.run("getent passwd elasticsearch");
-        final String homeDir = passwdResult.stdout.trim().split(":")[5];
+        final String homeDir = passwdResult.stdout().trim().split(":")[5];
         assertThat("elasticsearch user's home directory is incorrect", homeDir, equalTo("/usr/share/elasticsearch"));
 
         assertThat(es.home, file(Directory, "root", "root", p775));
@@ -426,7 +501,7 @@ public class Docker {
         Stream.of(es.bin, es.config, es.logs, es.config.resolve("jvm.options.d"), es.data, es.plugins)
             .forEach(dir -> assertThat(dir, file(Directory, "elasticsearch", "root", p775)));
 
-        final String arch = dockerShell.run("arch").stdout.trim();
+        final String arch = dockerShell.run("arch").stdout().trim();
 
         Stream.of(es.bin, es.bundledJdk.resolve("bin"), es.modules.resolve("x-pack-ml/platform/linux-" + arch + "/bin"))
             .forEach(
@@ -444,7 +519,7 @@ public class Docker {
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc")
             .forEach(doc -> assertThat(es.home.resolve(doc), file("root", "root", p444)));
 
-        assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
+        assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout(), containsString("keystore.seed"));
 
         // nc is useful for checking network issues
         // zip/unzip are installed to help users who are working with certificates.
@@ -462,8 +537,6 @@ public class Docker {
     }
 
     private static void verifyCloudContainerInstallation(Installation es) {
-        assertThat(Path.of("/opt/plugins/plugin-wrapper.sh"), file("root", "root", p555));
-
         final String pluginArchive = "/opt/plugins/archive";
         final List<String> plugins = listContents(pluginArchive);
 
@@ -482,6 +555,15 @@ public class Docker {
         } else {
             assertThat("Cloud image should not have any plugins in " + pluginArchive, plugins, empty());
         }
+
+        // Cloud uses `wget` to install plugins / bundles.
+        Stream.of("wget")
+            .forEach(
+                cliBinary -> assertTrue(
+                    cliBinary + " ought to be available.",
+                    dockerShell.runIgnoreExitCode("bash -c  'hash " + cliBinary + "'").isSuccess()
+                )
+            );
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
@@ -522,7 +604,7 @@ public class Docker {
             r.run();
         } catch (Exception e) {
             final Shell.Result logs = getContainerLogs();
-            logger.warn("Elasticsearch container failed to start.\n\nStdout:\n" + logs.stdout + "\n\nStderr:\n" + logs.stderr);
+            logger.warn("Elasticsearch container failed to start.\n\nStdout:\n" + logs.stdout() + "\n\nStderr:\n" + logs.stderr());
             throw e;
         }
     }
@@ -623,12 +705,16 @@ public class Docker {
     }
 
     private static JsonNode getImageInspectionJson(Distribution distribution) throws Exception {
-        String labelsJson = sh.run("docker inspect " + getImageName(distribution)).stdout;
+        String labelsJson = sh.run("docker inspect " + getImageName(distribution)).stdout();
         ObjectMapper mapper = new ObjectMapper();
         return mapper.readTree(labelsJson).get(0);
     }
 
     public static Shell.Result getContainerLogs() {
+        return getContainerLogs(containerId);
+    }
+
+    public static Shell.Result getContainerLogs(String containerId) {
         return sh.run("docker logs " + containerId);
     }
 
@@ -645,7 +731,7 @@ public class Docker {
             throw new FileNotFoundException(path + " does not exist");
         }
 
-        final String[] components = result.stdout.split("\\s+");
+        final String[] components = result.stdout().split("\\s+");
 
         final String permissions = components[2];
         final String fileType = permissions.substring(0, 1);
@@ -670,10 +756,47 @@ public class Docker {
      * @return the listing
      */
     public static List<String> listContents(String path) {
-        return dockerShell.run("ls -1 --color=never " + path).stdout.lines().collect(Collectors.toList());
+        return dockerShell.run("ls -1 --color=never " + path).stdout().lines().collect(Collectors.toList());
     }
 
+    /**
+     * Returns a list of the file contents of the supplied path.
+     * @param path the path to list
+     * @return the listing
+     */
     public static List<String> listContents(Path path) {
         return listContents(path.toString());
+    }
+
+    /**
+     * Waits for an Elasticsearch node start by looking at the cluster logs. This is useful if the
+     * container is not available on an external port, or authentication is in force and credentials
+     * are not available.
+     * @param containerId the container to check
+     */
+    public static void waitForNodeStarted(String containerId) throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        // Some lines are not JSON, filter those out
+        assertBusy(() -> assertTrue(getContainerLogs(containerId).stdout().lines().filter(line -> line.startsWith("{")).map(line -> {
+            try {
+                return mapper.readTree(line);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+        })
+            .anyMatch(
+                json -> json.get("message").textValue().contains("started")
+                    && json.get("log.logger").textValue().equals("org.elasticsearch.node.Node")
+            )), 60, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Runs a readiness probe on a given port
+     * @param port
+     * @return the ready status
+     */
+    public static boolean readinessProbe(int port) {
+        Shell.Result result = dockerShell.runIgnoreExitCode("nc -z localhost " + port);
+        return result.exitCode() == 0;
     }
 }

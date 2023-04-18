@@ -97,7 +97,12 @@ public class BasicExpressionTests extends ScriptTestCase {
         assertEquals(1, exec("return (int)1.0;"));
         assertEquals((byte) 100, exec("double x = 100; return (byte)x;"));
 
-        assertEquals(3, exec("Map x = new HashMap();\n" + "Object y = x;\n" + "((Map)y).put(2, 3);\n" + "return x.get(2);\n"));
+        assertEquals(3, exec("""
+            Map x = new HashMap();
+            Object y = x;
+            ((Map)y).put(2, 3);
+            return x.get(2);
+            """));
     }
 
     public void testIllegalDefCast() {
@@ -112,10 +117,11 @@ public class BasicExpressionTests extends ScriptTestCase {
         assertEquals("aaabbb", exec("return \"aaa\" + \"bbb\";"));
         assertEquals("aaabbb", exec("String aaa = \"aaa\", bbb = \"bbb\"; return aaa + bbb;"));
 
-        assertEquals(
-            "aaabbbbbbbbb",
-            exec("String aaa = \"aaa\", bbb = \"bbb\"; int x;\n" + "for (; x < 3; ++x) \n" + "    aaa += bbb;\n" + "return aaa;")
-        );
+        assertEquals("aaabbbbbbbbb", exec("""
+            String aaa = "aaa", bbb = "bbb"; int x;
+            for (; x < 3; ++x)
+                aaa += bbb;
+            return aaa;"""));
     }
 
     public void testComp() {
@@ -228,11 +234,15 @@ public class BasicExpressionTests extends ScriptTestCase {
         assertEquals(0, exec("def a = ['other': ['cat': params.t]]; return a.other?.cat?.x", singletonMap("t", t), true));
 
         // Assignments
-        assertNull(exec("def a = [:];\n" + "a.missing_length = a.missing?.length();\n" + "return a.missing_length", true));
-        assertEquals(
-            3,
-            exec("def a = [:];\n" + "a.missing = 'foo';\n" + "a.missing_length = a.missing?.length();\n" + "return a.missing_length", true)
-        );
+        assertNull(exec("""
+            def a = [:];
+            a.missing_length = a.missing?.length();
+            return a.missing_length""", true));
+        assertEquals(3, exec("""
+            def a = [:];
+            a.missing = 'foo';
+            a.missing_length = a.missing?.length();
+            return a.missing_length""", true));
 
         // Writes, all unsupported at this point
         // assertEquals(null, exec("org.elasticsearch.painless.FeatureTestObject a = null; return a?.x")); // Read field

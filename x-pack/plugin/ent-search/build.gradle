@@ -1,0 +1,27 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+
+esplugin {
+  name 'x-pack-ent-search'
+  description 'Elasticsearch Expanded Pack Plugin - Enterprise Search'
+  classname 'org.elasticsearch.xpack.application.EnterpriseSearch'
+  extendedPlugins = ['x-pack-core']
+}
+
+archivesBaseName = 'x-pack-ent-search'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  api project(':modules:lang-mustache')
+
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(project(':modules:lang-mustache'))
+
+  javaRestTestImplementation(project(path: xpackModule('core')))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(project(':modules:lang-mustache'))
+}
+
+addQaCheckDependencies(project)
+

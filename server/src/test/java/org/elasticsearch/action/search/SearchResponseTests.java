@@ -9,7 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,7 +40,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -116,7 +115,7 @@ public class SearchResponseTests extends ESTestCase {
                 numReducePhases
             );
         } else {
-            internalSearchResponse = InternalSearchResponse.empty();
+            internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
         }
 
         return new SearchResponse(
@@ -215,8 +214,8 @@ public class SearchResponseTests extends ESTestCase {
         }
     }
 
-    public void testToXContent() {
-        SearchHit hit = new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap());
+    public void testToXContent() throws IOException {
+        SearchHit hit = new SearchHit(1, "id1");
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
         {
@@ -238,27 +237,26 @@ public class SearchResponseTests extends ESTestCase {
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY
             );
-            StringBuilder expectedString = new StringBuilder();
-            expectedString.append("{");
-            {
-                expectedString.append("\"took\":0,");
-                expectedString.append("\"timed_out\":false,");
-                expectedString.append("\"_shards\":");
+            String expectedString = XContentHelper.stripWhitespace("""
                 {
-                    expectedString.append("{\"total\":0,");
-                    expectedString.append("\"successful\":0,");
-                    expectedString.append("\"skipped\":0,");
-                    expectedString.append("\"failed\":0},");
-                }
-                expectedString.append("\"hits\":");
-                {
-                    expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
-                    expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
-                }
-            }
-            expectedString.append("}");
-            assertEquals(expectedString.toString(), Strings.toString(response));
+                  "took": 0,
+                  "timed_out": false,
+                  "_shards": {
+                    "total": 0,
+                    "successful": 0,
+                    "skipped": 0,
+                    "failed": 0
+                  },
+                  "hits": {
+                    "total": {
+                      "value": 100,
+                      "relation": "eq"
+                    },
+                    "max_score": 1.5,
+                    "hits": [ { "_id": "id1", "_score": 2.0 } ]
+                  }
+                }""");
+            assertEquals(expectedString, Strings.toString(response));
         }
         {
             SearchResponse response = new SearchResponse(
@@ -279,39 +277,37 @@ public class SearchResponseTests extends ESTestCase {
                 ShardSearchFailure.EMPTY_ARRAY,
                 new SearchResponse.Clusters(5, 3, 2)
             );
-            StringBuilder expectedString = new StringBuilder();
-            expectedString.append("{");
-            {
-                expectedString.append("\"took\":0,");
-                expectedString.append("\"timed_out\":false,");
-                expectedString.append("\"_shards\":");
+            String expectedString = XContentHelper.stripWhitespace("""
                 {
-                    expectedString.append("{\"total\":0,");
-                    expectedString.append("\"successful\":0,");
-                    expectedString.append("\"skipped\":0,");
-                    expectedString.append("\"failed\":0},");
-                }
-                expectedString.append("\"_clusters\":");
-                {
-                    expectedString.append("{\"total\":5,");
-                    expectedString.append("\"successful\":3,");
-                    expectedString.append("\"skipped\":2},");
-                }
-                expectedString.append("\"hits\":");
-                {
-                    expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
-                    expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
-                }
-            }
-            expectedString.append("}");
-            assertEquals(expectedString.toString(), Strings.toString(response));
+                  "took": 0,
+                  "timed_out": false,
+                  "_shards": {
+                    "total": 0,
+                    "successful": 0,
+                    "skipped": 0,
+                    "failed": 0
+                  },
+                  "_clusters": {
+                    "total": 5,
+                    "successful": 3,
+                    "skipped": 2
+                  },
+                  "hits": {
+                    "total": {
+                      "value": 100,
+                      "relation": "eq"
+                    },
+                    "max_score": 1.5,
+                    "hits": [ { "_id": "id1", "_score": 2.0 } ]
+                  }
+                }""");
+            assertEquals(expectedString, Strings.toString(response));
         }
     }
 
     public void testSerialization() throws IOException {
         SearchResponse searchResponse = createTestItem(false);
-        SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
+        SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, TransportVersion.CURRENT);
         if (searchResponse.getHits().getTotalHits() == null) {
             assertNull(deserialized.getHits().getTotalHits());
         } else {
@@ -328,7 +324,7 @@ public class SearchResponseTests extends ESTestCase {
 
     public void testToXContentEmptyClusters() throws IOException {
         SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             null,
             1,
             1,
@@ -337,7 +333,7 @@ public class SearchResponseTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
-        SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
+        SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, TransportVersion.CURRENT);
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(0, Strings.toString(builder).length());

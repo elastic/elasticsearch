@@ -11,8 +11,9 @@ package org.elasticsearch.plugins.cli;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
-import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.env.Environment;
 
 import java.util.Arrays;
@@ -33,8 +34,10 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
-        final List<PluginDescriptor> plugins = arguments.values(options).stream().map(PluginDescriptor::new).collect(Collectors.toList());
+    public void execute(final Terminal terminal, final OptionSet options, final Environment env, ProcessInfo processInfo) throws Exception {
+        SyncPluginsAction.ensureNoConfigFile(env);
+
+        final List<InstallablePlugin> plugins = arguments.values(options).stream().map(InstallablePlugin::new).collect(Collectors.toList());
 
         final RemovePluginAction action = new RemovePluginAction(terminal, env, options.has(purgeOption));
         action.execute(plugins);

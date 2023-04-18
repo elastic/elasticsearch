@@ -54,12 +54,6 @@ public final class BufferedChecksumStreamOutput extends StreamOutput {
         out.close();
     }
 
-    @Override
-    public void reset() throws IOException {
-        out.reset();
-        digest.reset();
-    }
-
     public void resetDigest() {
         digest.reset();
     }

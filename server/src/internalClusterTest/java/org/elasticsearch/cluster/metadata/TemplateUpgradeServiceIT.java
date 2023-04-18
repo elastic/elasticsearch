@@ -10,7 +10,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -22,6 +23,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -73,13 +75,13 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             NodeEnvironment nodeEnvironment,
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver expressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer,
+            AllocationService allocationService
         ) {
-            clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(
-                    UPDATE_TEMPLATE_DUMMY_SETTING,
-                    integer -> { logger.debug("the template dummy setting was updated to {}", integer); }
-                );
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
+                logger.debug("the template dummy setting was updated to {}", integer);
+            });
             return super.createComponents(
                 client,
                 clusterService,
@@ -91,7 +93,9 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
                 nodeEnvironment,
                 namedWriteableRegistry,
                 expressionResolver,
-                repositoriesServiceSupplier
+                repositoriesServiceSupplier,
+                tracer,
+                allocationService
             );
         }
 
@@ -151,15 +155,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         assertBusy(() -> {
             // the updates only happen on cluster state updates, so we need to make sure that the cluster state updates are happening
             // so we need to simulate updates to make sure the template upgrade kicks in
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
-                    )
-                    .get()
-            );
+            updateClusterSettings(Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet()));
             List<IndexTemplateMetadata> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
             assertThat(templates, hasSize(3));
             boolean addedFound = false;
@@ -168,22 +164,20 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             for (int i = 0; i < 3; i++) {
                 IndexTemplateMetadata templateMetadata = templates.get(i);
                 switch (templateMetadata.getName()) {
-                    case "test_added_template":
+                    case "test_added_template" -> {
                         assertFalse(addedFound);
                         addedFound = true;
-                        break;
-                    case "test_changed_template":
+                    }
+                    case "test_changed_template" -> {
                         assertFalse(changedFound);
                         changedFound = true;
                         assertThat(templateMetadata.getOrder(), equalTo(10));
-                        break;
-                    case "test_dummy_template":
+                    }
+                    case "test_dummy_template" -> {
                         assertFalse(dummyFound);
                         dummyFound = true;
-                        break;
-                    default:
-                        fail("unexpected template " + templateMetadata.getName());
-                        break;
+                    }
+                    default -> fail("unexpected template " + templateMetadata.getName());
                 }
             }
             assertTrue(addedFound);
@@ -204,15 +198,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         assertBusy(() -> {
             // the updates only happen on cluster state updates, so we need to make sure that the cluster state updates are happening
             // so we need to simulate updates to make sure the template upgrade kicks in
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
-                    )
-                    .get()
-            );
+            updateClusterSettings(Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet()));
 
             List<IndexTemplateMetadata> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
             assertThat(templates, hasSize(2));
@@ -221,18 +207,16 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             for (int i = 0; i < 2; i++) {
                 IndexTemplateMetadata templateMetadata = templates.get(i);
                 switch (templateMetadata.getName()) {
-                    case "test_added_template":
+                    case "test_added_template" -> {
                         assertFalse(addedFound);
                         addedFound = true;
-                        break;
-                    case "test_changed_template":
+                    }
+                    case "test_changed_template" -> {
                         assertFalse(changedFound);
                         changedFound = true;
                         assertThat(templateMetadata.getOrder(), equalTo(10));
-                        break;
-                    default:
-                        fail("unexpected template " + templateMetadata.getName());
-                        break;
+                    }
+                    default -> fail("unexpected template " + templateMetadata.getName());
                 }
             }
 

@@ -33,15 +33,9 @@ public class TransformDeprecationChecker implements DeprecationChecker {
 
         PageParams startPage = new PageParams(0, PageParams.DEFAULT_SIZE);
         List<DeprecationIssue> issues = new ArrayList<>();
-        recursiveGetTransformsAndCollectDeprecations(
-            components,
-            issues,
-            startPage,
-            ActionListener.wrap(
-                allIssues -> { deprecationIssueListener.onResponse(new CheckResult(getName(), allIssues)); },
-                deprecationIssueListener::onFailure
-            )
-        );
+        recursiveGetTransformsAndCollectDeprecations(components, issues, startPage, ActionListener.wrap(allIssues -> {
+            deprecationIssueListener.onResponse(new CheckResult(getName(), allIssues));
+        }, deprecationIssueListener::onFailure));
     }
 
     @Override
@@ -63,7 +57,7 @@ public class TransformDeprecationChecker implements DeprecationChecker {
             for (TransformConfig config : getTransformResponse.getTransformConfigurations()) {
                 issues.addAll(config.checkForDeprecations(components.xContentRegistry()));
             }
-            if (getTransformResponse.getCount() >= (page.getFrom() + page.getSize())) {
+            if (getTransformResponse.getTransformConfigurationCount() >= (page.getFrom() + page.getSize())) {
                 PageParams nextPage = new PageParams(page.getFrom() + page.getSize(), PageParams.DEFAULT_SIZE);
                 recursiveGetTransformsAndCollectDeprecations(components, issues, nextPage, listener);
             } else {

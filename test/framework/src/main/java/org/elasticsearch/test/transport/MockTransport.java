@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
@@ -19,7 +20,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -39,7 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 
-import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 
 /**
  * A basic transport implementation that allows to intercept requests that have been sent
@@ -47,7 +50,7 @@ import static org.apache.lucene.util.LuceneTestCase.rarely;
 public class MockTransport extends StubbableTransport {
 
     private TransportMessageListener listener;
-    private ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
 
     public TransportService createTransportService(
         Settings settings,
@@ -57,7 +60,9 @@ public class MockTransport extends StubbableTransport {
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders
     ) {
-        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ClusterConnectionManager(settings, this));
+        final StubbableConnectionManager connectionManager = new StubbableConnectionManager(
+            new ClusterConnectionManager(settings, this, threadPool.getThreadContext())
+        );
         connectionManager.setDefaultNodeConnectedBehavior((cm, node) -> false);
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
         return new TransportService(
@@ -67,14 +72,17 @@ public class MockTransport extends StubbableTransport {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            taskHeaders,
-            connectionManager
+            connectionManager,
+            new TaskManager(settings, threadPool, taskHeaders),
+            Tracer.NOOP
         );
     }
 
     public MockTransport() {
         super(new FakeTransport());
-        setDefaultConnectBehavior((transport, discoveryNode, profile, listener) -> listener.onResponse(createConnection(discoveryNode)));
+        setDefaultConnectBehavior(
+            (transport, discoveryNode, profile, actionListener) -> actionListener.onResponse(createConnection(discoveryNode))
+        );
     }
 
     /**
@@ -82,8 +90,7 @@ public class MockTransport extends StubbableTransport {
      */
     @SuppressWarnings("unchecked")
     public <Response extends TransportResponse> void handleResponse(final long requestId, final Response response) {
-        final TransportResponseHandler<Response> transportResponseHandler = (TransportResponseHandler<Response>) getResponseHandlers()
-            .onResponseReceived(requestId, listener);
+        final TransportResponseHandler<Response> transportResponseHandler = getTransportResponseHandler(requestId);
         if (transportResponseHandler != null) {
             final Response deliveredResponse;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -93,8 +100,14 @@ public class MockTransport extends StubbableTransport {
                 );
             } catch (IOException | UnsupportedOperationException e) {
                 throw new AssertionError("failed to serialize/deserialize response " + response, e);
+            } finally {
+                response.decRef();
             }
-            transportResponseHandler.handleResponse(deliveredResponse);
+            try {
+                transportResponseHandler.handleResponse(deliveredResponse);
+            } finally {
+                deliveredResponse.decRef();
+            }
         }
     }
 
@@ -147,10 +160,15 @@ public class MockTransport extends StubbableTransport {
      * @param e         the failure
      */
     public void handleError(final long requestId, final TransportException e) {
-        final TransportResponseHandler<?> transportResponseHandler = getResponseHandlers().onResponseReceived(requestId, listener);
+        final TransportResponseHandler<?> transportResponseHandler = getTransportResponseHandler(requestId);
         if (transportResponseHandler != null) {
             transportResponseHandler.handleException(e);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends TransportResponse> TransportResponseHandler<T> getTransportResponseHandler(long requestId) {
+        return (TransportResponseHandler<T>) getResponseHandlers().onResponseReceived(requestId, listener);
     }
 
     public Connection createConnection(DiscoveryNode node) {
@@ -158,6 +176,11 @@ public class MockTransport extends StubbableTransport {
             @Override
             public DiscoveryNode getNode() {
                 return node;
+            }
+
+            @Override
+            public TransportVersion getTransportVersion() {
+                return TransportVersion.CURRENT;
             }
 
             @Override
@@ -172,12 +195,12 @@ public class MockTransport extends StubbableTransport {
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {}
 
     @Override
-    public void setMessageListener(TransportMessageListener listener) {
+    public void setMessageListener(TransportMessageListener messageListener) {
         if (this.listener != null) {
             throw new IllegalStateException("listener already set");
         }
-        this.listener = listener;
-        super.setMessageListener(listener);
+        this.listener = messageListener;
+        super.setMessageListener(messageListener);
     }
 
     protected NamedWriteableRegistry writeableRegistry() {

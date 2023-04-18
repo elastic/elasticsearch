@@ -7,15 +7,18 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
- * A base action for for usage of a feature plugin.
+ * A base action for usage of a feature plugin.
  *
  * This action is implemented by each feature plugin, bound to the public constants here. The
- * {@link XPackUsageAction} implementationn iterates over the {@link #ALL} list of actions to form
+ * {@link XPackUsageAction} implementation iterates over the {@link #ALL} list of actions to form
  * the complete usage result.
  */
 public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureResponse> {
@@ -44,8 +47,11 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction DATA_STREAMS = new XPackUsageFeatureAction(XPackField.DATA_STREAMS);
     public static final XPackUsageFeatureAction DATA_TIERS = new XPackUsageFeatureAction(XPackField.DATA_TIERS);
     public static final XPackUsageFeatureAction AGGREGATE_METRIC = new XPackUsageFeatureAction(XPackField.AGGREGATE_METRIC);
+    public static final XPackUsageFeatureAction ARCHIVE = new XPackUsageFeatureAction(XPackField.ARCHIVE);
+    public static final XPackUsageFeatureAction HEALTH = new XPackUsageFeatureAction(XPackField.HEALTH_API);
+    public static final XPackUsageFeatureAction REMOTE_CLUSTERS = new XPackUsageFeatureAction(XPackField.REMOTE_CLUSTERS);
 
-    static final List<XPackUsageFeatureAction> ALL = List.of(
+    static final List<XPackUsageFeatureAction> ALL = Stream.of(
         AGGREGATE_METRIC,
         ANALYTICS,
         CCR,
@@ -66,8 +72,11 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
         SQL,
         TRANSFORM,
         VOTING_ONLY,
-        WATCHER
-    );
+        WATCHER,
+        ARCHIVE,
+        HEALTH,
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? REMOTE_CLUSTERS : null
+    ).filter(Objects::nonNull).toList();
 
     // public for testing
     public XPackUsageFeatureAction(String name) {

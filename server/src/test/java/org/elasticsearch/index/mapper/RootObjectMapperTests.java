@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RootObjectMapperTests extends MapperServiceTestCase {
@@ -197,10 +199,9 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             MappedFieldType field = mapperService.fieldType("field");
             assertThat(field, instanceOf(LongScriptFieldType.class));
             assertNull(mapperService.fieldType("another_field"));
-            assertEquals(
-                "{\"_doc\":{\"runtime\":{\"field\":{\"type\":\"long\"}},\"properties\":{\"concrete\":{\"type\":\"keyword\"}}}}",
-                Strings.toString(mapperService.documentMapper().mapping().getRoot())
-            );
+            assertEquals("""
+                {"_doc":{"runtime":{"field":{"type":"long"}},\
+                "properties":{"concrete":{"type":"keyword"}}}}""", Strings.toString(mapperService.documentMapper().mapping().getRoot()));
         }
     }
 
@@ -252,32 +253,56 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         {
             String mapping = Strings.toString(runtimeMapping(builder -> builder.startObject("field3").field("type", "date").endObject()));
             merge(mapperService, mapping);
-            assertEquals(
-                "{\"_doc\":"
-                    + "{\"runtime\":{"
-                    + "\"field\":{\"type\":\"double\"},"
-                    + "\"field2\":{\"type\":\"long\"},"
-                    + "\"field3\":{\"type\":\"date\"}},"
-                    + "\"properties\":{"
-                    + "\"concrete\":{\"type\":\"keyword\"},"
-                    + "\"field\":{\"type\":\"keyword\"}}}}",
-                mapperService.documentMapper().mappingSource().toString()
-            );
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "_doc": {
+                    "runtime": {
+                      "field": {
+                        "type": "double"
+                      },
+                      "field2": {
+                        "type": "long"
+                      },
+                      "field3": {
+                        "type": "date"
+                      }
+                    },
+                    "properties": {
+                      "concrete": {
+                        "type": "keyword"
+                      },
+                      "field": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }"""), mapperService.documentMapper().mappingSource().toString());
         }
         {
             // remove a runtime field
             String mapping = Strings.toString(runtimeMapping(builder -> builder.nullField("field3")));
             merge(mapperService, mapping);
-            assertEquals(
-                "{\"_doc\":"
-                    + "{\"runtime\":{"
-                    + "\"field\":{\"type\":\"double\"},"
-                    + "\"field2\":{\"type\":\"long\"}},"
-                    + "\"properties\":{"
-                    + "\"concrete\":{\"type\":\"keyword\"},"
-                    + "\"field\":{\"type\":\"keyword\"}}}}",
-                mapperService.documentMapper().mappingSource().toString()
-            );
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "_doc": {
+                    "runtime": {
+                      "field": {
+                        "type": "double"
+                      },
+                      "field2": {
+                        "type": "long"
+                      }
+                    },
+                    "properties": {
+                      "concrete": {
+                        "type": "keyword"
+                      },
+                      "field": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }"""), mapperService.documentMapper().mappingSource().toString());
         }
     }
 
@@ -313,4 +338,24 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertEquals("Failed to parse mapping: unknown parameter [unsupported] on runtime field [field] of type [keyword]", e.getMessage());
     }
+
+    public void testEmptyType() throws Exception {
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("")
+                .startObject("properties")
+                .startObject("name")
+                .field("type", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+
+        // Empty name not allowed in index created after 5.0
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertThat(e.getMessage(), containsString("type cannot be an empty string"));
+    }
+
 }

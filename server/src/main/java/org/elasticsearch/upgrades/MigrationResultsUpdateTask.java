@@ -10,14 +10,16 @@ package org.elasticsearch.upgrades;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.HashMap;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Handles updating the {@link FeatureMigrationResults} in the cluster state.
@@ -54,9 +56,17 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
      * @param clusterService The cluster service to which this task should be submitted.
      */
     public void submit(ClusterService clusterService) {
-        String source = new ParameterizedMessage("record [{}] migration [{}]", featureName, status.succeeded() ? "success" : "failure")
-            .getFormattedMessage();
-        clusterService.submitStateUpdateTask(source, this);
+        String source = format("record [%s] migration [%s]", featureName, status.succeeded() ? "success" : "failure");
+        submitUnbatchedTask(clusterService, source, this);
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(
+        ClusterService clusterService,
+        @SuppressWarnings("SameParameterValue") String source,
+        ClusterStateUpdateTask task
+    ) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Override
@@ -72,24 +82,24 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
         listener.onResponse(newState);
     }
 
     @Override
-    public void onFailure(String source, Exception clusterStateUpdateException) {
+    public void onFailure(Exception clusterStateUpdateException) {
         if (status.succeeded()) {
             logger.warn(
-                new ParameterizedMessage("failed to update cluster state after successful migration of feature [{}]", featureName),
+                () -> "failed to update cluster state after successful migration of feature [" + featureName + "]",
                 clusterStateUpdateException
             );
         } else {
             logger.error(
-                new ParameterizedMessage(
-                    "failed to update cluster state after failed migration of feature [{}] on index [{}]",
+                () -> format(
+                    "failed to update cluster state after failed migration of feature [%s] on index [%s]",
                     featureName,
                     status.getFailedIndexName()
-                ).getFormattedMessage(),
+                ),
                 clusterStateUpdateException
             );
         }

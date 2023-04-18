@@ -8,20 +8,48 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
+import java.util.Locale;
+
+import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+
 public class ClusterDeprecationChecks {
-    static DeprecationIssue checkTransientSettingsExistence(ClusterState state) {
-        if (state.metadata().transientSettings().isEmpty() == false) {
+    /**
+     * Upgrading can require the addition of one or more small indices. This method checks that based on configuration we have the room
+     * to add a small number of additional shards to the cluster. The goal is to prevent a failure during upgrade.
+     * @param clusterState The cluster state, used to get settings and information about nodes
+     * @return A deprecation issue if there is not enough room in this cluster to add a few more shards, or null otherwise
+     */
+    static DeprecationIssue checkShards(ClusterState clusterState) {
+        // Make sure we have room to add a small non-frozen index if needed
+        final int shardsInFutureNewSmallIndex = 5;
+        final int replicasForFutureIndex = 1;
+        final int maxConfiguredShardsPerNode = SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(clusterState.getMetadata().settings());
+        ShardLimitValidator.Result shardLimitsResult = ShardLimitValidator.checkShardLimitForNormalNodes(
+            maxConfiguredShardsPerNode,
+            shardsInFutureNewSmallIndex,
+            replicasForFutureIndex,
+            clusterState
+        );
+        if (shardLimitsResult.canAddShards()) {
+            return null;
+        } else {
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
-                "Transient cluster settings are deprecated",
-                "https://ela.st/es-deprecation-7-transient-cluster-settings",
-                "Use persistent settings to configure your cluster.",
+                "The cluster has too many shards to be able to upgrade",
+                "https://ela.st/es-deprecation-8-shard-limit",
+                String.format(
+                    Locale.ROOT,
+                    "Upgrading requires adding a small number of new shards. There is not enough room for %d more "
+                        + "shards. Increase the cluster.max_shards_per_node setting, or remove indices "
+                        + "to clear up resources.",
+                    shardLimitsResult.totalShardsToAdd()
+                ),
                 false,
                 null
             );
         }
-        return null;
     }
 }

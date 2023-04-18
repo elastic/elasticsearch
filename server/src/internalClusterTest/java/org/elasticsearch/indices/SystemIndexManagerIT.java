@@ -13,8 +13,8 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
@@ -49,7 +49,7 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that if the the SystemIndexManager finds a managed index with out-of-date mappings, then
+     * Check that if the SystemIndexManager finds a managed index with out-of-date mappings, then
      * the manager updates those mappings.
      */
     public void testSystemIndexManagerUpgradesMappings() throws Exception {
@@ -95,6 +95,24 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
     }
 
     /**
+     * Ensures that we can clear any blocks that get set on managed system indices.
+     *
+     * See https://github.com/elastic/elasticsearch/issues/80814
+     */
+    public void testBlocksCanBeClearedFromManagedSystemIndices() throws Exception {
+        internalCluster().startNodes(1);
+
+        // Trigger the creation of the system index
+        assertAcked(prepareCreate(INDEX_NAME));
+        ensureGreen(INDEX_NAME);
+
+        for (IndexMetadata.APIBlock blockType : IndexMetadata.APIBlock.values()) {
+            enableIndexBlock(INDEX_NAME, blockType.settingName());
+            updateIndexSettings(Settings.builder().put(blockType.settingName(), false), INDEX_NAME);
+        }
+    }
+
+    /**
      * Performs a cluster state update in order to trigger any cluster state listeners - specifically, SystemIndexManager.
      */
     private void triggerClusterStateUpdates() {
@@ -112,7 +130,7 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
             .getMappings(new GetMappingsRequest().indices(INDEX_NAME))
             .actionGet();
 
-        final ImmutableOpenMap<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
+        final Map<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
         assertThat(
             "Expected mappings to contain a key for [" + PRIMARY_INDEX_NAME + "], but found: " + mappings.toString(),
             mappings.containsKey(PRIMARY_INDEX_NAME),

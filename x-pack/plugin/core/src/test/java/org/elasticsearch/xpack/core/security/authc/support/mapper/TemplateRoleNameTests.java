@@ -27,9 +27,8 @@ import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName.Format;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
@@ -57,28 +56,25 @@ import static org.mockito.Mockito.when;
 public class TemplateRoleNameTests extends ESTestCase {
 
     public void testParseRoles() throws Exception {
-        final TemplateRoleName role1 = parse("{ \"template\": { \"source\": \"_user_{{username}}\" } }");
+        final TemplateRoleName role1 = parse("""
+            { "template": { "source": "_user_{{username}}" } }""");
         assertThat(role1, Matchers.instanceOf(TemplateRoleName.class));
-        assertThat(role1.getTemplate().utf8ToString(), equalTo("{\"source\":\"_user_{{username}}\"}"));
+        assertThat(role1.getTemplate().utf8ToString(), equalTo("""
+            {"source":"_user_{{username}}"}"""));
         assertThat(role1.getFormat(), equalTo(Format.STRING));
 
-        final TemplateRoleName role2 = parse(
-            "{ \"template\": \"{\\\"source\\\":\\\"{{#tojson}}groups{{/tojson}}\\\"}\", \"format\":\"json\" }"
-        );
+        final TemplateRoleName role2 = parse("""
+            { "template": "{\\"source\\":\\"{{#tojson}}groups{{/tojson}}\\"}", "format":"json" }""");
         assertThat(role2, Matchers.instanceOf(TemplateRoleName.class));
-        assertThat(role2.getTemplate().utf8ToString(), equalTo("{\"source\":\"{{#tojson}}groups{{/tojson}}\"}"));
+        assertThat(role2.getTemplate().utf8ToString(), equalTo("""
+            {"source":"{{#tojson}}groups{{/tojson}}"}"""));
         assertThat(role2.getFormat(), equalTo(Format.JSON));
     }
 
     public void testToXContent() throws Exception {
-        final String json = "{"
-            + "\"template\":\"{\\\"source\\\":\\\""
-            + randomAlphaOfLengthBetween(8, 24)
-            + "\\\"}\","
-            + "\"format\":\""
-            + randomFrom(Format.values()).formatName()
-            + "\""
-            + "}";
+        final String json = Strings.format("""
+            {"template":"{\\"source\\":\\"%s\\"}","format":"%s"}\
+            """, randomAlphaOfLengthBetween(8, 24), randomFrom(Format.values()).formatName());
         assertThat(Strings.toString(parse(json)), equalTo(json));
     }
 
@@ -101,22 +97,21 @@ public class TemplateRoleNameTests extends ESTestCase {
         model.defineField("username", "hulk");
         model.defineField("groups", Arrays.asList("avengers", "defenders", "panthenon"));
 
-        final TemplateRoleName plainString = new TemplateRoleName(new BytesArray("{ \"source\":\"heroes\" }"), Format.STRING);
+        final TemplateRoleName plainString = new TemplateRoleName(new BytesArray("""
+            { "source":"heroes" }"""), Format.STRING);
         assertThat(plainString.getRoleNames(scriptService, model), contains("heroes"));
 
-        final TemplateRoleName user = new TemplateRoleName(new BytesArray("{ \"source\":\"_user_{{username}}\" }"), Format.STRING);
+        final TemplateRoleName user = new TemplateRoleName(new BytesArray("""
+            { "source":"_user_{{username}}" }"""), Format.STRING);
         assertThat(user.getRoleNames(scriptService, model), contains("_user_hulk"));
 
-        final TemplateRoleName groups = new TemplateRoleName(
-            new BytesArray("{ \"source\":\"{{#tojson}}groups{{/tojson}}\" }"),
-            Format.JSON
-        );
+        final TemplateRoleName groups = new TemplateRoleName(new BytesArray("""
+            { "source":"{{#tojson}}groups{{/tojson}}" }"""), Format.JSON);
         assertThat(groups.getRoleNames(scriptService, model), contains("avengers", "defenders", "panthenon"));
     }
 
     private TemplateRoleName parse(String json) throws IOException {
-        final XContentParser parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        final XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json);
         final TemplateRoleName role = TemplateRoleName.parse(parser);
         assertThat(role, notNullValue());
         return role;
@@ -155,22 +150,23 @@ public class TemplateRoleNameTests extends ESTestCase {
             () -> 1L
         );
 
-        final TemplateRoleName plainString = new TemplateRoleName(new BytesArray("{ \"source\":\"heroes\" }"), Format.STRING);
+        final TemplateRoleName plainString = new TemplateRoleName(new BytesArray("""
+            { "source":"heroes" }"""), Format.STRING);
         plainString.validate(scriptService);
 
-        final TemplateRoleName user = new TemplateRoleName(new BytesArray("{ \"source\":\"_user_{{username}}\" }"), Format.STRING);
+        final TemplateRoleName user = new TemplateRoleName(new BytesArray("""
+            { "source":"_user_{{username}}" }"""), Format.STRING);
         user.validate(scriptService);
 
-        final TemplateRoleName groups = new TemplateRoleName(
-            new BytesArray("{ \"source\":\"{{#tojson}}groups{{/tojson}}\" }"),
-            Format.JSON
-        );
+        final TemplateRoleName groups = new TemplateRoleName(new BytesArray("""
+            { "source":"{{#tojson}}groups{{/tojson}}" }"""), Format.JSON);
         groups.validate(scriptService);
 
         final TemplateRoleName notObject = new TemplateRoleName(new BytesArray("heroes"), Format.STRING);
         expectThrows(IllegalArgumentException.class, () -> notObject.validate(scriptService));
 
-        final TemplateRoleName invalidField = new TemplateRoleName(new BytesArray("{ \"foo\":\"heroes\" }"), Format.STRING);
+        final TemplateRoleName invalidField = new TemplateRoleName(new BytesArray("""
+            { "foo":"heroes" }"""), Format.STRING);
         expectThrows(IllegalArgumentException.class, () -> invalidField.validate(scriptService));
     }
 
@@ -182,25 +178,25 @@ public class TemplateRoleNameTests extends ESTestCase {
             () -> 1L
         );
 
-        final BytesReference template = new BytesArray(
-            "{ \"source\":\""
-                + "{{username}}/{{dn}}/{{realm}}/{{metadata}}"
-                + "{{#realm}}"
-                + "  {{name}}/{{type}}"
-                + "{{/realm}}"
-                + "{{#toJson}}groups{{/toJson}}"
-                + "{{^groups}}{{.}}{{/groups}}"
-                + "{{#metadata}}"
-                + "  {{#first}}"
-                + "    <li><strong>{{name}}</strong></li>"
-                + "  {{/first}}"
-                + "  {{#link}}"
-                + "    <li><a href=\\\"{{url}}\\\">{{name}}</a></li>"
-                + "  {{/link}}"
-                + "  {{#toJson}}subgroups{{/toJson}}"
-                + "  {{something-else}}"
-                + "{{/metadata}}\" }"
-        );
+        final BytesReference template = new BytesArray("""
+            { "source":"\
+              {{username}}/{{dn}}/{{realm}}/{{metadata}}\
+              {{#realm}}\
+                {{name}}/{{type}}\
+              {{/realm}}\
+              {{#toJson}}groups{{/toJson}}\
+              {{^groups}}{{.}}{{/groups}}\
+              {{#metadata}}\
+                {{#first}}\
+                  <li><strong>{{name}}</strong></li>\
+                {{/first}}\
+                {{#link}}\
+                  <li><a href=\\"{{url}}\\">{{name}}</a></li>\
+                {{/link}}\
+                {{#toJson}}subgroups{{/toJson}}\
+                {{something-else}}\
+              {{/metadata}}" }
+            """);
         final TemplateRoleName templateRoleName = new TemplateRoleName(template, Format.STRING);
         templateRoleName.validate(scriptService);
     }
@@ -213,7 +209,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             () -> 1L
         );
 
-        final BytesReference template = new BytesArray("{ \"source\":\" {{#not-closed}} {{other-variable}} \" }");
+        final BytesReference template = new BytesArray("""
+            { "source":" {{#not-closed}} {{other-variable}} " }""");
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -256,15 +253,14 @@ public class TemplateRoleNameTests extends ESTestCase {
             }
         };
         // Validation succeeds if compilation is successful
-        new TemplateRoleName(new BytesArray("{ \"id\":\"valid\" }"), Format.STRING).validate(scriptService);
+        new TemplateRoleName(new BytesArray("""
+            { "id":"valid" }"""), Format.STRING).validate(scriptService);
         verify(scriptEngine, times(1)).compile(eq("valid"), eq("params.metedata.group"), any(), eq(Map.of()));
         verify(compiledScript, never()).execute();
 
         // Validation fails if compilation fails
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new TemplateRoleName(new BytesArray("{ \"id\":\"invalid\" }"), Format.STRING).validate(scriptService)
-        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TemplateRoleName(new BytesArray("""
+            { "id":"invalid" }"""), Format.STRING).validate(scriptService));
         assertSame(scriptException, e.getCause());
     }
 
@@ -276,7 +272,8 @@ public class TemplateRoleNameTests extends ESTestCase {
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
-        final BytesReference inlineScript = new BytesArray("{ \"source\":\"\" }");
+        final BytesReference inlineScript = new BytesArray("""
+            { "source":"" }""");
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> new TemplateRoleName(inlineScript, Format.STRING).validate(scriptService)
@@ -305,7 +302,8 @@ public class TemplateRoleNameTests extends ESTestCase {
         when(storedScriptSource.getOptions()).thenReturn(Collections.emptyMap());
         scriptService.applyClusterState(clusterChangedEvent);
 
-        final BytesReference storedScript = new BytesArray("{ \"id\":\"foo\" }");
+        final BytesReference storedScript = new BytesArray("""
+            { "id":"foo" }""");
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> new TemplateRoleName(storedScript, Format.STRING).validate(scriptService)
@@ -329,7 +327,8 @@ public class TemplateRoleNameTests extends ESTestCase {
         when(metadata.custom(ScriptMetadata.TYPE)).thenReturn(scriptMetadata);
         scriptService.applyClusterState(clusterChangedEvent);
 
-        final BytesReference storedScript = new BytesArray("{ \"id\":\"foo\" }");
+        final BytesReference storedScript = new BytesArray("""
+            { "id":"foo" }""");
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> new TemplateRoleName(storedScript, Format.STRING).validate(scriptService)

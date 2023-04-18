@@ -143,6 +143,9 @@ public class DataTierTests extends ESTestCase {
     private static List<DiscoveryNode> randomNodes(final int numNodes) {
         Set<DiscoveryNodeRole> allRoles = new HashSet<>(DiscoveryNodeRole.roles());
         allRoles.remove(DiscoveryNodeRole.DATA_ROLE);
+        // indexing and searching node role are mutually exclusive with data tiers roles
+        allRoles.remove(DiscoveryNodeRole.INDEX_ROLE);
+        allRoles.remove(DiscoveryNodeRole.SEARCH_ROLE);
         List<DiscoveryNode> nodesList = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             Map<String, String> attributes = new HashMap<>();
@@ -176,5 +179,17 @@ public class DataTierTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> validator.validate(DATA_WARM + " "));
         expectThrows(IllegalArgumentException.class, () -> validator.validate(DATA_WARM + ", "));
         expectThrows(IllegalArgumentException.class, () -> validator.validate(DATA_WARM + ", " + DATA_HOT));
+    }
+
+    public void testCompareDataTiers() {
+        assertThat(DataTier.compare("data_cold", "data_warm"), is(-1));
+        assertThat(DataTier.compare("data_cold", "data_cold"), is(0));
+        assertThat(DataTier.compare("data_warm", "data_cold"), is(1));
+        // data_content is treated as equal to data_hot
+        assertThat(DataTier.compare("data_warm", "data_content"), is(-1));
+        assertThat(DataTier.compare("data_content", "data_content"), is(0));
+        assertThat(DataTier.compare("data_content", "data_hot"), is(0));
+        assertThat(DataTier.compare("data_content", "data_warm"), is(1));
+
     }
 }

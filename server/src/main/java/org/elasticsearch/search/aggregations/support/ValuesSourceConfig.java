@@ -148,7 +148,26 @@ public class ValuesSourceConfig {
                 if (valuesSourceType == null) {
                     // We have a field, and the user didn't specify a type, so get the type from the field
                     valuesSourceType = fieldResolver.getValuesSourceType(fieldContext, userValueTypeHint, defaultValueSourceType);
-                }
+                } else if (valuesSourceType != fieldResolver.getValuesSourceType(fieldContext, userValueTypeHint, defaultValueSourceType)
+                    && script == null) {
+                        /*
+                         * This is the case where the user has specified the type they expect, but we found a field of a different type.
+                         * Usually this happens because of a mapping error, e.g. an older index mapped an IP address as a keyword.  If
+                         * the aggregation proceeds, it will usually break during reduction and return no results.  So instead, we fail the
+                         * shard with the conflict at this point, allowing the correctly mapped shards to return results with a partial
+                         * failure.
+                         *
+                         * Note that if a script is specified, the assumption is that the script adapts the field into the specified type,
+                         * and we allow the aggregation to continue.
+                         */
+                        throw new IllegalArgumentException(
+                            "Field type ["
+                                + fieldContext.getTypeName()
+                                + "] is incompatible with specified value_type ["
+                                + userValueTypeHint
+                                + "]"
+                        );
+                    }
             }
         }
         if (valuesSourceType == null) {
@@ -304,7 +323,7 @@ public class ValuesSourceConfig {
                 vs = valueSourceType().getScript(script(), scriptValueType());
             } else {
                 // Field or Value Script case
-                vs = valueSourceType().getField(fieldContext(), script(), context);
+                vs = valueSourceType().getField(fieldContext(), script());
             }
         }
 
@@ -384,12 +403,16 @@ public class ValuesSourceConfig {
      * This returns a {@linkplain Function} because auto date histogram will
      * need to call it many times over the course of running the aggregation.
      */
-    public Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
-        return valuesSource.roundingPreparer();
+    public Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
+        return valuesSource.roundingPreparer(context);
     }
 
     /**
-     * Check if this values source supports using global and segment ordinals.
+     * Check if this values source supports segment ordinals. Global ordinals might or might not be supported.
+     * <p>
+     * If this returns {@code true} then it is safe to cast it to {@link ValuesSource.Bytes.WithOrdinals}.
+     * Call {@link ValuesSource.Bytes.WithOrdinals#supportsGlobalOrdinalsMapping} to find out if global ordinals are supported.
+     *
      */
     public boolean hasOrdinals() {
         return valuesSource.hasOrdinals();
@@ -415,7 +438,7 @@ public class ValuesSourceConfig {
      * the ordering.
      */
     public boolean alignesWithSearchIndex() {
-        return script() == null && missing() == null && fieldType() != null && fieldType().isSearchable();
+        return script() == null && missing() == null && fieldType() != null && fieldType().isIndexed();
     }
 
     /**

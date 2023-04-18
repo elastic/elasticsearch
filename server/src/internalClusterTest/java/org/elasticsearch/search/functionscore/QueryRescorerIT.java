@@ -9,7 +9,7 @@
 package org.elasticsearch.search.functionscore;
 
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -80,7 +80,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     new QueryRescorerBuilder(
                         functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.weightFactorFunction(100)).boostMode(
                             CombineFunction.REPLACE
-                        )
+                        ).queryName("hello world")
                     ).setQueryWeight(0.0f).setRescoreQueryWeight(1.0f),
                     1
                 )

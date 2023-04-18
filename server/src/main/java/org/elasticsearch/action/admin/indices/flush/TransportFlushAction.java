@@ -12,11 +12,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -46,13 +47,9 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<
             client,
             actionFilters,
             indexNameExpressionResolver,
-            TransportShardFlushAction.TYPE
+            TransportShardFlushAction.TYPE,
+            ThreadPool.Names.FLUSH
         );
-    }
-
-    @Override
-    protected ReplicationResponse newShardResponse() {
-        return new ReplicationResponse();
     }
 
     @Override

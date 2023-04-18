@@ -18,7 +18,9 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortOrder;
@@ -98,6 +100,14 @@ public final class IndexSortConfig {
         Setting.Property.Final
     );
 
+    public static final FieldSortSpec[] TIME_SERIES_SORT;
+
+    static {
+        FieldSortSpec timeStampSpec = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        timeStampSpec.order = SortOrder.DESC;
+        TIME_SERIES_SORT = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), timeStampSpec };
+    }
+
     private static String validateMissingValue(String missing) {
         if ("_last".equals(missing) == false && "_first".equals(missing) == false) {
             throw new IllegalArgumentException("Illegal missing value:[" + missing + "], " + "must be one of [_last, _first]");
@@ -127,11 +137,19 @@ public final class IndexSortConfig {
     final FieldSortSpec[] sortSpecs;
     private final Version indexCreatedVersion;
     private final String indexName;
+    private final IndexMode indexMode;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
         this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
         this.indexName = indexSettings.getIndex().getName();
+        this.indexMode = indexSettings.getMode();
+
+        if (this.indexMode == IndexMode.TIME_SERIES) {
+            this.sortSpecs = TIME_SERIES_SORT;
+            return;
+        }
+
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
         this.sortSpecs = fields.stream().map((name) -> new FieldSortSpec(name)).toArray(FieldSortSpec[]::new);
 
@@ -198,7 +216,11 @@ public final class IndexSortConfig {
             FieldSortSpec sortSpec = sortSpecs[i];
             final MappedFieldType ft = fieldTypeLookup.apply(sortSpec.field);
             if (ft == null) {
-                throw new IllegalArgumentException("unknown index sort field:[" + sortSpec.field + "]");
+                String err = "unknown index sort field:[" + sortSpec.field + "]";
+                if (this.indexMode == IndexMode.TIME_SERIES) {
+                    err += " required by [" + IndexSettings.MODE.getKey() + "=time_series]";
+                }
+                throw new IllegalArgumentException(err);
             }
             if (Objects.equals(ft.name(), sortSpec.field) == false) {
                 if (this.indexCreatedVersion.onOrAfter(Version.V_7_13_0)) {
@@ -225,10 +247,9 @@ public final class IndexSortConfig {
             }
             IndexFieldData<?> fieldData;
             try {
-                fieldData = fieldDataLookup.apply(
-                    ft,
-                    () -> { throw new UnsupportedOperationException("index sorting not supported on runtime field [" + ft.name() + "]"); }
-                );
+                fieldData = fieldDataLookup.apply(ft, () -> {
+                    throw new UnsupportedOperationException("index sorting not supported on runtime field [" + ft.name() + "]");
+                });
             } catch (Exception e) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]", e);
             }
@@ -241,14 +262,14 @@ public final class IndexSortConfig {
         return new Sort(sortFields);
     }
 
-    private void validateIndexSortField(SortField sortField) {
+    private static void validateIndexSortField(SortField sortField) {
         SortField.Type type = getSortFieldType(sortField);
         if (ALLOWED_INDEX_SORT_TYPES.contains(type) == false) {
             throw new IllegalArgumentException("invalid index sort field:[" + sortField.getField() + "]");
         }
     }
 
-    static class FieldSortSpec {
+    public static class FieldSortSpec {
         final String field;
         SortOrder order;
         MultiValueMode mode;
@@ -256,6 +277,14 @@ public final class IndexSortConfig {
 
         FieldSortSpec(String field) {
             this.field = field;
+        }
+
+        public String getField() {
+            return field;
+        }
+
+        public SortOrder getOrder() {
+            return order;
         }
     }
 

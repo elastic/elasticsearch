@@ -195,6 +195,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             this.maxDocsPerSecond = maxDocsPerSecond;
         }
 
+        @SuppressWarnings("HiddenField")
         public void rethrottle(float maxDocsPerSecond) {
             this.maxDocsPerSecond = maxDocsPerSecond;
             rethrottle();
@@ -355,9 +356,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void doSaveState(IndexerState state, Integer position, Runnable next) {
-            fail("should not be called");
-        }
+        protected void doSaveState(IndexerState state, Integer position, Runnable next) {}
 
         @Override
         protected void onFailure(Exception exc) {

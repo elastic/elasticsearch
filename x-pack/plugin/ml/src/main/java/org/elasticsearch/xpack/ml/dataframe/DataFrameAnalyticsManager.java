@@ -8,13 +8,12 @@ package org.elasticsearch.xpack.ml.dataframe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -49,6 +48,7 @@ import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class DataFrameAnalyticsManager {
@@ -153,7 +153,7 @@ public class DataFrameAnalyticsManager {
     }
 
     private void createStatsIndexAndUpdateMappingsIfNecessary(
-        Client client,
+        Client clientToUse,
         ClusterState clusterState,
         TimeValue masterNodeTimeout,
         ActionListener<Boolean> listener
@@ -162,7 +162,7 @@ public class DataFrameAnalyticsManager {
             aBoolean -> ElasticsearchMappings.addDocMappingIfMissing(
                 MlStatsIndex.writeAlias(),
                 MlStatsIndex::wrappedMapping,
-                client,
+                clientToUse,
                 clusterState,
                 masterNodeTimeout,
                 listener
@@ -170,33 +170,29 @@ public class DataFrameAnalyticsManager {
             listener::onFailure
         );
 
-        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, expressionResolver, masterNodeTimeout, createIndexListener);
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(
+            clientToUse,
+            clusterState,
+            expressionResolver,
+            masterNodeTimeout,
+            createIndexListener
+        );
     }
 
     private void determineProgressAndResume(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
         DataFrameAnalyticsTask.StartingState startingState = task.determineStartingState();
 
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Starting job from state [{}]", config.getId(), startingState));
+        LOGGER.debug(() -> format("[%s] Starting job from state [%s]", config.getId(), startingState));
         switch (startingState) {
-            case FIRST_TIME:
-                executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config));
-                break;
-            case RESUMING_REINDEXING:
-                executeJobInMiddleOfReindexing(task, config);
-                break;
-            case RESUMING_ANALYZING:
-                executeStep(task, config, new AnalysisStep(client, task, auditor, config, processManager));
-                break;
-            case RESUMING_INFERENCE:
-                buildInferenceStep(
-                    task,
-                    config,
-                    ActionListener.wrap(inferenceStep -> executeStep(task, config, inferenceStep), task::setFailed)
-                );
-                break;
-            case FINISHED:
-            default:
-                task.setFailed(ExceptionsHelper.serverError("Unexpected starting state [" + startingState + "]"));
+            case FIRST_TIME -> executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config));
+            case RESUMING_REINDEXING -> executeJobInMiddleOfReindexing(task, config);
+            case RESUMING_ANALYZING -> executeStep(task, config, new AnalysisStep(client, task, auditor, config, processManager));
+            case RESUMING_INFERENCE -> buildInferenceStep(
+                task,
+                config,
+                ActionListener.wrap(inferenceStep -> executeStep(task, config, inferenceStep), task::setFailed)
+            );
+            case FINISHED -> task.setFailed(ExceptionsHelper.serverError("Unexpected starting state [" + startingState + "]"));
         }
     }
 
@@ -210,25 +206,18 @@ public class DataFrameAnalyticsManager {
                 return;
             }
             switch (step.name()) {
-                case REINDEXING:
-                    executeStep(task, config, new AnalysisStep(client, task, auditor, config, processManager));
-                    break;
-                case ANALYSIS:
-                    buildInferenceStep(
-                        task,
-                        config,
-                        ActionListener.wrap(inferenceStep -> executeStep(task, config, inferenceStep), task::setFailed)
-                    );
-                    break;
-                case INFERENCE:
-                    executeStep(task, config, new FinalStep(client, task, auditor, config));
-                    break;
-                case FINAL:
+                case REINDEXING -> executeStep(task, config, new AnalysisStep(client, task, auditor, config, processManager));
+                case ANALYSIS -> buildInferenceStep(
+                    task,
+                    config,
+                    ActionListener.wrap(inferenceStep -> executeStep(task, config, inferenceStep), task::setFailed)
+                );
+                case INFERENCE -> executeStep(task, config, new FinalStep(client, task, auditor, config));
+                case FINAL -> {
                     LOGGER.info("[{}] Marking task completed", config.getId());
                     task.markAsCompleted();
-                    break;
-                default:
-                    task.markAsFailed(ExceptionsHelper.serverError("Unknown step [{}]", step));
+                }
+                default -> task.markAsFailed(ExceptionsHelper.serverError("Unknown step [{}]", step));
             }
         }, task::setFailed);
 

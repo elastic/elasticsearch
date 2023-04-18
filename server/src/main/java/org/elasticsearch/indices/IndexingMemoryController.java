@@ -10,7 +10,6 @@ package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -54,8 +53,8 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     public static final Setting<ByteSizeValue> MIN_INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting(
         "indices.memory.min_index_buffer_size",
         new ByteSizeValue(48, ByteSizeUnit.MB),
-        new ByteSizeValue(0, ByteSizeUnit.BYTES),
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.NodeScope
     );
 
@@ -63,9 +62,9 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
      * to set a ceiling on the actual size in bytes (default: not set). */
     public static final Setting<ByteSizeValue> MAX_INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting(
         "indices.memory.max_index_buffer_size",
-        new ByteSizeValue(-1),
-        new ByteSizeValue(-1),
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+        ByteSizeValue.MINUS_ONE,
+        ByteSizeValue.MINUS_ONE,
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.NodeScope
     );
 
@@ -194,7 +193,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to write indexing buffer for shard [{}]; ignoring", shard.shardId()), e);
+                logger.warn(() -> "failed to write indexing buffer for shard [" + shard.shardId() + "]; ignoring", e);
             }
         });
     }
@@ -329,10 +328,10 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}]",
-                    new ByteSizeValue(totalBytesUsed),
+                    ByteSizeValue.ofBytes(totalBytesUsed),
                     INDEX_BUFFER_SIZE_SETTING.getKey(),
                     indexingBuffer,
-                    new ByteSizeValue(totalBytesWriting)
+                    ByteSizeValue.ofBytes(totalBytesWriting)
                 );
             }
 
@@ -380,10 +379,10 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                 logger.debug(
                     "now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], "
                         + "currently writing bytes [{}], [{}] shards with non-zero indexing buffer",
-                    new ByteSizeValue(totalBytesUsed),
+                    ByteSizeValue.ofBytes(totalBytesUsed),
                     INDEX_BUFFER_SIZE_SETTING.getKey(),
                     indexingBuffer,
-                    new ByteSizeValue(totalBytesWriting),
+                    ByteSizeValue.ofBytes(totalBytesWriting),
                     queue.size()
                 );
 
@@ -392,7 +391,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     logger.debug(
                         "write indexing buffer to disk for shard [{}] to free up its [{}] indexing buffer",
                         largest.shard.shardId(),
-                        new ByteSizeValue(largest.bytesUsed)
+                        ByteSizeValue.ofBytes(largest.bytesUsed)
                     );
                     writeIndexingBufferAsync(largest.shard);
                     totalBytesUsed -= largest.bytesUsed;
@@ -421,7 +420,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
         try {
             shard.flushOnIdle(inactiveTimeNS);
         } catch (AlreadyClosedException e) {
-            logger.trace(() -> new ParameterizedMessage("ignore exception while checking if shard {} is inactive", shard.shardId()), e);
+            logger.trace(() -> "ignore exception while checking if shard " + shard.shardId() + " is inactive", e);
         }
     }
 }

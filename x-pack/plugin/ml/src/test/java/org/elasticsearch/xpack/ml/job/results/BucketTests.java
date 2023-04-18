@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
@@ -26,13 +26,18 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class BucketTests extends AbstractSerializingTestCase<Bucket> {
+public class BucketTests extends AbstractXContentSerializingTestCase<Bucket> {
 
     private static final long MAX_BUCKET_SPAN_SEC = 100_000_000_000L;  // bucket span of > 3000 years should be enough for everyone
 
     @Override
     public Bucket createTestInstance() {
         return createTestInstance("foo");
+    }
+
+    @Override
+    protected Bucket mutateInstance(Bucket instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public Bucket createTestInstance(String jobId) {
@@ -257,7 +262,9 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
     }
 
     public void testStrictParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123544456, "bucket_span": 3600, "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Bucket.STRICT_PARSER.apply(parser, null));
 
@@ -266,7 +273,9 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123544456, "bucket_span": 3600, "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             Bucket.LENIENT_PARSER.apply(parser, null);
         }

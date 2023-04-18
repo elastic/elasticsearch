@@ -15,16 +15,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Information about a currently running task and all its subtasks.
  */
-public class TaskGroup implements ToXContentObject {
-
-    private final TaskInfo task;
-
-    private final List<TaskGroup> childTasks;
+public record TaskGroup(TaskInfo task, List<TaskGroup> childTasks) implements ToXContentObject {
 
     public TaskGroup(TaskInfo task, List<TaskGroup> childTasks) {
         this.task = task;
@@ -53,16 +48,12 @@ public class TaskGroup implements ToXContentObject {
         }
 
         public TaskGroup build() {
-            return new TaskGroup(taskInfo, childTasks.stream().map(Builder::build).collect(Collectors.toList()));
+            return new TaskGroup(taskInfo, childTasks.stream().map(Builder::build).toList());
         }
     }
 
-    public TaskInfo getTaskInfo() {
+    public TaskInfo taskInfo() {
         return task;
-    }
-
-    public List<TaskGroup> getChildTasks() {
-        return childTasks;
     }
 
     @Override

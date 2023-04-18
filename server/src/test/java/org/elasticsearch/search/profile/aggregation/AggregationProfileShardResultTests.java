@@ -10,10 +10,11 @@ package org.elasticsearch.search.profile.aggregation;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileResultTests;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -27,7 +28,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 
-public class AggregationProfileShardResultTests extends AbstractSerializingTestCase<AggregationProfileShardResult> {
+public class AggregationProfileShardResultTests extends AbstractXContentSerializingTestCase<AggregationProfileShardResult> {
 
     public static AggregationProfileShardResult createTestItem(int depth) {
         int size = randomIntBetween(0, 5);
@@ -41,6 +42,11 @@ public class AggregationProfileShardResultTests extends AbstractSerializingTestC
     @Override
     protected AggregationProfileShardResult createTestInstance() {
         return createTestItem(2);
+    }
+
+    @Override
+    protected AggregationProfileShardResult mutateInstance(AggregationProfileShardResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -76,31 +82,45 @@ public class AggregationProfileShardResultTests extends AbstractSerializingTestC
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);
         BytesReference xContent = toXContent(aggProfileResults, XContentType.JSON, false);
-        assertEquals(
-            "{\"aggregations\":["
-                + "{\"type\":\"someType\","
-                + "\"description\":\"someDescription\","
-                + "\"time_in_nanos\":6000,"
-                + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
-                + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
-                + "}"
-                + "]}",
-            xContent.utf8ToString()
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "aggregations": [
+                {
+                  "type": "someType",
+                  "description": "someDescription",
+                  "time_in_nanos": 6000,
+                  "breakdown": {
+                    "timing1": 2000,
+                    "timing2": 4000
+                  },
+                  "debug": {
+                    "stuff": "stuff",
+                    "other_stuff": [ "foo", "bar" ]
+                  }
+                }
+              ]
+            }"""), xContent.utf8ToString());
 
         xContent = toXContent(aggProfileResults, XContentType.JSON, true);
-        assertEquals(
-            "{\"aggregations\":["
-                + "{\"type\":\"someType\","
-                + "\"description\":\"someDescription\","
-                + "\"time\":\"6micros\","
-                + "\"time_in_nanos\":6000,"
-                + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
-                + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
-                + "}"
-                + "]}",
-            xContent.utf8ToString()
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "aggregations": [
+                {
+                  "type": "someType",
+                  "description": "someDescription",
+                  "time": "6micros",
+                  "time_in_nanos": 6000,
+                  "breakdown": {
+                    "timing1": 2000,
+                    "timing2": 4000
+                  },
+                  "debug": {
+                    "stuff": "stuff",
+                    "other_stuff": [ "foo", "bar" ]
+                  }
+                }
+              ]
+            }"""), xContent.utf8ToString());
     }
 
 }

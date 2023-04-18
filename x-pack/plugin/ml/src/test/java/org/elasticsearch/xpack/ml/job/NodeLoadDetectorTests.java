@@ -11,28 +11,28 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
-import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
-import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
 import java.net.InetAddress;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -58,9 +58,14 @@ public class NodeLoadDetectorTests extends ESTestCase {
     }
 
     public void testNodeLoadDetection() {
-        Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "-1");
-        // MachineLearning.MACHINE_MEMORY_NODE_ATTR negative, so this will fall back to allocating by count
+        // MachineLearning.MACHINE_MEMORY_NODE_ATTR negative, so this won't allocate any jobs that aren't already allocated
+        // (in the past it would have fallen back to allocating by count, but we don't do that any more)
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            "-1",
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "10000000"
+        );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
                 new DiscoveryNode(
@@ -68,7 +73,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
                     "_node_id1",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                     nodeAttr,
-                    Collections.emptySet(),
+                    Set.of(DiscoveryNodeRole.ML_ROLE),
                     Version.CURRENT
                 )
             )
@@ -78,7 +83,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
                     "_node_id2",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
                     nodeAttr,
-                    Collections.emptySet(),
+                    Set.of(DiscoveryNodeRole.ML_ROLE),
                     Version.CURRENT
                 )
             )
@@ -88,7 +93,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
                     "_node_id3",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
                     nodeAttr,
-                    Collections.emptySet(),
+                    Set.of(DiscoveryNodeRole.ML_ROLE),
                     Version.CURRENT
                 )
             )
@@ -98,7 +103,7 @@ public class NodeLoadDetectorTests extends ESTestCase {
                     "_node_id4",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9303),
                     nodeAttr,
-                    Collections.emptySet(),
+                    Set.of(DiscoveryNodeRole.ML_ROLE),
                     Version.CURRENT
                 )
             )
@@ -117,19 +122,28 @@ public class NodeLoadDetectorTests extends ESTestCase {
                 Metadata.builder()
                     .putCustom(PersistentTasksCustomMetadata.TYPE, tasks)
                     .putCustom(
-                        TrainedModelAllocationMetadata.NAME,
-                        TrainedModelAllocationMetadata.Builder.empty()
-                            .addNewAllocation(
+                        TrainedModelAssignmentMetadata.NAME,
+                        TrainedModelAssignmentMetadata.Builder.empty()
+                            .addNewAssignment(
                                 "model1",
-                                TrainedModelAllocation.Builder.empty(
-                                    new StartTrainedModelDeploymentAction.TaskParams("model1", MODEL_MEMORY_REQUIREMENT, 1, 1, 1024)
+                                TrainedModelAssignment.Builder.empty(
+                                    new StartTrainedModelDeploymentAction.TaskParams(
+                                        "model1",
+                                        "deployment1",
+                                        MODEL_MEMORY_REQUIREMENT,
+                                        1,
+                                        1,
+                                        1024,
+                                        ByteSizeValue.ofBytes(MODEL_MEMORY_REQUIREMENT),
+                                        Priority.NORMAL
+                                    )
                                 )
-                                    .addNewRoutingEntry("_node_id4")
-                                    .addNewFailedRoutingEntry("_node_id2", "test")
-                                    .addNewRoutingEntry("_node_id1")
+                                    .addRoutingEntry("_node_id4", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+                                    .addRoutingEntry("_node_id2", new RoutingInfo(1, 1, RoutingState.FAILED, "test"))
+                                    .addRoutingEntry("_node_id1", new RoutingInfo(1, 1, RoutingState.STARTING, ""))
                                     .updateExistingRoutingEntry(
                                         "_node_id1",
-                                        new RoutingStateAndReason(randomFrom(RoutingState.STOPPED, RoutingState.FAILED), "test")
+                                        new RoutingInfo(1, 1, randomFrom(RoutingState.STOPPED, RoutingState.FAILED), "test")
                                     )
                             )
                             .build()
@@ -139,56 +153,30 @@ public class NodeLoadDetectorTests extends ESTestCase {
 
         NodeLoad load = nodeLoadDetector.detectNodeLoad(cs, nodes.get("_node_id1"), 10, 30, false);
         assertThat(load.getAssignedJobMemory(), equalTo(52428800L));
-        assertThat(load.getNumAllocatingJobs(), equalTo(2L));
-        assertThat(load.getNumAssignedJobs(), equalTo(2L));
+        assertThat(load.getNumAllocatingJobs(), equalTo(2));
+        assertThat(load.getNumAssignedJobsAndModels(), equalTo(2));
         assertThat(load.getMaxJobs(), equalTo(10));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
         load = nodeLoadDetector.detectNodeLoad(cs, nodes.get("_node_id2"), 5, 30, false);
         assertThat(load.getAssignedJobMemory(), equalTo(41943040L));
-        assertThat(load.getNumAllocatingJobs(), equalTo(1L));
-        assertThat(load.getNumAssignedJobs(), equalTo(1L));
+        assertThat(load.getNumAllocatingJobs(), equalTo(1));
+        assertThat(load.getNumAssignedJobsAndModels(), equalTo(1));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
         load = nodeLoadDetector.detectNodeLoad(cs, nodes.get("_node_id3"), 5, 30, false);
         assertThat(load.getAssignedJobMemory(), equalTo(0L));
-        assertThat(load.getNumAllocatingJobs(), equalTo(0L));
-        assertThat(load.getNumAssignedJobs(), equalTo(0L));
+        assertThat(load.getNumAllocatingJobs(), equalTo(0));
+        assertThat(load.getNumAssignedJobsAndModels(), equalTo(0));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
 
         load = nodeLoadDetector.detectNodeLoad(cs, nodes.get("_node_id4"), 5, 30, false);
-        assertThat(load.getAssignedJobMemory(), equalTo(429916160L));
-        assertThat(load.getNumAllocatingJobs(), equalTo(0L));
-        assertThat(load.getNumAssignedJobs(), equalTo(2L));
+        assertThat(load.getAssignedJobMemory(), equalTo(398458880L));
+        assertThat(load.getNumAllocatingJobs(), equalTo(0));
+        assertThat(load.getNumAssignedJobsAndModels(), equalTo(2));
         assertThat(load.getMaxJobs(), equalTo(5));
         assertThat(load.getMaxMlMemory(), equalTo(0L));
     }
-
-    public void testNodeLoadDetection_withBadMachineMemoryAttribute() {
-        Map<String, String> nodeAttr = new HashMap<>();
-        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "bar");
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(
-                new DiscoveryNode(
-                    "_node_name1",
-                    "_node_id1",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    nodeAttr,
-                    Collections.emptySet(),
-                    Version.CURRENT
-                )
-            )
-            .build();
-
-        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
-        cs.nodes(nodes);
-        Metadata.Builder metadata = Metadata.builder();
-        cs.metadata(metadata);
-
-        NodeLoad load = nodeLoadDetector.detectNodeLoad(cs.build(), nodes.get("_node_id1"), 10, -1, false);
-        assertThat(load.getError(), containsString("ml.machine_memory attribute [bar] is not a long"));
-    }
-
 }

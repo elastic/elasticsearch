@@ -8,40 +8,38 @@
 
 package org.elasticsearch.action.support;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.concurrent.Executor;
 
 /**
- * An action listener that wraps another action listener and threading its execution.
+ * An action listener that wraps another action listener and dispatches its completion to an executor.
  */
-public final class ThreadedActionListener<Response> extends ActionListener.Delegating<Response, Response> {
+public final class ThreadedActionListener<Response> implements ActionListener<Response> {
 
-    private final Logger logger;
-    private final ThreadPool threadPool;
-    private final String executor;
+    private static final Logger logger = LogManager.getLogger(ThreadedActionListener.class);
+
+    private final Executor executor;
+    private final ActionListener<Response> delegate;
     private final boolean forceExecution;
 
-    public ThreadedActionListener(
-        Logger logger,
-        ThreadPool threadPool,
-        String executor,
-        ActionListener<Response> listener,
-        boolean forceExecution
-    ) {
-        super(listener);
-        this.logger = logger;
-        this.threadPool = threadPool;
-        this.executor = executor;
+    public ThreadedActionListener(Executor executor, ActionListener<Response> delegate) {
+        this(executor, false, delegate);
+    }
+
+    public ThreadedActionListener(Executor executor, boolean forceExecution, ActionListener<Response> delegate) {
         this.forceExecution = forceExecution;
+        this.executor = executor;
+        this.delegate = delegate;
     }
 
     @Override
     public void onResponse(final Response response) {
-        threadPool.executor(executor).execute(new ActionRunnable<>(delegate) {
+        executor.execute(new ActionRunnable<>(delegate) {
             @Override
             public boolean isForceExecution() {
                 return forceExecution;
@@ -51,26 +49,53 @@ public final class ThreadedActionListener<Response> extends ActionListener.Deleg
             protected void doRun() {
                 listener.onResponse(response);
             }
+
+            @Override
+            public String toString() {
+                return ThreadedActionListener.this + "/onResponse";
+            }
         });
     }
 
     @Override
     public void onFailure(final Exception e) {
-        threadPool.executor(executor).execute(new AbstractRunnable() {
+        executor.execute(new AbstractRunnable() {
             @Override
             public boolean isForceExecution() {
                 return forceExecution;
             }
 
             @Override
-            protected void doRun() throws Exception {
+            protected void doRun() {
                 delegate.onFailure(e);
             }
 
             @Override
+            public void onRejection(Exception rejectionException) {
+                rejectionException.addSuppressed(e);
+                try {
+                    delegate.onFailure(rejectionException);
+                } catch (Exception doubleFailure) {
+                    rejectionException.addSuppressed(doubleFailure);
+                    onFailure(rejectionException);
+                }
+            }
+
+            @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to execute failure callback on [{}]", delegate), e);
+                logger.error(() -> "failed to execute failure callback on [" + ThreadedActionListener.this + "]", e);
+                assert false : e;
+            }
+
+            @Override
+            public String toString() {
+                return ThreadedActionListener.this + "/onFailure";
             }
         });
+    }
+
+    @Override
+    public String toString() {
+        return "ThreadedActionListener[" + executor + "/" + delegate + "]";
     }
 }

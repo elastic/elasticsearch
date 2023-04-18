@@ -48,6 +48,7 @@ final class HdfsBlobStore implements BlobStore {
         }
     }
 
+    @SuppressWarnings("HiddenField")
     private void mkdirs(Path path) throws IOException {
         execute((Operation<Void>) fileContext -> {
             fileContext.mkdir(path, null, true);

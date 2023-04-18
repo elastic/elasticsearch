@@ -9,7 +9,7 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
+BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   def baseLeaderCluster = testClusters.register("${baseName}-leader") {
       numberOfNodes = 3
@@ -92,5 +92,5 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
 
 // Security is explicitly disabled, do not run tests in FIPS mode
 tasks.withType(Test).configureEach {
-  onlyIf { BuildParams.inFipsJvm == false}
+  BuildParams.withFipsEnabledOnly(it)
 }

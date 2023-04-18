@@ -54,18 +54,12 @@ public enum ShapeRelation implements Writeable {
 
     /** Maps ShapeRelation to Lucene's LatLonShapeRelation */
     public QueryRelation getLuceneRelation() {
-        switch (this) {
-            case INTERSECTS:
-                return QueryRelation.INTERSECTS;
-            case DISJOINT:
-                return QueryRelation.DISJOINT;
-            case WITHIN:
-                return QueryRelation.WITHIN;
-            case CONTAINS:
-                return QueryRelation.CONTAINS;
-            default:
-                throw new IllegalArgumentException("ShapeRelation [" + this + "] not supported");
-        }
+        return switch (this) {
+            case INTERSECTS -> QueryRelation.INTERSECTS;
+            case DISJOINT -> QueryRelation.DISJOINT;
+            case WITHIN -> QueryRelation.WITHIN;
+            case CONTAINS -> QueryRelation.CONTAINS;
+        };
     }
 
     public String getRelationName() {

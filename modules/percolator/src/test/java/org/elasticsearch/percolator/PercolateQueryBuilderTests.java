@@ -29,7 +29,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -77,7 +76,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(PercolatorPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(PercolatorPlugin.class);
     }
 
     @Override
@@ -229,10 +228,9 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     public void testRequiredParameters() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new PercolateQueryBuilder(null, new BytesArray("{}"), XContentType.JSON); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new PercolateQueryBuilder(null, new BytesArray("{}"), XContentType.JSON);
+        });
         assertThat(e.getMessage(), equalTo("[field] is a required argument"));
 
         e = expectThrows(
@@ -253,7 +251,9 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     public void testFromJsonNoDocumentType() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder queryBuilder = parseQuery("{\"percolate\" : { \"document\": {}, \"field\":\"" + queryField + "\"}}");
+        QueryBuilder queryBuilder = parseQuery(Strings.format("""
+            {"percolate" : { "document": {}, "field":"%s"}}
+            """, queryField));
         queryBuilder.toQuery(searchExecutionContext);
     }
 
@@ -264,23 +264,16 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         documentSource = Collections.singletonList(randomSource(new HashSet<>()));
 
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder queryBuilder = parseQuery(
-            "{\"percolate\" : { \"index\": \""
-                + indexedDocumentIndex
-                + "\", \"id\": \""
-                + indexedDocumentId
-                + "\", \"field\":\""
-                + queryField
-                + "\"}}"
-        );
+        QueryBuilder queryBuilder = parseQuery(Strings.format("""
+            {"percolate" : { "index": "%s", "id": "%s", "field":"%s"}}
+            """, indexedDocumentIndex, indexedDocumentId, queryField));
         rewriteAndFetch(queryBuilder, searchExecutionContext).toQuery(searchExecutionContext);
     }
 
     public void testBothDocumentAndDocumentsSpecified() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> parseQuery("{\"percolate\" : { \"document\": {}, \"documents\": [{}, {}], \"field\":\"" + queryField + "\"}}")
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(Strings.format("""
+            {"percolate" : { "document": {}, "documents": [{}, {}], "field":"%s"}}
+            """, queryField)));
         assertThat(e.getMessage(), containsString("The following fields are not allowed together: [document, documents]"));
     }
 
@@ -388,11 +381,9 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     public void testFromJsonWithDocumentType() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        String queryAsString = "{\"percolate\" : { \"document\": {}, \"document_type\":\""
-            + docType
-            + "\", \"field\":\""
-            + queryField
-            + "\"}}";
+        String queryAsString = Strings.format("""
+            {"percolate" : { "document": {}, "document_type":"%s", "field":"%s"}}
+            """, docType, queryField);
         XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, queryAsString, RestApiVersion.V_7);
         QueryBuilder queryBuilder = parseQuery(parser);
         queryBuilder.toQuery(searchExecutionContext);
@@ -406,13 +397,9 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         documentSource = Collections.singletonList(randomSource(new HashSet<>()));
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
-        String queryAsString = "{\"percolate\" : { \"index\": \""
-            + indexedDocumentIndex
-            + "\", \"type\": \"_doc\", \"id\": \""
-            + indexedDocumentId
-            + "\", \"field\":\""
-            + queryField
-            + "\"}}";
+        String queryAsString = Strings.format("""
+            {"percolate" : { "index": "%s", "type": "_doc", "id": "%s", "field":"%s"}}
+            """, indexedDocumentIndex, indexedDocumentId, queryField);
         XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, queryAsString, RestApiVersion.V_7);
         QueryBuilder queryBuilder = parseQuery(parser);
         rewriteAndFetch(queryBuilder, searchExecutionContext).toQuery(searchExecutionContext);

@@ -15,7 +15,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.yaml.snakeyaml.util.UriEncoder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -73,8 +72,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Request addData = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
         addData.setEntity(
             new NStringEntity(
-                "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n"
-                    + "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}",
+                """
+                    {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+                    {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}""",
                 randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))
             )
         );
@@ -166,11 +166,12 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Request addDataRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
         addDataRequest.setEntity(
             new NStringEntity(
-                "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n"
-                    + "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}\n"
-                    + "{\"airline\":\"JBU\",\"responsetime\":\"877.5927\",\"sourcetype\":\"farequote\",\"time\":\"1403481800\"}\n"
-                    + "{\"airline\":\"KLM\",\"responsetime\":\"1355.4812\",\"sourcetype\":\"farequote\",\"time\":\"1403481900\"}\n"
-                    + "{\"airline\":\"NKS\",\"responsetime\":\"9991.3981\",\"sourcetype\":\"farequote\",\"time\":\"1403482000\"}",
+                """
+                    {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+                    {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+                    {"airline":"JBU","responsetime":"877.5927","sourcetype":"farequote","time":"1403481800"}
+                    {"airline":"KLM","responsetime":"1355.4812","sourcetype":"farequote","time":"1403481900"}
+                    {"airline":"NKS","responsetime":"9991.3981","sourcetype":"farequote","time":"1403482000"}""",
                 randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))
             )
         );
@@ -209,11 +210,12 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Request addDataRequest2 = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
         addDataRequest2.setEntity(
             new NStringEntity(
-                "{\"airline\":\"AAL\",\"responsetime\":\"136.2361\",\"sourcetype\":\"farequote\",\"time\":\"1407081600\"}\n"
-                    + "{\"airline\":\"VRD\",\"responsetime\":\"282.9847\",\"sourcetype\":\"farequote\",\"time\":\"1407081700\"}\n"
-                    + "{\"airline\":\"JAL\",\"responsetime\":\"493.0338\",\"sourcetype\":\"farequote\",\"time\":\"1407081800\"}\n"
-                    + "{\"airline\":\"UAL\",\"responsetime\":\"8.4275\",\"sourcetype\":\"farequote\",\"time\":\"1407081900\"}\n"
-                    + "{\"airline\":\"FFT\",\"responsetime\":\"221.8693\",\"sourcetype\":\"farequote\",\"time\":\"1407082000\"}",
+                """
+                    {"airline":"AAL","responsetime":"136.2361","sourcetype":"farequote","time":"1407081600"}
+                    {"airline":"VRD","responsetime":"282.9847","sourcetype":"farequote","time":"1407081700"}
+                    {"airline":"JAL","responsetime":"493.0338","sourcetype":"farequote","time":"1407081800"}
+                    {"airline":"UAL","responsetime":"8.4275","sourcetype":"farequote","time":"1407081900"}
+                    {"airline":"FFT","responsetime":"221.8693","sourcetype":"farequote","time":"1407082000"}""",
                 randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))
             )
         );
@@ -522,7 +524,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         }
         xContentBuilder.endObject();
 
-        Request request = new Request("PUT", BASE_PATH + "anomaly_detectors/" + UriEncoder.encode(jobId));
+        // url encoding is needed for the invalid case, which contains a space
+        String encodedJobId = jobId.replace(" ", "%20");
+        Request request = new Request("PUT", BASE_PATH + "anomaly_detectors/" + encodedJobId);
         request.setJsonEntity(Strings.toString(xContentBuilder));
         return client().performRequest(request);
     }
@@ -541,21 +545,23 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         String dateFormat = datesHaveNanoSecondResolution ? "strict_date_optional_time_nanos" : "strict_date_optional_time";
         String randomNanos = datesHaveNanoSecondResolution ? "," + randomIntBetween(100000000, 999999999) : "";
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
-        createAirlineDataRequest.setJsonEntity(
-            "{"
-                + "  \"mappings\": {"
-                + "    \"properties\": {"
-                + "      \"time\": { \"type\":\""
-                + dateMappingType
-                + "\", \"format\":\""
-                + dateFormat
-                + "\"},"
-                + "      \"airline\": { \"type\":\"keyword\"},"
-                + "      \"responsetime\": { \"type\":\"float\"}"
-                + "    }"
-                + "  }"
-                + "}"
-        );
+        createAirlineDataRequest.setJsonEntity(Strings.format("""
+            {
+              "mappings": {
+                "properties": {
+                  "time": {
+                    "type": "%s",
+                    "format": "%s"
+                  },
+                  "airline": {
+                    "type": "keyword"
+                  },
+                  "responsetime": {
+                    "type": "float"
+                  }
+                }
+              }
+            }""", dateMappingType, dateFormat));
         client().performRequest(createAirlineDataRequest);
         Request airlineData1 = new Request("PUT", "/airline-data/_doc/1");
         airlineData1.setJsonEntity("{\"time\":\"2016-06-01T00:00:00" + randomNanos + "Z\",\"airline\":\"AAA\",\"responsetime\":135.22}");

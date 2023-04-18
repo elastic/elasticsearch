@@ -87,32 +87,25 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(
             "base64EncodedToken".getBytes(StandardCharsets.UTF_8)
         );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            kerberosAuthenticationToken,
-            (original) -> { return new KerberosAuthenticationToken((byte[]) original.credentials()); }
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
+            return new KerberosAuthenticationToken((byte[]) original.credentials());
+        });
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
             byte[] originalCreds = (byte[]) original.credentials();
             return new KerberosAuthenticationToken(Arrays.copyOf(originalCreds, originalCreds.length));
         });
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            kerberosAuthenticationToken,
-            (original) -> { return new KerberosAuthenticationToken((byte[]) original.credentials()); },
-            KerberosAuthenticationTokenTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
+            return new KerberosAuthenticationToken((byte[]) original.credentials());
+        }, KerberosAuthenticationTokenTests::mutateTestItem);
     }
 
     private static KerberosAuthenticationToken mutateTestItem(KerberosAuthenticationToken original) {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new KerberosAuthenticationToken(randomByteArrayOfLength(10));
-            case 1:
-                return new KerberosAuthenticationToken("base64EncodedToken".getBytes(StandardCharsets.UTF_16));
-            case 2:
-                return new KerberosAuthenticationToken("[B@6499375d".getBytes(StandardCharsets.UTF_8));
-            default:
-                throw new IllegalArgumentException("unknown option");
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new KerberosAuthenticationToken(randomByteArrayOfLength(10));
+            case 1 -> new KerberosAuthenticationToken("base64EncodedToken".getBytes(StandardCharsets.UTF_16));
+            case 2 -> new KerberosAuthenticationToken("[B@6499375d".getBytes(StandardCharsets.UTF_8));
+            default -> throw new IllegalArgumentException("unknown option");
+        };
     }
 
     private static void assertContainsAuthenticateHeader(ElasticsearchSecurityException e) {

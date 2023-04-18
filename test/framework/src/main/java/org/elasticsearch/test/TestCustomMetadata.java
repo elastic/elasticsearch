@@ -12,12 +12,14 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.function.Function;
 
 public abstract class TestCustomMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
@@ -52,7 +54,7 @@ public abstract class TestCustomMetadata extends AbstractNamedDiffable<Metadata.
         return data.hashCode();
     }
 
-    protected static <T extends TestCustomMetadata> T readFrom(Function<String, T> supplier, StreamInput in) throws IOException {
+    public static <T extends TestCustomMetadata> T readFrom(Function<String, T> supplier, StreamInput in) throws IOException {
         return supplier.apply(in.readString());
     }
 
@@ -66,8 +68,7 @@ public abstract class TestCustomMetadata extends AbstractNamedDiffable<Metadata.
     }
 
     @SuppressWarnings("unchecked")
-    public static <T extends Metadata.Custom> T fromXContent(Function<String, Metadata.Custom> supplier, XContentParser parser)
-        throws IOException {
+    public static <T extends Metadata.Custom> T fromXContent(Function<String, T> supplier, XContentParser parser) throws IOException {
         XContentParser.Token token;
         String data = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -88,13 +89,12 @@ public abstract class TestCustomMetadata extends AbstractNamedDiffable<Metadata.
         if (data == null) {
             throw new ElasticsearchParseException("failed to parse snapshottable metadata, data not found");
         }
-        return (T) supplier.apply(data);
+        return supplier.apply(data);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("data", getData());
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.single((builder, params) -> builder.field("data", getData()));
     }
 
     @Override

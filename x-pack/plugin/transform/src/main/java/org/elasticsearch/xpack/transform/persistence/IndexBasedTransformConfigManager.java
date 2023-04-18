@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,7 +35,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -49,6 +51,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -71,7 +74,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -517,6 +519,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     public void expandTransformIds(
         String transformIdsExpression,
         PageParams pageParams,
+        TimeValue timeout,
         boolean allowNoMatch,
         ActionListener<Tuple<Long, Tuple<List<String>, List<TransformConfig>>>> foundConfigsListener
     ) {
@@ -532,6 +535,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             .setFrom(pageParams.getFrom())
             .setTrackTotalHits(true)
             .setSize(pageParams.getSize())
+            .setTimeout(timeout)
             .setQuery(queryBuilder)
             .request();
 
@@ -544,8 +548,8 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             ActionListener.<SearchResponse>wrap(searchResponse -> {
                 long totalHits = searchResponse.getHits().getTotalHits().value;
                 // important: preserve order
-                Set<String> ids = new LinkedHashSet<>(searchResponse.getHits().getHits().length);
-                Set<TransformConfig> configs = new LinkedHashSet<>(searchResponse.getHits().getHits().length);
+                Set<String> ids = Sets.newLinkedHashSetWithExpectedSize(searchResponse.getHits().getHits().length);
+                Set<TransformConfig> configs = Sets.newLinkedHashSetWithExpectedSize(searchResponse.getHits().getHits().length);
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     BytesReference source = hit.getSourceRef();
                     try (
@@ -587,13 +591,63 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     @Override
-    public void getAllTransformIds(ActionListener<Set<String>> listener) {
-        expandAllTransformIds(false, MAX_RESULTS_WINDOW, ActionListener.wrap(r -> listener.onResponse(r.v2()), listener::onFailure));
+    public void getAllTransformIds(TimeValue timeout, ActionListener<Set<String>> listener) {
+        expandAllTransformIds(
+            false,
+            MAX_RESULTS_WINDOW,
+            timeout,
+            ActionListener.wrap(r -> listener.onResponse(r.v2()), listener::onFailure)
+        );
     }
 
     @Override
-    public void getAllOutdatedTransformIds(ActionListener<Tuple<Long, Set<String>>> listener) {
-        expandAllTransformIds(true, MAX_RESULTS_WINDOW, listener);
+    public void getAllOutdatedTransformIds(TimeValue timeout, ActionListener<Tuple<Long, Set<String>>> listener) {
+        expandAllTransformIds(true, MAX_RESULTS_WINDOW, timeout, listener);
+    }
+
+    @Override
+    public void resetTransform(String transformId, ActionListener<Boolean> listener) {
+        ActionListener<BulkByScrollResponse> deleteListener = ActionListener.wrap(dbqResponse -> { listener.onResponse(true); }, e -> {
+            if (e.getClass() == IndexNotFoundException.class) {
+                listener.onFailure(
+                    new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
+                );
+            } else {
+                listener.onFailure(e);
+            }
+        });
+
+        SearchRequest searchRequest = new SearchRequest().indices(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        )
+            .source(
+                new SearchSourceBuilder()
+                    // find and count all the documents corresponding to the given transform id
+                    .query(QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId))
+                    .trackTotalHitsUpTo(1)
+            );
+        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+            if (searchResponse.getHits().getTotalHits().value == 0) {
+                listener.onFailure(
+                    new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
+                );
+                return;
+            }
+
+            QueryBuilder dbqQuery = QueryBuilders.constantScoreQuery(
+                QueryBuilders.boolQuery()
+                    // delete documents corresponding to given transform id...
+                    .filter(QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId))
+                    // ...except given transform's config document
+                    .mustNot(QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId)))
+            );
+            DeleteByQueryRequest dbqRequest = createDeleteByQueryRequest().indices(
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+            ).setQuery(dbqQuery).setRefresh(true);
+            executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, DeleteByQueryAction.INSTANCE, dbqRequest, deleteListener);
+        }, deleteListener::onFailure));
     }
 
     @Override
@@ -636,16 +690,20 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).setRefreshPolicy(
                 WriteRequest.RefreshPolicy.IMMEDIATE
             ).id(TransformStoredDoc.documentId(storedDoc.getId())).source(source);
-            if (seqNoPrimaryTermAndIndex != null
-                && seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
-                indexRequest.opType(DocWriteRequest.OpType.INDEX)
-                    .setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
-                    .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
+            if (seqNoPrimaryTermAndIndex != null) {
+                // if seqNoPrimaryTermAndIndex is set, use optype index even if not on the latest index, because the upgrader
+                // could have been called, see gh#80073
+                indexRequest.opType(DocWriteRequest.OpType.INDEX);
+                // if on the latest index use optimistic concurrency control in addition
+                if (seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
+                    indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
+                        .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
+                }
             } else {
-                // If the index is NOT the latest or we are null, that means we have not created this doc before
-                // so, it should be a create option without the seqNo and primaryTerm set
+                // we have not created this doc before or we are called from the upgrader
                 indexRequest.opType(DocWriteRequest.OpType.CREATE);
             }
+
             executeAsyncWithOrigin(
                 client,
                 TRANSFORM_ORIGIN,
@@ -731,7 +789,11 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     @Override
-    public void getTransformStoredDocs(Collection<String> transformIds, ActionListener<List<TransformStoredDoc>> listener) {
+    public void getTransformStoredDocs(
+        Collection<String> transformIds,
+        TimeValue timeout,
+        ActionListener<List<TransformStoredDoc>> listener
+    ) {
         QueryBuilder builder = QueryBuilders.constantScoreQuery(
             QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termsQuery(TransformField.ID.getPreferredName(), transformIds))
@@ -747,6 +809,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             .setQuery(builder)
             // the limit for getting stats and transforms is 1000, as long as we do not have 10 indices this works
             .setSize(Math.min(transformIds.size(), 10_000))
+            .setTimeout(timeout)
             .request();
 
         executeAsyncWithOrigin(
@@ -854,13 +917,19 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
      *
      * @param filterForOutdated if true, only returns outdated ids (after de-duplication)
      * @param maxResultWindow the max result window size (exposed for testing)
+     * @param timeout timeout applied to all the spawned requests
      * @param listener listener to call containing transform ids
      */
-    void expandAllTransformIds(boolean filterForOutdated, int maxResultWindow, ActionListener<Tuple<Long, Set<String>>> listener) {
+    void expandAllTransformIds(
+        boolean filterForOutdated,
+        int maxResultWindow,
+        TimeValue timeout,
+        ActionListener<Tuple<Long, Set<String>>> listener
+    ) {
         PageParams startPage = new PageParams(0, maxResultWindow);
 
         Set<String> collectedIds = new HashSet<>();
-        recursiveExpandAllTransformIds(collectedIds, 0, filterForOutdated, maxResultWindow, null, startPage, listener);
+        recursiveExpandAllTransformIds(collectedIds, 0, filterForOutdated, maxResultWindow, null, startPage, timeout, listener);
     }
 
     private void recursiveExpandAllTransformIds(
@@ -870,6 +939,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         int maxResultWindow,
         String lastId,
         PageParams page,
+        TimeValue timeout,
         ActionListener<Tuple<Long, Set<String>>> listener
     ) {
         SearchRequest request = client.prepareSearch(
@@ -880,6 +950,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             .addSort("_index", SortOrder.DESC)
             .setFrom(page.getFrom())
             .setSize(page.getSize())
+            .setTimeout(timeout)
             .setFetchSource(false)
             .addDocValueField(TransformField.ID.getPreferredName())
             .setQuery(
@@ -923,6 +994,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                         maxResultWindow,
                         idOfLastHit,
                         nextPage,
+                        timeout,
                         listener
                     );
                     return;

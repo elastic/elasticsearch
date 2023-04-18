@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -26,11 +26,16 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
+public class ModelPlotTests extends AbstractXContentSerializingTestCase<ModelPlot> {
 
     @Override
     protected ModelPlot createTestInstance() {
         return createTestInstance("foo");
+    }
+
+    @Override
+    protected ModelPlot mutateInstance(ModelPlot instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public ModelPlot createTestInstance(String jobId) {
@@ -241,7 +246,9 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
     }
 
     public void testStrictParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\":12354667, \"bucket_span\": 3600, \"detector_index\":3, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp":12354667, "bucket_span": 3600, "detector_index":3, "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ModelPlot.STRICT_PARSER.apply(parser, null));
 
@@ -250,7 +257,9 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\":12354667, \"bucket_span\": 3600, \"detector_index\":3, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp":12354667, "bucket_span": 3600, "detector_index":3, "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             ModelPlot.LENIENT_PARSER.apply(parser, null);
         }

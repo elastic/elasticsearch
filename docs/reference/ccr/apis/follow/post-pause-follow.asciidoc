@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ccr-post-pause-follow]]
 === Pause follower API
 ++++

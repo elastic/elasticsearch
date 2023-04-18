@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[slm-api-delete-policy]]
 === Delete snapshot lifecycle policy API
 ++++

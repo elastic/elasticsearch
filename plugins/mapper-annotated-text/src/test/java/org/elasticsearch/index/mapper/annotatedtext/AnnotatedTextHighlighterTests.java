@@ -17,8 +17,9 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -31,6 +32,7 @@ import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.uhighlight.SplittingBreakIterator;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
@@ -123,7 +125,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
 
                 ArrayList<Object> plainTextForHighlighter = new ArrayList<>(annotations.length);
                 for (int i = 0; i < annotations.length; i++) {
-                    plainTextForHighlighter.add(annotations[i].textMinusMarkup);
+                    plainTextForHighlighter.add(annotations[i].textMinusMarkup());
                 }
 
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
@@ -193,6 +195,16 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
             "[Donald](_hit_term=donald) Trump visited Singapore",
             "[Donald](_hit_term=donald) duck is a [Disney](Disney+Inc) invention" };
         Query query = new TermQuery(new Term("text", "donald"));
+        BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
+        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
+    }
+
+    public void testAnnotatedTextHighlightQueryHasOverlappingTermAndAnnotation() throws Exception {
+        final String[] markedUpInputs = { "[Donald Trump](president) visited Singapore" };
+        String[] expectedPassages = { "[Donald Trump](_hit_term=president&president) visited Singapore" };
+        Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("text", "donald")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "president")), BooleanClause.Occur.SHOULD)
+            .build();
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
     }

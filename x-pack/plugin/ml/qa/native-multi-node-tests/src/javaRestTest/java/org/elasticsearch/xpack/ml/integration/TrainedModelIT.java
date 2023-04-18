@@ -10,25 +10,13 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
-import org.elasticsearch.client.ml.inference.TrainedModelConfig;
-import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
-import org.elasticsearch.client.ml.inference.TrainedModelInput;
-import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
-import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
-import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
-import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
-import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
-import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
-import org.elasticsearch.client.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -41,8 +29,6 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDo
 import org.junit.After;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -50,14 +36,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-/**
- * This test uses a mixture of HLRC and server side classes.
- *
- * The server classes have builders that set the one-time fields that
- * can only be set on creation e.g. create_time. The HLRC classes must
- * be used when creating PUT trained model requests as they do not set
- * these one-time fields.
- */
 public class TrainedModelIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE = UsernamePasswordToken.basicAuthHeaderValue(
@@ -68,11 +46,6 @@ public class TrainedModelIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
     @Override
@@ -109,8 +82,8 @@ public class TrainedModelIT extends ESRestTestCase {
 
         response = EntityUtils.toString(getModel.getEntity());
         assertThat(response, containsString("\"model_id\":\"a_test_regression_model\""));
-        assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
-        assertThat(response, containsString("\"estimated_heap_memory_usage\""));
+        assertThat(response, containsString("\"model_size_bytes\""));
+        assertThat(response, containsString("\"model_size\""));
         assertThat(response, containsString("\"model_type\":\"tree_ensemble\""));
         assertThat(response, containsString("\"definition\""));
         assertThat(response, not(containsString("\"compressed_definition\"")));
@@ -126,7 +99,7 @@ public class TrainedModelIT extends ESRestTestCase {
 
         response = EntityUtils.toString(getModel.getEntity());
         assertThat(response, containsString("\"model_id\":\"a_test_regression_model\""));
-        assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
+        assertThat(response, containsString("\"model_size_bytes\""));
         assertThat(response, containsString("\"compressed_definition\""));
         assertThat(response, not(containsString("\"definition\"")));
         assertThat(response, containsString("\"count\":1"));
@@ -268,56 +241,143 @@ public class TrainedModelIT extends ESRestTestCase {
     }
 
     private void putRegressionModel(String modelId) throws IOException {
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            TrainedModelDefinition.Builder definition = new TrainedModelDefinition.Builder().setPreProcessors(Collections.emptyList())
-                .setTrainedModel(buildRegression());
-            TrainedModelConfig.builder()
-                .setDefinition(definition)
-                .setInferenceConfig(new RegressionConfig())
-                .setModelId(modelId)
-                .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3")))
-                .build()
-                .toXContent(builder, ToXContent.EMPTY_PARAMS);
-            Request model = new Request("PUT", "_ml/trained_models/" + modelId);
-            model.setJsonEntity(XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON));
-            assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));
-        }
+        String modelConfig = """
+                     {
+                        "definition": {
+                            "trained_model": {
+                                "ensemble": {
+                                    "feature_names": ["field.foo", "field.bar", "animal_cat", "animal_dog"],
+                                    "trained_models": [{
+                                        "tree": {
+                                            "feature_names": ["field.foo", "field.bar", "animal_cat", "animal_dog"],
+                                            "tree_structure": [{
+                                                "threshold": 0.5,
+                                                "split_feature": 0,
+                                                "node_index": 0,
+                                                "left_child": 1,
+                                                "right_child": 2
+                                            }, {
+                                                "node_index": 1,
+                                                "leaf_value": [0.3]
+                                            }, {
+                                                "threshold": 0.0,
+                                                "split_feature": 3,
+                                                "node_index": 2,
+                                                "left_child": 3,
+                                                "right_child": 4
+                                            }, {
+                                                "node_index": 3,
+                                                "leaf_value": [0.1]
+                                            }, {
+                                                "node_index": 4,
+                                                "leaf_value": [0.2]
+                                            }]
+                                        }
+                                    }, {
+                                        "tree": {
+                                            "feature_names": ["field.foo", "field.bar", "animal_cat", "animal_dog"],
+                                            "tree_structure": [{
+                                                "threshold": 1.0,
+                                                "split_feature": 2,
+                                                "node_index": 0,
+                                                "left_child": 1,
+                                                "right_child": 2
+                                            }, {
+                                                "node_index": 1,
+                                                "leaf_value": [1.5]
+                                            }, {
+                                                "node_index": 2,
+                                                "leaf_value": [0.9]
+                                            }]
+                                        }
+                                    }, {
+                                        "tree": {
+                                            "feature_names": ["field.foo", "field.bar", "animal_cat", "animal_dog"],
+                                            "tree_structure": [{
+                                                "threshold": 0.2,
+                                                "split_feature": 1,
+                                                "node_index": 0,
+                                                "left_child": 1,
+                                                "right_child": 2
+                                            }, {
+                                                "node_index": 1,
+                                                "leaf_value": [1.5]
+                                            }, {
+                                                "node_index": 2,
+                                                "leaf_value": [0.9]
+                                            }]
+                                        }
+                                    }],
+                                    "aggregate_output": {
+                                        "weighted_sum": {
+                                            "weights": [0.5, 0.5, 0.5]
+                                        }
+                                    },
+                                    "target_type": "regression"
+                                }
+                            },
+                            "preprocessors": []
+                        },
+                        "input": {
+                            "field_names": ["col1", "col2", "col3"]
+                        },
+                        "inference_config": {
+                            "regression": {}
+                        }
+                    }
+            """;
+
+        Request model = new Request("PUT", "_ml/trained_models/" + modelId);
+        model.setJsonEntity(modelConfig);
+        assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));
     }
 
-    private static TrainedModel buildRegression() {
-        List<String> featureNames = Arrays.asList("field.foo", "field.bar", "animal_cat", "animal_dog");
-        Tree tree1 = Tree.builder()
-            .setFeatureNames(featureNames)
-            .setNodes(
-                TreeNode.builder(0).setLeftChild(1).setRightChild(2).setSplitFeature(0).setThreshold(0.5),
-                TreeNode.builder(1).setLeafValue(Collections.singletonList(0.3)),
-                TreeNode.builder(2).setThreshold(0.0).setSplitFeature(3).setLeftChild(3).setRightChild(4),
-                TreeNode.builder(3).setLeafValue(Collections.singletonList(0.1)),
-                TreeNode.builder(4).setLeafValue(Collections.singletonList(0.2))
+    public void testStartDeploymentWithInconsistentTotalLengths() throws IOException {
+        String modelId = "inconsistent-size-model";
+        putPyTorchModel(modelId);
+
+        putModelDefinitionPart(modelId, 500, 3, 0);
+        putModelDefinitionPart(modelId, 500, 3, 1);
+        putModelDefinitionPart(modelId, 600, 3, 2);
+
+        ResponseException responseException = expectThrows(ResponseException.class, () -> startDeployment(modelId));
+        assertThat(
+            responseException.getMessage(),
+            containsString(
+                "[total_definition_length] must be the same in all model definition parts. "
+                    + "The value [600] in model definition part [2] does not match the value [500] in part [0]"
             )
-            .build();
-        Tree tree2 = Tree.builder()
-            .setFeatureNames(featureNames)
-            .setNodes(
-                TreeNode.builder(0).setLeftChild(1).setRightChild(2).setSplitFeature(2).setThreshold(1.0),
-                TreeNode.builder(1).setLeafValue(Collections.singletonList(1.5)),
-                TreeNode.builder(2).setLeafValue(Collections.singletonList(0.9))
-            )
-            .build();
-        Tree tree3 = Tree.builder()
-            .setFeatureNames(featureNames)
-            .setNodes(
-                TreeNode.builder(0).setLeftChild(1).setRightChild(2).setSplitFeature(1).setThreshold(0.2),
-                TreeNode.builder(1).setLeafValue(Collections.singletonList(1.5)),
-                TreeNode.builder(2).setLeafValue(Collections.singletonList(0.9))
-            )
-            .build();
-        return Ensemble.builder()
-            .setTargetType(TargetType.REGRESSION)
-            .setFeatureNames(featureNames)
-            .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedSum(Arrays.asList(0.5, 0.5, 0.5)))
-            .build();
+        );
+
+    }
+
+    private void putPyTorchModel(String modelId) throws IOException {
+        Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
+        request.setJsonEntity("""
+            {
+              "description": "simple model for testing",
+              "model_type": "pytorch",
+              "inference_config": {
+                "pass_through": {}
+              }
+            }""");
+        client().performRequest(request);
+    }
+
+    private void putModelDefinitionPart(String modelId, int totalSize, int numParts, int partNumber) throws IOException {
+        Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/" + partNumber);
+        request.setJsonEntity(Strings.format("""
+            {
+              "total_definition_length": %s,
+              "definition": "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZW==",
+              "total_parts": %s
+            }""", totalSize, numParts));
+        client().performRequest(request);
+    }
+
+    private void startDeployment(String modelId) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_start?timeout=40s");
+        client().performRequest(request);
     }
 
     @After

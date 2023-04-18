@@ -14,6 +14,8 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,6 +41,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -565,27 +568,19 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     }
 
     public void testIndexTemplateWithAliasesInSource() {
-        client().admin()
-            .indices()
-            .preparePutTemplate("template_1")
-            .setSource(
-                new BytesArray(
-                    "{\n"
-                        + "    \"index_patterns\" : \"*\",\n"
-                        + "    \"aliases\" : {\n"
-                        + "        \"my_alias\" : {\n"
-                        + "            \"filter\" : {\n"
-                        + "                \"term\" : {\n"
-                        + "                    \"field\" : \"value2\"\n"
-                        + "                }\n"
-                        + "            }\n"
-                        + "        }\n"
-                        + "    }\n"
-                        + "}"
-                ),
-                XContentType.JSON
-            )
-            .get();
+        client().admin().indices().preparePutTemplate("template_1").setSource(new BytesArray("""
+            {
+              "index_patterns": "*",
+              "aliases": {
+                "my_alias": {
+                  "filter": {
+                    "term": {
+                      "field": "value2"
+                    }
+                  }
+                }
+              }
+            }"""), XContentType.JSON).get();
 
         assertAcked(prepareCreate("test_index"));
         ensureGreen();
@@ -607,24 +602,21 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     }
 
     public void testIndexTemplateWithAliasesSource() {
-        client().admin()
-            .indices()
-            .preparePutTemplate("template_1")
-            .setPatterns(Collections.singletonList("te*"))
-            .setAliases(
-                "    {\n"
-                    + "        \"alias1\" : {},\n"
-                    + "        \"alias2\" : {\n"
-                    + "            \"filter\" : {\n"
-                    + "                \"term\" : {\n"
-                    + "                    \"field\" : \"value2\"\n"
-                    + "                }\n"
-                    + "            }\n"
-                    + "         },\n"
-                    + "        \"alias3\" : { \"routing\" : \"1\" }"
-                    + "    }\n"
-            )
-            .get();
+        client().admin().indices().preparePutTemplate("template_1").setPatterns(Collections.singletonList("te*")).setAliases("""
+            {
+              "alias1": {},
+              "alias2": {
+                "filter": {
+                  "term": {
+                    "field": "value2"
+                  }
+                }
+              },
+              "alias3": {
+                "routing": "1"
+              }
+            }
+            """).get();
 
         assertAcked(prepareCreate("test_index"));
         ensureGreen();
@@ -830,25 +822,19 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         // Now, a complete mapping with two separated templates is error
         // base template
-        client().admin()
-            .indices()
-            .preparePutTemplate("template_1")
-            .setPatterns(Collections.singletonList("*"))
-            .setSettings(
-                "    {\n"
-                    + "        \"index\" : {\n"
-                    + "            \"analysis\" : {\n"
-                    + "                \"analyzer\" : {\n"
-                    + "                    \"custom_1\" : {\n"
-                    + "                        \"tokenizer\" : \"standard\"\n"
-                    + "                    }\n"
-                    + "                }\n"
-                    + "            }\n"
-                    + "         }\n"
-                    + "    }\n",
-                XContentType.JSON
-            )
-            .get();
+        client().admin().indices().preparePutTemplate("template_1").setPatterns(Collections.singletonList("*")).setSettings("""
+            {
+              "index": {
+                "analysis": {
+                  "analyzer": {
+                    "custom_1": {
+                      "tokenizer": "standard"
+                    }
+                  }
+                }
+              }
+            }
+            """, XContentType.JSON).get();
 
         // put template using custom_1 analyzer
         MapperParsingException e = expectThrows(
@@ -978,7 +964,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         );
         assertThat(
             eBadSettings.getMessage(),
-            containsString("partition size [6] should be a positive number " + "less than the number of shards [5]")
+            containsString("partition size [6] should be a positive number less than the number of shards [5]")
         );
 
         // provide an invalid mapping for a partitioned index
@@ -1017,7 +1003,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         assertThat(
             eBadIndex.getMessage(),
-            containsString("partition size [6] should be a positive number " + "less than the number of shards [5]")
+            containsString("partition size [6] should be a positive number less than the number of shards [5]")
         );
 
         // finally, create a valid index
@@ -1025,5 +1011,89 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test_good").get();
         assertEquals("6", getSettingsResponse.getIndexToSettings().get("test_good").get("index.routing_partition_size"));
+    }
+
+    public void testIndexTemplatesWithSameSubfield() {
+        client().admin()
+            .indices()
+            .preparePutTemplate("template_1")
+            .setPatterns(Collections.singletonList("te*"))
+            .setSettings(indexSettings())
+            .setOrder(100)
+            .setMapping("""
+                {
+                  "_doc": {
+                    "properties": {
+                      "kwm": {
+                        "properties": {
+                          "source": {
+                            "properties": {
+                              "geo": {
+                                "properties": {
+                                  "location": {
+                                    "type": "geo_point"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "source": {
+                        "properties": {
+                          "geo": {
+                            "properties": {
+                              "location": {
+                                "type": "geo_point"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                """, XContentType.JSON)
+            .get();
+
+        client().admin()
+            .indices()
+            .preparePutTemplate("template_2")
+            .setPatterns(Collections.singletonList("test*"))
+            .setSettings(indexSettings())
+            .setOrder(1)
+            .setMapping("""
+                {
+                  "_doc": {
+                    "properties": {
+                      "kwm.source.geo": {
+                        "properties": {
+                          "location": {
+                            "type": "geo_point"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                """, XContentType.JSON)
+            .get();
+
+        client().prepareIndex("test").setSource().get();
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = client().prepareFieldCaps("test").setFields("*location").get();
+        {
+            Map<String, FieldCapabilities> field = fieldCapabilitiesResponse.getField("kwm.source.geo.location");
+            assertNotNull(field);
+            FieldCapabilities fieldCapabilities = field.get("geo_point");
+            assertTrue(fieldCapabilities.isSearchable());
+            assertTrue(fieldCapabilities.isAggregatable());
+        }
+        {
+            Map<String, FieldCapabilities> field = fieldCapabilitiesResponse.getField("source.geo.location");
+            assertNotNull(field);
+            FieldCapabilities fieldCapabilities = field.get("geo_point");
+            assertTrue(fieldCapabilities.isSearchable());
+            assertTrue(fieldCapabilities.isAggregatable());
+        }
     }
 }

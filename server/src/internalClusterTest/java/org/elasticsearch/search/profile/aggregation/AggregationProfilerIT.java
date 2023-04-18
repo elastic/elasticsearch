@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.profile.aggregation;
 
-import io.github.nik9000.mapmatcher.MapMatcher;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +23,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MapMatcher;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -34,19 +33,20 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
-import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.diversifiedSampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -691,17 +691,13 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                             .entry("delegate", "FilterByFilterAggregator")
                             .entry(
                                 "delegate_debug",
-                                matchesMap().entry("segments_with_deleted_docs", 0)
+                                matchesMap().entry("segments_with_deleted_docs", greaterThanOrEqualTo(0))
                                     .entry("segments_with_doc_count_field", 0)
                                     .entry("segments_counted", 0)
                                     .entry("segments_collected", greaterThan(0))
                                     .entry(
                                         "filters",
-                                        matchesList().item(
-                                            matchesMap().entry("query", "DocValuesFieldExistsQuery [field=date]")
-                                                .entry("specialized_for", "docvalues_field_exists")
-                                                .entry("results_from_metadata", 0)
-                                        )
+                                        matchesList().item(matchesMap().entry("query", "*:*").entry("segments_counted_in_constant_time", 0))
                                     )
                             )
                     )
@@ -710,12 +706,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testDateHistogramFilterByFilterDisabled() throws InterruptedException, IOException {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey(), false))
-        );
+        updateClusterSettings(Settings.builder().put(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey(), false));
         try {
             assertAcked(
                 client().admin()
@@ -777,16 +768,17 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     debug,
                     matchesMap().entry("delegate", "RangeAggregator.NoOverlap")
                         .entry("built_buckets", 1)
-                        .entry("delegate_debug", matchesMap().entry("ranges", 1).entry("average_docs_per_range", 10000.0))
+                        .entry(
+                            "delegate_debug",
+                            matchesMap().entry("ranges", 1)
+                                .entry("average_docs_per_range", 10000.0)
+                                .entry("singletons", greaterThan(0))
+                                .entry("non-singletons", 0)
+                        )
                 );
             }
         } finally {
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().putNull(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey()))
-            );
+            updateClusterSettings(Settings.builder().putNull(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey()));
         }
     }
 }

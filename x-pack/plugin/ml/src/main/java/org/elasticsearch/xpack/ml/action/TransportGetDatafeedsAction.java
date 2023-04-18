@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
@@ -60,10 +61,12 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
         ClusterState state,
         ActionListener<GetDatafeedsAction.Response> listener
     ) {
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         logger.debug("Get datafeed '{}'", request.getDatafeedId());
 
         datafeedManager.getDatafeeds(
             request,
+            parentTaskId,
             ActionListener.wrap(datafeeds -> listener.onResponse(new GetDatafeedsAction.Response(datafeeds)), listener::onFailure)
         );
     }

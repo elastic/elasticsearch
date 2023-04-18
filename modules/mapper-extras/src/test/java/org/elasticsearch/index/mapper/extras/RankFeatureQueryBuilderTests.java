@@ -19,7 +19,6 @@ import org.elasticsearch.index.mapper.extras.RankFeatureQueryBuilder.ScoreFuncti
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,7 +53,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(MapperExtrasPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(MapperExtrasPlugin.class);
     }
 
     @Override
@@ -101,13 +100,23 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     }
 
     public void testDefaultScoreFunction() throws IOException {
-        String query = "{\n" + "    \"rank_feature\" : {\n" + "        \"field\": \"my_feature_field\"\n" + "    }\n" + "}";
+        String query = """
+            {
+                "rank_feature" : {
+                    "field": "my_feature_field"
+                }
+            }""";
         Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertEquals(FeatureField.newSaturationQuery("_feature", "my_feature_field"), parsedQuery);
     }
 
     public void testIllegalField() {
-        String query = "{\n" + "    \"rank_feature\" : {\n" + "        \"field\": \"" + TEXT_FIELD_NAME + "\"\n" + "    }\n" + "}";
+        String query = Strings.format("""
+            {
+                "rank_feature" : {
+                    "field": "%s"
+                }
+            }""", TEXT_FIELD_NAME);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> parseQuery(query).toQuery(createSearchExecutionContext())
@@ -119,14 +128,15 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     }
 
     public void testIllegalCombination() {
-        String query = "{\n"
-            + "    \"rank_feature\" : {\n"
-            + "        \"field\": \"my_negative_feature_field\",\n"
-            + "        \"log\" : {\n"
-            + "            \"scaling_factor\": 4.5\n"
-            + "        }\n"
-            + "    }\n"
-            + "}";
+        String query = """
+            {
+                "rank_feature" : {
+                    "field": "my_negative_feature_field",
+                    "log" : {
+                        "scaling_factor": 4.5
+                    }
+                }
+            }""";
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> parseQuery(query).toQuery(createSearchExecutionContext())
@@ -135,5 +145,22 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
             "Cannot use the [log] function with a field that has a negative score impact as it would trigger negative scores",
             e.getMessage()
         );
+    }
+
+    public void testParseDefaultsRemoved() throws IOException {
+        String json = """
+            {
+              "rank_feature" : {
+                "field": "foo",
+                "boost": 1,
+                "saturation": {}
+              }
+            }""";
+        checkGeneratedJson("""
+            {
+              "rank_feature": {
+                "field": "foo"
+              }
+            }""", parseQuery(json));
     }
 }

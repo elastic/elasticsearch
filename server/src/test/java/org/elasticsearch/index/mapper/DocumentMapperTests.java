@@ -32,8 +32,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -63,8 +63,8 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(stage1.mappers().getMapper("age"), nullValue());
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
-        DocumentParser documentParser = new DocumentParser(null, null, null, null);
-        DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged);
+        DocumentParser documentParser = new DocumentParser(null, null);
+        DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged, merged.toCompressedXContent());
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
     }
@@ -103,7 +103,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of(
                 "default",
                 new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
@@ -111,9 +111,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()),
                 "whitespace",
                 new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer())
-            ),
-            Map.of(),
-            Map.of()
+            )
         );
     }
 
@@ -125,14 +123,14 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             b.field("search_analyzer", "whitespace");
         }));
 
-        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("whitespace"));
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().searchAnalyzer().name(), equalTo("whitespace"));
 
         merge(mapperService, fieldMapping(b -> {
             b.field("type", "text");
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
         }));
-        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("keyword"));
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().searchAnalyzer().name(), equalTo("keyword"));
     }
 
     public void testChangeSearchAnalyzerToDefault() throws Exception {
@@ -143,14 +141,14 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             b.field("search_analyzer", "whitespace");
         }));
 
-        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("whitespace"));
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().searchAnalyzer().name(), equalTo("whitespace"));
 
         merge(mapperService, fieldMapping(b -> {
             b.field("type", "text");
             b.field("analyzer", "default");
         }));
 
-        assertThat(mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer().name(), equalTo("default"));
+        assertThat(mapperService.fieldType("field").getTextSearchInfo().searchAnalyzer().name(), equalTo("default"));
     }
 
     public void testConcurrentMergeTest() throws Throwable {
@@ -158,10 +156,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
         final DocumentMapper documentMapper = mapperService.documentMapper();
 
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> documentMapper.mappers().indexAnalyzer("non_existing_field", f -> { throw new IllegalArgumentException(); })
-        );
+        expectThrows(IllegalArgumentException.class, () -> documentMapper.mappers().indexAnalyzer("non_existing_field", f -> {
+            throw new IllegalArgumentException();
+        }));
 
         final AtomicBoolean stopped = new AtomicBoolean(false);
         final CyclicBarrier barrier = new CyclicBarrier(2);
@@ -287,7 +284,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         DocumentMapper documentMapper = DocumentMapper.createEmpty(mapperService);
         assertEquals("{\"_doc\":{}}", Strings.toString(documentMapper.mapping()));
         assertTrue(documentMapper.mappers().hasMappings());
-        assertNotNull(documentMapper.idFieldMapper());
+        assertNotNull(documentMapper.mappers().getMapper(IdFieldMapper.NAME));
         assertNotNull(documentMapper.sourceMapper());
         assertNotNull(documentMapper.IndexFieldMapper());
         List<Class<?>> metadataMappers = new ArrayList<>(documentMapper.mappers().getMapping().getMetadataMappersMap().keySet());
@@ -297,10 +294,10 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             matchesList().item(DataStreamTimestampFieldMapper.class)
                 .item(DocCountFieldMapper.class)
                 .item(FieldNamesFieldMapper.class)
-                .item(IdFieldMapper.class)
                 .item(IgnoredFieldMapper.class)
                 .item(IndexFieldMapper.class)
                 .item(NestedPathFieldMapper.class)
+                .item(ProvidedIdFieldMapper.class)
                 .item(RoutingFieldMapper.class)
                 .item(SeqNoFieldMapper.class)
                 .item(SourceFieldMapper.class)

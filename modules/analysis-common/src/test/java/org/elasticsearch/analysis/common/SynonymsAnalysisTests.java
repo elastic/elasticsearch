@@ -9,10 +9,10 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
@@ -79,12 +80,12 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
-            .put("index.analysis.filter.synonym.type", "synonym")
-            .putList("index.analysis.filter.synonym.synonyms", "kimchy => shay", "dude => elasticsearch", "abides => man!")
+            .put("index.analysis.filter.my_synonym.type", "synonym")
+            .putList("index.analysis.filter.my_synonym.synonyms", "kimchy => shay", "dude => elasticsearch", "abides => man!")
             .put("index.analysis.filter.stop_within_synonym.type", "stop")
             .putList("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
             .put("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.tokenizer", "whitespace")
-            .putList("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.filter", "stop_within_synonym", "synonym")
+            .putList("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.filter", "stop_within_synonym", "my_synonym")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         try {
@@ -93,6 +94,34 @@ public class SynonymsAnalysisTests extends ESTestCase {
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), startsWith("failed to build synonyms"));
+            assertThat(e.getMessage(), containsString("['my_synonym' analyzer settings]"));
+        }
+    }
+
+    public void testSynonymWordDeleteByAnalyzerFromFile() throws IOException {
+        InputStream synonyms = getClass().getResourceAsStream("synonyms.txt");
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Files.copy(synonyms, config.resolve("synonyms.txt"));
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("path.home", home)
+            .put("index.analysis.filter.my_synonym.type", "synonym")
+            .put("index.analysis.filter.my_synonym.synonyms_path", "synonyms.txt")
+            .put("index.analysis.filter.stop_within_synonym.type", "stop")
+            .putList("index.analysis.filter.stop_within_synonym.stopwords", "kimchy", "elasticsearch")
+            .put("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.tokenizer", "whitespace")
+            .putList("index.analysis.analyzer.synonymAnalyzerWithStopSynonymBeforeSynonym.filter", "stop_within_synonym", "my_synonym")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        try {
+            indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+            fail("fail! due to synonym word deleted by analyzer");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), equalTo("failed to build synonyms from [synonyms.txt]"));
         }
     }
 
@@ -114,6 +143,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
             assertThat(e.getMessage(), startsWith("failed to build synonyms"));
+            assertThat(e.getMessage(), containsString("['synonym_expand' analyzer settings]"));
         }
     }
 
@@ -216,10 +246,9 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> { indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers; }
-        );
+        expectThrows(IllegalArgumentException.class, () -> {
+            indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+        });
 
     }
 
@@ -240,7 +269,11 @@ public class SynonymsAnalysisTests extends ESTestCase {
             TokenFilterFactory tff = plugin.getTokenFilters().get(factory).get(idxSettings, null, factory, settings);
             TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
             SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, null, "synonym", settings);
-            Analyzer analyzer = stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null);
+            Analyzer analyzer = SynonymTokenFilterFactory.buildSynonymAnalyzer(
+                tok,
+                Collections.emptyList(),
+                Collections.singletonList(tff)
+            );
 
             try (TokenStream ts = analyzer.tokenStream("field", "text")) {
                 assertThat(ts, instanceOf(KeywordTokenizer.class));
@@ -267,7 +300,9 @@ public class SynonymsAnalysisTests extends ESTestCase {
                     IllegalArgumentException e = expectThrows(
                         IllegalArgumentException.class,
                         "Expected exception for factory " + tf.getName(),
-                        () -> { tf.get(idxSettings, null, tf.getName(), settings).getSynonymFilter(); }
+                        () -> {
+                            tf.get(idxSettings, null, tf.getName(), settings).getSynonymFilter();
+                        }
                     );
                     assertEquals(tf.getName(), "Token filter [" + tf.getName() + "] cannot be used to parse synonyms", e.getMessage());
                     disallowedFiltersTested.add(tf.getName());
@@ -308,7 +343,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 "Expected IllegalArgumentException for factory " + factory,
-                () -> stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null)
+                () -> SynonymTokenFilterFactory.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff))
             );
 
             assertEquals(factory, "Token filter [" + factory + "] cannot be used to parse synonyms", e.getMessage());

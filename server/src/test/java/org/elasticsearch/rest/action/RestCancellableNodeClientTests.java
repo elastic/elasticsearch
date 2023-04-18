@@ -17,8 +17,8 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpResponse;
@@ -74,7 +74,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                 TestHttpChannel channel = new TestHttpChannel();
                 totalSearches += numTasks;
                 for (int j = 0; j < numTasks; j++) {
-                    ListenableActionFuture<SearchResponse> actionFuture = new ListenableActionFuture<>();
+                    PlainActionFuture<SearchResponse> actionFuture = new PlainActionFuture<>();
                     RestCancellableNodeClient client = new RestCancellableNodeClient(testClient, channel);
                     threadPool.generic().submit(() -> client.execute(SearchAction.INSTANCE, new SearchRequest(), actionFuture));
                     futures.add(actionFuture);
@@ -168,9 +168,9 @@ public class RestCancellableNodeClientTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             switch (action.name()) {
-                case CancelTasksAction.NAME:
+                case CancelTasksAction.NAME -> {
                     CancelTasksRequest cancelTasksRequest = (CancelTasksRequest) request;
-                    assertTrue("tried to cancel the same task more than once", cancelledTasks.add(cancelTasksRequest.getTaskId()));
+                    assertTrue("tried to cancel the same task more than once", cancelledTasks.add(cancelTasksRequest.getTargetTaskId()));
                     Task task = request.createTask(counter.getAndIncrement(), "cancel_task", action.name(), null, Collections.emptyMap());
                     if (randomBoolean()) {
                         listener.onResponse(null);
@@ -178,9 +178,9 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                         // test that cancel tasks is best effort, failure received are not propagated
                         listener.onFailure(new IllegalStateException());
                     }
-
                     return task;
-                case SearchAction.NAME:
+                }
+                case SearchAction.NAME -> {
                     searchRequests.incrementAndGet();
                     Task searchTask = request.createTask(counter.getAndIncrement(), "search", action.name(), null, Collections.emptyMap());
                     if (timeout == false) {
@@ -192,8 +192,8 @@ public class RestCancellableNodeClientTests extends ESTestCase {
                         }
                     }
                     return searchTask;
-                default:
-                    throw new UnsupportedOperationException();
+                }
+                default -> throw new UnsupportedOperationException();
             }
 
         }

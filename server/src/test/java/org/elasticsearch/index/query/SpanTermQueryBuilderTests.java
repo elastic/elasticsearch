@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.Query;
@@ -17,6 +15,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
 
@@ -90,25 +89,27 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n"
-            + "  \"span_term\" : {\n"
-            + "    \"message1\" : {\n"
-            + "      \"term\" : \"this\"\n"
-            + "    },\n"
-            + "    \"message2\" : {\n"
-            + "      \"term\" : \"this\"\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "span_term" : {
+                "message1" : {
+                  "term" : "this"
+                },
+                "message2" : {
+                  "term" : "this"
+                }
+              }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
-        String shortJson = "{\n"
-            + "  \"span_term\" : {\n"
-            + "    \"message1\" : \"this\",\n"
-            + "    \"message2\" : \"this\"\n"
-            + "  }\n"
-            + "}";
+        String shortJson = """
+            {
+              "span_term" : {
+                "message1" : "this",
+                "message2" : "this"
+              }
+            }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }

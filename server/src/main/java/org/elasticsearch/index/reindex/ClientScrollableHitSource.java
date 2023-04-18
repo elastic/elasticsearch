@@ -9,7 +9,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -19,8 +18,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -82,7 +81,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         client.searchScroll(request, wrapListener(searchListener));
     }
 
-    private ActionListener<SearchResponse> wrapListener(RejectAwareActionListener<Response> searchListener) {
+    private static ActionListener<SearchResponse> wrapListener(RejectAwareActionListener<Response> searchListener) {
         return new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
@@ -117,7 +116,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), e);
+                logger.warn(() -> "Failed to clear scroll [" + scrollId + "]", e);
                 onCompletion.run();
             }
         });
@@ -128,7 +127,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         onCompletion.run();
     }
 
-    private Response wrapSearchResponse(SearchResponse response) {
+    private static Response wrapSearchResponse(SearchResponse response) {
         List<SearchFailure> failures;
         if (response.getShardFailures() == null) {
             failures = emptyList();

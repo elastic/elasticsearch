@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -26,12 +27,13 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -45,8 +47,10 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -57,8 +61,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
-import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
-import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -67,6 +69,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
@@ -98,15 +101,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             ParentJoinPlugin.class,
             InternalSettingsPlugin.class,
             PercolatorPlugin.class,
-            DenseVectorPlugin.class,
-            SpatialPlugin.class
+            SpatialPlugin.class,
+            MapperExtrasPlugin.class
         );
-    }
-
-    @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        // a test requires the real SpatialPlugin because it utilizes the shape query
-        return false;
     }
 
     @Override
@@ -144,76 +141,78 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles()
-            + "role1:user1\n"
-            + "role2:user1,user7,user8\n"
-            + "role3:user2,user7,user8\n"
-            + "role4:user3,user7\n"
-            + "role5:user4,user7\n"
-            + "role6:user5,user7\n"
-            + "role7:user6\n"
-            + "role8:user9";
+        return super.configUsersRoles() + """
+            role1:user1
+            role2:user1,user7,user8
+            role3:user2,user7,user8
+            role4:user3,user7
+            role5:user4,user7
+            role6:user5,user7
+            role7:user6
+            role8:user9""";
     }
 
     @Override
     protected String configRoles() {
-        return super.configRoles()
-            + "\nrole1:\n"
-            + "  cluster: [ none ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ none ]\n"
-            + "role2:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "      - names: '*'\n"
-            + "        privileges: [ ALL ]\n"
-            + "        field_security:\n"
-            + "           grant: [ field1, join_field*, vector ]\n"
-            + "role3:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "      - names: '*'\n"
-            + "        privileges: [ ALL ]\n"
-            + "        field_security:\n"
-            + "           grant: [ field2, query* ]\n"
-            + "role4:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "     - names: '*'\n"
-            + "       privileges: [ ALL ]\n"
-            + "       field_security:\n"
-            + "           grant: [ field1, field2]\n"
-            + "role5:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "      - names: '*'\n"
-            + "        privileges: [ ALL ]\n"
-            + "        field_security:\n"
-            + "           grant: [ ]\n"
-            + "role6:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "     - names: '*'\n"
-            + "       privileges: [ALL]\n"
-            + "role7:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "      - names: '*'\n"
-            + "        privileges: [ ALL ]\n"
-            + "        field_security:\n"
-            + "           grant: [ 'field*' ]\n"
-            + "role8:\n"
-            + "  indices:\n"
-            + "      - names: 'doc_index'\n"
-            + "        privileges: [ ALL ]\n"
-            + "        field_security:\n"
-            + "           grant: [ 'field*' ]\n"
-            + "           except: [ 'field2' ]\n"
-            + "      - names: 'query_index'\n"
-            + "        privileges: [ ALL ]\n"
-            + "        field_security:\n"
-            + "           grant: [ 'field*', 'query' ]\n";
+        return super.configRoles() + """
+            %s
+            role1:
+              cluster: [ none ]
+              indices:
+                - names: '*'
+                  privileges: [ none ]
+            role2:
+              cluster: [ all ]
+              indices:
+                  - names: '*'
+                    privileges: [ ALL ]
+                    field_security:
+                       grant: [ field1, join_field*, vector ]
+            role3:
+              cluster: [ all ]
+              indices:
+                  - names: '*'
+                    privileges: [ ALL ]
+                    field_security:
+                       grant: [ field2, query*]
+            role4:
+              cluster: [ all ]
+              indices:
+                 - names: '*'
+                   privileges: [ ALL ]
+                   field_security:
+                       grant: [ field1, field2]
+            role5:
+              cluster: [ all ]
+              indices:
+                  - names: '*'
+                    privileges: [ ALL ]
+                    field_security:
+                       grant: [ ]
+            role6:
+              cluster: [ all ]
+              indices:
+                 - names: '*'
+                   privileges: [ALL]
+            role7:
+              cluster: [ all ]
+              indices:
+                  - names: '*'
+                    privileges: [ ALL ]
+                    field_security:
+                       grant: [ 'field*' ]
+            role8:
+              indices:
+                  - names: 'doc_index'
+                    privileges: [ ALL ]
+                    field_security:
+                       grant: [ 'field*' ]
+                       except: [ 'field2' ]
+                  - names: 'query_index'
+                    privileges: [ ALL ]
+                    field_security:
+                       grant: [ 'field*', 'query' ]
+            """;
     }
 
     @Override
@@ -279,7 +278,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .get();
         assertHitCount(response, 1);
 
-        // user1 has no access to field1, so the query should not match with the document:
+        // user1 has no access to field2, so the query should not match with the document:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
             .prepareSearch("test")
             .setQuery(matchQuery("field2", "value2"))
@@ -394,14 +393,14 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").setMapping(builder));
 
         client().prepareIndex("test")
-            .setSource("field1", "value1", "vector", new float[] { 0.0f, 0.0f, 0.0f })
+            .setSource("field1", "value1", "field2", "value2", "vector", new float[] { 0.0f, 0.0f, 0.0f })
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
         // Since there's no kNN search action at the transport layer, we just emulate
         // how the action works (it builds a kNN query under the hood)
         float[] queryVector = new float[] { 0.0f, 0.0f, 0.0f };
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 10);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 10, null);
 
         // user1 has access to vector field, so the query should match with the document:
         SearchResponse response = client().filterWithHeader(
@@ -425,21 +424,35 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .get();
         assertHitCount(response, 1);
         assertNull(response.getHits().getAt(0).field("vector"));
+
+        // user1 can access field1, so the filtered query should match with the document:
+        KnnVectorQueryBuilder filterQuery1 = new KnnVectorQueryBuilder("vector", queryVector, 10, null).addFilterQuery(
+            QueryBuilders.matchQuery("field1", "value1")
+        );
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(filterQuery1)
+            .get();
+        assertHitCount(response, 1);
+
+        // user1 cannot access field2, so the filtered query should not match with the document:
+        KnnVectorQueryBuilder filterQuery2 = new KnnVectorQueryBuilder("vector", queryVector, 10, null).addFilterQuery(
+            QueryBuilders.matchQuery("field2", "value2")
+        );
+        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .prepareSearch("test")
+            .setQuery(filterQuery2)
+            .get();
+        assertHitCount(response, 0);
     }
 
     public void testPercolateQueryWithIndexedDocWithFLS() {
         assertAcked(client().admin().indices().prepareCreate("query_index").setMapping("query", "type=percolator", "field2", "type=text"));
         assertAcked(client().admin().indices().prepareCreate("doc_index").setMapping("field2", "type=text", "field1", "type=text"));
-        client().prepareIndex("query_index")
-            .setId("1")
-            .setSource("{\"query\": {\"match\": {\"field2\": \"bonsai tree\"}}}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        client().prepareIndex("doc_index")
-            .setId("1")
-            .setSource("{\"field1\": \"value1\", \"field2\": \"A new bonsai tree in the office\"}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        client().prepareIndex("query_index").setId("1").setSource("""
+            {"query": {"match": {"field2": "bonsai tree"}}}""", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("doc_index").setId("1").setSource("""
+            {"field1": "value1", "field2": "A new bonsai tree in the office"}""", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         QueryBuilder percolateQuery = new PercolateQueryBuilder("query", "doc_index", "1", null, null, null);
         // user7 sees everything
         SearchResponse result = client().filterWithHeader(
@@ -478,30 +491,47 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     public void testGeoQueryWithIndexedShapeWithFLS() {
         assertAcked(client().admin().indices().prepareCreate("search_index").setMapping("field", "type=shape", "other", "type=shape"));
         assertAcked(client().admin().indices().prepareCreate("shape_index").setMapping("field", "type=shape", "other", "type=shape"));
-        client().prepareIndex("search_index")
-            .setId("1")
-            .setSource("{\"field\": {\"type\": \"point\", \"coordinates\":[1, 1]}}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        client().prepareIndex("search_index")
-            .setId("2")
-            .setSource("{\"other\": {\"type\": \"point\", \"coordinates\":[1, 1]}}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        client().prepareIndex("shape_index")
-            .setId("1")
-            .setSource(
-                "{\"field\": {\"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}, "
-                    + "\"field2\": {\"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}}",
-                XContentType.JSON
-            )
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        client().prepareIndex("shape_index")
-            .setId("2")
-            .setSource("{\"other\": {\"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        client().prepareIndex("search_index").setId("1").setSource("""
+            {
+              "field": {
+                "type": "point",
+                "coordinates": [ 1, 1 ]
+              }
+            }""", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("search_index").setId("2").setSource("""
+            {
+              "other": {
+                "type": "point",
+                "coordinates": [ 1, 1 ]
+              }
+            }""", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("shape_index").setId("1").setSource("""
+            {
+                "field": {
+                  "type": "envelope",
+                  "coordinates": [
+                    [ 0, 2 ],
+                    [ 2, 0 ]
+                  ]
+                },
+                "field2": {
+                  "type": "envelope",
+                  "coordinates": [
+                    [ 0, 2 ],
+                    [ 2, 0 ]
+                  ]
+                }
+              }""", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("shape_index").setId("2").setSource("""
+            {
+              "other": {
+                "type": "envelope",
+                "coordinates": [
+                  [ 0, 2 ],
+                  [ 2, 0 ]
+                ]
+              }
+            }""", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse result;
         // user sees both the querying shape and the queried point
         SearchRequestBuilder requestBuilder = client().filterWithHeader(
@@ -2050,6 +2080,134 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             .setQuery(existsQuery("alias"))
             .get();
         assertHitCount(response, 0);
+    }
+
+    public void testLookupRuntimeFields() throws Exception {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("hosts")
+                .setMapping("field1", "type=keyword", "field2", "type=text", "field3", "type=text")
+        );
+        client().prepareIndex("hosts")
+            .setId("1")
+            .setSource("field1", "192.168.1.1", "field2", "windows", "field3", "canada")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        client().prepareIndex("hosts")
+            .setId("2")
+            .setSource("field1", "192.168.1.2", "field2", "macos", "field3", "us")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("logs")
+                .setMapping("field1", "type=keyword", "field2", "type=text", "field3", "type=date,format=yyyy-MM-dd")
+        );
+
+        client().prepareIndex("logs")
+            .setId("1")
+            .setSource("field1", "192.168.1.1", "field2", "out of memory", "field3", "2021-01-20")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        client().prepareIndex("logs")
+            .setId("2")
+            .setSource("field1", "192.168.1.2", "field2", "authentication fails", "field3", "2021-01-21")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        Map<String, Object> lookupField = Map.of(
+            "type",
+            "lookup",
+            "target_index",
+            "hosts",
+            "input_field",
+            "field1",
+            "target_field",
+            "field1",
+            "fetch_fields",
+            List.of("field1", "field2", "field3")
+        );
+        SearchRequest request = new SearchRequest("logs").source(
+            new SearchSourceBuilder().fetchSource(false)
+                .fetchField("field1")
+                .fetchField("field2")
+                .fetchField("field3")
+                .fetchField("host")
+                .sort("field1")
+                .runtimeMappings(Map.of("host", lookupField))
+        );
+        SearchResponse response;
+        // user1 has access to field1
+        response = client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+            .search(request)
+            .actionGet();
+        assertHitCount(response, 2);
+        {
+            SearchHit hit0 = response.getHits().getHits()[0];
+            assertThat(hit0.getDocumentFields().keySet(), equalTo(Set.of("field1", "host")));
+            assertThat(hit0.field("field1").getValues(), equalTo(List.of("192.168.1.1")));
+            assertThat(hit0.field("host").getValues(), equalTo(List.of(Map.of("field1", List.of("192.168.1.1")))));
+        }
+        {
+            SearchHit hit1 = response.getHits().getHits()[1];
+            assertThat(hit1.getDocumentFields().keySet(), equalTo(Set.of("field1", "host")));
+            assertThat(hit1.field("field1").getValues(), equalTo(List.of("192.168.1.2")));
+            assertThat(hit1.field("host").getValues(), equalTo(List.of(Map.of("field1", List.of("192.168.1.2")))));
+        }
+        // user3 has access to field1, field2
+        response = client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+            .search(request)
+            .actionGet();
+        assertHitCount(response, 2);
+        {
+            SearchHit hit0 = response.getHits().getHits()[0];
+            assertThat(hit0.getDocumentFields().keySet(), equalTo(Set.of("field1", "field2", "host")));
+            assertThat(hit0.field("field1").getValues(), equalTo(List.of("192.168.1.1")));
+            assertThat(hit0.field("field2").getValues(), equalTo(List.of("out of memory")));
+            assertThat(
+                hit0.field("host").getValues(),
+                equalTo(List.of(Map.of("field1", List.of("192.168.1.1"), "field2", List.of("windows"))))
+            );
+        }
+        {
+            SearchHit hit1 = response.getHits().getHits()[1];
+            assertThat(hit1.getDocumentFields().keySet(), equalTo(Set.of("field1", "field2", "host")));
+            assertThat(hit1.field("field1").getValues(), equalTo(List.of("192.168.1.2")));
+            assertThat(hit1.field("field2").getValues(), equalTo(List.of("authentication fails")));
+            assertThat(
+                hit1.field("host").getValues(),
+                equalTo(List.of(Map.of("field1", List.of("192.168.1.2"), "field2", List.of("macos"))))
+            );
+        }
+        // user6 has access to field1, field2, and field3
+        response = client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+            .search(request)
+            .actionGet();
+        assertHitCount(response, 2);
+        {
+            SearchHit hit0 = response.getHits().getHits()[0];
+            assertThat(hit0.getDocumentFields().keySet(), equalTo(Set.of("field1", "field2", "field3", "host")));
+            assertThat(hit0.field("field1").getValues(), equalTo(List.of("192.168.1.1")));
+            assertThat(hit0.field("field2").getValues(), equalTo(List.of("out of memory")));
+            assertThat(hit0.field("field3").getValues(), equalTo(List.of("2021-01-20")));
+            assertThat(
+                hit0.field("host").getValues(),
+                equalTo(List.of(Map.of("field1", List.of("192.168.1.1"), "field2", List.of("windows"), "field3", List.of("canada"))))
+            );
+        }
+        {
+            SearchHit hit1 = response.getHits().getHits()[1];
+            assertThat(hit1.getDocumentFields().keySet(), equalTo(Set.of("field1", "field2", "field3", "host")));
+            assertThat(hit1.field("field1").getValues(), equalTo(List.of("192.168.1.2")));
+            assertThat(hit1.field("field2").getValues(), equalTo(List.of("authentication fails")));
+            assertThat(hit1.field("field3").getValues(), equalTo(List.of("2021-01-21")));
+            assertThat(
+                hit1.field("host").getValues(),
+                equalTo(List.of(Map.of("field1", List.of("192.168.1.2"), "field2", List.of("macos"), "field3", List.of("us"))))
+            );
+        }
     }
 
 }

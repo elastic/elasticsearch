@@ -29,10 +29,10 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
     public TransportGetLicenseAction(
         TransportService transportService,
         ClusterService clusterService,
-        LicenseService licenseService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        LicenseService licenseService
     ) {
         super(
             GetLicenseAction.NAME,
@@ -43,7 +43,7 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
             GetLicenseRequest::new,
             indexNameExpressionResolver,
             GetLicenseResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            ThreadPool.Names.SAME
         );
         this.licenseService = licenseService;
     }
@@ -60,6 +60,10 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
         ClusterState state,
         final ActionListener<GetLicenseResponse> listener
     ) throws ElasticsearchException {
-        listener.onResponse(new GetLicenseResponse(licenseService.getLicense()));
+        if (licenseService instanceof ClusterStateLicenseService clusterStateLicenseService) {
+            listener.onResponse(new GetLicenseResponse(clusterStateLicenseService.getLicense(state.metadata())));
+        } else {
+            listener.onResponse(new GetLicenseResponse(licenseService.getLicense()));
+        }
     }
 }

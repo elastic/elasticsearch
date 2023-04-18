@@ -15,9 +15,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
-import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,14 +24,13 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.store.input.ChecksumBlobContainerIndexInput.checksumToBytesArray;
 
 public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInput {
 
     protected final Logger logger;
     protected final String name;
-    protected final SearchableSnapshotDirectory directory;
     protected final BlobContainer blobContainer;
     protected final FileInfo fileInfo;
     protected final IOContext context;
@@ -41,45 +38,28 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     protected final long offset;
     protected final long length;
 
-    /**
-     * Range of bytes that should be cached in the blob cache for the current index input's header.
-     */
-    protected final ByteRange headerBlobCacheByteRange;
-
-    /**
-     * Range of bytes that should be cached in the blob cache for the current index input's footer. This footer byte range should only be
-     * required for slices of CFS files; regular files already have their footers extracted from the {@link FileInfo} (see method
-     * {@link BaseSearchableSnapshotIndexInput#maybeReadChecksumFromFileInfo}).
-     */
-    protected final ByteRange footerBlobCacheByteRange;
-
     // the following are only mutable so they can be adjusted after cloning/slicing
     protected volatile boolean isClone;
-    private AtomicBoolean closed;
+    protected AtomicBoolean closed;
 
     public BaseSearchableSnapshotIndexInput(
         Logger logger,
         String name,
-        SearchableSnapshotDirectory directory,
+        BlobContainer blobContainer,
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
         long offset,
-        long length,
-        ByteRange headerBlobCacheByteRange,
-        ByteRange footerBlobCacheByteRange
+        long length
     ) {
         super(name, context);
         this.name = Objects.requireNonNull(name);
         this.logger = Objects.requireNonNull(logger);
-        this.directory = Objects.requireNonNull(directory);
-        this.blobContainer = Objects.requireNonNull(directory.blobContainer());
+        this.blobContainer = Objects.requireNonNull(blobContainer);
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.context = Objects.requireNonNull(context);
         assert fileInfo.metadata().hashEqualsContents() == false
             : "this method should only be used with blobs that are NOT stored in metadata's hash field " + "(fileInfo: " + fileInfo + ')';
-        this.headerBlobCacheByteRange = Objects.requireNonNull(headerBlobCacheByteRange);
-        this.footerBlobCacheByteRange = Objects.requireNonNull(footerBlobCacheByteRange);
         this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
         this.length = length;
@@ -155,38 +135,28 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         return success;
     }
 
-    protected ByteRange rangeToReadFromBlobCache(long position, int length) {
-        final long end = position + length;
-        if (headerBlobCacheByteRange.contains(position, end)) {
-            return headerBlobCacheByteRange;
-        } else if (footerBlobCacheByteRange.contains(position, end)) {
-            return footerBlobCacheByteRange;
-        }
-        return ByteRange.EMPTY;
-    }
-
     /**
      * Opens an {@link InputStream} for the given range of bytes which reads the data directly from the blob store. If the requested range
      * spans multiple blobs then this stream will request them in turn.
      *
      * @param position The start of the range of bytes to read, relative to the start of the corresponding Lucene file.
-     * @param length The number of bytes to read
+     * @param readLength The number of bytes to read
      */
-    protected InputStream openInputStreamFromBlobStore(final long position, final long length) throws IOException {
+    protected InputStream openInputStreamFromBlobStore(final long position, final long readLength) throws IOException {
         assert assertCurrentThreadMayAccessBlobStore();
         if (fileInfo.numberOfParts() == 1L) {
-            assert position + length <= fileInfo.partBytes(0)
-                : "cannot read [" + position + "-" + (position + length) + "] from [" + fileInfo + "]";
-            stats.addBlobStoreBytesRequested(length);
-            return blobContainer.readBlob(fileInfo.partName(0), position, length);
+            assert position + readLength <= fileInfo.length()
+                : "cannot read [" + position + "-" + (position + readLength) + "] from [" + fileInfo + "]";
+            stats.addBlobStoreBytesRequested(readLength);
+            return blobContainer.readBlob(fileInfo.name(), position, readLength);
         } else {
             final int startPart = getPartNumberForPosition(position);
-            final int endPart = getPartNumberForPosition(position + length - 1);
+            final int endPart = getPartNumberForPosition(position + readLength - 1);
 
             for (int currentPart = startPart; currentPart <= endPart; currentPart++) {
                 final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
                 final long endInPart = (currentPart == endPart)
-                    ? getRelativePositionInPart(position + length - 1) + 1
+                    ? getRelativePositionInPart(position + readLength - 1) + 1
                     : getLengthOfPart(currentPart);
                 stats.addBlobStoreBytesRequested(endInPart - startInPart);
             }
@@ -197,7 +167,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
                     final int currentPart = startPart + slice;
                     final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
                     final long endInPart = (currentPart == endPart)
-                        ? getRelativePositionInPart(position + length - 1) + 1
+                        ? getRelativePositionInPart(position + readLength - 1) + 1
                         : getLengthOfPart(currentPart);
                     return blobContainer.readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
                 }
@@ -210,7 +180,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
      */
     private int getPartNumberForPosition(long position) {
         ensureValidPosition(position);
-        final int part = Math.toIntExact(position / fileInfo.partSize().getBytes());
+        final int part = fileInfo.numberOfParts() == 1 ? 0 : Math.toIntExact(position / fileInfo.partSize().getBytes());
         assert part <= fileInfo.numberOfParts() : "part number [" + part + "] exceeds number of parts: " + fileInfo.numberOfParts();
         assert part >= 0 : "part number [" + part + "] is negative";
         return part;
@@ -262,12 +232,6 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         return resourceDesc;
     }
 
-    protected void ensureOpen() throws IOException {
-        if (closed.get()) {
-            throw new IOException(toString() + " is closed");
-        }
-    }
-
     @Override
     public final void close() throws IOException {
         if (closed.compareAndSet(false, true)) {
@@ -288,26 +252,18 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     }
 
     protected final boolean assertCurrentThreadMayAccessBlobStore() {
-        final String threadName = Thread.currentThread().getName();
-        assert threadName.contains('[' + ThreadPool.Names.SNAPSHOT + ']')
-            || threadName.contains('[' + ThreadPool.Names.GENERIC + ']')
-            || threadName.contains('[' + ThreadPool.Names.SEARCH + ']')
-            || threadName.contains('[' + ThreadPool.Names.SEARCH_THROTTLED + ']')
+        return ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SNAPSHOT,
+            ThreadPool.Names.GENERIC,
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_THROTTLED,
 
             // Cache asynchronous fetching runs on a dedicated thread pool.
-            || threadName.contains('[' + SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME + ']')
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
 
             // Cache prewarming also runs on a dedicated thread pool.
-            || threadName.contains('[' + SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME + ']')
-
-            // Unit tests access the blob store on the main test thread, or via an asynchronous
-            // checkindex call;
-            // simplest just to permit this rather than have them override this
-            // method somehow.
-            || threadName.startsWith("TEST-")
-            || threadName.startsWith("async-check-index")
-            || threadName.startsWith("LuceneTestCase") : "current thread [" + Thread.currentThread() + "] may not read " + fileInfo;
-        return true;
+            SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME
+        );
     }
 
     protected static boolean isCacheFetchAsyncThread(final String threadName) {

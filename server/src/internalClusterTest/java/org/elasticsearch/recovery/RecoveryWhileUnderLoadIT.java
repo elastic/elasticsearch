@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -82,7 +83,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
         int extraDocs = waitFor;
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", client(), extraDocs)) {
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
@@ -146,7 +147,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
         int extraDocs = waitFor;
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", client(), extraDocs)) {
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
@@ -207,7 +208,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
         int extraDocs = waitFor;
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", client(), extraDocs)) {
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
@@ -323,7 +324,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
         final int numDocs = scaledRandomIntBetween(200, 9999);
 
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), numDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", client(), numDocs)) {
 
             for (int i = 0; i < numDocs; i += scaledRandomIntBetween(100, Math.min(1000, numDocs))) {
                 indexer.assertNoFailures();
@@ -342,9 +343,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> indexing threads stopped");
             logger.info("--> bump up number of replicas to 1 and allow all nodes to hold the index");
             allowNodes("test", 3);
-            assertAcked(
-                client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("number_of_replicas", 1)).get()
-            );
+            setReplicaCount(1, "test");
             ensureGreen(TimeValue.timeValueMinutes(5));
 
             logger.info("--> refreshing the index");
@@ -391,7 +390,9 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                 for (String id : ids) {
                     ShardId docShard = clusterService.operationRouting().shardId(state, "test", id, null);
                     if (docShard.id() == shard) {
-                        for (ShardRouting shardRouting : state.routingTable().shardRoutingTable("test", shard)) {
+                        final IndexShardRoutingTable indexShardRoutingTable = state.routingTable().shardRoutingTable("test", shard);
+                        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                            ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                             GetResponse response = client().prepareGet("test", id)
                                 .setPreference("_only_nodes:" + shardRouting.currentNodeId())
                                 .get();

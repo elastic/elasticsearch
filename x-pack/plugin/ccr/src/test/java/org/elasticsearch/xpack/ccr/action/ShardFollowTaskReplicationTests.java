@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -18,6 +15,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
@@ -27,6 +25,8 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -54,6 +54,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
@@ -68,6 +69,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -86,6 +88,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTestCase {
 
@@ -340,7 +343,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             Arrays.asList(ops),
                             leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                             followingPrimary,
-                            logger
+                            logger,
+                            new PostWriteRefresh(mock(TransportService.class))
                         );
                     for (IndexShard replica : randomSubsetOf(followerGroup.getReplicas())) {
                         final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
@@ -349,8 +353,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             followingPrimary.getLastKnownGlobalCheckpoint(),
                             followingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                             permitFuture,
-                            ThreadPool.Names.SAME,
-                            primaryResult
+                            ThreadPool.Names.SAME
                         );
                         try (Releasable ignored = permitFuture.get()) {
                             TransportBulkShardOperationsAction.shardOperationOnReplica(primaryResult.replicaRequest(), replica, logger);
@@ -385,7 +388,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
     }
 
     public void testAddNewFollowingReplica() throws Exception {
-        final byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
+        final BytesReference source = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
         final int numDocs = between(1, 100);
         final List<Translog.Operation> operations = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) {
@@ -504,11 +507,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             }
 
             @Override
-            protected synchronized void recoverPrimary(IndexShard primary) {
+            protected synchronized void recoverPrimary(IndexShard primaryShard) {
                 DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
                 Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
                 ShardRouting routing = ShardRoutingHelper.newWithRestoreSource(
-                    primary.routingEntry(),
+                    primaryShard.routingEntry(),
                     new RecoverySource.SnapshotRecoverySource(
                         UUIDs.randomBase64UUID(),
                         snapshot,
@@ -516,9 +519,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         new IndexId("test", UUIDs.randomBase64UUID(random()))
                     )
                 );
-                primary.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
+                primaryShard.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
                 final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-                primary.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
+                primaryShard.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
                     @Override
                     public void restoreShard(
                         Store store,
@@ -530,11 +533,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     ) {
                         ActionListener.completeWith(listener, () -> {
                             IndexShard leader = leaderGroup.getPrimary();
-                            Lucene.cleanLuceneIndex(primary.store().directory());
+                            Lucene.cleanLuceneIndex(primaryShard.store().directory());
                             try (Engine.IndexCommitRef sourceCommit = leader.acquireSafeIndexCommit()) {
                                 Store.MetadataSnapshot sourceSnapshot = leader.store().getMetadata(sourceCommit.getIndexCommit());
                                 for (StoreFileMetadata md : sourceSnapshot) {
-                                    primary.store()
+                                    primaryShard.store()
                                         .directory()
                                         .copyFrom(leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
                                 }
@@ -574,7 +577,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(task, delay, ThreadPool.Names.GENERIC);
         AtomicBoolean stopped = new AtomicBoolean(false);
-        LongSet fetchOperations = new LongHashSet();
+        Set<Long> fetchOperations = new HashSet<>();
         return new ShardFollowNodeTask(
             1L,
             "type",
@@ -739,7 +742,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         boolean assertMaxSeqNoOfUpdatesOrDeletes
     ) throws Exception {
         final List<Tuple<String, Long>> docAndSeqNosOnLeader = getDocIdAndSeqNos(leader.getPrimary()).stream()
-            .map(d -> Tuple.tuple(d.getId(), d.getSeqNo()))
+            .map(d -> Tuple.tuple(d.id(), d.seqNo()))
             .collect(Collectors.toList());
         final Map<Long, Translog.Operation> operationsOnLeader = new HashMap<>();
         try (
@@ -759,7 +762,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 );
             }
             List<Tuple<String, Long>> docAndSeqNosOnFollower = getDocIdAndSeqNos(followingShard).stream()
-                .map(d -> Tuple.tuple(d.getId(), d.getSeqNo()))
+                .map(d -> Tuple.tuple(d.id(), d.seqNo()))
                 .collect(Collectors.toList());
             assertThat(docAndSeqNosOnFollower, equalTo(docAndSeqNosOnLeader));
             try (
@@ -793,7 +796,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         @Override
         protected void performOnPrimary(IndexShard primary, BulkShardOperationsRequest request, ActionListener<PrimaryResult> listener) {
             final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
-            primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, request);
+            primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME);
             final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
             try (Releasable ignored = permitFuture.get()) {
                 ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(
@@ -802,13 +805,14 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     request.getOperations(),
                     request.getMaxSeqNoOfUpdatesOrDeletes(),
                     primary,
-                    logger
+                    logger,
+                    new PostWriteRefresh(mock(TransportService.class))
                 );
                 TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
             } catch (InterruptedException | ExecutionException | IOException e) {
                 throw new RuntimeException(e);
             }
-            listener.onResponse(new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful));
+            listener.onResponse(new PrimaryResult(ccrResult.replicaRequest(), ccrResult.replicationResponse));
         }
 
         @Override
@@ -825,8 +829,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         getPrimaryShard().getLastKnownGlobalCheckpoint(),
                         getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes(),
                         f,
-                        ThreadPool.Names.SAME,
-                        request
+                        ThreadPool.Names.SAME
                     )
                 )
             ) {

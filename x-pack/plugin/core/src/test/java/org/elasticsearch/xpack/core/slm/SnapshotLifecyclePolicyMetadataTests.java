@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -19,7 +19,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.slm.SnapshotInvocationRecordTests.randomSnapshotInvocationRecord;
 
-public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTestCase<SnapshotLifecyclePolicyMetadata> {
+public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerializingTestCase<SnapshotLifecyclePolicyMetadata> {
     private String policyId;
 
     @Override
@@ -48,39 +48,32 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
     }
 
     @Override
-    protected SnapshotLifecyclePolicyMetadata mutateInstance(SnapshotLifecyclePolicyMetadata instance) throws IOException {
-        switch (between(0, 5)) {
-            case 0:
-                return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setPolicy(randomValueOtherThan(instance.getPolicy(), () -> randomSnapshotLifecyclePolicy(randomAlphaOfLength(10))))
-                    .build();
-            case 1:
-                return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setVersion(randomValueOtherThan(instance.getVersion(), ESTestCase::randomNonNegativeLong))
-                    .build();
-            case 2:
-                return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setModifiedDate(randomValueOtherThan(instance.getModifiedDate(), ESTestCase::randomNonNegativeLong))
-                    .build();
-            case 3:
-                return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setHeaders(randomValueOtherThan(instance.getHeaders(), SnapshotLifecyclePolicyMetadataTests::randomHeaders))
-                    .build();
-            case 4:
-                return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setLastSuccess(
-                        randomValueOtherThan(instance.getLastSuccess(), SnapshotInvocationRecordTests::randomSnapshotInvocationRecord)
-                    )
-                    .build();
-            case 5:
-                return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setLastFailure(
-                        randomValueOtherThan(instance.getLastFailure(), SnapshotInvocationRecordTests::randomSnapshotInvocationRecord)
-                    )
-                    .build();
-            default:
-                throw new AssertionError("failure, got illegal switch case");
-        }
+    protected SnapshotLifecyclePolicyMetadata mutateInstance(SnapshotLifecyclePolicyMetadata instance) {
+        return switch (between(0, 5)) {
+            case 0 -> SnapshotLifecyclePolicyMetadata.builder(instance)
+                .setPolicy(randomValueOtherThan(instance.getPolicy(), () -> randomSnapshotLifecyclePolicy(randomAlphaOfLength(10))))
+                .build();
+            case 1 -> SnapshotLifecyclePolicyMetadata.builder(instance)
+                .setVersion(randomValueOtherThan(instance.getVersion(), ESTestCase::randomNonNegativeLong))
+                .build();
+            case 2 -> SnapshotLifecyclePolicyMetadata.builder(instance)
+                .setModifiedDate(randomValueOtherThan(instance.getModifiedDate(), ESTestCase::randomNonNegativeLong))
+                .build();
+            case 3 -> SnapshotLifecyclePolicyMetadata.builder(instance)
+                .setHeaders(randomValueOtherThan(instance.getHeaders(), SnapshotLifecyclePolicyMetadataTests::randomHeaders))
+                .build();
+            case 4 -> SnapshotLifecyclePolicyMetadata.builder(instance)
+                .setLastSuccess(
+                    randomValueOtherThan(instance.getLastSuccess(), SnapshotInvocationRecordTests::randomSnapshotInvocationRecord)
+                )
+                .build();
+            case 5 -> SnapshotLifecyclePolicyMetadata.builder(instance)
+                .setLastFailure(
+                    randomValueOtherThan(instance.getLastFailure(), SnapshotInvocationRecordTests::randomSnapshotInvocationRecord)
+                )
+                .build();
+            default -> throw new AssertionError("failure, got illegal switch case");
+        };
     }
 
     public static SnapshotLifecyclePolicyMetadata createRandomPolicyMetadata(String policyId) {
@@ -91,11 +84,16 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
         if (randomBoolean()) {
             builder.setHeaders(randomHeaders());
         }
-        if (randomBoolean()) {
+        boolean hasSuccess = randomBoolean();
+        if (hasSuccess) {
             builder.setLastSuccess(randomSnapshotInvocationRecord());
+            builder.setInvocationsSinceLastSuccess(0L);
         }
         if (randomBoolean()) {
             builder.setLastFailure(randomSnapshotInvocationRecord());
+            if (hasSuccess) {
+                builder.setInvocationsSinceLastSuccess(randomLongBetween(1, Long.MAX_VALUE));
+            }
         }
         return builder.build();
     }

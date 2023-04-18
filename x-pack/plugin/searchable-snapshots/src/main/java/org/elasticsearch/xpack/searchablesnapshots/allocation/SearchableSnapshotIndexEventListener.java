@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -18,21 +18,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogException;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
-import java.nio.file.Path;
-
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory.unwrapDirectory;
@@ -42,16 +38,16 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
 
     private final @Nullable CacheService cacheService;
-    private final @Nullable FrozenCacheService frozenCacheService;
+    private final @Nullable SharedBlobCacheService<CacheKey> sharedBlobCacheService;
 
     public SearchableSnapshotIndexEventListener(
         Settings settings,
         @Nullable CacheService cacheService,
-        @Nullable FrozenCacheService frozenCacheService
+        @Nullable SharedBlobCacheService<CacheKey> sharedBlobCacheService
     ) {
         assert cacheService != null || DiscoveryNode.canContainData(settings) == false;
         this.cacheService = cacheService;
-        this.frozenCacheService = frozenCacheService;
+        this.sharedBlobCacheService = sharedBlobCacheService;
     }
 
     /**
@@ -62,10 +58,10 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
      * @param indexSettings the shard's index settings
      */
     @Override
-    public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
-        assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+    public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         ensureSnapshotIsLoaded(indexShard);
-        associateNewEmptyTranslogWithIndex(indexShard);
+        listener.onResponse(null);
     }
 
     private static void ensureSnapshotIsLoaded(IndexShard indexShard) {
@@ -78,8 +74,8 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
             final Runnable preWarmCondition = indexShard.addCleanFilesDependency();
             preWarmListener.whenComplete(v -> preWarmCondition.run(), e -> {
                 logger.warn(
-                    new ParameterizedMessage(
-                        "pre-warm operation failed for [{}] while it was the target of primary relocation [{}]",
+                    () -> format(
+                        "pre-warm operation failed for [%s] while it was the target of primary relocation [%s]",
                         shardRouting.shardId(),
                         shardRouting
                     ),
@@ -93,26 +89,11 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
             : "loading snapshot must not be called twice unless we are retrying a peer recovery";
     }
 
-    private static void associateNewEmptyTranslogWithIndex(IndexShard indexShard) {
-        final ShardId shardId = indexShard.shardId();
-        assert isSearchableSnapshotStore(indexShard.indexSettings().getSettings()) : "Expected a searchable snapshot shard " + shardId;
-        try {
-            final SegmentInfos segmentInfos = indexShard.store().readLastCommittedSegmentsInfo();
-            final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-            final long primaryTerm = indexShard.getPendingPrimaryTerm();
-            final String translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
-            final Path translogLocation = indexShard.shardPath().resolveTranslog();
-            Translog.createEmptyTranslog(translogLocation, shardId, localCheckpoint, primaryTerm, translogUUID, null);
-        } catch (Exception e) {
-            throw new TranslogException(shardId, "failed to associate a new translog", e);
-        }
-    }
-
     @Override
     public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
         if (shouldEvictCacheFiles(reason)) {
-            final IndexSettings indexSettings = indexService.getIndexSettings();
-            if (isSearchableSnapshotStore(indexSettings.getSettings())) {
+            if (indexService.getMetadata().isSearchableSnapshot()) {
+                final IndexSettings indexSettings = indexService.getIndexSettings();
                 for (IndexShard indexShard : indexService) {
                     final ShardId shardId = indexShard.shardId();
 
@@ -124,12 +105,8 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                             shardId
                         );
                     }
-                    if (frozenCacheService != null) {
-                        frozenCacheService.markShardAsEvictedInCache(
-                            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
-                            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
-                            shardId
-                        );
+                    if (sharedBlobCacheService != null) {
+                        sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
                     }
                 }
             }

@@ -32,11 +32,9 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
-    private static final TimeValue NO_WAIT_TIME_VALUE = TimeValue.timeValueMillis(0);
     private final AtomicLong insertionOrder = new AtomicLong();
     private final Queue<Runnable> current = ConcurrentCollections.newQueue();
     private final ScheduledExecutorService timer;
-    private final StarvationWatcher starvationWatcher;
 
     public PrioritizedEsThreadPoolExecutor(
         String name,
@@ -46,12 +44,10 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         TimeUnit unit,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        ScheduledExecutorService timer,
-        StarvationWatcher starvationWatcher
+        ScheduledExecutorService timer
     ) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, new PriorityBlockingQueue<>(), threadFactory, contextHolder);
         this.timer = timer;
-        this.starvationWatcher = starvationWatcher;
     }
 
     public Pending[] getPending() {
@@ -61,38 +57,9 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         return pending.toArray(new Pending[pending.size()]);
     }
 
-    public int getNumberOfPendingTasks() {
-        int size = current.size();
-        size += getQueue().size();
-        return size;
-    }
-
-    /**
-     * Returns the waiting time of the first task in the queue
-     */
-    public TimeValue getMaxTaskWaitTime() {
-        if (getQueue().size() == 0) {
-            return NO_WAIT_TIME_VALUE;
-        }
-
-        long now = System.nanoTime();
-        long oldestCreationDateInNanos = now;
-        for (Runnable queuedRunnable : getQueue()) {
-            if (queuedRunnable instanceof PrioritizedRunnable) {
-                oldestCreationDateInNanos = Math.min(
-                    oldestCreationDateInNanos,
-                    ((PrioritizedRunnable) queuedRunnable).getCreationDateInNanos()
-                );
-            }
-        }
-
-        return TimeValue.timeValueNanos(now - oldestCreationDateInNanos);
-    }
-
     private void addPending(List<Runnable> runnables, List<Pending> pending, boolean executing) {
         for (Runnable runnable : runnables) {
-            if (runnable instanceof TieBreakingPrioritizedRunnable) {
-                TieBreakingPrioritizedRunnable t = (TieBreakingPrioritizedRunnable) runnable;
+            if (runnable instanceof TieBreakingPrioritizedRunnable t) {
                 Runnable innerRunnable = t.runnable;
                 if (innerRunnable != null) {
                     /** innerRunnable can be null if task is finished but not removed from executor yet,
@@ -100,8 +67,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                      */
                     pending.add(new Pending(super.unwrap(innerRunnable), t.priority(), t.insertionOrder, executing));
                 }
-            } else if (runnable instanceof PrioritizedFutureTask) {
-                PrioritizedFutureTask<?> t = (PrioritizedFutureTask<?>) runnable;
+            } else if (runnable instanceof PrioritizedFutureTask<?> t) {
                 Object task = t.task;
                 if (t.task instanceof Runnable) {
                     task = super.unwrap((Runnable) t.task);
@@ -114,20 +80,12 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
         current.add(r);
-        if (getQueue().isEmpty()) {
-            starvationWatcher.onEmptyQueue();
-        }
     }
 
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);
         current.remove(r);
-        if (getQueue().isEmpty()) {
-            starvationWatcher.onEmptyQueue();
-        } else {
-            starvationWatcher.onNonemptyQueue();
-        }
     }
 
     public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
@@ -240,12 +198,9 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                     throw new IllegalStateException("scheduleTimeout may only be called once");
                 }
                 if (started == false) {
-                    timeoutFuture = timer.schedule(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (remove(TieBreakingPrioritizedRunnable.this)) {
-                                runAndClean(timeoutCallback);
-                            }
+                    timeoutFuture = timer.schedule(() -> {
+                        if (remove(TieBreakingPrioritizedRunnable.this)) {
+                            runAndClean(timeoutCallback);
                         }
                     }, timeValue.nanos(), TimeUnit.NANOSECONDS);
                 }
@@ -301,33 +256,6 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
             }
             return insertionOrder < pft.insertionOrder ? -1 : 1;
         }
-    }
-
-    /**
-     * We expect the work queue to be empty fairly frequently; if the queue remains nonempty for sufficiently long then there's a risk that
-     * some lower-priority tasks are being starved of access to the executor. Implementations of this interface are notified whether the
-     * work queue is empty or not before and after execution of each task, so that we can warn the user of this possible starvation.
-     */
-    public interface StarvationWatcher {
-
-        /**
-         * Called before and after the execution of each task if the queue is empty (excluding the task being executed)
-         */
-        void onEmptyQueue();
-
-        /**
-         * Called after the execution of each task if the queue is nonempty (excluding the task being executed)
-         */
-        void onNonemptyQueue();
-
-        StarvationWatcher NOOP_STARVATION_WATCHER = new StarvationWatcher() {
-            @Override
-            public void onEmptyQueue() {}
-
-            @Override
-            public void onNonemptyQueue() {}
-        };
-
     }
 
 }

@@ -17,15 +17,15 @@ import org.elasticsearch.common.util.PageCacheRecycler;
  */
 public class ZeroBytesReference extends AbstractBytesReference {
 
-    private final int length;
-
     public ZeroBytesReference(int length) {
-        this.length = length;
+        super(length);
+        assert 0 <= length : length;
     }
 
     @Override
     public int indexOf(byte marker, int from) {
-        if (marker == 0) {
+        assert 0 <= from && from <= length : from + " vs " + length;
+        if (marker == 0 && from < length) {
             return from;
         } else {
             return -1;
@@ -34,16 +34,13 @@ public class ZeroBytesReference extends AbstractBytesReference {
 
     @Override
     public byte get(int index) {
+        assert 0 <= index && index < length : index + " vs " + length;
         return 0;
     }
 
     @Override
-    public int length() {
-        return length;
-    }
-
-    @Override
     public BytesReference slice(int from, int length) {
+        assert from + length <= this.length : from + " and " + length + " vs " + this.length;
         return new ZeroBytesReference(length);
     }
 

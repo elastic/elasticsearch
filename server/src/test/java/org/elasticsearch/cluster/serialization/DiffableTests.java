@@ -8,15 +8,15 @@
 
 package org.elasticsearch.cluster.serialization;
 
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.DiffableUtils.MapDiff;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 
@@ -27,15 +27,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.empty;
 
 public class DiffableTests extends ESTestCase {
 
-    public void testJKDMapDiff() throws IOException {
+    public void testJdkMapDiff() throws IOException {
         new JdkMapDriver<TestDiffable>() {
             @Override
             protected boolean diffableValues() {
@@ -144,66 +144,12 @@ public class DiffableTests extends ESTestCase {
         }.execute();
     }
 
-    public void testImmutableOpenIntMapDiff() throws IOException {
-        new ImmutableOpenIntMapDriver<TestDiffable>() {
-            @Override
-            protected boolean diffableValues() {
-                return true;
-            }
-
-            @Override
-            protected TestDiffable createValue(Integer key, boolean before) {
-                return new TestDiffable(String.valueOf(before ? key : key + 1));
-            }
-
-            @Override
-            protected MapDiff<Integer, TestDiffable, ImmutableOpenIntMap<TestDiffable>> diff(
-                ImmutableOpenIntMap<TestDiffable> before,
-                ImmutableOpenIntMap<TestDiffable> after
-            ) {
-                return DiffableUtils.diff(before, after, keySerializer);
-            }
-
-            @Override
-            protected MapDiff<Integer, TestDiffable, ImmutableOpenIntMap<TestDiffable>> readDiff(StreamInput in) throws IOException {
-                return useProtoForDiffableSerialization
-                    ? DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, TestDiffable::readFrom, TestDiffable::readDiffFrom)
-                    : DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, diffableValueSerializer());
-            }
-        }.execute();
-
-        new ImmutableOpenIntMapDriver<String>() {
-            @Override
-            protected boolean diffableValues() {
-                return false;
-            }
-
-            @Override
-            protected String createValue(Integer key, boolean before) {
-                return String.valueOf(before ? key : key + 1);
-            }
-
-            @Override
-            protected MapDiff<Integer, String, ImmutableOpenIntMap<String>> diff(
-                ImmutableOpenIntMap<String> before,
-                ImmutableOpenIntMap<String> after
-            ) {
-                return DiffableUtils.diff(before, after, keySerializer, nonDiffableValueSerializer());
-            }
-
-            @Override
-            protected MapDiff<Integer, String, ImmutableOpenIntMap<String>> readDiff(StreamInput in) throws IOException {
-                return DiffableUtils.readImmutableOpenIntMapDiff(in, keySerializer, nonDiffableValueSerializer());
-            }
-        }.execute();
-    }
-
     /**
      * Class that abstracts over specific map implementation type and value kind (Diffable or not)
      * @param <T> map type
      * @param <V> value type
      */
-    public abstract class MapDriver<T, V> {
+    public abstract class MapDriver<T extends Map<Integer, V>, V> {
         protected final Set<Integer> keys = randomPositiveIntSet();
         protected final Set<Integer> keysToRemove = new HashSet<>(randomSubsetOf(randomInt(keys.size()), keys.toArray(new Integer[0])));
         protected final Set<Integer> keysThatAreNotRemoved = Sets.difference(keys, keysToRemove);
@@ -303,20 +249,23 @@ public class DiffableTests extends ESTestCase {
             // check properties of diffMap
             assertThat(new HashSet<>(diffMap.getDeletes()), equalTo(keysToRemove));
             if (diffableValues()) {
-                assertThat(diffMap.getDiffs().keySet(), equalTo(keysToOverride));
+                Map<Integer, Diff<V>> diffs = Maps.ofEntries(diffMap.getDiffs());
+                assertThat(diffs.keySet(), equalTo(keysToOverride));
                 for (Integer key : keysToOverride) {
-                    assertThat(diffMap.getDiffs().get(key).apply(get(beforeMap, key)), equalTo(get(afterMap, key)));
+                    assertThat(diffs.get(key).apply(get(beforeMap, key)), equalTo(get(afterMap, key)));
                 }
-                assertThat(diffMap.getUpserts().keySet(), equalTo(keysToAdd));
+                Map<Integer, V> upserts = Maps.ofEntries(diffMap.getUpserts());
+                assertThat(upserts.keySet(), equalTo(keysToAdd));
                 for (Integer key : keysToAdd) {
-                    assertThat(diffMap.getUpserts().get(key), equalTo(get(afterMap, key)));
+                    assertThat(upserts.get(key), equalTo(get(afterMap, key)));
                 }
             } else {
-                assertThat(diffMap.getDiffs(), equalTo(emptyMap()));
+                assertThat(diffMap.getDiffs(), empty());
                 Set<Integer> keysToAddAndOverride = Sets.union(keysToAdd, keysToOverride);
-                assertThat(diffMap.getUpserts().keySet(), equalTo(keysToAddAndOverride));
+                Map<Integer, V> upserts = Maps.ofEntries(diffMap.getUpserts());
+                assertThat(upserts.keySet(), equalTo(keysToAddAndOverride));
                 for (Integer key : keysToAddAndOverride) {
-                    assertThat(diffMap.getUpserts().get(key), equalTo(get(afterMap, key)));
+                    assertThat(upserts.get(key), equalTo(get(afterMap, key)));
                 }
             }
 
@@ -370,7 +319,7 @@ public class DiffableTests extends ESTestCase {
 
         @Override
         protected ImmutableOpenMap<Integer, V> createMap(Map<Integer, V> values) {
-            return ImmutableOpenMap.<Integer, V>builder().putAll(values).build();
+            return ImmutableOpenMap.<Integer, V>builder().putAllFromMap(values).build();
         }
 
         @Override
@@ -384,24 +333,6 @@ public class DiffableTests extends ESTestCase {
         }
     }
 
-    abstract class ImmutableOpenIntMapDriver<V> extends MapDriver<ImmutableOpenIntMap<V>, V> {
-
-        @Override
-        protected ImmutableOpenIntMap<V> createMap(Map<Integer, V> values) {
-            return ImmutableOpenIntMap.<V>builder().putAll(values).build();
-        }
-
-        @Override
-        protected V get(ImmutableOpenIntMap<V> map, Integer key) {
-            return map.get(key);
-        }
-
-        @Override
-        protected int size(ImmutableOpenIntMap<V> map) {
-            return map.size();
-        }
-    }
-
     private static <K> DiffableUtils.DiffableValueSerializer<K, TestDiffable> diffableValueSerializer() {
         return new DiffableUtils.DiffableValueSerializer<K, TestDiffable>() {
             @Override
@@ -411,7 +342,7 @@ public class DiffableTests extends ESTestCase {
 
             @Override
             public Diff<TestDiffable> readDiff(StreamInput in, K key) throws IOException {
-                return AbstractDiffable.readDiffFrom(TestDiffable::readFrom, in);
+                return SimpleDiffable.readDiffFrom(TestDiffable::readFrom, in);
             }
         };
     }
@@ -430,7 +361,7 @@ public class DiffableTests extends ESTestCase {
         };
     }
 
-    public static class TestDiffable extends AbstractDiffable<TestDiffable> {
+    public static class TestDiffable implements SimpleDiffable<TestDiffable> {
 
         private final String value;
 
@@ -447,7 +378,7 @@ public class DiffableTests extends ESTestCase {
         }
 
         public static Diff<TestDiffable> readDiffFrom(StreamInput in) throws IOException {
-            return readDiffFrom(TestDiffable::readFrom, in);
+            return SimpleDiffable.readDiffFrom(TestDiffable::readFrom, in);
         }
 
         @Override

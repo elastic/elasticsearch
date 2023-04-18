@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +40,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPol
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explain;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -207,8 +210,56 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         });
     }
 
+    public void testExplainOrder() throws Exception {
+        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE, TimeValue.timeValueDays(100));
+        createIndexWithSettings(
+            client(),
+            "order-aaa-foo",
+            "alias-1",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        );
+        createIndexWithSettings(
+            client(),
+            "order-ccc-foo",
+            "alias-2",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        );
+        createIndexWithSettings(
+            client(),
+            "order-bbb-foo",
+            "alias-3",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        );
+        ensureGreen("order-*");
+
+        Request req = new Request("GET", "/order-*/_ilm/explain?filter_path=indices.*.index");
+        Response resp = client().performRequest(req);
+        String respString = EntityUtils.toString(resp.getEntity());
+        // Assert that indices are ordered based on a natural ordering of their index name
+        assertThat(
+            respString,
+            containsString(
+                "{\"indices\":{"
+                    + "\"order-aaa-foo\":{\"index\":\"order-aaa-foo\"},"
+                    + "\"order-bbb-foo\":{\"index\":\"order-bbb-foo\"},"
+                    + "\"order-ccc-foo\":{\"index\":\"order-ccc-foo\"}}}"
+            )
+        );
+    }
+
     private void assertUnmanagedIndex(Map<String, Object> explainIndexMap) {
         assertThat(explainIndexMap.get("managed"), is(false));
+        assertThat(explainIndexMap.get("time_since_index_creation"), is(nullValue()));
+        assertThat(explainIndexMap.get("index_creation_date_millis"), is(nullValue()));
         assertThat(explainIndexMap.get("policy"), is(nullValue()));
         assertThat(explainIndexMap.get("phase"), is(nullValue()));
         assertThat(explainIndexMap.get("action"), is(nullValue()));
@@ -220,6 +271,8 @@ public class ExplainLifecycleIT extends ESRestTestCase {
 
     private void assertManagedIndex(Map<String, Object> explainIndexMap) {
         assertThat(explainIndexMap.get("managed"), is(true));
+        assertThat(explainIndexMap.get("time_since_index_creation"), is(notNullValue()));
+        assertThat(explainIndexMap.get("index_creation_date_millis"), is(notNullValue()));
         assertThat(explainIndexMap.get("policy"), is(policy));
         assertThat(explainIndexMap.get("phase"), is("new"));
         assertThat(explainIndexMap.get("action"), is("complete"));

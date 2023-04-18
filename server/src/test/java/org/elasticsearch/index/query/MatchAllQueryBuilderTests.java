@@ -29,7 +29,12 @@ public class MatchAllQueryBuilderTests extends AbstractQueryTestCase<MatchAllQue
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n" + "  \"match_all\" : {\n" + "    \"boost\" : 1.2\n" + "  }\n" + "}";
+        String json = """
+            {
+              "match_all" : {
+                "boost" : 1.2
+              }
+            }""";
         MatchAllQueryBuilder parsed = (MatchAllQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 1.2, parsed.boost(), 0.0001);

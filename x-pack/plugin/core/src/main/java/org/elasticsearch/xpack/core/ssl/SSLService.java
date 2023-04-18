@@ -27,6 +27,7 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslDiagnostics;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -77,7 +78,10 @@ import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.x500.X500Principal;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
+import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX;
 
 /**
  * Provides access to {@link SSLEngine} and {@link SSLSocketFactory} objects based on a provided configuration. All
@@ -185,7 +189,7 @@ public class SSLService {
         return new SSLService(env, sslConfigurations, sslContexts) {
 
             @Override
-            Map<SslConfiguration, SSLContextHolder> loadSslConfigurations(Map<String, SslConfiguration> sslConfigurations) {
+            Map<SslConfiguration, SSLContextHolder> loadSslConfigurations(Map<String, SslConfiguration> unused) {
                 // we don't need to load anything...
                 return Collections.emptyMap();
             }
@@ -214,26 +218,26 @@ public class SSLService {
      * Create a new {@link SSLIOSessionStrategy} based on the provided settings. The settings are used to identify the SSL configuration
      * that should be used to create the context.
      *
-     * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will return
-     *                 a context created from the default configuration
+     * @param settingsToUse the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will
+     *                      return a context created from the default configuration
      * @return Never {@code null}.
      * @deprecated This method will fail if the SSL configuration uses a {@link org.elasticsearch.common.settings.SecureSetting} but the
      * {@link org.elasticsearch.common.settings.SecureSettings} have been closed. Use {@link #getSSLConfiguration(String)}
      * and {@link #sslIOSessionStrategy(SslConfiguration)} (Deprecated, but not removed because monitoring uses dynamic SSL settings)
      */
     @Deprecated
-    public SSLIOSessionStrategy sslIOSessionStrategy(Settings settings) {
-        SslConfiguration config = sslConfiguration(settings);
+    public SSLIOSessionStrategy sslIOSessionStrategy(Settings settingsToUse) {
+        SslConfiguration config = sslConfiguration(settingsToUse);
         return sslIOSessionStrategy(config);
     }
 
     public SSLIOSessionStrategy sslIOSessionStrategy(SslConfiguration config) {
         SSLContext sslContext = sslContext(config);
         String[] ciphers = supportedCiphers(sslParameters(sslContext).getCipherSuites(), config.getCipherSuites(), false);
-        String[] supportedProtocols = config.getSupportedProtocols().toArray(Strings.EMPTY_ARRAY);
+        String[] supportedProtocols = config.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         HostnameVerifier verifier;
 
-        if (config.getVerificationMode().isHostnameVerificationEnabled()) {
+        if (config.verificationMode().isHostnameVerificationEnabled()) {
             verifier = SSLIOSessionStrategy.getDefaultHostnameVerifier();
         } else {
             verifier = NoopHostnameVerifier.INSTANCE;
@@ -244,7 +248,7 @@ public class SSLService {
     }
 
     public static HostnameVerifier getHostnameVerifier(SslConfiguration sslConfiguration) {
-        if (sslConfiguration.getVerificationMode().isHostnameVerificationEnabled()) {
+        if (sslConfiguration.verificationMode().isHostnameVerificationEnabled()) {
             return new DefaultHostnameVerifier();
         } else {
             return NoopHostnameVerifier.INSTANCE;
@@ -306,7 +310,7 @@ public class SSLService {
         SSLSocketFactory socketFactory = contextHolder.sslContext().getSocketFactory();
         final SecuritySSLSocketFactory securitySSLSocketFactory = new SecuritySSLSocketFactory(
             () -> contextHolder.sslContext().getSocketFactory(),
-            configuration.getSupportedProtocols().toArray(Strings.EMPTY_ARRAY),
+            configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
             supportedCiphers(socketFactory.getSupportedCipherSuites(), configuration.getCipherSuites(), false)
         );
         contextHolder.addReloadListener(securitySSLSocketFactory::reload);
@@ -329,9 +333,9 @@ public class SSLService {
         SSLContext sslContext = sslContext(configuration);
         SSLEngine sslEngine = sslContext.createSSLEngine(host, port);
         String[] ciphers = supportedCiphers(sslEngine.getSupportedCipherSuites(), configuration.getCipherSuites(), false);
-        String[] supportedProtocols = configuration.getSupportedProtocols().toArray(Strings.EMPTY_ARRAY);
+        String[] supportedProtocols = configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         SSLParameters parameters = new SSLParameters(ciphers, supportedProtocols);
-        if (configuration.getVerificationMode().isHostnameVerificationEnabled() && host != null) {
+        if (configuration.verificationMode().isHostnameVerificationEnabled() && host != null) {
             // By default, an SSLEngine will not perform hostname verification. In order to perform hostname verification
             // we need to specify a EndpointIdentificationAlgorithm. We use the HTTPS algorithm to prevent against
             // man in the middle attacks for all of our connections.
@@ -339,7 +343,7 @@ public class SSLService {
         }
         // we use the cipher suite order so that we can prefer the ciphers we set first in the list
         parameters.setUseCipherSuitesOrder(true);
-        configuration.getClientAuth().configure(parameters);
+        configuration.clientAuth().configure(parameters);
 
         // many SSLEngine options can be configured using either SSLParameters or direct methods on the engine itself, but there is one
         // tricky aspect; if you set a value directly on the engine and then later set the SSLParameters the value set directly on the
@@ -353,17 +357,17 @@ public class SSLService {
      *
      * @param sslConfiguration the configuration to check
      */
-    public boolean isConfigurationValidForServerUsage(SslConfiguration sslConfiguration) {
+    public static boolean isConfigurationValidForServerUsage(SslConfiguration sslConfiguration) {
         Objects.requireNonNull(sslConfiguration, "SslConfiguration cannot be null");
-        return sslConfiguration.getKeyConfig().hasKeyMaterial();
+        return sslConfiguration.keyConfig().hasKeyMaterial();
     }
 
     /**
      * Indicates whether client authentication is enabled for a particular configuration
      */
-    public boolean isSSLClientAuthEnabled(SslConfiguration sslConfiguration) {
+    public static boolean isSSLClientAuthEnabled(SslConfiguration sslConfiguration) {
         Objects.requireNonNull(sslConfiguration, "SslConfiguration cannot be null");
-        return sslConfiguration.getClientAuth().enabled();
+        return sslConfiguration.clientAuth().enabled();
     }
 
     /**
@@ -395,11 +399,11 @@ public class SSLService {
     /**
      * Returns the existing {@link SslConfiguration} for the given settings
      *
-     * @param settings the settings for the ssl configuration
+     * @param settingsToUse the settings for the ssl configuration
      * @return the ssl configuration for the provided settings
      */
-    public SslConfiguration sslConfiguration(Settings settings) {
-        return SslSettingsLoader.load(settings, null, env);
+    public SslConfiguration sslConfiguration(Settings settingsToUse) {
+        return SslSettingsLoader.load(settingsToUse, null, env);
     }
 
     public Set<String> getTransportProfileContextNames() {
@@ -469,8 +473,8 @@ public class SSLService {
         if (logger.isDebugEnabled()) {
             logger.debug("using ssl settings [{}]", sslConfiguration);
         }
-        X509ExtendedTrustManager trustManager = sslConfiguration.getTrustConfig().createTrustManager();
-        X509ExtendedKeyManager keyManager = sslConfiguration.getKeyConfig().createKeyManager();
+        X509ExtendedTrustManager trustManager = sslConfiguration.trustConfig().createTrustManager();
+        X509ExtendedKeyManager keyManager = sslConfiguration.keyConfig().createKeyManager();
         return createSslContext(keyManager, trustManager, sslConfiguration);
     }
 
@@ -490,7 +494,7 @@ public class SSLService {
         trustManager = wrapWithDiagnostics(trustManager, sslConfiguration);
         // Initialize sslContext
         try {
-            SSLContext sslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.getSupportedProtocols()));
+            SSLContext sslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.supportedProtocols()));
             sslContext.init(new X509ExtendedKeyManager[] { keyManager }, new X509ExtendedTrustManager[] { trustManager }, null);
 
             // check the supported ciphers and log them here to prevent spamming logs on every call
@@ -515,20 +519,13 @@ public class SSLService {
                     .filter(e -> e.getValue().equals(configuration))
                     .limit(2) // we only need to distinguishing between 0/1/many
                     .map(Entry::getKey)
-                    .collect(Collectors.toUnmodifiableList());
-                final String name;
-                switch (names.size()) {
-                    case 0:
-                        name = "(unknown)";
-                        break;
-                    case 1:
-                        name = names.get(0);
-                        break;
-                    default:
-                        name = "(shared)";
-                        break;
-                }
-                return name + " (with trust configuration: " + configuration.getTrustConfig() + ")";
+                    .toList();
+                final String name = switch (names.size()) {
+                    case 0 -> "(unknown)";
+                    case 1 -> names.get(0);
+                    default -> "(shared)";
+                };
+                return name + " (with trust configuration: " + configuration.trustConfig() + ")";
             };
             trustManager = new DiagnosticTrustManager(trustManager, contextName, diagnosticLogger::warn);
         }
@@ -541,7 +538,7 @@ public class SSLService {
 
     private static Map<String, SslConfiguration> getSSLConfigurations(Environment env, Settings settings) {
         final Map<String, Settings> sslSettingsMap = getSSLSettingsMap(settings);
-        final Map<String, SslConfiguration> sslConfigurationMap = new HashMap<>(sslSettingsMap.size());
+        final Map<String, SslConfiguration> sslConfigurationMap = Maps.newMapWithExpectedSize(sslSettingsMap.size());
         sslSettingsMap.forEach((key, sslSettings) -> {
             if (key.endsWith(".")) {
                 // Drop trailing '.' so that any exception messages are consistent
@@ -596,6 +593,15 @@ public class SSLService {
         sslSettingsMap.put(WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX, settings.getByPrefix(WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX));
         sslSettingsMap.put(XPackSettings.TRANSPORT_SSL_PREFIX, settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX));
         sslSettingsMap.putAll(getTransportProfileSSLSettings(settings));
+        // Only build remote cluster server SSL if the port is enabled
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
+            sslSettingsMap.put(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX, getRemoteClusterServerSslSettings(settings));
+        }
+        // We always build the ssl settings for the remote cluster client
+        sslSettingsMap.put(
+            XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX,
+            settings.getByPrefix(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX)
+        );
         return Collections.unmodifiableMap(sslSettingsMap);
     }
 
@@ -603,7 +609,7 @@ public class SSLService {
      * Parses the settings to load all SslConfiguration objects that will be used.
      */
     Map<SslConfiguration, SSLContextHolder> loadSslConfigurations(Map<String, SslConfiguration> sslConfigurationMap) {
-        final Map<SslConfiguration, SSLContextHolder> sslContextHolders = new HashMap<>(sslConfigurationMap.size());
+        final Map<SslConfiguration, SSLContextHolder> sslContextHolders = Maps.newMapWithExpectedSize(sslConfigurationMap.size());
         sslConfigurationMap.forEach((key, sslConfiguration) -> {
             try {
                 sslContextHolders.computeIfAbsent(sslConfiguration, this::createSslContext);
@@ -617,6 +623,7 @@ public class SSLService {
         for (String context : List.of("xpack.security.transport.ssl", "xpack.security.http.ssl")) {
             validateServerConfiguration(context);
         }
+        maybeValidateRemoteClusterServerConfiguration();
 
         return Collections.unmodifiableMap(sslContextHolders);
     }
@@ -629,25 +636,10 @@ public class SSLService {
             // Client Authentication _should_ be required, but if someone turns it off, then this check is no longer relevant
             final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(prefix + ".", true);
             if (isConfigurationValidForServerUsage(configuration) == false) {
-                throw new ElasticsearchSecurityException(
-                    "invalid SSL configuration for "
-                        + prefix
-                        + " - server ssl configuration requires a key and certificate, but these have not been configured; "
-                        + "you must set either ["
-                        + configurationSettings.x509KeyPair.keystorePath.getKey()
-                        + "], or both ["
-                        + configurationSettings.x509KeyPair.keyPath.getKey()
-                        + "] and ["
-                        + configurationSettings.x509KeyPair.certificatePath.getKey()
-                        + "]"
-                );
+                throwExceptionForMissingKeyMaterial(prefix, configurationSettings);
             }
         } else if (settings.hasValue(enabledSetting) == false) {
-            final List<String> sslSettingNames = settings.keySet()
-                .stream()
-                .filter(s -> s.startsWith(prefix))
-                .sorted()
-                .collect(Collectors.toUnmodifiableList());
+            final List<String> sslSettingNames = settings.keySet().stream().filter(s -> s.startsWith(prefix)).sorted().toList();
             if (sslSettingNames.isEmpty() == false) {
                 throw new ElasticsearchSecurityException(
                     "invalid configuration for "
@@ -660,6 +652,38 @@ public class SSLService {
                 );
             }
         }
+    }
+
+    private void maybeValidateRemoteClusterServerConfiguration() {
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings) == false) {
+            return;
+        }
+        final SslConfiguration sslConfiguration = getSSLConfiguration(REMOTE_CLUSTER_SERVER_SSL_PREFIX);
+        if (REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings)) {
+            if (isConfigurationValidForServerUsage(sslConfiguration) == false) {
+                final SSLConfigurationSettings configurationSettings = SSLConfigurationSettings.withPrefix(
+                    REMOTE_CLUSTER_SERVER_SSL_PREFIX,
+                    false,
+                    SSLConfigurationSettings.IntendedUse.SERVER
+                );
+                throwExceptionForMissingKeyMaterial(REMOTE_CLUSTER_SERVER_SSL_PREFIX, configurationSettings);
+            }
+        }
+    }
+
+    private static void throwExceptionForMissingKeyMaterial(String prefix, SSLConfigurationSettings configurationSettings) {
+        throw new ElasticsearchSecurityException(
+            "invalid SSL configuration for "
+                + (prefix.endsWith(".") ? prefix.substring(0, prefix.length() - 1) : prefix)
+                + " - server ssl configuration requires a key and certificate, but these have not been configured; "
+                + "you must set either ["
+                + configurationSettings.x509KeyPair.keystorePath.getKey()
+                + "], or both ["
+                + configurationSettings.x509KeyPair.keyPath.getKey()
+                + "] and ["
+                + configurationSettings.x509KeyPair.certificatePath.getKey()
+                + "]"
+        );
     }
 
     /**
@@ -676,9 +700,7 @@ public class SSLService {
             .stream()
             .map(SslConfiguration::getConfiguredCertificates)
             .flatMap(Collection::stream)
-            .map(
-                cert -> new CertificateInfo(cert.getPath(), cert.getFormat(), cert.getAlias(), cert.hasPrivateKey(), cert.getCertificate())
-            )
+            .map(cert -> new CertificateInfo(cert.path(), cert.format(), cert.alias(), cert.hasPrivateKey(), cert.certificate()))
             .collect(Sets.toUnmodifiableSortedSet());
     }
 
@@ -781,8 +803,8 @@ public class SSLService {
         SSLContextHolder(SSLContext context, SslConfiguration sslConfiguration) {
             this.context = context;
             this.sslConfiguration = sslConfiguration;
-            this.keyConfig = sslConfiguration.getKeyConfig();
-            this.trustConfig = sslConfiguration.getTrustConfig();
+            this.keyConfig = sslConfiguration.keyConfig();
+            this.trustConfig = sslConfiguration.trustConfig();
             this.reloadListeners = new ArrayList<>();
         }
 
@@ -803,7 +825,7 @@ public class SSLService {
                 X509ExtendedTrustManager loadedTrustManager = trustConfig.createTrustManager();
                 loadedTrustManager = wrapWithDiagnostics(loadedTrustManager, sslConfiguration);
 
-                SSLContext loadedSslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.getSupportedProtocols()));
+                SSLContext loadedSslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.supportedProtocols()));
                 loadedSslContext.init(
                     new X509ExtendedKeyManager[] { loadedKeyManager },
                     new X509ExtendedTrustManager[] { loadedTrustManager },
@@ -885,6 +907,15 @@ public class SSLService {
         Settings.Builder builder = Settings.builder().put(httpSSLSettings);
         if (builder.get("client_authentication") == null) {
             builder.put("client_authentication", XPackSettings.HTTP_CLIENT_AUTH_DEFAULT);
+        }
+        return builder.build();
+    }
+
+    private static Settings getRemoteClusterServerSslSettings(Settings settings) {
+        final Settings remoteClusterSslSettings = settings.getByPrefix(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX);
+        final Settings.Builder builder = Settings.builder().put(remoteClusterSslSettings);
+        if (builder.get("client_authentication") == null) {
+            builder.put("client_authentication", XPackSettings.REMOTE_CLUSTER_CLIENT_AUTH_DEFAULT);
         }
         return builder.build();
     }

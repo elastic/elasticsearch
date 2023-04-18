@@ -18,9 +18,7 @@ public interface BootstrapCheck {
     /**
      * Encapsulate the result of a bootstrap check.
      */
-    final class BootstrapCheckResult {
-
-        private final String message;
+    record BootstrapCheckResult(String message) {
 
         private static final BootstrapCheckResult SUCCESS = new BootstrapCheckResult(null);
 
@@ -31,10 +29,6 @@ public interface BootstrapCheck {
         public static BootstrapCheckResult failure(final String message) {
             Objects.requireNonNull(message);
             return new BootstrapCheckResult(message);
-        }
-
-        private BootstrapCheckResult(final String message) {
-            this.message = message;
         }
 
         public boolean isSuccess() {

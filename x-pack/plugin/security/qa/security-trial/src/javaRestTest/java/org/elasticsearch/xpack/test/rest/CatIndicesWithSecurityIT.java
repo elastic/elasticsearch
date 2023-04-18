@@ -60,10 +60,18 @@ public class CatIndicesWithSecurityIT extends ESRestTestCase {
         // Create the index and alias
         {
             final Request createRequest = new Request("PUT", ".index_hidden");
-            createRequest.setJsonEntity(
-                "{\"settings\": {\"index.hidden\": true, \"number_of_replicas\":  0}, "
-                    + "\"aliases\": {\"index_allowed\": {\"is_hidden\":  true}}}"
-            );
+            createRequest.setJsonEntity("""
+                {
+                  "settings": {
+                    "index.hidden": true,
+                    "number_of_replicas": 0
+                  },
+                  "aliases": {
+                    "index_allowed": {
+                      "is_hidden": true
+                    }
+                  }
+                }""");
             final Response createResponse = adminClient().performRequest(createRequest);
             assertOK(createResponse);
             ensureGreen("index_allowed");
@@ -94,9 +102,17 @@ public class CatIndicesWithSecurityIT extends ESRestTestCase {
         // Create the index and alias
         {
             final Request createRequest = new Request("PUT", "visible_index");
-            createRequest.setJsonEntity(
-                "{\"settings\": {\"number_of_replicas\":  0}, " + "\"aliases\": {\"index_allowed\": {\"is_hidden\":  true}}}"
-            );
+            createRequest.setJsonEntity("""
+                {
+                  "settings": {
+                    "number_of_replicas": 0
+                  },
+                  "aliases": {
+                    "index_allowed": {
+                      "is_hidden": true
+                    }
+                  }
+                }""");
             final Response createResponse = adminClient().performRequest(createRequest);
             assertOK(createResponse);
             ensureGreen("index_allowed");

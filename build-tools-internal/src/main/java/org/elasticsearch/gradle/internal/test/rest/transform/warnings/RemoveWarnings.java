@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * A transformation to to remove any warnings that match exactly.
+ * A transformation to remove any warnings that match exactly.
  * If this removes all of the warnings, this will not remove the feature from the setup and/or teardown and will leave behind an empty array
  * While it would be more technically correct to do so, the effort/complexity does not warrant it, since for the expected usage it makes
  * no difference.
@@ -82,7 +82,7 @@ public class RemoveWarnings implements RestTestTransformByParentObject {
 
     @Override
     public boolean shouldApply(RestTestContext testContext) {
-        return testName == null || testContext.getTestName().equals(testName);
+        return testName == null || testContext.testName().equals(testName);
     }
 
     @Input

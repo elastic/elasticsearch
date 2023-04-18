@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,12 +56,12 @@ public class CompositeValuesSourceParserHelper {
         } else if (builder.getClass() == HistogramValuesSourceBuilder.class) {
             code = 2;
         } else if (builder.getClass() == GeoTileGridValuesSourceBuilder.class) {
-            if (out.getVersion().before(Version.V_7_5_0)) {
+            if (out.getTransportVersion().before(TransportVersion.V_7_5_0)) {
                 throw new IOException(
                     "Attempting to serialize ["
                         + builder.getClass().getSimpleName()
-                        + "] to a node with unsupported version ["
-                        + out.getVersion()
+                        + "] to a stream with unsupported version ["
+                        + out.getTransportVersion()
                         + "]"
                 );
             }
@@ -75,18 +75,13 @@ public class CompositeValuesSourceParserHelper {
 
     public static CompositeValuesSourceBuilder<?> readFrom(StreamInput in) throws IOException {
         int code = in.readByte();
-        switch (code) {
-            case 0:
-                return new TermsValuesSourceBuilder(in);
-            case 1:
-                return new DateHistogramValuesSourceBuilder(in);
-            case 2:
-                return new HistogramValuesSourceBuilder(in);
-            case 3:
-                return new GeoTileGridValuesSourceBuilder(in);
-            default:
-                throw new IOException("Invalid code " + code);
-        }
+        return switch (code) {
+            case 0 -> new TermsValuesSourceBuilder(in);
+            case 1 -> new DateHistogramValuesSourceBuilder(in);
+            case 2 -> new HistogramValuesSourceBuilder(in);
+            case 3 -> new GeoTileGridValuesSourceBuilder(in);
+            default -> throw new IOException("Invalid code " + code);
+        };
     }
 
     public static CompositeValuesSourceBuilder<?> fromXContent(XContentParser parser) throws IOException {
@@ -102,23 +97,13 @@ public class CompositeValuesSourceParserHelper {
         String type = parser.currentName();
         token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-        final CompositeValuesSourceBuilder<?> builder;
-        switch (type) {
-            case TermsValuesSourceBuilder.TYPE:
-                builder = TermsValuesSourceBuilder.parse(name, parser);
-                break;
-            case DateHistogramValuesSourceBuilder.TYPE:
-                builder = DateHistogramValuesSourceBuilder.PARSER.parse(parser, name);
-                break;
-            case HistogramValuesSourceBuilder.TYPE:
-                builder = HistogramValuesSourceBuilder.parse(name, parser);
-                break;
-            case GeoTileGridValuesSourceBuilder.TYPE:
-                builder = GeoTileGridValuesSourceBuilder.parse(name, parser);
-                break;
-            default:
-                throw new ParsingException(parser.getTokenLocation(), "invalid source type: " + type);
-        }
+        final CompositeValuesSourceBuilder<?> builder = switch (type) {
+            case TermsValuesSourceBuilder.TYPE -> TermsValuesSourceBuilder.parse(name, parser);
+            case DateHistogramValuesSourceBuilder.TYPE -> DateHistogramValuesSourceBuilder.PARSER.parse(parser, name);
+            case HistogramValuesSourceBuilder.TYPE -> HistogramValuesSourceBuilder.parse(name, parser);
+            case GeoTileGridValuesSourceBuilder.TYPE -> GeoTileGridValuesSourceBuilder.parse(name, parser);
+            default -> throw new ParsingException(parser.getTokenLocation(), "invalid source type: " + type);
+        };
         parser.nextToken();
         parser.nextToken();
         return builder;

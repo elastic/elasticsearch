@@ -8,11 +8,8 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -22,6 +19,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -49,7 +47,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.CoreMatchers;
@@ -91,7 +89,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(TestPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(TestPlugin.class);
     }
 
     @Override
@@ -110,6 +108,22 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             functionScoreQueryBuilder.setMinScore(randomFloat());
         }
         return functionScoreQueryBuilder;
+    }
+
+    @Override
+    protected FunctionScoreQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (randomBoolean()) {
+            return new FunctionScoreQueryBuilder(queryBuilder);
+        }
+        int iters = randomIntBetween(1, 3);
+        FilterFunctionBuilder[] filterFunctionBuilders = new FilterFunctionBuilder[iters];
+        for (int i = 0; i < iters; i++) {
+            filterFunctionBuilders[i] = new FilterFunctionBuilder(queryBuilder, new RandomScoreFunctionBuilder());
+        }
+        if (randomBoolean()) {
+            return new FunctionScoreQueryBuilder(filterFunctionBuilders);
+        }
+        return new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
     }
 
     @Override
@@ -162,14 +176,14 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         }
         ScoreFunctionBuilder<?> functionBuilder;
         switch (randomIntBetween(0, 3)) {
-            case 0:
+            case 0 -> {
                 DecayFunctionBuilder<?> decayFunctionBuilder = createRandomDecayFunction();
                 if (randomBoolean()) {
                     decayFunctionBuilder.setMultiValueMode(randomFrom(MultiValueMode.values()));
                 }
                 functionBuilder = decayFunctionBuilder;
-                break;
-            case 1:
+            }
+            case 1 -> {
                 FieldValueFactorFunctionBuilder fieldValueFactorFunctionBuilder = fieldValueFactorFunction(
                     fieldValueFactorCompatibleField()
                 );
@@ -183,13 +197,13 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     fieldValueFactorFunctionBuilder.modifier(randomFrom(FieldValueFactorFunction.Modifier.values()));
                 }
                 functionBuilder = fieldValueFactorFunctionBuilder;
-                break;
-            case 2:
+            }
+            case 2 -> {
                 String script = "1";
                 Map<String, Object> params = Collections.emptyMap();
                 functionBuilder = new ScriptScoreFunctionBuilder(new Script(ScriptType.INLINE, MockScriptEngine.NAME, script, params));
-                break;
-            case 3:
+            }
+            case 3 -> {
                 RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();
                 if (randomBoolean()) { // sometimes provide no seed
                     if (randomBoolean()) {
@@ -202,9 +216,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     randomScoreFunctionBuilder.setField(SeqNoFieldMapper.NAME); // guaranteed to exist
                 }
                 functionBuilder = randomScoreFunctionBuilder;
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
         if (randomBoolean()) {
             functionBuilder.setWeight(randomFloat());
@@ -229,37 +242,33 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         Object scale;
         Object offset;
         switch (field) {
-            case GEO_POINT_FIELD_NAME:
+            case GEO_POINT_FIELD_NAME -> {
                 origin = new GeoPoint(randomDouble(), randomDouble()).geohash();
                 scale = randomFrom(DistanceUnit.values()).toString(randomDouble());
                 offset = randomFrom(DistanceUnit.values()).toString(randomDouble());
-                break;
-            case DATE_FIELD_NAME:
+            }
+            case DATE_FIELD_NAME -> {
                 origin = ZonedDateTime.ofInstant(
                     Instant.ofEpochMilli(System.currentTimeMillis() - randomIntBetween(0, 1000000)),
                     ZoneOffset.UTC
                 ).toString();
                 scale = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
                 offset = randomPositiveTimeValue();
-                break;
-            default:
+            }
+            default -> {
                 origin = randomBoolean() ? randomInt() : randomFloat();
                 scale = randomBoolean() ? between(1, Integer.MAX_VALUE) : randomFloat() + Float.MIN_NORMAL;
                 offset = randomBoolean() ? between(1, Integer.MAX_VALUE) : randomFloat() + Float.MIN_NORMAL;
-                break;
+            }
         }
         offset = randomBoolean() ? null : offset;
         double decay = randomDouble();
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new GaussDecayFunctionBuilder(field, origin, scale, offset, decay);
-            case 1:
-                return new ExponentialDecayFunctionBuilder(field, origin, scale, offset, decay);
-            case 2:
-                return new LinearDecayFunctionBuilder(field, origin, scale, offset, decay);
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new GaussDecayFunctionBuilder(field, origin, scale, offset, decay);
+            case 1 -> new ExponentialDecayFunctionBuilder(field, origin, scale, offset, decay);
+            case 2 -> new LinearDecayFunctionBuilder(field, origin, scale, offset, decay);
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     @Override
@@ -298,48 +307,49 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testParseFunctionsArray() throws IOException {
-        String functionScoreQuery = "{\n"
-            + "    \"function_score\":{\n"
-            + "        \"query\":{\n"
-            + "            \"term\":{\n"
-            + "                \"field1\":\"value1\"\n"
-            + "            }\n"
-            + "        },\n"
-            + "        \"functions\":  [\n"
-            + "            {\n"
-            + "                \"random_score\":  {\n"
-            + "                    \"seed\":123456\n"
-            + "                },\n"
-            + "                \"weight\": 3,\n"
-            + "                \"filter\": {\n"
-            + "                    \"term\":{\n"
-            + "                        \"field2\":\"value2\"\n"
-            + "                    }\n"
-            + "                }\n"
-            + "            },\n"
-            + "            {\n"
-            + "                \"filter\": {\n"
-            + "                    \"term\":{\n"
-            + "                        \"field3\":\"value3\"\n"
-            + "                    }\n"
-            + "                },\n"
-            + "                \"weight\": 9\n"
-            + "            },\n"
-            + "            {\n"
-            + "                \"gauss\":  {\n"
-            + "                    \"field_name\":  {\n"
-            + "                        \"origin\":0.5,\n"
-            + "                        \"scale\":0.6\n"
-            + "                    }\n"
-            + "                }\n"
-            + "            }\n"
-            + "        ],\n"
-            + "        \"boost\" : 3,\n"
-            + "        \"score_mode\" : \"avg\",\n"
-            + "        \"boost_mode\" : \"replace\",\n"
-            + "        \"max_boost\" : 10\n"
-            + "    }\n"
-            + "}";
+        String functionScoreQuery = """
+            {
+                "function_score":{
+                    "query":{
+                        "term":{
+                            "field1":"value1"
+                        }
+                    },
+                    "functions":  [
+                        {
+                            "random_score":  {
+                                "seed":123456
+                            },
+                            "weight": 3,
+                            "filter": {
+                                "term":{
+                                    "field2":"value2"
+                                }
+                            }
+                        },
+                        {
+                            "filter": {
+                                "term":{
+                                    "field3":"value3"
+                                }
+                            },
+                            "weight": 9
+                        },
+                        {
+                            "gauss":  {
+                                "field_name":  {
+                                    "origin":0.5,
+                                    "scale":0.6
+                                }
+                            }
+                        }
+                    ],
+                    "boost" : 3,
+                    "score_mode" : "avg",
+                    "boost_mode" : "replace",
+                    "max_boost" : 10
+                }
+            }""";
 
         QueryBuilder queryBuilder = parseQuery(functionScoreQuery);
         /*
@@ -393,25 +403,26 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testParseSingleFunction() throws IOException {
-        String functionScoreQuery = "{\n"
-            + "    \"function_score\":{\n"
-            + "        \"query\":{\n"
-            + "            \"term\":{\n"
-            + "                \"field1\":\"value1\"\n"
-            + "            }\n"
-            + "        },\n"
-            + "        \"gauss\":  {\n"
-            + "            \"field_name\":  {\n"
-            + "                \"origin\":0.5,\n"
-            + "                \"scale\":0.6\n"
-            + "            }\n"
-            + "         },\n"
-            + "        \"boost\" : 3,\n"
-            + "        \"score_mode\" : \"avg\",\n"
-            + "        \"boost_mode\" : \"replace\",\n"
-            + "        \"max_boost\" : 10\n"
-            + "    }\n"
-            + "}";
+        String functionScoreQuery = """
+            {
+                "function_score":{
+                    "query":{
+                        "term":{
+                            "field1":"value1"
+                        }
+                    },
+                    "gauss":  {
+                        "field_name":  {
+                            "origin":0.5,
+                            "scale":0.6
+                        }
+                     },
+                    "boost" : 3,
+                    "score_mode" : "avg",
+                    "boost_mode" : "replace",
+                    "max_boost" : 10
+                }
+            }""";
 
         QueryBuilder queryBuilder = parseQuery(functionScoreQuery);
         /*
@@ -448,39 +459,41 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     public void testProperErrorMessageWhenTwoFunctionsDefinedInQueryBody() throws IOException {
         // without a functions array, we support only a single function, weight can't be associated with the function either.
-        String functionScoreQuery = "{\n"
-            + "    \"function_score\": {\n"
-            + "      \"script_score\": {\n"
-            + "        \"script\": \"5\"\n"
-            + "      },\n"
-            + "      \"weight\": 2\n"
-            + "    }\n"
-            + "}";
+        String functionScoreQuery = """
+            {
+                "function_score": {
+                  "script_score": {
+                    "script": "5"
+                  },
+                  "weight": 2
+                }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(functionScoreQuery));
         assertThat(e.getMessage(), containsString("use [functions] array if you want to define several functions."));
     }
 
     public void testProperErrorMessageWhenTwoFunctionsDefinedInFunctionsArray() throws IOException {
-        String functionScoreQuery = "{\n"
-            + "    \"function_score\":{\n"
-            + "        \"functions\":  [\n"
-            + "            {\n"
-            + "                \"random_score\":  {\n"
-            + "                    \"seed\":123456\n"
-            + "                },\n"
-            + "                \"weight\": 3,\n"
-            + "                \"script_score\": {\n"
-            + "                    \"script\": \"_index['text']['foo'].tf()\"\n"
-            + "                },\n"
-            + "                \"filter\": {\n"
-            + "                    \"term\":{\n"
-            + "                        \"field2\":\"value2\"\n"
-            + "                    }\n"
-            + "                }\n"
-            + "            }\n"
-            + "        ]\n"
-            + "    }\n"
-            + "}";
+        String functionScoreQuery = """
+            {
+                "function_score":{
+                    "functions":  [
+                        {
+                            "random_score":  {
+                                "seed":123456
+                            },
+                            "weight": 3,
+                            "script_score": {
+                                "script": "_index['text']['foo'].tf()"
+                            },
+                            "filter": {
+                                "term":{
+                                    "field2":"value2"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(functionScoreQuery));
         assertThat(
             e.getMessage(),
@@ -489,19 +502,20 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testProperErrorMessageWhenMissingFunction() throws IOException {
-        String functionScoreQuery = "{\n"
-            + "    \"function_score\":{\n"
-            + "        \"functions\":  [\n"
-            + "            {\n"
-            + "                \"filter\": {\n"
-            + "                    \"term\":{\n"
-            + "                        \"field2\":\"value2\"\n"
-            + "                    }\n"
-            + "                }\n"
-            + "            }\n"
-            + "        ]\n"
-            + "    }\n"
-            + "}";
+        String functionScoreQuery = """
+            {
+                "function_score":{
+                    "functions":  [
+                        {
+                            "filter": {
+                                "term":{
+                                    "field2":"value2"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(functionScoreQuery));
         assertThat(e.getMessage(), containsString("an entry in functions list is missing a function."));
     }
@@ -585,21 +599,22 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testMalformedThrowsException() throws IOException {
-        String json = "{\n"
-            + "    \"function_score\":{\n"
-            + "        \"query\":{\n"
-            + "            \"term\":{\n"
-            + "                \"name.last\":\"banon\"\n"
-            + "            }\n"
-            + "        },\n"
-            + "        \"functions\": [\n"
-            + "            {\n"
-            + "                {\n"
-            + "            }\n"
-            + "        ]\n"
-            + "    }\n"
-            + "}";
-        JsonParseException e = expectThrows(JsonParseException.class, () -> parseQuery(json));
+        String json = """
+            {
+                "function_score":{
+                    "query":{
+                        "term":{
+                            "name.last":"banon"
+                        }
+                    },
+                    "functions": [
+                        {
+                            {
+                        }
+                    ]
+                }
+            }""";
+        XContentParseException e = expectThrows(XContentParseException.class, () -> parseQuery(json));
         assertThat(e.getMessage(), containsString("Unexpected character ('{"));
     }
 
@@ -624,64 +639,69 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     public void testFieldValueFactorFactorArray() throws IOException {
         // don't permit an array of factors
-        String querySource = "{"
-            + "  \"function_score\": {"
-            + "    \"query\": {"
-            + "      \"match\": {\"name\": \"foo\"}"
-            + "      },"
-            + "      \"functions\": ["
-            + "        {"
-            + "          \"field_value_factor\": {"
-            + "            \"field\": \"test\","
-            + "            \"factor\": [1.2,2]"
-            + "          }"
-            + "        }"
-            + "      ]"
-            + "    }"
-            + "}";
+        String querySource = """
+            {
+              "function_score": {
+                "query": {
+                  "match": {
+                    "name": "foo"
+                  }
+                },
+                "functions": [
+                  {
+                    "field_value_factor": {
+                      "field": "test",
+                      "factor": [ 1.2, 2 ]
+                    }
+                  }
+                ]
+              }
+            }""";
         expectParsingException(querySource, containsString("[field_value_factor] field 'factor' does not support lists or objects"));
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"function_score\" : {\n"
-            + "    \"query\" : { \"match_all\" : {} },\n"
-            + "    \"functions\" : [ {\n"
-            + "      \"filter\" : { \"match_all\" : {}},\n"
-            + "      \"weight\" : 23.0,\n"
-            + "      \"random_score\" : { }\n"
-            + "    }, {\n"
-            + "      \"filter\" : { \"match_all\" : {}},\n"
-            + "      \"weight\" : 5.0\n"
-            + "    } ],\n"
-            + "    \"score_mode\" : \"multiply\",\n"
-            + "    \"boost_mode\" : \"multiply\",\n"
-            + "    \"max_boost\" : 100.0,\n"
-            + "    \"min_score\" : 1.0,\n"
-            + "    \"boost\" : 42.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "function_score" : {
+                "query" : { "match_all" : {} },
+                "functions" : [ {
+                  "filter" : { "match_all" : {}},
+                  "weight" : 23.0,
+                  "random_score" : { }
+                }, {
+                  "filter" : { "match_all" : {}},
+                  "weight" : 5.0
+                } ],
+                "score_mode" : "multiply",
+                "boost_mode" : "multiply",
+                "max_boost" : 100.0,
+                "min_score" : 1.0,
+                "boost" : 42.0
+              }
+            }""";
 
         FunctionScoreQueryBuilder parsed = (FunctionScoreQueryBuilder) parseQuery(json);
         // this should be equivalent to the same with a match_all query
-        String expected = "{\n"
-            + "  \"function_score\" : {\n"
-            + "    \"query\" : { \"match_all\" : {} },\n"
-            + "    \"functions\" : [ {\n"
-            + "      \"filter\" : { \"match_all\" : {}},\n"
-            + "      \"weight\" : 23.0,\n"
-            + "      \"random_score\" : { }\n"
-            + "    }, {\n"
-            + "      \"filter\" : { \"match_all\" : {}},\n"
-            + "      \"weight\" : 5.0\n"
-            + "    } ],\n"
-            + "    \"score_mode\" : \"multiply\",\n"
-            + "    \"boost_mode\" : \"multiply\",\n"
-            + "    \"max_boost\" : 100.0,\n"
-            + "    \"min_score\" : 1.0,\n"
-            + "    \"boost\" : 42.0\n"
-            + "  }\n"
-            + "}";
+        String expected = """
+            {
+              "function_score" : {
+                "query" : { "match_all" : {} },
+                "functions" : [ {
+                  "filter" : { "match_all" : {}},
+                  "weight" : 23.0,
+                  "random_score" : { }
+                }, {
+                  "filter" : { "match_all" : {}},
+                  "weight" : 5.0
+                } ],
+                "score_mode" : "multiply",
+                "boost_mode" : "multiply",
+                "max_boost" : 100.0,
+                "min_score" : 1.0,
+                "boost" : 42.0
+              }
+            }""";
 
         FunctionScoreQueryBuilder expectedParsed = (FunctionScoreQueryBuilder) parseQuery(expected);
         assertEquals(expectedParsed, parsed);
@@ -761,44 +781,56 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testQueryMalformedArrayNotSupported() throws IOException {
-        String json = "{\n" + "  \"function_score\" : {\n" + "    \"not_supported\" : []\n" + "  }\n" + "}";
+        String json = """
+            {
+              "function_score" : {
+                "not_supported" : []
+              }
+            }""";
 
         expectParsingException(json, "array [not_supported] is not supported");
     }
 
     public void testQueryMalformedFieldNotSupported() throws IOException {
-        String json = "{\n" + "  \"function_score\" : {\n" + "    \"not_supported\" : \"value\"\n" + "  }\n" + "}";
+        String json = """
+            {
+              "function_score" : {
+                "not_supported" : "value"
+              }
+            }""";
 
         expectParsingException(json, "field [not_supported] is not supported");
     }
 
     public void testMalformedQueryFunctionFieldNotSupported() throws IOException {
-        String json = "{\n"
-            + "  \"function_score\" : {\n"
-            + "    \"functions\" : [ {\n"
-            + "      \"not_supported\" : 23.0\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "function_score" : {
+                "functions" : [ {
+                  "not_supported" : 23.0
+                }
+              }
+            }""";
 
         expectParsingException(json, "field [not_supported] is not supported");
     }
 
     public void testMalformedQueryMultipleQueryObjects() throws IOException {
         // verify that an error is thrown rather than setting the query twice (https://github.com/elastic/elasticsearch/issues/16583)
-        String json = "{\n"
-            + "    \"function_score\":{\n"
-            + "        \"query\":{\n"
-            + "            \"bool\":{\n"
-            + "                \"must\":{\"match\":{\"field\":\"value\"}}"
-            + "             },\n"
-            + "            \"ignored_field_name\": {\n"
-            + "                {\"match\":{\"field\":\"value\"}}\n"
-            + "            }\n"
-            + "            }\n"
-            + "        }\n"
-            + "    }\n"
-            + "}";
+        String json = """
+            {
+                "function_score":{
+                    "query":{
+                        "bool":{
+                            "must":{"match":{"field":"value"}}
+                        },
+                        "ignored_field_name": {
+                            {"match":{"field":"value"}}
+                        }
+                        }
+                    }
+                }
+            }""";
         expectParsingException(json, equalTo("[bool] malformed query, expected [END_OBJECT] but found [FIELD_NAME]"));
     }
 

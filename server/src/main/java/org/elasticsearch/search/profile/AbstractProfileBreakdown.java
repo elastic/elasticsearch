@@ -8,8 +8,9 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.common.util.Maps;
+
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -48,7 +49,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
      * Build a timing count breakdown.
      */
     public final Map<String, Long> toBreakdownMap() {
-        Map<String, Long> map = new HashMap<>(timings.length * 2);
+        Map<String, Long> map = Maps.newMapWithExpectedSize(timings.length * 2);
         for (T timingType : timingTypes) {
             map.put(timingType.toString(), timings[timingType.ordinal()].getApproximateTiming());
             map.put(timingType.toString() + "_count", timings[timingType.ordinal()].getCount());

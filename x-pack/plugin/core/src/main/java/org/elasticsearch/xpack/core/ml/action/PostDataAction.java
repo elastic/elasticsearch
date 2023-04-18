@@ -167,6 +167,7 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
             return xContentType;
         }
 
+        @SuppressWarnings("HiddenField")
         public void setContent(BytesReference content, XContentType xContentType) {
             this.content = content;
             this.xContentType = xContentType;

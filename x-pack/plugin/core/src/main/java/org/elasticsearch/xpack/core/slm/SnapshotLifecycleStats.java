@@ -133,14 +133,14 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
     }
 
     public SnapshotLifecycleStats removePolicy(String policyId) {
-        Map<String, SnapshotPolicyStats> policyStats = new HashMap<>(this.policyStats);
-        policyStats.remove(policyId);
+        Map<String, SnapshotPolicyStats> policyStatsCopy = new HashMap<>(this.policyStats);
+        policyStatsCopy.remove(policyId);
         return new SnapshotLifecycleStats(
             this.retentionRunCount.count(),
             this.retentionFailedCount.count(),
             this.retentionTimedOut.count(),
             this.retentionTimeMs.count(),
-            policyStats
+            policyStatsCopy
         );
     }
 

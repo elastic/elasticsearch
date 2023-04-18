@@ -11,7 +11,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
@@ -87,6 +86,8 @@ public abstract class SourceGenerator {
             if (container.limit().offset() > 0) {
                 source.from(container.limit().offset());
             }
+        } else {
+            source.size(0);
         }
 
         optimize(container, source);
@@ -98,13 +99,12 @@ public abstract class SourceGenerator {
         for (Sort sortable : container.sort().values()) {
             SortBuilder<?> sortBuilder = null;
 
-            if (sortable instanceof AttributeSort) {
-                AttributeSort as = (AttributeSort) sortable;
+            if (sortable instanceof AttributeSort as) {
                 Attribute attr = as.attribute();
 
                 // sorting only works on not-analyzed fields - look for a multi-field replacement
-                if (attr instanceof FieldAttribute) {
-                    FieldAttribute fa = ((FieldAttribute) attr).exactAttribute();
+                if (attr instanceof FieldAttribute fieldAttribute) {
+                    FieldAttribute fa = fieldAttribute.exactAttribute();
 
                     sortBuilder = fieldSort(fa.name()).missing(as.missing().searchOrder(as.direction()))
                         .unmappedType(fa.dataType().esType());
@@ -133,12 +133,8 @@ public abstract class SourceGenerator {
                         sortBuilder = fieldSort;
                     }
                 }
-            } else if (sortable instanceof ScriptSort) {
-                ScriptSort ss = (ScriptSort) sortable;
-                sortBuilder = scriptSort(
-                    ss.script().toPainless(),
-                    ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING
-                );
+            } else if (sortable instanceof ScriptSort ss) {
+                sortBuilder = scriptSort(ss.script().toPainless(), ss.script().outputType().scriptSortType());
             }
 
             if (sortBuilder != null) {

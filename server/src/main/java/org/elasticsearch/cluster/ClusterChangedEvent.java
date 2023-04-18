@@ -8,15 +8,11 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 
@@ -24,9 +20,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * An event received by the local node, signaling that the cluster state has changed.
@@ -104,8 +100,8 @@ public class ClusterChangedEvent {
             return Collections.emptyList();
         }
         List<String> created = null;
-        for (ObjectCursor<String> cursor : state.metadata().indices().keys()) {
-            String index = cursor.value;
+        for (Map.Entry<String, IndexMetadata> cursor : state.metadata().indices().entrySet()) {
+            String index = cursor.getKey();
             if (previousState.metadata().hasIndex(index) == false) {
                 if (created == null) {
                     created = new ArrayList<>();
@@ -145,20 +141,20 @@ public class ClusterChangedEvent {
      */
     public Set<String> changedCustomMetadataSet() {
         Set<String> result = new HashSet<>();
-        ImmutableOpenMap<String, Metadata.Custom> currentCustoms = state.metadata().customs();
-        ImmutableOpenMap<String, Metadata.Custom> previousCustoms = previousState.metadata().customs();
+        Map<String, Metadata.Custom> currentCustoms = state.metadata().customs();
+        Map<String, Metadata.Custom> previousCustoms = previousState.metadata().customs();
         if (currentCustoms.equals(previousCustoms) == false) {
-            for (ObjectObjectCursor<String, Metadata.Custom> currentCustomMetadata : currentCustoms) {
+            for (Map.Entry<String, Metadata.Custom> currentCustomMetadata : currentCustoms.entrySet()) {
                 // new custom md added or existing custom md changed
-                if (previousCustoms.containsKey(currentCustomMetadata.key) == false
-                    || currentCustomMetadata.value.equals(previousCustoms.get(currentCustomMetadata.key)) == false) {
-                    result.add(currentCustomMetadata.key);
+                if (previousCustoms.containsKey(currentCustomMetadata.getKey()) == false
+                    || currentCustomMetadata.getValue().equals(previousCustoms.get(currentCustomMetadata.getKey())) == false) {
+                    result.add(currentCustomMetadata.getKey());
                 }
             }
             // existing custom md deleted
-            for (ObjectObjectCursor<String, Metadata.Custom> previousCustomMetadata : previousCustoms) {
-                if (currentCustoms.containsKey(previousCustomMetadata.key) == false) {
-                    result.add(previousCustomMetadata.key);
+            for (Map.Entry<String, Metadata.Custom> previousCustomMetadata : previousCustoms.entrySet()) {
+                if (currentCustoms.containsKey(previousCustomMetadata.getKey()) == false) {
+                    result.add(previousCustomMetadata.getKey());
                 }
             }
         }
@@ -251,13 +247,15 @@ public class ClusterChangedEvent {
         final Metadata previousMetadata = previousState.metadata();
         final Metadata currentMetadata = state.metadata();
 
-        for (IndexMetadata index : previousMetadata.indices().values()) {
-            IndexMetadata current = currentMetadata.index(index.getIndex());
-            if (current == null) {
-                if (deleted == null) {
-                    deleted = new HashSet<>();
+        if (currentMetadata.indices() != previousMetadata.indices()) {
+            for (IndexMetadata index : previousMetadata.indices().values()) {
+                IndexMetadata current = currentMetadata.index(index.getIndex());
+                if (current == null) {
+                    if (deleted == null) {
+                        deleted = new HashSet<>();
+                    }
+                    deleted.add(index.getIndex());
                 }
-                deleted.add(index.getIndex());
             }
         }
 
@@ -293,7 +291,7 @@ public class ClusterChangedEvent {
         // an issue because there are safeguards in place in the delete store operation in case the index
         // folder doesn't exist on the file system.
         List<IndexGraveyard.Tombstone> tombstones = state.metadata().indexGraveyard().getTombstones();
-        return tombstones.stream().map(IndexGraveyard.Tombstone::getIndex).collect(Collectors.toList());
+        return tombstones.stream().map(IndexGraveyard.Tombstone::getIndex).toList();
     }
 
 }

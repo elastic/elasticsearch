@@ -10,7 +10,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -103,7 +103,9 @@ public class WatcherScheduleEngineBenchmark {
                     Settings.builder().put(SETTINGS).put("node.data", false).build(),
                     emptyMap(),
                     null,
-                    () -> { throw new IllegalArgumentException("settings must have [node.name]"); }
+                    () -> {
+                        throw new IllegalArgumentException("settings must have [node.name]");
+                    }
                 )
             ).start()
         ) {
@@ -344,7 +346,7 @@ public class WatcherScheduleEngineBenchmark {
                 Locale.ENGLISH,
                 "%10s | %13s | %12d | %13d \n",
                 name,
-                new ByteSizeValue(avgHeapUsed),
+                ByteSizeValue.ofBytes(avgHeapUsed),
                 watcherThreadPoolStats.getRejected(),
                 watcherThreadPoolStats.getCompleted()
             );

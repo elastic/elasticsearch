@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[logstash-api-get-pipeline]]
 === Get pipeline API
 ++++
@@ -58,8 +57,7 @@ PUT _logstash/pipeline/my_pipeline
     "pipeline.batch.size": 125,
     "pipeline.batch.delay": 50,
     "queue.type": "memory",
-    "queue.max_bytes.number": 1,
-    "queue.max_bytes.units": "gb",
+    "queue.max_bytes": "1gb",
     "queue.checkpoint.writes": 1024
   }
 }
@@ -93,8 +91,7 @@ If the request succeeds, the body of the response contains the pipeline definiti
       "pipeline.batch.size": 125,
       "pipeline.batch.delay": 50,
       "queue.type": "memory",
-      "queue.max_bytes.number": 1,
-      "queue.max_bytes.units": "gb",
+      "queue.max_bytes": "1gb",
       "queue.checkpoint.writes": 1024
     }
   }

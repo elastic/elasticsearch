@@ -62,7 +62,7 @@ The response will look like this:
 <1> Current value of the setting `cluster.max_shards_per_node`
 <2> Current number of open shards across the cluster
 +
-. Update the <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> setting with a value over :
+. Update the <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> setting with a proper value:
 +
 [source,console]
 ----
@@ -204,7 +204,7 @@ The response will look like this:
       "symptom": "The cluster has enough room to add new shards.",
       "details": {
         "data": {
-          "max_shards_in_cluster": 1000
+          "max_shards_in_cluster": 1200
         },
         "frozen": {
           "max_shards_in_cluster": 3000
@@ -332,7 +332,7 @@ The response will look like this:
           "max_shards_in_cluster": 1000
         },
         "frozen": {
-          "max_shards_in_cluster": 3000
+          "max_shards_in_cluster": 3200
         }
       }
     }
@@ -434,7 +434,7 @@ The response will look like this:
           "max_shards_in_cluster": 1000
         },
         "frozen": {
-          "max_shards_in_cluster": 3000
+          "max_shards_in_cluster": 3200
         }
       }
     }

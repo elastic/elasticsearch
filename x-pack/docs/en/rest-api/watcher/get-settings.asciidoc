@@ -1,5 +1,5 @@
 [role="xpack"]
-[[watcher-api-update-settings]]
+[[watcher-api-get-settings]]
 === Get Watcher index settings
 ++++
 <titleabbrev>Get Watcher settings</titleabbrev>

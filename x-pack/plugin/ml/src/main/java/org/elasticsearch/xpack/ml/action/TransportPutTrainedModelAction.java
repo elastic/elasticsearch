@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -23,8 +25,12 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.License;
@@ -35,7 +41,13 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
@@ -44,7 +56,12 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.packageloader.action.GetTrainedModelPackageConfigAction;
+import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
@@ -53,7 +70,9 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -61,14 +80,17 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Request, Response> {
 
     private static final ByteSizeValue MAX_NATIVE_DEFINITION_INDEX_SIZE = ByteSizeValue.ofGb(50);
+    private static final Logger logger = LogManager.getLogger(TransportPutTrainedModelAction.class);
 
     private final TrainedModelProvider trainedModelProvider;
     private final XPackLicenseState licenseState;
     private final NamedXContentRegistry xContentRegistry;
     private final OriginSettingClient client;
+    private final Settings settings;
 
     @Inject
     public TransportPutTrainedModelAction(
+        Settings settings,
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -94,6 +116,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         this.trainedModelProvider = trainedModelProvider;
         this.xContentRegistry = xContentRegistry;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
+        this.settings = settings;
     }
 
     @Override
@@ -180,6 +203,8 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             .setCreateTime(Instant.now())
             .setCreatedBy("api_user")
             .setLicenseLevel(License.OperationMode.PLATINUM.description());
+        AtomicReference<ModelPackageConfig> modelPackageConfigHolder = new AtomicReference<>();
+
         if (hasModelDefinition) {
             trainedModelConfig.setModelSize(config.getModelDefinition().ramBytesUsed())
                 .setEstimatedOperations(config.getModelDefinition().getTrainedModel().estimatedNumOperations());
@@ -213,7 +238,19 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         ActionListener<Void> checkStorageIndexSizeListener = ActionListener.wrap(
             r -> trainedModelProvider.storeTrainedModel(trainedModelConfig.build(), ActionListener.wrap(bool -> {
                 TrainedModelConfig configToReturn = trainedModelConfig.clearDefinition().build();
-                listener.onResponse(new PutTrainedModelAction.Response(configToReturn));
+                if (modelPackageConfigHolder.get() != null) {
+                    triggerModelFetchIfNecessary(
+                        configToReturn.getModelId(),
+                        modelPackageConfigHolder.get(),
+                        request.isWaitForCompletion(),
+                        ActionListener.wrap(
+                            downloadTriggered -> listener.onResponse(new PutTrainedModelAction.Response(configToReturn)),
+                            listener::onFailure
+                        )
+                    );
+                } else {
+                    listener.onResponse(new PutTrainedModelAction.Response(configToReturn));
+                }
             }, listener::onFailure)),
             listener::onFailure
         );
@@ -267,7 +304,70 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             listener::onFailure
         );
 
-        checkModelIdAgainstTags(config.getModelId(), modelIdTagCheckListener);
+        if (config.isPackagedModel()) {
+            resolvePackageConfig(config.getModelId(), ActionListener.wrap(resolvedModelPackageConfig -> {
+                try {
+                    trainedModelConfig.validateNoPackageOverrides();
+                } catch (ValidationException e) {
+                    listener.onFailure(e);
+                    return;
+                }
+                modelPackageConfigHolder.set(resolvedModelPackageConfig);
+                setTrainedModelConfigFieldsFromPackagedModel(trainedModelConfig, resolvedModelPackageConfig);
+
+                checkModelIdAgainstTags(trainedModelConfig.getModelId(), modelIdTagCheckListener);
+            }, listener::onFailure));
+        } else {
+            checkModelIdAgainstTags(config.getModelId(), modelIdTagCheckListener);
+        }
+    }
+
+    private void setTrainedModelConfigFieldsFromPackagedModel(
+        TrainedModelConfig.Builder trainedModelConfig,
+        ModelPackageConfig resolvedModelPackageConfig
+    ) throws IOException {
+        trainedModelConfig.setDescription(resolvedModelPackageConfig.getDescription());
+        trainedModelConfig.setModelType(TrainedModelType.fromString(resolvedModelPackageConfig.getModelType()));
+        trainedModelConfig.setMetadata(resolvedModelPackageConfig.getMetadata());
+        trainedModelConfig.setInferenceConfig(
+            parseInferenceConfigFromModelPackage(
+                resolvedModelPackageConfig.getInferenceConfigSource(),
+                xContentRegistry,
+                LoggingDeprecationHandler.INSTANCE
+            )
+        );
+        trainedModelConfig.setTags(resolvedModelPackageConfig.getTags());
+        trainedModelConfig.setModelPackageConfig(
+            new ModelPackageConfig.Builder(resolvedModelPackageConfig).resetPackageOnlyFields().build()
+        );
+    }
+
+    private void triggerModelFetchIfNecessary(
+        String modelId,
+        ModelPackageConfig modelPackageConfig,
+        boolean waitForCompletion,
+        ActionListener<Void> listener
+    ) {
+        client.execute(
+            LoadTrainedModelPackageAction.INSTANCE,
+            new LoadTrainedModelPackageAction.Request(modelId, modelPackageConfig, waitForCompletion),
+            ActionListener.wrap(ack -> {
+                if (waitForCompletion) {
+                    listener.onResponse(null);
+                }
+            }, listener::onFailure)
+        );
+        if (waitForCompletion == false) {
+            listener.onResponse(null);
+        }
+    }
+
+    private void resolvePackageConfig(String modelId, ActionListener<ModelPackageConfig> listener) {
+        client.execute(
+            GetTrainedModelPackageConfigAction.INSTANCE,
+            new GetTrainedModelPackageConfigAction.Request(modelId.substring(1)),
+            ActionListener.wrap(packageConfig -> listener.onResponse(packageConfig.getModelPackageConfig()), listener::onFailure)
+        );
     }
 
     private void checkModelIdAgainstTags(String modelId, ActionListener<Void> listener) {
@@ -334,4 +434,30 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
         }
     }
+
+    static InferenceConfig parseInferenceConfigFromModelPackage(
+        Map<String, Object> source,
+        NamedXContentRegistry namedXContentRegistry,
+        DeprecationHandler deprecationHandler
+    ) throws IOException {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
+        XContentParser sourceParser = XContentType.JSON.xContent()
+            .createParser(
+                XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry).withDeprecationHandler(deprecationHandler),
+                BytesReference.bytes(xContentBuilder).streamInput()
+            );
+
+        XContentParser.Token token = sourceParser.nextToken();
+        assert token == XContentParser.Token.START_OBJECT;
+        token = sourceParser.nextToken();
+        assert token == XContentParser.Token.FIELD_NAME;
+        String currentName = sourceParser.currentName();
+
+        InferenceConfig inferenceConfig = sourceParser.namedObject(LenientlyParsedInferenceConfig.class, currentName, null);
+        // consume the end object token
+        token = sourceParser.nextToken();
+        assert token == XContentParser.Token.END_OBJECT;
+        return inferenceConfig;
+    }
+
 }

@@ -156,7 +156,7 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
     }
 
     public void decorateSearchHit(ScoreDoc scoreDoc, SearchHit searchHit) {
-        assert scoreDoc instanceof RRFRankDoc;
+
         RRFRankDoc rankResult = (RRFRankDoc) scoreDoc;
         searchHit.setRank(rankResult.rank);
     }

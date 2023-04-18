@@ -44,6 +44,7 @@ import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -427,7 +428,8 @@ public final class SearchPhaseController {
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.shard(fetchResult.getSearchShardTarget());
                 if (reducedQueryPhase.rankCoordinatorContext != null) {
-                    reducedQueryPhase.rankCoordinatorContext.decorateSearchHit(shardDoc, searchHit);
+                    assert shardDoc instanceof RankDoc;
+                    searchHit.setRank(((RankDoc) shardDoc).rank);
                 } else if (sortedTopDocs.isSortedByField) {
                     FieldDoc fieldDoc = (FieldDoc) shardDoc;
                     searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);

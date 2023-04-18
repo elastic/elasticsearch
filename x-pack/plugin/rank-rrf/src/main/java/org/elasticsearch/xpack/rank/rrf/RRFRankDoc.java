@@ -13,21 +13,12 @@ import org.elasticsearch.search.rank.RankDoc;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Objects;
 
 /**
  * {@code RRFRankDoc} supports additional ranking information
  * required for RRF.
  */
 public class RRFRankDoc extends RankDoc {
-
-    public static final int NO_RANK = -1;
-
-    /**
-     * If this document has been ranked, this is its final
-     * rrf ranking from all the result sets.
-     */
-    public int rank;
 
     /**
      * The position within each result set per query. The length
@@ -69,17 +60,14 @@ public class RRFRankDoc extends RankDoc {
     }
 
     @Override
-    public boolean doEquals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        RRFRankDoc that = (RRFRankDoc) o;
-        return rank == that.rank && Arrays.equals(positions, that.positions) && Arrays.equals(scores, that.scores);
+    public boolean doEquals(RankDoc rd) {
+        RRFRankDoc rrfrd = (RRFRankDoc) rd;
+        return Arrays.equals(positions, rrfrd.positions) && Arrays.equals(scores, rrfrd.scores);
     }
 
     @Override
     public int doHashCode() {
-        int result = Objects.hash(rank);
-        result = 31 * result + Arrays.hashCode(positions);
+        int result = Arrays.hashCode(positions);
         result = 31 * result + Arrays.hashCode(scores);
         return result;
     }

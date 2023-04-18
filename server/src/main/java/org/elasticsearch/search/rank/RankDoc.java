@@ -23,12 +23,21 @@ import java.util.Objects;
  */
 public abstract class RankDoc extends ScoreDoc implements Writeable {
 
+    public static final int NO_RANK = -1;
+
+    /**
+     * If this document has been ranked, this is its final
+     * rrf ranking from all the result sets.
+     */
+    public int rank = NO_RANK;
+
     public RankDoc(int doc, float score, int shardIndex) {
         super(doc, score, shardIndex);
     }
 
     protected RankDoc(StreamInput in) throws IOException {
         super(in.readVInt(), in.readFloat(), in.readVInt());
+        rank = in.readVInt();
     }
 
     @Override
@@ -36,27 +45,28 @@ public abstract class RankDoc extends ScoreDoc implements Writeable {
         out.writeVInt(doc);
         out.writeFloat(score);
         out.writeVInt(shardIndex);
+        out.writeVInt(rank);
         doWriteTo(out);
     }
 
-    public abstract void doWriteTo(StreamOutput out) throws IOException;
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     @Override
     public final boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        RankDoc that = (RankDoc) o;
-        return doc == that.doc && score == that.score && shardIndex == that.shardIndex && doEquals(o);
+        RankDoc rd = (RankDoc) o;
+        return doc == rd.doc && score == rd.score && shardIndex == rd.shardIndex && rank == rd.rank && doEquals(rd);
     }
 
-    public abstract boolean doEquals(Object o);
+    protected abstract boolean doEquals(RankDoc rd);
 
     @Override
     public final int hashCode() {
         return Objects.hash(doc, score, shardIndex, doHashCode());
     }
 
-    public abstract int doHashCode();
+    protected abstract int doHashCode();
 
     @Override
     public String toString() {

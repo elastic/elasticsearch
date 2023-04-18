@@ -29,7 +29,7 @@ public class TestRankDoc extends RankDoc {
     }
 
     @Override
-    public boolean doEquals(Object o) {
+    public boolean doEquals(RankDoc rd) {
         return true;
     }
 

@@ -8,10 +8,8 @@
 
 package org.elasticsearch.search.rank;
 
-import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.util.List;
@@ -41,10 +39,4 @@ public abstract class RankCoordinatorContext {
      * of the query phase prior to the fetch phase.
      */
     public abstract SortedTopDocs rank(List<QuerySearchResult> querySearchResults, TopDocsStats topDocStats);
-
-    /**
-     * This is used to update the rank field of a {@link SearchHit} when the search hits
-     * are generated. Called once per {@link SearchHit}.
-     */
-    public abstract void decorateSearchHit(ScoreDoc scoreDoc, SearchHit searchHit);
 }

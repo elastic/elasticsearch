@@ -10,6 +10,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
@@ -22,6 +24,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutDataFrameAnalyticsAction extends BaseRestHandler {
 
     /**

@@ -21,6 +21,7 @@ unparsed URI to `<target_field>.original`.
 | `remove_if_successful` | no    | false   | If `true`, the processor removes
 the `field` after parsing the URI string. If parsing fails, the processor does not
 remove the `field`.
+| `ignore_missing`   | no        | `false`          | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 
 include::common-options.asciidoc[]
 |======

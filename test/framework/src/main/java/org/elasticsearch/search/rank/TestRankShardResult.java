@@ -16,7 +16,7 @@ import java.io.IOException;
 
 public class TestRankShardResult implements RankShardResult {
 
-    private final TestRankDoc[] testRankDocs;
+    public final TestRankDoc[] testRankDocs;
 
     public TestRankShardResult(TestRankDoc[] testRankDocs) {
         this.testRankDocs = testRankDocs;

@@ -71,8 +71,6 @@ import org.elasticsearch.lucene.queries.MinDocQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ScrollContext;
@@ -1031,26 +1029,16 @@ public class QueryPhaseTests extends IndexShardTestCase {
             }
         };
 
-        List<Query> queries = List.of(
-            new TermQuery(new Term("field0", "term")),
-            new TermQuery(new Term("field1", "term0"))
-        );
+        List<Query> queries = List.of(new TermQuery(new Term("field0", "term")), new TermQuery(new Term("field1", "term0")));
         context.parsedQuery(
-            new ParsedQuery(
-                new BooleanQuery.Builder()
-                    .add(queries.get(0), Occur.SHOULD)
-                    .add(queries.get(1), Occur.SHOULD)
-                    .build()
-            )
+            new ParsedQuery(new BooleanQuery.Builder().add(queries.get(0), Occur.SHOULD).add(queries.get(1), Occur.SHOULD).build())
         );
-        context.rankShardContext(
-            new RankShardContext(queries, 0, 100) {
-                 @Override
-                 public RankShardResult combine(List<TopDocs> rankResults) {
-                     return null;
-                 }
-             }
-        );
+        context.rankShardContext(new RankShardContext(queries, 0, 100) {
+            @Override
+            public RankShardResult combine(List<TopDocs> rankResults) {
+                return null;
+            }
+        });
 
         context.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_DISABLED);
         context.aggregations(null);

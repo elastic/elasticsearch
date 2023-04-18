@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -24,6 +25,7 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
     public static final Setting<TimeValue> HEARTBEAT_FREQUENCY = Setting.timeSetting(
         "heartbeat_frequency",
         TimeValue.timeValueSeconds(15),
+        TimeValue.timeValueSeconds(1),
         Setting.Property.NodeScope
     );
 
@@ -44,6 +46,22 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
 
     private volatile HeartbeatTask heartbeatTask;
 
+    public static StoreHeartbeatService create(
+        HeartbeatStore heartbeatStore,
+        ThreadPool threadPool,
+        Settings settings,
+        LongSupplier currentTermSupplier
+    ) {
+        TimeValue heartbeatFrequency = HEARTBEAT_FREQUENCY.get(settings);
+        return new StoreHeartbeatService(
+            heartbeatStore,
+            threadPool,
+            heartbeatFrequency,
+            TimeValue.timeValueMillis(MAX_MISSED_HEARTBEATS.get(settings) * heartbeatFrequency.millis()),
+            currentTermSupplier
+        );
+    }
+
     public StoreHeartbeatService(
         HeartbeatStore heartbeatStore,
         ThreadPool threadPool,
@@ -60,7 +78,7 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
 
     @Override
     public void start(DiscoveryNode currentLeader, long term, ActionListener<Long> completionListener) {
-        final var newHeartbeatTask = new HeartbeatTask(currentLeader, term, completionListener);
+        final var newHeartbeatTask = new HeartbeatTask(term, completionListener);
         heartbeatTask = newHeartbeatTask;
         newHeartbeatTask.run();
     }
@@ -94,13 +112,11 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
     }
 
     private class HeartbeatTask extends ActionRunnable<Long> {
-        private final DiscoveryNode currentLeader;
         private final long heartbeatTerm;
         private final ActionListener<Void> rerunListener;
 
-        HeartbeatTask(DiscoveryNode currentLeader, long heartbeatTerm, ActionListener<Long> listener) {
+        HeartbeatTask(long heartbeatTerm, ActionListener<Long> listener) {
             super(listener);
-            this.currentLeader = currentLeader;
             this.heartbeatTerm = heartbeatTerm;
             this.rerunListener = listener.delegateFailure((l, v) -> {
                 try {
@@ -120,7 +136,7 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
 
             final var registerTerm = currentTermSupplier.getAsLong();
             if (registerTerm == heartbeatTerm) {
-                heartbeatStore.writeHeartbeat(new Heartbeat(currentLeader, heartbeatTerm, absoluteTimeInMillis()), rerunListener);
+                heartbeatStore.writeHeartbeat(new Heartbeat(heartbeatTerm, absoluteTimeInMillis()), rerunListener);
             } else {
                 assert heartbeatTerm < registerTerm;
                 listener.onResponse(registerTerm);

@@ -282,6 +282,7 @@ setup:
         - abs
         - avg
         - case
+        - cidr_match
         - concat
         - count
         - date_format
@@ -304,6 +305,7 @@ setup:
         - abs(arg1)
         - avg(arg1)
         - case(arg1...)
+        - cidr_match(arg1, arg2...)
         - concat(arg1, arg2...)
         - count(arg1)
         - date_format(arg1, arg2)

@@ -12,6 +12,7 @@ show functions;
 abs                      |abs(arg1)
 avg                      |avg(arg1)
 case                     |case(arg1...)
+cidr_match               |cidr_match(arg1, arg2...)
 concat                   |concat(arg1, arg2...)
 count                    |count(arg1)
 date_format              |date_format(arg1, arg2)

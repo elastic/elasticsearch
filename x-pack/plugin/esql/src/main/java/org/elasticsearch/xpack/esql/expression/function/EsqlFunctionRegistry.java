@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
+import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
@@ -72,7 +73,9 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(DateFormat.class, DateFormat::new, "date_format"),
                 def(DateTrunc.class, DateTrunc::new, "date_trunc"), },
             // conditional
-            new FunctionDefinition[] { def(Case.class, Case::new, "case"), def(IsNull.class, IsNull::new, "is_null"), } };
+            new FunctionDefinition[] { def(Case.class, Case::new, "case"), def(IsNull.class, IsNull::new, "is_null"), },
+            // IP
+            new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") } };
     }
 
     @Override

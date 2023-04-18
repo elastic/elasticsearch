@@ -1012,6 +1012,7 @@ public class RecoverySourceHandler {
             } catch (RetentionLeaseNotFoundException e) {
                 // this counts as success
                 logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
+                leaseListener.addListener(outerListener);
             }
             return null;
         }),

@@ -117,6 +117,7 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
 
         HeartbeatTask(long heartbeatTerm, ActionListener<Long> listener) {
             super(listener);
+            assert 0 < heartbeatTerm : heartbeatTerm;
             this.heartbeatTerm = heartbeatTerm;
             this.rerunListener = listener.delegateFailure((l, v) -> {
                 try {
@@ -135,10 +136,13 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
             }
 
             final var registerTerm = currentTermSupplier.getAsLong();
-            if (registerTerm == heartbeatTerm) {
+            if (registerTerm <= 0) {
+                // TODO use OptionalLong.empty() here
+                rerunListener.onResponse(null);
+            } else if (registerTerm == heartbeatTerm) {
                 heartbeatStore.writeHeartbeat(new Heartbeat(heartbeatTerm, absoluteTimeInMillis()), rerunListener);
             } else {
-                assert heartbeatTerm < registerTerm;
+                assert heartbeatTerm < registerTerm : heartbeatTerm + " vs " + registerTerm;
                 listener.onResponse(registerTerm);
             }
         }

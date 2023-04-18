@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
 
     public void testDimensionFieldNameLimit() throws IOException {
-        int dimensionFieldLimit = 16;
+        int dimensionFieldLimit = 21;
         final String dimensionFieldName = randomAlphaOfLength(randomIntBetween(513, 1024));
         createTimeSeriesIndex(mapping -> {
             mapping.startObject("routing_field").field("type", "keyword").field("time_series_dimension", true).endObject();
@@ -68,7 +68,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
     }
 
     public void testDimensionFieldValueLimit() throws IOException {
-        int dimensionFieldLimit = 16;
+        int dimensionFieldLimit = 21;
         createTimeSeriesIndex(
             mapping -> { mapping.startObject("field").field("type", "keyword").field("time_series_dimension", true).endObject(); },
             mapping -> mapping.startObject("gauge").field("type", "integer").field("time_series_metric", "gauge").endObject(),
@@ -89,7 +89,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
     }
 
     public void testTotalNumberOfDimensionFieldsLimit() {
-        int dimensionFieldLimit = 16;
+        int dimensionFieldLimit = 21;
         final Exception ex = expectThrows(IllegalArgumentException.class, () -> createTimeSeriesIndex(mapping -> {
             mapping.startObject("routing_field").field("type", "keyword").field("time_series_dimension", true).endObject();
             for (int i = 0; i < dimensionFieldLimit; i++) {
@@ -101,7 +101,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
             dimensionFieldLimit
         ));
 
-        assertThat(ex.getMessage(), equalTo("Limit of total dimension fields [16] has been exceeded"));
+        assertThat(ex.getMessage(), equalTo("Limit of total dimension fields [" + dimensionFieldLimit + "] has been exceeded"));
     }
 
     public void testTotalDimensionFieldsSizeLuceneLimit() throws IOException {

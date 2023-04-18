@@ -30,16 +30,16 @@ public class RRFRankShardContext extends RankShardContext {
     }
 
     @Override
-    public RRFRankShardResult combine(List<TopDocs> rrfRankResults) {
+    public RRFRankShardResult combine(List<TopDocs> rankResults) {
         // combine the disjointed sets of TopDocs into a single set or RRFRankDocs
         // each RRFRankDoc will have both the position and score for each query where
         // it was within the result set for that query
         // if a doc isn't part of a result set its position will be NO_RANK [0] and
         // its score is [0f]
-        int queries = rrfRankResults.size();
+        int queries = rankResults.size();
         Map<Integer, RRFRankDoc> docsToRankResults = Maps.newMapWithExpectedSize(windowSize);
         int index = 0;
-        for (TopDocs rrfRankResult : rrfRankResults) {
+        for (TopDocs rrfRankResult : rankResults) {
             int rank = 1;
             for (ScoreDoc scoreDoc : rrfRankResult.scoreDocs) {
                 final int findex = index;
@@ -83,6 +83,6 @@ public class RRFRankShardContext extends RankShardContext {
             topResults[rank].rank = rank + 1;
             topResults[rank].score = Float.NaN;
         }
-        return new RRFRankShardResult(rrfRankResults.size(), topResults);
+        return new RRFRankShardResult(rankResults.size(), topResults);
     }
 }

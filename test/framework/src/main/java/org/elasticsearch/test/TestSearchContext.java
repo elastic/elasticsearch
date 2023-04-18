@@ -72,6 +72,7 @@ public class TestSearchContext extends SearchContext {
     boolean trackScores = false;
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     Collector aggCollector;
+    RankShardContext rankShardContext;
 
     ContextIndexSearcher searcher;
     int from;
@@ -557,12 +558,12 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public RankShardContext rankShardContext() {
-        return null;
+        return rankShardContext;
     }
 
     @Override
     public void rankShardContext(RankShardContext rankShardContext) {
-
+        this.rankShardContext = rankShardContext;
     }
 
     @Override

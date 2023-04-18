@@ -11,6 +11,7 @@ package org.elasticsearch.search.query;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongPoint;
@@ -68,9 +69,17 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.lucene.queries.MinDocQuery;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.SearchContextAggregations;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -89,6 +98,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
@@ -980,6 +990,89 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 expectThrows(TaskCancelledException.class, context::rewrittenQuery);
             }
         }
+    }
+
+    public void testRank() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
+        for (int i = 0; i < 10; i++) {
+            Document doc = new Document();
+            doc.add(new KeywordField("field0", "term", Store.NO));
+            doc.add(new KeywordField("field1", "term" + i, Store.NO));
+            w.addDocument(doc);
+        }
+        w.close();
+
+        final List<Query> executed = new ArrayList<>();
+        IndexReader reader = DirectoryReader.open(dir);
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true
+        ) {
+            public void search(Query query, Collector collector) throws IOException {
+                executed.add(query);
+                super.search(query, collector);
+            }
+        };
+
+        SearchContext context = new TestSearchContext(null, indexShard, searcher) {
+            @Override
+            public Query buildFilteredQuery(Query query) {
+                return query;
+            }
+
+            @Override
+            public ReaderContext readerContext() {
+                return new ReaderContext(new ShardSearchContextId("test", 1L), null, indexShard, null, 0L, false);
+            }
+        };
+
+        List<Query> queries = List.of(
+            new TermQuery(new Term("field0", "term")),
+            new TermQuery(new Term("field1", "term0"))
+        );
+        context.parsedQuery(
+            new ParsedQuery(
+                new BooleanQuery.Builder()
+                    .add(queries.get(0), Occur.SHOULD)
+                    .add(queries.get(1), Occur.SHOULD)
+                    .build()
+            )
+        );
+        context.rankShardContext(
+            new RankShardContext(queries, 0, 100) {
+                 @Override
+                 public RankShardResult combine(List<TopDocs> rankResults) {
+                     return null;
+                 }
+             }
+        );
+
+        context.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_DISABLED);
+        context.aggregations(null);
+        QueryPhase.executeRank(context);
+        assertEquals(queries, executed);
+
+        executed.clear();
+        context.trackTotalHitsUpTo(100);
+        context.aggregations(null);
+        QueryPhase.executeRank(context);
+        assertEquals(context.rewrittenQuery(), executed.get(0));
+        assertEquals(queries, executed.subList(1, executed.size()));
+
+        executed.clear();
+        context.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_DISABLED);
+        context.aggregations(new SearchContextAggregations(AggregatorFactories.EMPTY));
+        QueryPhase.executeRank(context);
+        assertEquals(context.rewrittenQuery(), executed.get(0));
+        assertEquals(queries, executed.subList(1, executed.size()));
+
+        reader.close();
+        dir.close();
     }
 
     private static ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {

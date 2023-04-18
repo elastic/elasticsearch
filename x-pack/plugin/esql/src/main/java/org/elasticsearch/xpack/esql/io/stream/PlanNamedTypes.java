@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -31,7 +32,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -137,8 +140,7 @@ public final class PlanNamedTypes {
     static final Class<org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction> QL_UNARY_SCLR_CLS =
         org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction.class;
 
-    static final Class<org.elasticsearch.xpack.esql.expression.function.scalar.math.UnaryScalarFunction> ESQL_UNARY_SCLR_CLS =
-        org.elasticsearch.xpack.esql.expression.function.scalar.math.UnaryScalarFunction.class;
+    static final Class<UnaryScalarFunction> ESQL_UNARY_SCLR_CLS = UnaryScalarFunction.class;
 
     /**
      * List of named type entries that link concrete names to stream reader and writer implementations.
@@ -218,6 +220,9 @@ public final class PlanNamedTypes {
             of(AggregateFunction.class, Median.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, MedianAbsoluteDeviation.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, Sum.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
+            // Multivalue functions
+            of(AbstractMultivalueFunction.class, MvMax.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
+            of(AbstractMultivalueFunction.class, MvMin.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             // Expressions (other)
             of(Expression.class, Literal.class, PlanNamedTypes::writeLiteral, PlanNamedTypes::readLiteral),
             of(Expression.class, Order.class, PlanNamedTypes::writeOrder, PlanNamedTypes::readOrder)
@@ -772,7 +777,7 @@ public final class PlanNamedTypes {
         out.writeExpression(arithmeticOperation.right());
     }
 
-    // -- ArithmeticOperations
+    // -- Aggregations
     static final Map<String, BiFunction<Source, Expression, AggregateFunction>> AGG_CTRS = Map.ofEntries(
         entry(name(Avg.class), Avg::new),
         entry(name(Count.class), Count::new),
@@ -789,6 +794,20 @@ public final class PlanNamedTypes {
 
     static void writeAggFunction(PlanStreamOutput out, AggregateFunction aggregateFunction) throws IOException {
         out.writeExpression(aggregateFunction.field());
+    }
+
+    // -- Multivalue functions
+    static final Map<String, BiFunction<Source, Expression, AbstractMultivalueFunction>> MV_CTRS = Map.ofEntries(
+        entry(name(MvMax.class), MvMax::new),
+        entry(name(MvMin.class), MvMin::new)
+    );
+
+    static AbstractMultivalueFunction readMvFunction(PlanStreamInput in, String name) throws IOException {
+        return MV_CTRS.get(name).apply(Source.EMPTY, in.readExpression());
+    }
+
+    static void writeMvFunction(PlanStreamOutput out, AbstractMultivalueFunction fn) throws IOException {
+        out.writeExpression(fn.field());
     }
 
     // -- NamedExpressions

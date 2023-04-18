@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.math;
+package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -41,7 +41,7 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
         return field.foldable();
     }
 
-    public Expression field() {
+    public final Expression field() {
         return field;
     }
 

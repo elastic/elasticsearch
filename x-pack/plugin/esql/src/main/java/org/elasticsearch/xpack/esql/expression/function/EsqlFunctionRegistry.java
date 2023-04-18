@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -75,7 +77,9 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
             // conditional
             new FunctionDefinition[] { def(Case.class, Case::new, "case"), def(IsNull.class, IsNull::new, "is_null"), },
             // IP
-            new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") } };
+            new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
+            // multivalue functions
+            new FunctionDefinition[] { def(MvMax.class, MvMax::new, "mv_max"), def(MvMin.class, MvMin::new, "mv_min") } };
     }
 
     @Override

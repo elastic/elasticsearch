@@ -29,9 +29,17 @@ public final class BlockUtils {
             this.append = o -> {
                 if (o == null) {
                     builder.appendNull();
-                } else {
-                    append.accept(o);
+                    return;
                 }
+                if (o instanceof List<?> l) {
+                    builder.beginPositionEntry();
+                    for (Object v : l) {
+                        append.accept(v);
+                    }
+                    builder.endPositionEntry();
+                    return;
+                }
+                append.accept(o);
             };
         }
     }
@@ -63,6 +71,18 @@ public final class BlockUtils {
                 blocks[i] = BytesRefBlock.newConstantBlockWith(bytesRefVal, blockSize);
             } else if (object instanceof Boolean booleanVal) {
                 blocks[i] = BooleanBlock.newConstantBlockWith(booleanVal, blockSize);
+            } else if (object instanceof List<?> listVal) {
+                assert blockSize == 1;
+                if (listVal.get(0) instanceof Integer) {
+                    IntBlock.Builder builder = IntBlock.newBlockBuilder(listVal.size());
+                    builder.beginPositionEntry();
+                    for (Object o : listVal) {
+                        builder.appendInt((Integer) o);
+                    }
+                    blocks[i] = builder.endPositionEntry().build();
+                } else {
+                    throw new UnsupportedOperationException("can't make a block out of [" + object + "/" + object.getClass() + "]");
+                }
             } else if (object == null) {
                 blocks[i] = constantNullBlock(blockSize);
             } else {
@@ -81,12 +101,10 @@ public final class BlockUtils {
             return fromListRow(list.get(0));
         }
 
-        var types = list.get(0);
-        var wrappers = new BuilderWrapper[types.size()];
+        var wrappers = new BuilderWrapper[list.get(0).size()];
 
-        for (int i = 0, tSize = types.size(); i < tSize; i++) {
-            Object o = types.get(i);
-            wrappers[i] = wrapperFor(o != null ? o.getClass() : null, size);
+        for (int i = 0; i < wrappers.length; i++) {
+            wrappers[i] = wrapperFor(type(list, i), size);
         }
         for (List<Object> values : list) {
             for (int j = 0, vSize = values.size(); j < vSize; j++) {
@@ -94,6 +112,24 @@ public final class BlockUtils {
             }
         }
         return Arrays.stream(wrappers).map(b -> b.builder.build()).toArray(Block[]::new);
+    }
+
+    private static Class<?> type(List<List<Object>> list, int i) {
+        int p = 0;
+        while (p < list.size()) {
+            Object v = list.get(p++).get(i);
+            if (v == null) {
+                continue;
+            }
+            if (v instanceof List<?> l) {
+                if (l.isEmpty()) {
+                    continue;
+                }
+                return l.get(0).getClass();
+            }
+            return v.getClass();
+        }
+        return null;
     }
 
     public static BuilderWrapper wrapperFor(Class<?> type, int size) {

@@ -131,3 +131,31 @@ row d = 1.0 | eval s = is_nan(d);
 d:double | s:boolean
 1.0      | false
 ;
+
+mvMax
+from employees | where emp_no > 10008 | eval salary_change = mv_max(salary_change.int) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
+
+# TODO sort only keeps the first value in a multivalue field
+emp_no:integer | salary_change.int:integer | salary_change:integer
+10009          | null                      | null
+10010          | -6                        | 12
+10011          | -7                        | 10
+10012          | 0                         | 0
+10013          | null                      | null
+10014          | -1                        | 9
+10015          | 12                        | 14
+;
+
+mvMin
+from employees | where emp_no > 10008 | eval salary_change = mv_min(salary_change.int) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
+
+# TODO sort only keeps the first value in a multivalue field
+emp_no:integer | salary_change.int:integer | salary_change:integer
+10009          | null                      | null
+10010          | -6                        | -6
+10011          | -7                        | -7
+10012          | 0                         | 0
+10013          | null                      | null
+10014          | -1                        | -1
+10015          | 12                        | 12
+;

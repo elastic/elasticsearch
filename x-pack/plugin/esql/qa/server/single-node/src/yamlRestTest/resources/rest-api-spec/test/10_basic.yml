@@ -296,6 +296,8 @@ setup:
         - median
         - median_absolute_deviation
         - min
+        - mv_max
+        - mv_min
         - round
         - starts_with
         - substring
@@ -319,6 +321,8 @@ setup:
         - median(arg1)
         - median_absolute_deviation(arg1)
         - min(arg1)
+        - mv_max(arg1)
+        - mv_min(arg1)
         - round(arg1, arg2)
         - starts_with(arg1, arg2)
         - substring(arg1, arg2, arg3)

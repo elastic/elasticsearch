@@ -100,7 +100,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
 Defaults to `open`.
 
 `include_defaults`::
-(Optional, Boolean) Functionality in experimental:[]. If `true`, return all default settings in the response.
+(Optional, Boolean) Functionality in preview:[]. If `true`, return all default settings in the response.
 Defaults to `false`.
 
 [role="child_attributes"]
@@ -223,7 +223,7 @@ cluster can not write into this data stream or change its mappings.
 
 `lifecycle`::
 (object)
-Functionality in experimental:[]. Contains the configuration for the data lifecycle management of this data stream.
+Functionality in preview:[]. Contains the configuration for the data lifecycle management of this data stream.
 +
 .Properties of `lifecycle`
 [%collapsible%open]

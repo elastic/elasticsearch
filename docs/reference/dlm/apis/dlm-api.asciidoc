@@ -1,6 +1,8 @@
 [[data-lifecycle-management-api]]
 == {dlm-cap} APIs
 
+preview::[]
+
 You use the following APIs to configure the {dlm} for data streams
 and to retrieve lifecycle information for backing indices.
 

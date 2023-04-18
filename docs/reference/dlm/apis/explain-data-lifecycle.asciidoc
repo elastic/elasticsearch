@@ -4,7 +4,7 @@
 <titleabbrev>Explain Data Lifecycle</titleabbrev>
 ++++
 
-experimental::[]
+preview::[]
 
 Retrieves the current data lifecycle status for one or more data stream backing indices.
 

@@ -6,7 +6,7 @@
 <titleabbrev>{dlm-cap} settings</titleabbrev>
 ++++
 
-experimental::[]
+preview::[]
 
 These are the settings available for configuring <<data-lifecycle-management, {dlm}>> ({dlm-init}).
 

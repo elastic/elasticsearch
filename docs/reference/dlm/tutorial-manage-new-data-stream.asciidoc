@@ -2,7 +2,7 @@
 [[tutorial-manage-new-data-stream]]
 === Tutorial: Create a managed data stream
 
-experimental::[]
+preview::[]
 
 To create a data stream managed by {dlm-init}, follow these steps:
 

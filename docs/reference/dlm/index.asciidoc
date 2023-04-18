@@ -2,7 +2,7 @@
 [[data-lifecycle-management]]
 == {dlm-init}: Manage your data lifecycle
 
-experimental::[]
+preview::[]
 
 {dlm-cap} ({dlm-init}) enables you to automatically manage data streams
 according to your retention requirements. For example, you could use {dlm-init} to:

@@ -515,7 +515,7 @@ public class TransportService extends AbstractLifecycleComponent
      * and returns the discovery node of the node the connection
      * was established with. The handshake will fail if the cluster
      * name on the target node mismatches the local cluster name.
-     * The ActionListener will be called on the calling thread or the generic thread pool.
+     * The ActionListener will be called on the calling thread or the cluster coordination thread pool.
      *
      * @param connection       the connection to a specific node
      * @param handshakeTimeout handshake timeout
@@ -536,7 +536,7 @@ public class TransportService extends AbstractLifecycleComponent
      * and returns the discovery node of the node the connection
      * was established with. The handshake will fail if the cluster
      * name on the target node doesn't match the local cluster name.
-     * The ActionListener will be called on the calling thread or the generic thread pool.
+     * The ActionListener will be called on the calling thread or the cluster coordination thread pool.
      *
      * @param connection       the connection to a specific node
      * @param handshakeTimeout handshake timeout
@@ -583,7 +583,7 @@ public class TransportService extends AbstractLifecycleComponent
                 } else {
                     l.onResponse(response);
                 }
-            }), HandshakeResponse::new, ThreadPool.Names.GENERIC)
+            }), HandshakeResponse::new, ThreadPool.Names.CLUSTER_COORDINATION)
         );
     }
 
@@ -1281,7 +1281,7 @@ public class TransportService extends AbstractLifecycleComponent
         // want handlers to worry about stack overflows.
         // Execute on the current thread in the special case of a node shut down to notify the listener even when the threadpool has
         // already been shut down.
-        final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+        final String executor = lifecycle.stoppedOrClosed() ? ThreadPool.Names.SAME : ThreadPool.Names.CLUSTER_COORDINATION;
         threadPool.executor(executor).execute(new AbstractRunnable() {
             @Override
             public void doRun() {

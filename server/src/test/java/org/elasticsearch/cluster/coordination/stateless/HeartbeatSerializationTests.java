@@ -13,7 +13,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-public class HeartbeatTestSerializationTests extends AbstractWireSerializingTestCase<Heartbeat> {
+public class HeartbeatSerializationTests extends AbstractWireSerializingTestCase<Heartbeat> {
     @Override
     protected Writeable.Reader<Heartbeat> instanceReader() {
         return Heartbeat::new;

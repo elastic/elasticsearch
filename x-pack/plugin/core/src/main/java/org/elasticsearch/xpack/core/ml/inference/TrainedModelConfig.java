@@ -921,7 +921,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             validationException = checkIllegalPackagedModelSetting(definition, DEFINITION.getPreferredName(), validationException);
             validationException = checkIllegalPackagedModelSetting(modelType, MODEL_TYPE.getPreferredName(), validationException);
             validationException = checkIllegalPackagedModelSetting(metadata, METADATA.getPreferredName(), validationException);
-            validationException = checkIllegalPackagedModelSetting(modelSize, MODEL_SIZE_BYTES.getPreferredName(), validationException);
+            if (modelSize != null && modelSize > 0) {
+                validationException = checkIllegalPackagedModelSetting(modelSize, MODEL_SIZE_BYTES.getPreferredName(), validationException);
+            }
             validationException = checkIllegalPackagedModelSetting(
                 inferenceConfig,
                 INFERENCE_CONFIG.getPreferredName(),

@@ -141,6 +141,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .privileges("read", "read_cross_cluster")
                             .build(),
                         RoleDescriptor.IndicesPrivileges.builder()
+                            .indices("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/")
+                            .privileges("read", "read_cross_cluster")
+                            .build(),
+                        RoleDescriptor.IndicesPrivileges.builder()
                             .indices("metricbeat-*")
                             .privileges("read", "read_cross_cluster")
                             .build() },
@@ -157,6 +161,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     TcpTransport.isUntrustedRemoteClusterEnabled()
                         ? new RoleDescriptor.RemoteIndicesPrivileges[] {
                             getRemoteIndicesReadPrivileges(".monitoring-*"),
+                            getRemoteIndicesReadPrivileges("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/"),
                             getRemoteIndicesReadPrivileges("metricbeat-*") }
                         : null
                 )
@@ -805,7 +810,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ".logs-endpoint.diagnostic.collection-*",
                         ".logs-endpoint.actions-*",
                         ".logs-osquery_manager.actions-*",
-                        ".logs-osquery_manager.action.responses-*"
+                        ".logs-osquery_manager.action.responses-*",
+                        "profiling-*"
                     )
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
                     .build(),

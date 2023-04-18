@@ -458,10 +458,11 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         if (startedShard.isSearchable() == false) {
             remove(startedShard);
             var unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, "relocating unsearchable shard");
-
             var assignedShards = assignedShards(startedShard.shardId());
             var promotableShard = assignedShards.stream().filter(ShardRouting::isPromotableToPrimary).findAny();
             assert promotableShard.isEmpty() : "multiple promotable shards are not supported yet";
+            // replicas needs to be removed as well as they could not be active when primary is unassigned
+            // see org.elasticsearch.cluster.routing.IndexShardRoutingTable.Builder.noAssignedReplicaWithoutActivePrimary
             for (ShardRouting replica : List.copyOf(assignedShards)) {
                 remove(replica);
                 unassignedShards.ignoreShard(replica.moveToUnassigned(unassignedInfo), AllocationStatus.NO_ATTEMPT, changes);

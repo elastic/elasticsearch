@@ -12,6 +12,7 @@ import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
@@ -55,6 +56,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // We check that the repository is empty after each test
 public class StatelessPersistedStateTests extends ESTestCase {
     public void testClusterStateIsWrittenIntoTheStore() throws Exception {
         try (var ctx = createTestContext()) {

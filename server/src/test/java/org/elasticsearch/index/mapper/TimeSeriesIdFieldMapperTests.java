@@ -160,9 +160,9 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
 
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> parseDocument(docMapper, b -> b.field("a", "more_than_1024_bytes".repeat(52)).field("@timestamp", "2021-10-01"))
+            () -> parseDocument(docMapper, b -> b.field("a", "more_than_1536_bytes".repeat(80)).field("@timestamp", "2021-10-01"))
         );
-        assertThat(e.getCause().getMessage(), equalTo("Dimension fields must be less than [1024] bytes but was [1040]."));
+        assertThat(e.getCause().getMessage(), equalTo("Dimension fields must be less than [1536] bytes but was [1600]."));
     }
 
     public void testKeywordTooLongUtf8() throws IOException {
@@ -173,9 +173,9 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         String theWordLong = "長い";
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> parseDocument(docMapper, b -> b.field("a", theWordLong.repeat(200)).field("@timestamp", "2021-10-01"))
+            () -> parseDocument(docMapper, b -> b.field("a", theWordLong.repeat(300)).field("@timestamp", "2021-10-01"))
         );
-        assertThat(e.getCause().getMessage(), equalTo("Dimension fields must be less than [1024] bytes but was [1200]."));
+        assertThat(e.getCause().getMessage(), equalTo("Dimension fields must be less than [1536] bytes but was [1800]."));
     }
 
     public void testKeywordNull() throws IOException {

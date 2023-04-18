@@ -129,7 +129,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
 
     static Map<String, Object> createCrossClusterAccessApiKey(RestClient targetClusterClient, String roleDescriptorsJson) {
         // Create API key on FC
-        final var createApiKeyRequest = new Request("POST", "/_security/api_key");
+        final var createApiKeyRequest = new Request("POST", "/_security/_ccs/api_key");
         createApiKeyRequest.setJsonEntity(Strings.format("""
             {
               "name": "cross_cluster_access_key",

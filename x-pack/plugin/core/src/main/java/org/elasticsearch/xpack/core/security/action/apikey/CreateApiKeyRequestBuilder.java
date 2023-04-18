@@ -85,6 +85,11 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
         return this;
     }
 
+    public CreateApiKeyRequestBuilder setType(ApiKeyType apiKeyType) {
+        request.setType(apiKeyType);
+        return this;
+    }
+
     public CreateApiKeyRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
         final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
         try (
@@ -96,7 +101,6 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
             setRoleDescriptors(createApiKeyRequest.getRoleDescriptors());
             setExpiration(createApiKeyRequest.getExpiration());
             setMetadata(createApiKeyRequest.getMetadata());
-
         }
         return this;
     }

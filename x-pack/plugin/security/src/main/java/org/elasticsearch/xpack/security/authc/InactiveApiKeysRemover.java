@@ -67,7 +67,7 @@ public final class InactiveApiKeysRemover extends AbstractRunnable {
         final long cutoffTimestamp = now.minusMillis(retentionPeriodInMs.get()).toEpochMilli();
         expiredDbq.setQuery(
             QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termsQuery("doc_type", "api_key"))
+                .filter(QueryBuilders.prefixQuery("doc_type", "api_key"))
                 .should(QueryBuilders.rangeQuery("expiration_time").lte(cutoffTimestamp))
                 .should(
                     QueryBuilders.boolQuery()

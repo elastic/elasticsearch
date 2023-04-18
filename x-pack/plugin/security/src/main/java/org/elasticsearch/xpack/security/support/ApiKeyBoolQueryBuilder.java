@@ -65,7 +65,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             QueryBuilder processedQuery = doProcess(queryBuilder);
             finalQuery.must(processedQuery);
         }
-        finalQuery.filter(QueryBuilders.termQuery("doc_type", "api_key"));
+        finalQuery.filter(QueryBuilders.prefixQuery("doc_type", "api_key"));
 
         if (authentication != null) {
             if (authentication.isApiKey()) {

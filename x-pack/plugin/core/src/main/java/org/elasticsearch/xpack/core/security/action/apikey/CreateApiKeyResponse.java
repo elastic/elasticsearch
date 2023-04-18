@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,8 +56,13 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
     private final String id;
     private final SecureString key;
     private final Instant expiration;
+    private final ApiKeyType type;
 
     public CreateApiKeyResponse(String name, String id, SecureString key, Instant expiration) {
+        this(name, id, key, expiration, ApiKeyType.DEFAULT);
+    }
+
+    public CreateApiKeyResponse(String name, String id, SecureString key, Instant expiration, ApiKeyType type) {
         this.name = name;
         this.id = id;
         this.key = key;
@@ -64,6 +70,7 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         // here creating the 'Instant' of milliseconds precision.
         // This Instant can then be used for date comparison.
         this.expiration = (expiration != null) ? Instant.ofEpochMilli(expiration.toEpochMilli()) : null;
+        this.type = type;
     }
 
     public CreateApiKeyResponse(StreamInput in) throws IOException {
@@ -80,6 +87,11 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
             }
         }
         this.expiration = in.readOptionalInstant();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            this.type = in.readEnum(ApiKeyType.class);
+        } else {
+            this.type = ApiKeyType.DEFAULT;
+        }
     }
 
     public String getName() {
@@ -104,7 +116,7 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         final int prime = 31;
         int result = 1;
         result = prime * result + ((expiration == null) ? 0 : expiration.hashCode());
-        result = prime * result + Objects.hash(id, name, key);
+        result = prime * result + Objects.hash(id, name, key, type);
         return result;
     }
 
@@ -123,7 +135,8 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         return Objects.equals(expiration, other.expiration)
             && Objects.equals(id, other.id)
             && Objects.equals(key, other.key)
-            && Objects.equals(name, other.name);
+            && Objects.equals(name, other.name)
+            && Objects.equals(type, other.type);
     }
 
     @Override
@@ -140,6 +153,9 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
             }
         }
         out.writeOptionalInstant(expiration);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeEnum(type);
+        }
     }
 
     public static CreateApiKeyResponse fromXContent(XContentParser parser) throws IOException {
@@ -152,13 +168,20 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         if (expiration != null) {
             builder.field("expiration", expiration.toEpochMilli());
         }
-        byte[] charBytes = CharArrays.toUtf8Bytes(key.getChars());
-        try {
-            builder.field("api_key").utf8Value(charBytes, 0, charBytes.length);
-        } finally {
-            Arrays.fill(charBytes, (byte) 0);
+        if (type == ApiKeyType.DEFAULT) {
+            byte[] charBytes = CharArrays.toUtf8Bytes(key.getChars());
+            try {
+                builder.field("api_key").utf8Value(charBytes, 0, charBytes.length);
+            } finally {
+                Arrays.fill(charBytes, (byte) 0);
+            }
+            builder.field("encoded", Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8)));
+        } else {
+            builder.field(
+                "encoded",
+                type.getCredentialsPrefix() + Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8))
+            );
         }
-        builder.field("encoded", Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8)));
         return builder.endObject();
     }
 

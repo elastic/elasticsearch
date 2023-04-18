@@ -193,6 +193,7 @@ public class Constants {
         "cluster:admin/xpack/security/api_key/update",
         "cluster:admin/xpack/security/api_key/bulk_update",
         "cluster:admin/xpack/security/cache/clear",
+        "cluster:admin/xpack/security/ccs/api_key/create",
         "cluster:admin/xpack/security/delegate_pki",
         "cluster:admin/xpack/security/enroll/node",
         "cluster:admin/xpack/security/enroll/kibana",

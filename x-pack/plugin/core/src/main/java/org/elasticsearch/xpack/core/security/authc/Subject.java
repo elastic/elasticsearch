@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyType;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -251,18 +252,31 @@ public class Subject {
         if (roleDescriptorsBytes == null && limitedByRoleDescriptorsBytes == null) {
             throw new ElasticsearchSecurityException("no role descriptors found for API key");
         }
-        final RoleReference.ApiKeyRoleReference limitedByRoleReference = new RoleReference.ApiKeyRoleReference(
-            apiKeyId,
-            limitedByRoleDescriptorsBytes,
-            RoleReference.ApiKeyRoleType.LIMITED_BY
-        );
-        if (isEmptyRoleDescriptorsBytes(roleDescriptorsBytes)) {
-            return new RoleReferenceIntersection(limitedByRoleReference);
+        final ApiKeyType apiKeyType = ApiKeyType.fromDocType((String) metadata.get(AuthenticationField.API_KEY_TYPE_KEY));
+        switch (apiKeyType) {
+            case DEFAULT -> {
+                final RoleReference.ApiKeyRoleReference limitedByRoleReference = new RoleReference.ApiKeyRoleReference(
+                    apiKeyId,
+                    limitedByRoleDescriptorsBytes,
+                    RoleReference.ApiKeyRoleType.LIMITED_BY
+                );
+                if (isEmptyRoleDescriptorsBytes(roleDescriptorsBytes)) {
+                    return new RoleReferenceIntersection(limitedByRoleReference);
+                }
+                return new RoleReferenceIntersection(
+                    new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
+                    limitedByRoleReference
+                );
+            }
+            case CCS -> {
+                // TODO: assert assigned and limited-by role descriptors are identical
+                return new RoleReferenceIntersection(
+                    new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED)
+                );
+            }
+            default -> throw new IllegalArgumentException("unknown API key type [" + apiKeyType + "]");
         }
-        return new RoleReferenceIntersection(
-            new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
-            limitedByRoleReference
-        );
+
     }
 
     private RoleReferenceIntersection buildRoleReferencesForCrossClusterAccess() {

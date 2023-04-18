@@ -42,6 +42,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
     private Map<String, Object> metadata;
     private List<RoleDescriptor> roleDescriptors = Collections.emptyList();
     private WriteRequest.RefreshPolicy refreshPolicy = DEFAULT_REFRESH_POLICY;
+    private ApiKeyType type = ApiKeyType.DEFAULT;
 
     public CreateApiKeyRequest() {
         super();
@@ -140,6 +141,14 @@ public final class CreateApiKeyRequest extends ActionRequest {
 
     public void setMetadata(Map<String, Object> metadata) {
         this.metadata = metadata;
+    }
+
+    public ApiKeyType getType() {
+        return type;
+    }
+
+    public void setType(ApiKeyType type) {
+        this.type = type;
     }
 
     @Override

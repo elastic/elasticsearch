@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyType;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 
 import java.io.IOException;
@@ -48,8 +49,9 @@ public final class CrossClusterAccessHeaders {
     }
 
     private static ApiKeyService.ApiKeyCredentials parseCredentialsHeader(final String header) {
+        final ApiKeyService.ApiKeyCredentials apiKeyCredentials;
         try {
-            return Objects.requireNonNull(ApiKeyService.getCredentialsFromHeader(header));
+            apiKeyCredentials = Objects.requireNonNull(ApiKeyService.getCredentialsFromHeader(header));
         } catch (Exception ex) {
             throw new IllegalArgumentException(
                 "cross cluster access header ["
@@ -58,6 +60,10 @@ public final class CrossClusterAccessHeaders {
                 ex
             );
         }
+        if (apiKeyCredentials.getType() != ApiKeyType.CCS) {
+            throw new IllegalArgumentException("cross cluster access requires cross cluster specific API keys");
+        }
+        return apiKeyCredentials;
     }
 
     public CrossClusterAccessSubjectInfo getCleanAndValidatedSubjectInfo() {

@@ -28,15 +28,12 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
-import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -179,26 +176,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext) {
         return in.fetchSourceContext(fetchSourceContext);
-    }
-
-    @Override
-    public FetchDocValuesContext docValuesContext() {
-        return in.docValuesContext();
-    }
-
-    @Override
-    public SearchContext docValuesContext(FetchDocValuesContext docValuesContext) {
-        return in.docValuesContext(docValuesContext);
-    }
-
-    @Override
-    public FetchFieldsContext fetchFieldsContext() {
-        return in.fetchFieldsContext();
-    }
-
-    @Override
-    public SearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext) {
-        return in.fetchFieldsContext(fetchFieldsContext);
     }
 
     @Override
@@ -489,16 +466,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public CollapseContext collapse() {
         return in.collapse();
-    }
-
-    @Override
-    public RankShardContext rankShardContext() {
-        return in.rankShardContext();
-    }
-
-    @Override
-    public void rankShardContext(RankShardContext rankShardContext) {
-        in.rankShardContext(rankShardContext);
     }
 
     @Override

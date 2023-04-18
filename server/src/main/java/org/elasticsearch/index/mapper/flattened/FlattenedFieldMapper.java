@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
@@ -741,6 +740,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
+        public List<String> dimensions() {
+            return this.dimensions;
+        }
+
+        @Override
         public void validateMatchedRoutingPath(final String routingPath) {
             if (false == isDimension && this.dimensions.contains(routingPath) == false) {
                 throw new IllegalArgumentException(
@@ -808,34 +812,17 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return;
         }
 
-        XContentParser xContentParser = context.parser();
         try {
             // make sure that we don't expand dots in field names while parsing
             context.path().setWithinLeafObject(true);
-            List<IndexableField> fields = fieldParser.parse(xContentParser);
+            List<IndexableField> fields = fieldParser.parse(context);
             context.doc().addAll(fields);
-            addFlattenedDimensionFields(context, fields);
         } finally {
             context.path().setWithinLeafObject(false);
         }
 
         if (mappedFieldType.hasDocValues() == false) {
             context.addToFieldNames(fieldType().name());
-        }
-    }
-
-    private void addFlattenedDimensionFields(final DocumentParserContext context, final List<IndexableField> fields) {
-        final String keyedFieldName = mappedFieldType.name() + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
-        for (final IndexableField field : fields) {
-            if (field.name().equals(keyedFieldName)
-                && SortedSetDocValuesField.TYPE.docValuesType().equals(field.fieldType().docValuesType())) {
-                final SortedSetDocValuesField dv = (SortedSetDocValuesField) field;
-                final String flattenedFieldKey = FlattenedFieldParser.extractKey(dv.binaryValue()).utf8ToString();
-                final BytesRef value = FlattenedFieldParser.extractValue(dv.binaryValue());
-                if (fieldType().isDimension() && fieldType().dimensions.contains(flattenedFieldKey)) {
-                    context.getDimensions().addString(mappedFieldType.name() + "." + flattenedFieldKey, value);
-                }
-            }
         }
     }
 

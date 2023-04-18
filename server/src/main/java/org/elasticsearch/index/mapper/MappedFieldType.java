@@ -46,6 +46,8 @@ import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -186,6 +188,10 @@ public abstract class MappedFieldType {
      */
     public boolean isDimension() {
         return false;
+    }
+
+    public List<String> dimensions() {
+        return Collections.emptyList();
     }
 
     /**

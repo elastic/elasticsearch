@@ -66,12 +66,22 @@ PUT _index_template/my-index-template
   }
 }
 ----
+// TEST[continued]
 
 [discrete]
 [[create-data-stream-with-lifecycle]]
 ==== Create a data stream
 
 You can create a data stream in two ways:
+
+. By manually creating the stream using the <<indices-create-data-stream,create data stream API>>. The stream's name must
+still match one of your template's index patterns.
++
+[source,console]
+----
+PUT _data_stream/my-data-stream
+----
+// TEST[continued]
 
 . By <<add-documents-to-a-data-stream,indexing requests>> that
 target the stream's name. This name must match one of your index template's index patterns.
@@ -84,14 +94,7 @@ PUT my-data-stream/_bulk
 { "create":{ } }
 { "@timestamp": "2099-05-06T16:25:42.000Z", "message": "192.0.2.255 - - [06/May/2099:16:25:42 +0000] \"GET /favicon.ico HTTP/1.0\" 200 3638" }
 ----
-
-. By manually creating the stream using the <<indices-create-data-stream,create data stream API>>. The stream's name must
-still match one of your template's index patterns.
-+
-[source,console]
-----
-PUT _data_stream/my-data-stream
-----
+// TEST[continued]
 
 You can use the <<dlm-get-lifecycle,get data stream lifecycle API>> to see the data lifecycle of your data stream.
 +
@@ -99,6 +102,7 @@ You can use the <<dlm-get-lifecycle,get data stream lifecycle API>> to see the d
 ----
 GET _data_stream/my-data-stream/_lifecycle
 ----
+// TEST[continued]
 +
 The result will look like this:
 +
@@ -118,3 +122,15 @@ The result will look like this:
 <1> The name of your data stream.
 <2> The retention period of the data indexed in this data stream, this means that the data in this data stream will
 be kept at least for 7 days. After that {es} can delete it at its own discretion.
+
+
+//////////////////////////
+[source,console]
+--------------------------------------------------
+DELETE _data_stream/my-data-stream
+DELETE _index_template/my-index-template
+DELETE _component_template/my-lifecycle
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////

@@ -20,11 +20,9 @@ To add or to change the retention period of your data stream you can use the <<d
 [source,console]
 ----
 PUT _data_stream/my-data-stream/_lifecycle
-{
-  "lifecycle": {} <1>
-}
+{ } <1>
 ----
-<1> An empty lifecycle means that your data stream is still be managed and able to support your streaming data but your
+<1> An empty payload means that your data stream is still managed and able to support your streaming data but your
 data will never be deleted.
 
 * Or you can set the retention period of your choice. For example:
@@ -33,9 +31,7 @@ data will never be deleted.
 ----
 PUT _data_stream/my-data-stream/_lifecycle
 {
-  "lifecycle": {
-    "data_retention": "30d" <1>
-  }
+  "data_retention": "30d" <1>
 }
 ----
 <1> The retention period of this data stream is set to 30 days. This means that {es} is allowed to delete data that is

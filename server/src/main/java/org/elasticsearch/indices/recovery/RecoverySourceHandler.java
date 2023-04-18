@@ -201,7 +201,7 @@ public class RecoverySourceHandler {
                 retentionLeaseRef.set(
                     shard.getRetentionLeases().get(ReplicationTracker.getPeerRecoveryRetentionLeaseId(targetShardRouting))
                 );
-            }, shardId + " validating recovery target [" + request.targetAllocationId() + "] registered ", shard, cancellableThreads);
+            }, shard, cancellableThreads);
             final Closeable retentionLock = shard.acquireHistoryRetentionLock();
             resources.add(retentionLock);
             final long startingSeqNo;
@@ -288,7 +288,7 @@ public class RecoverySourceHandler {
                             logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
                             deleteRetentionLeaseStep.onResponse(null);
                         }
-                    }, shardId + " removing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads);
+                    }, shard, cancellableThreads);
 
                     deleteRetentionLeaseStep.whenComplete(ignored -> {
                         assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
@@ -315,12 +315,7 @@ public class RecoverySourceHandler {
                  * make sure to do this before sampling the max sequence number in the next step, to ensure that we send
                  * all documents up to maxSeqNo in phase2.
                  */
-                runUnderPrimaryPermit(
-                    () -> shard.initiateTracking(request.targetAllocationId()),
-                    shardId + " initiating tracking of " + request.targetAllocationId(),
-                    shard,
-                    cancellableThreads
-                );
+                runUnderPrimaryPermit(() -> shard.initiateTracking(request.targetAllocationId()), shard, cancellableThreads);
 
                 final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
                 logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
@@ -398,7 +393,6 @@ public class RecoverySourceHandler {
 
     static void runUnderPrimaryPermit(
         CancellableThreads.Interruptible runnable,
-        String reason,
         IndexShard primary,
         CancellableThreads cancellableThreads
     ) {
@@ -407,7 +401,7 @@ public class RecoverySourceHandler {
             final var future = new PlainActionFuture<Releasable>();
             listener.addListener(future);
 
-            primary.acquirePrimaryOperationPermit(listener, ThreadPool.Names.SAME, reason);
+            primary.acquirePrimaryOperationPermit(listener, ThreadPool.Names.SAME);
             try (var ignored = FutureUtils.get(future)) {
                 ensureNotRelocatedPrimary(primary);
                 runnable.run();
@@ -424,7 +418,6 @@ public class RecoverySourceHandler {
      */
     static <T> void runUnderPrimaryPermit(
         Consumer<ActionListener<T>> action,
-        String reason,
         IndexShard primary,
         CancellableThreads cancellableThreads,
         ActionListener<T> listener
@@ -452,7 +445,7 @@ public class RecoverySourceHandler {
             cancellableThreads.checkForCancel();
             ensureNotRelocatedPrimary(primary);
             action.accept(l2);
-        })), ThreadPool.Names.GENERIC, reason);
+        })), ThreadPool.Names.GENERIC);
     }
 
     private static void ensureNotRelocatedPrimary(IndexShard indexShard) {
@@ -1003,12 +996,7 @@ public class RecoverySourceHandler {
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
                 return newLease;
             }
-        }),
-            shardId + " establishing retention lease for [" + request.targetAllocationId() + "]",
-            shard,
-            cancellableThreads,
-            leaseListener.delegateResponse((l, e) -> outerListener.onFailure(e))
-        );
+        }), shard, cancellableThreads, leaseListener.delegateResponse((l, e) -> outerListener.onFailure(e)));
     }
 
     boolean hasSameLegacySyncId(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
@@ -1236,7 +1224,6 @@ public class RecoverySourceHandler {
          */
         runUnderPrimaryPermit(
             () -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint),
-            shardId + " marking " + request.targetAllocationId() + " as in sync",
             shard,
             cancellableThreads
         );
@@ -1247,7 +1234,6 @@ public class RecoverySourceHandler {
         finalizeListener.whenComplete(r -> {
             runUnderPrimaryPermit(
                 () -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
-                shardId + " updating " + request.targetAllocationId() + "'s global checkpoint",
                 shard,
                 cancellableThreads
             );

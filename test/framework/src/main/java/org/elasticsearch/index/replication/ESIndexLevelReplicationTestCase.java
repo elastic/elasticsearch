@@ -619,8 +619,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 getPrimary().getLastKnownGlobalCheckpoint(),
                 getPrimary().getMaxSeqNoOfUpdatesOrDeletes(),
                 acquirePermitFuture,
-                ThreadPool.Names.SAME,
-                request
+                ThreadPool.Names.SAME
             );
             try (Releasable ignored = acquirePermitFuture.actionGet()) {
                 replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
@@ -793,8 +792,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                             delegatedListener.onFailure(e);
                         }
                     }),
-                    ThreadPool.Names.WRITE,
-                    replicaRequest
+                    ThreadPool.Names.WRITE
                 );
             }
 
@@ -885,7 +883,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
         }
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
-        primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, request);
+        primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME);
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             MappingUpdatePerformer noopMappingUpdater = (_update, _shardId, _listener1) -> {};
             TransportShardBulkAction.performOnPrimary(
@@ -940,8 +938,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             globalCheckpointOnPrimary,
             maxSeqNoOfUpdatesOrDeletes,
             permitAcquiredFuture,
-            ThreadPool.Names.SAME,
-            request
+            ThreadPool.Names.SAME
         );
         final Translog.Location location;
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
@@ -1086,8 +1083,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             globalCheckpointOnPrimary,
             maxSeqNoOfUpdatesOrDeletes,
             acquirePermitFuture,
-            ThreadPool.Names.SAME,
-            request
+            ThreadPool.Names.SAME
         );
         try (Releasable ignored = acquirePermitFuture.actionGet()) {
             location = TransportResyncReplicationAction.performOnReplica(request, replica);

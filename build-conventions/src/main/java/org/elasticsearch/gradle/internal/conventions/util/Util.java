@@ -121,15 +121,6 @@ public class Util {
 
     public static File locateElasticsearchWorkspace(Project project) {
         if (project.getRootProject().getName() == "elasticsearch") {
-//            // See if any of these included builds is the Elasticsearch project
-//            for (IncludedBuild includedBuild : project.getIncludedBuilds()) {
-//                File versionProperties = new File(includedBuild.getProjectDir(), "build-tools-internal/version.properties");
-//                if (versionProperties.exists()) {
-//                    return includedBuild.getProjectDir();
-//                }
-//            }
-
-            // Otherwise assume this project is the root elasticsearch workspace
             return project.getRootProject().getRootDir();
         } else {
             // We're an included build, so keep looking

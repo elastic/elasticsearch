@@ -41,10 +41,6 @@ class GitInfoPlugin implements Plugin<Project> {
         } else {
             rootDir = project.getRootDir().getParentFile();
         }
-//        File rootDir = (project.getGradle().getParent() == null) ?
-//                project.getRootDir() :
-//                project.getGradle().getParent().getRootProject().getRootDir();
-
         gitInfo = objectFactory.property(GitInfo.class).value(factory.provider(() ->
             GitInfo.gitInfo(rootDir)
         ));

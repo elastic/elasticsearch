@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.application.analytics;
 
 public class AnalyticsConstants {
+
+    private AnalyticsConstants() {}
+
     // Data stream related constants.
     public static final String EVENT_DATA_STREAM_DATASET = "events";
     public static final String EVENT_DATA_STREAM_TYPE = "behavioral_analytics";

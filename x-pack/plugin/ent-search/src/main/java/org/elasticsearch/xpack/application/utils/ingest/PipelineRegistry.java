@@ -93,8 +93,8 @@ public abstract class PipelineRegistry implements ClusterStateListener {
                 if (ingestPipelineExists(state, newPipeline.getId())) {
                     IngestMetadata ingestMetadata = state.metadata().custom(IngestMetadata.TYPE);
                     PipelineConfiguration existingPipeline = ingestMetadata.getPipelines().get(newPipeline.getId());
-                    boolean newPipelineHasVersion = Objects.isNull(newPipeline.getVersion()) == false;
-                    boolean oldPipelineHasVersion = Objects.isNull(existingPipeline.getVersion()) == false;
+                    boolean newPipelineHasVersion = Objects.nonNull(newPipeline.getVersion());
+                    boolean oldPipelineHasVersion = Objects.isNull(existingPipeline.getVersion());
                     if (newPipelineHasVersion
                         && (oldPipelineHasVersion == false || existingPipeline.getVersion() < newPipeline.getVersion())) {
                         logger.info(

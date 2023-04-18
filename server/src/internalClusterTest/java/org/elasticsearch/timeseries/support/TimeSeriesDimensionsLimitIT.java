@@ -40,7 +40,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
             mapping.startObject("routing_field").field("type", "keyword").field("time_series_dimension", true).endObject();
             mapping.startObject(dimensionFieldName).field("type", "keyword").field("time_series_dimension", true).endObject();
         },
-            mapping -> { mapping.startObject("gauge").field("type", "integer").field("time_series_metric", "gauge").endObject(); },
+            mapping -> mapping.startObject("gauge").field("type", "integer").field("time_series_metric", "gauge").endObject(),
             () -> List.of("routing_field"),
             dimensionFieldLimit
         );
@@ -70,7 +70,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
     public void testDimensionFieldValueLimit() throws IOException {
         int dimensionFieldLimit = 21;
         createTimeSeriesIndex(
-            mapping -> { mapping.startObject("field").field("type", "keyword").field("time_series_dimension", true).endObject(); },
+            mapping -> mapping.startObject("field").field("type", "keyword").field("time_series_dimension", true).endObject(),
             mapping -> mapping.startObject("gauge").field("type", "integer").field("time_series_metric", "gauge").endObject(),
             () -> List.of("field"),
             dimensionFieldLimit

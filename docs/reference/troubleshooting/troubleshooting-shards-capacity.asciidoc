@@ -1,5 +1,5 @@
-[[troubleshoot-shards-capacity-issues]]
-== Troubleshoot shards capacity health issues
+[[troubleshooting-shards-capacity-issues]]
+== Troubleshooting shards capacity health issues
 
 {es} limits the maximum number of shards to be held per node using the
 <<cluster-max-shards-per-node, `cluster.max_shards_per_node`>> and

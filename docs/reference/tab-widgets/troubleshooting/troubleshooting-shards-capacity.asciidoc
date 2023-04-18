@@ -124,6 +124,42 @@ PUT _cluster/settings
 
 // tag::non-frozen-nodes-self-managed[]
 
+Check the current status of the cluster according the shards capacity indicator:
+
+[source,console]
+----
+GET _health_report/shards_capacity
+----
+
+[source,console-result]
+----
+{
+  "cluster_name": "...",
+  "indicators": {
+    "shards_capacity": {
+      "status": "yellow",
+      "symptom": "Cluster is close to reaching the configured maximum number of shards for data nodes.",
+      "details": {
+        "data": {
+          "max_shards_in_cluster": 1000, <1>
+          "current_used_shards": 988 <2>
+        },
+        "frozen": {
+          "max_shards_in_cluster": 3000
+        }
+      },
+      "impacts": [
+        ...
+      ],
+      "diagnosis": [
+        ...
+    }
+  }
+}
+----
+<1> Current value of the setting `cluster.max_shards_per_node`
+<2> Current number of open shards across the cluster
+
 Using the <<cluster-update-settings,`cluster settings API`>>, update the
 <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> setting:
 [source,console]
@@ -146,6 +182,27 @@ status of the `shards_capacity` indicator by checking the `data` section of the
 [source,console]
 ----
 GET _health_report/shards_capacity
+----
+
+[source,console-result]
+----
+{
+  "cluster_name": "...",
+  "indicators": {
+    "shards_capacity": {
+      "status": "green",
+      "symptom": "The cluster has enough room to add new shards.",
+      "details": {
+        "data": {
+          "max_shards_in_cluster": 1000
+        },
+        "frozen": {
+          "max_shards_in_cluster": 3000
+        }
+      }
+    }
+  }
+}
 ----
 
 When a long-term solution is in place, we recommend you reset the
@@ -285,6 +342,42 @@ PUT _cluster/settings
 
 // tag::frozen-nodes-self-managed[]
 
+Check the current status of the cluster according the shards capacity indicator:
+
+[source,console]
+----
+GET _health_report/shards_capacity
+----
+
+[source,console-result]
+----
+{
+  "cluster_name": "...",
+  "indicators": {
+    "shards_capacity": {
+      "status": "yellow",
+      "symptom": "Cluster is close to reaching the configured maximum number of shards for frozen nodes.",
+      "details": {
+        "data": {
+          "max_shards_in_cluster": 1000
+        },
+        "frozen": {
+          "max_shards_in_cluster": 3000, <1>
+          "current_used_shards": 2998 <2>
+        }
+      },
+      "impacts": [
+        ...
+      ],
+      "diagnosis": [
+        ...
+    }
+  }
+}
+----
+<1> Current value of the setting `cluster.max_shards_per_node.frozen`.
+<2> Current number of open shards used by frozen nodes across the cluster.
+
 Using the <<cluster-update-settings,`cluster settings API`>>, update the
 <<cluster-max-shards-per-node-frozen,`cluster.max_shards_per_node.frozen`>> setting:
 [source,console]
@@ -292,7 +385,7 @@ Using the <<cluster-update-settings,`cluster settings API`>>, update the
 PUT _cluster/settings
 {
   "persistent" : {
-    "cluster.max_shards_per_node.frozen": 4200
+    "cluster.max_shards_per_node.frozen": 3200
   }
 }
 ----
@@ -307,6 +400,27 @@ status of the `shards_capacity` indicator by checking the `data` section of the
 [source,console]
 ----
 GET _health_report/shards_capacity
+----
+
+[source,console-result]
+----
+{
+  "cluster_name": "...",
+  "indicators": {
+    "shards_capacity": {
+      "status": "green",
+      "symptom": "The cluster has enough room to add new shards.",
+      "details": {
+        "data": {
+          "max_shards_in_cluster": 1000
+        },
+        "frozen": {
+          "max_shards_in_cluster": 3000
+        }
+      }
+    }
+  }
+}
 ----
 
 When a long-term solution is in place, we recommend you reset the

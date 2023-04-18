@@ -4,9 +4,9 @@
 
 Monitoring data is stored in data streams or indices in {es}. The default data
 stream or index settings may not work for your situation. For example, you might
-want to change index lifecycle management (ILM) settings, mappings, or the
-number of shards and replicas. The steps to change these settings depend on the 
-monitoring method:
+want to change index lifecycle management (ILM) settings, add custom mappings,
+or the change the number of shards and replicas. The steps to change these
+settings depend on the monitoring method:
 
 * <<config-monitoring-data-streams-elastic-agent>>
 * <<config-monitoring-data-streams-metricbeat-8>>
@@ -20,8 +20,9 @@ stop working correctly.
 === Configuring data streams created by {agent}
 
 When <<configuring-elastic-agent,monitoring using {agent}>>, data is stored in a
-set of data streams named `metrics-{product}.stack_monitoring.{dataset}`. For
-example: `metrics-elasticsearch.stack_monitoring.shard-default`. 
+set of data streams named
+`metrics-{product}.stack_monitoring.{dataset}-{namespace}`. For example:
+`metrics-elasticsearch.stack_monitoring.shard-default`. 
 
 The settings and mappings for these data streams are determined by an index
 template named `metrics-{product}.stack_monitoring.{dataset}`. For example:
@@ -60,8 +61,8 @@ template named `.monitoring-{product}-mb`. For example: `.monitoring-es-mb`. You
 can alter the settings of each data stream by cloning this index template and
 editing it. 
 
-WARNING: Any future changes to the default index template will not automatically 
-be picked up by your clone.
+WARNING: You need to repeat this procedure when upgrading the {stack} to get the
+latest updates to the default monitoring index templates.
 
 You can clone index templates in {kib}:
 
@@ -70,7 +71,7 @@ You can clone index templates in {kib}:
 * Search for the index template.
 * Select the *Clone* action.
 * Change the name, for example into `custom_monitoring`.
-* Set the priority to `1`, to ensure it overrides the default index template.
+* Set the priority to `500`, to ensure it overrides the default index template.
 * Specify the settings you want to change in the `settings` section.
 * Save the cloned template.
 
@@ -78,11 +79,14 @@ You can also use the {es} API:
 
 * Retrieve the index template using the <<indices-get-template,get index 
 template API>>.
-* Edit the index template: set the template `priority` to `1`, and specify the 
+* Edit the index template: set the template `priority` to `500`, and specify the 
 settings you want to change in the `settings` section.
 * Store the updated index template under a different name, for example 
 `custom_monitoring`, using the 
 <<indices-put-template,create index template API>>.
+
+NOTE: {metricbeat} 8 uses <<index-templates,composable templates>>, rather than
+legacy templates.
 
 After changing the index template, the updated settings are only applied to the
 data stream's new backing indices.

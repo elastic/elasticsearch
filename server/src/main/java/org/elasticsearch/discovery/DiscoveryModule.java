@@ -186,6 +186,7 @@ public class DiscoveryModule {
 
         var reconfigurator = getReconfigurator(settings, clusterSettings, clusterCoordinationPlugins);
         var preVoteCollectorFactory = getPreVoteCollectorFactory(clusterCoordinationPlugins);
+        var leaderHeartbeatService = getLeaderHeartbeatService(settings, clusterCoordinationPlugins);
 
         if (MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)
             || LEGACY_MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)
@@ -209,7 +210,7 @@ public class DiscoveryModule {
                 nodeHealthService,
                 circuitBreakerService,
                 reconfigurator,
-                LeaderHeartbeatService.NO_OP,
+                leaderHeartbeatService,
                 preVoteCollectorFactory
             );
         } else {
@@ -257,6 +258,23 @@ public class DiscoveryModule {
         }
 
         return StatefulPreVoteCollector::new;
+    }
+
+    static LeaderHeartbeatService getLeaderHeartbeatService(Settings settings, List<ClusterCoordinationPlugin> clusterCoordinationPlugins) {
+        final var heartbeatServices = clusterCoordinationPlugins.stream()
+            .map(plugin -> plugin.getLeaderHeartbeatService(settings))
+            .flatMap(Optional::stream)
+            .toList();
+
+        if (heartbeatServices.size() > 1) {
+            throw new IllegalStateException("multiple leader heart beat service factories found: " + heartbeatServices);
+        }
+
+        if (heartbeatServices.size() == 1) {
+            return heartbeatServices.get(0);
+        }
+
+        return LeaderHeartbeatService.NO_OP;
     }
 
     public static boolean isSingleNodeDiscovery(Settings settings) {

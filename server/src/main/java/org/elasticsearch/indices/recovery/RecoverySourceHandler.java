@@ -1003,7 +1003,12 @@ public class RecoverySourceHandler {
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
                 return newLease;
             }
-        }), shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, leaseListener);
+        }),
+            shardId + " establishing retention lease for [" + request.targetAllocationId() + "]",
+            shard,
+            cancellableThreads,
+            leaseListener.delegateResponse((l, e) -> outerListener.onFailure(e))
+        );
     }
 
     boolean hasSameLegacySyncId(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {

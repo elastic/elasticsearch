@@ -7,6 +7,10 @@
             "type": {
               "type": "constant_keyword",
               "value": "logs"
+            },
+            "@timestamp": {
+              "type": "date",
+              "ignore_malformed": false
             }
           }
         }

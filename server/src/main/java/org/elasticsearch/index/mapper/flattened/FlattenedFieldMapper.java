@@ -773,8 +773,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             mappedFieldType,
             builder.depthLimit.get(),
             builder.ignoreAbove.get(),
-            builder.nullValue.get(),
-            builder.dimensions.get()
+            builder.nullValue.get()
         );
     }
 

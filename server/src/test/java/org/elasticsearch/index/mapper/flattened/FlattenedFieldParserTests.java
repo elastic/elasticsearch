@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 public class FlattenedFieldParserTests extends ESTestCase {
@@ -33,15 +32,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        parser = new FlattenedFieldParser(
-            "field",
-            "field._keyed",
-            new FakeFieldType("field"),
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            null,
-            Collections.emptyList()
-        );
+        parser = new FlattenedFieldParser("field", "field._keyed", new FakeFieldType("field"), Integer.MAX_VALUE, Integer.MAX_VALUE, null);
     }
 
     public void testTextValues() throws Exception {
@@ -294,8 +285,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             new FakeFieldType("field"),
             2,
             Integer.MAX_VALUE,
-            null,
-            Collections.emptyList()
+            null
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -318,8 +308,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             new FakeFieldType("field"),
             3,
             Integer.MAX_VALUE,
-            null,
-            Collections.emptyList()
+            null
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
@@ -336,31 +325,12 @@ public class FlattenedFieldParserTests extends ESTestCase {
             new FakeFieldType("field"),
             Integer.MAX_VALUE,
             10,
-            null,
-            Collections.emptyList()
+            null
         );
 
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
         List<IndexableField> fields = configuredParser.parse(context);
         assertEquals(0, fields.size());
-    }
-
-    public void testDimensions() throws Exception {
-        String input = "{ \"key1\": \"value1\", \"key2\": \"value2\", \"key3\": \"value3\", \"key4\": \"value4\" }";
-        XContentParser xContentParser = createXContentParser(input);
-        FlattenedFieldParser configuredParser = new FlattenedFieldParser(
-            "field",
-            "field._keyed",
-            new FakeFieldType("field"),
-            Integer.MAX_VALUE,
-            100,
-            null,
-            List.of("key3", "key4")
-        );
-
-        TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        List<IndexableField> fields = configuredParser.parse(context);
-        assertEquals(8, fields.size());
     }
 
     public void testNullValues() throws Exception {
@@ -377,8 +347,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             fieldType,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            "placeholder",
-            Collections.emptyList()
+            "placeholder"
         );
 
         TestDocumentParserContext configuredContext = new TestDocumentParserContext(createXContentParser(input));

@@ -39,7 +39,6 @@ class FlattenedFieldParser {
     private final int depthLimit;
     private final int ignoreAbove;
     private final String nullValue;
-    private final List<String> dimensions;
 
     FlattenedFieldParser(
         String rootFieldName,
@@ -47,8 +46,7 @@ class FlattenedFieldParser {
         MappedFieldType fieldType,
         int depthLimit,
         int ignoreAbove,
-        String nullValue,
-        List<String> dimensions
+        String nullValue
     ) {
         this.rootFieldName = rootFieldName;
         this.keyedFieldName = keyedFieldName;
@@ -56,7 +54,6 @@ class FlattenedFieldParser {
         this.depthLimit = depthLimit;
         this.ignoreAbove = ignoreAbove;
         this.nullValue = nullValue;
-        this.dimensions = dimensions;
     }
 
     public List<IndexableField> parse(final DocumentParserContext context) throws IOException {

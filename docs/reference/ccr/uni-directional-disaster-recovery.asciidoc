@@ -74,7 +74,7 @@ PUT _cluster/settings
 [source,console]
 ----
 ### On clusterB ###
-PUT /kibana_sample_data_ecommerce/_ccr/follow?wait_for_active_shards=1
+PUT /kibana_sample_data_ecommerce2/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster": "clusterA",
   "leader_index": "kibana_sample_data_ecommerce"
@@ -100,15 +100,15 @@ that they accept writes. This can be achieved by:
 [source,console]
 ----
 ### On clusterB ###
-POST /kibana_sample_data_ecommerce/_ccr/pause_follow
-POST /kibana_sample_data_ecommerce/_close           
-POST /kibana_sample_data_ecommerce/_ccr/unfollow    
-POST /kibana_sample_data_ecommerce/_open
+POST /kibana_sample_data_ecommerce2/_ccr/pause_follow
+POST /kibana_sample_data_ecommerce2/_close           
+POST /kibana_sample_data_ecommerce2/_ccr/unfollow    
+POST /kibana_sample_data_ecommerce2/_open
 ----
 // TEST[continued]
 
 . On the client side ({ls}, {beats}, {agent}), manually re-enable ingestion of
-`kibana_sample_data_ecommerce` and redirect traffic to the `clusterB`. You should
+`kibana_sample_data_ecommerce2` and redirect traffic to the `clusterB`. You should
 also redirect all search traffic to the `clusterB` cluster during
 this time. You can simulate this by ingesting documents into this index. You should
 notice this index is now writable.
@@ -116,7 +116,7 @@ notice this index is now writable.
 [source,console]
 ----
 ### On clusterB ###
-POST kibana_sample_data_ecommerce/_doc/
+POST kibana_sample_data_ecommerce2/_doc/
 {
   "user": "kimchy"
 }
@@ -176,7 +176,7 @@ DELETE kibana_sample_data_ecommerce
 PUT /kibana_sample_data_ecommerce/_ccr/follow?wait_for_active_shards=1
 { 
   "remote_cluster": "clusterB", 
-  "leader_index": "kibana_sample_data_ecommerce_copy" 
+  "leader_index": "kibana_sample_data_ecommerce2" 
 }
 ----
 // TEST[continued]
@@ -187,7 +187,7 @@ PUT /kibana_sample_data_ecommerce/_ccr/follow?wait_for_active_shards=1
 [source,console]
 ----
 ### On clusterA ###
-GET kibana_sample_data_ecommerce_copy/_search?q=kimchy
+GET kibana_sample_data_ecommerce/_search?q=kimchy
 ----
 // TEST[continued]
 + 

@@ -927,6 +927,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return builder.build();
     }
 
+    /**
+     * If the cluster state does not contain transport version information, this is the version
+     * that is inferred for all nodes on version 8.8.0 or above.
+     */
+    public static final TransportVersion INFERRED_TRANSPORT_VERSION = TransportVersion.V_8_8_0;
+
     private static TransportVersion inferTransportVersion(DiscoveryNode node) {
         TransportVersion tv;
         if (node.getVersion().before(Version.V_8_8_0)) {
@@ -934,7 +940,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             tv = TransportVersion.fromId(node.getVersion().id);
         } else {
             // use the lowest value it could be for now
-            tv = TransportVersion.V_8_8_0;
+            tv = INFERRED_TRANSPORT_VERSION;
         }
         return tv;
     }

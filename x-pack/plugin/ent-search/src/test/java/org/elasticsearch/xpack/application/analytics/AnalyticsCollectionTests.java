@@ -26,6 +26,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PREFIX;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class AnalyticsCollectionTests extends ESTestCase {
@@ -42,7 +43,7 @@ public class AnalyticsCollectionTests extends ESTestCase {
 
     public void testDataStreamName() {
         AnalyticsCollection collection = randomAnalyticsCollection();
-        String expectedDataStreamName = AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX + collection.getName();
+        String expectedDataStreamName = EVENT_DATA_STREAM_INDEX_PREFIX + collection.getName();
         assertEquals(expectedDataStreamName, collection.getEventDataStream());
     }
 

@@ -219,7 +219,8 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                         startElection,
                         updateMaxTermSeen,
                         electionStrategy,
-                        nodeHealthService) -> new AtomicRegisterPreVoteCollector(atomicHeartbeat, startElection);
+                        nodeHealthService,
+                        leaderHeartbeatService) -> new AtomicRegisterPreVoteCollector(atomicHeartbeat, startElection);
                 }
             };
         }

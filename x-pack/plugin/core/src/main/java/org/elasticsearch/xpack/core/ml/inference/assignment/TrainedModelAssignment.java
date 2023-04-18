@@ -198,6 +198,10 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             return List.of();
         }
 
+        if (nodeIds.size() == 1) {
+            return List.of(new Tuple<>(nodeIds.get(0), numberOfRequests));
+        }
+
         if (allocationSum == 0) {
             // If we are in a mixed cluster where there are assignments prior to introducing allocation distribution
             // we could have a zero-sum of allocations. We fall back to returning a random started node.

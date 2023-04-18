@@ -22,6 +22,7 @@ To add or to change the retention period of your data stream you can use the <<d
 PUT _data_stream/my-data-stream/_lifecycle
 { } <1>
 ----
+// TEST[setup:my_data_stream]
 <1> An empty payload means that your data stream is still managed and able to support your streaming data but your
 data will never be deleted.
 
@@ -34,6 +35,7 @@ PUT _data_stream/my-data-stream/_lifecycle
   "data_retention": "30d" <1>
 }
 ----
+// TEST[continued]
 <1> The retention period of this data stream is set to 30 days. This means that {es} is allowed to delete data that is
 older than 30 days at its own discretion.
 
@@ -48,6 +50,10 @@ To "unmanage" a data stream meaning that {dlm-init} will stop managing this data
 --------------------------------------------------
 DELETE _data_stream/my-data-stream/_lifecycle
 --------------------------------------------------
+// TEST[continued]
+// TEST[teardown:data_stream_cleanup]
 
 The above request will remove the `lifecycle` configuration from the data stream rendering the data stream itself and
 all its backing indices not managed by {dlm-init}.
+
+The current data lifecycle of the data stream can be retrieved by the <<dlm-get-lifecycle, get lifecycle API>>.

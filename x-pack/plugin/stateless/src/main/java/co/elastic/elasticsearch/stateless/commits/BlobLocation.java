@@ -16,6 +16,8 @@ import java.io.IOException;
 
 public record BlobLocation(long primaryTerm, String blobName, long offset, long length) implements Writeable {
 
+    public static final BlobLocation NOT_UPLOADED = new BlobLocation(-1, "", -1, -1);
+
     public BlobLocation(StreamInput streamInput) throws IOException {
         this(streamInput.readVLong(), streamInput.readString(), streamInput.readVLong(), streamInput.readVLong());
     }

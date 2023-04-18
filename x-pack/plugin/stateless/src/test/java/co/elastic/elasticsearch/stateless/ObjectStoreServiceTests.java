@@ -39,6 +39,7 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.engine.Engine;
@@ -47,6 +48,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -250,6 +252,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 var closeables = new TransferableCloseables()
             ) {
 
+                Set<String> previousCommitFiles = Collections.emptySet();
                 for (int commit = 0; commit < commitCount; commit++) {
                     indexWriter.addDocument(List.of());
                     indexWriter.forceMerge(1);
@@ -257,6 +260,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     final var indexReader = closeables.add(DirectoryReader.open(indexWriter));
                     final var indexCommit = indexReader.getIndexCommit();
                     final var commitFiles = testHarness.indexingStore.getMetadata(indexCommit).fileMetadataMap();
+                    final var additionalFiles = Sets.difference(commitFiles.keySet(), previousCommitFiles);
+                    previousCommitFiles = commitFiles.keySet();
                     if (commit == 0 || mergesEnabled == false) {
                         final var segmentCommitInfos = SegmentInfos.readCommit(
                             testHarness.indexingDirectory,
@@ -271,13 +276,15 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     permittedFiles.clear();
                     permittedFiles.addAll(indexCommit.getFileNames());
 
+                    testHarness.commitService.markNewCommit(testHarness.shardId, commitFiles.keySet(), additionalFiles);
+
                     PlainActionFuture.<Void, IOException>get(
                         future -> testHarness.objectStoreService.onCommitCreation(
                             new StatelessCommitRef(
                                 testHarness.shardId,
                                 new Engine.IndexCommitRef(indexCommit, () -> future.onResponse(null)),
                                 commitFiles,
-                                commitFiles.keySet(),
+                                additionalFiles,
                                 1
                             )
                         ),

@@ -183,7 +183,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
     private final Settings settings;
-    private final StatelessCommitService commitService = new StatelessCommitService();
+    private final StatelessCommitService commitService;
     private final Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final ThreadPool threadPool;
     private final PrioritizedThrottledTaskRunner<TranslogFileUploadTask> uploadTranslogTaskRunner;
@@ -201,12 +201,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool,
         ClusterService clusterService,
+        StatelessCommitService commitService,
         Client client
     ) {
         this.settings = settings;
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.commitService = commitService;
         this.client = client;
         this.uploadTranslogTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-translog-file-task-runner",
@@ -523,57 +525,63 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
                 // TODO: Once we have modified the consumer side (search directory and recovery), only upload the stateless commit file.
                 // This step and listener can be removed.
-                final ActionListener<StatelessCompoundCommit> statelessCommitFileListener = releaseCommitListener.delegateFailure((l, v) ->
-                // Note that the segments_N is uploaded last after all other files of the commit have been successfully uploaded,
-                // and only if none of the other files failed to upload, so that a process listing the content of the bucket in the object
-                // store will be able to access a consistent set of commit files (assuming read after write consistency).
-                uploadTaskRunner.enqueueTask(
-                    new FileUploadTask(
-                        shardId,
-                        reference.getPrimaryTerm(),
-                        generation,
-                        timeInNanos,
-                        reference.getSegmentsFileName(),
-                        reference.getDirectory(),
-                        blobContainer,
-                        true,
-                        l.map(r -> {
-                            addResult.accept(r);
-                            return null;
-                        })
-                    )
-                ));
-
-                final ActionListener<Void> allCommitFilesListener = statelessCommitFileListener.delegateFailure((l, v) -> {
-                    // Note that the stateless commit file is uploaded last after all other files of the commit have been successfully
-                    // uploaded, and only if none of the other files failed to upload, so that a process listing the content of the bucket
-                    // in the object store will be able to access a consistent set of commit files (assuming read after write consistency).
-                    String commitFileName = StatelessCompoundCommit.NAME + generation;
-                    StatelessCompoundCommit.Writer commitWriter = commitService.returnPendingCompoundCommit(
-                        shardId,
-                        generation,
-                        reference.getPrimaryTerm(),
-                        reference.getCommitFiles().values()
-                    );
-
+                final ActionListener<StatelessCompoundCommit> statelessCommitFileListener = ActionListener.wrap(
+                    releaseCommitListener.delegateFailure((l, v) ->
+                    // Note that the segments_N is uploaded last after all other files of the commit have been successfully uploaded,
+                    // and only if none of the other files failed to upload, so that a process listing the content of the bucket in the
+                    // object store will be able to access a consistent set of commit files (assuming read after write consistency).
                     uploadTaskRunner.enqueueTask(
-                        new CommitFileUploadTask(
+                        new FileUploadTask(
                             shardId,
+                            reference.getPrimaryTerm(),
                             generation,
                             timeInNanos,
-                            commitFileName,
+                            reference.getSegmentsFileName(),
                             reference.getDirectory(),
-                            commitWriter,
                             blobContainer,
+                            true,
                             l.map(r -> {
-                                addResult.accept(r.v2());
-                                return r.v1();
+                                addResult.accept(r);
+                                return null;
                             })
                         )
-                    );
-                });
+                    ))
+                );
 
-                final ActionListener<Void> additionalFilesListener = allCommitFilesListener.delegateFailure((l, v) -> {
+                final ActionListener<Void> allCommitFilesListener = ActionListener.wrap(
+                    statelessCommitFileListener.delegateFailure((l, v) -> {
+                        // Note that the stateless commit file is uploaded last after all other files of the commit have been successfully
+                        // uploaded, and only if none of the other files failed to upload, so that a process listing the content of the
+                        // bucket
+                        // in the object store will be able to access a consistent set of commit files (assuming read after write
+                        // consistency).
+                        String commitFileName = StatelessCompoundCommit.NAME + generation;
+                        StatelessCompoundCommit.Writer commitWriter = commitService.returnPendingCompoundCommit(
+                            shardId,
+                            generation,
+                            reference.getPrimaryTerm(),
+                            reference.getCommitFiles().values()
+                        );
+
+                        uploadTaskRunner.enqueueTask(
+                            new CommitFileUploadTask(
+                                shardId,
+                                generation,
+                                timeInNanos,
+                                commitFileName,
+                                reference.getDirectory(),
+                                commitWriter,
+                                blobContainer,
+                                l.map(r -> {
+                                    addResult.accept(r.v2());
+                                    return r.v1();
+                                })
+                            )
+                        );
+                    })
+                );
+
+                final ActionListener<Void> additionalFilesListener = ActionListener.wrap(allCommitFilesListener.delegateFailure((l, v) -> {
                     List<String> missingFiles = commitService.resolveMissingFiles(shardId, reference.getCommitFiles().keySet());
                     if (missingFiles.isEmpty()) {
                         l.onResponse(null);
@@ -581,7 +589,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                         enqueueFileUploads(missingFiles, blobContainer, addResult, l);
                     }
 
-                });
+                }));
 
                 enqueueFileUploads(additionalFiles, blobContainer, addResult, additionalFilesListener);
 

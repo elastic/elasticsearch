@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankDoc;
@@ -67,16 +66,6 @@ public class RRFRankDoc extends RankDoc {
         out.writeVInt(rank);
         out.writeIntArray(positions);
         out.writeFloatArray(scores);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return RankRRFPlugin.NAME;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_8_0;
     }
 
     @Override

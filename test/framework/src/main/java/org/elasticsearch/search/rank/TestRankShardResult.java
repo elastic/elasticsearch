@@ -23,11 +23,7 @@ public class TestRankShardResult implements RankShardResult {
     }
 
     public TestRankShardResult(StreamInput in) throws IOException {
-        int dc = in.readVInt();
-        testRankDocs = new TestRankDoc[dc];
-        for (int di = 0; di < dc; ++di) {
-            testRankDocs[di] = (TestRankDoc) in.readNamedWriteable(RankDoc.class);
-        }
+        testRankDocs = in.readArray(TestRankDoc::new, TestRankDoc[]::new);
     }
 
     @Override
@@ -42,9 +38,6 @@ public class TestRankShardResult implements RankShardResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(testRankDocs.length);
-        for (RankDoc rd : testRankDocs) {
-            out.writeNamedWriteable(rd);
-        }
+        out.writeArray(testRankDocs);
     }
 }

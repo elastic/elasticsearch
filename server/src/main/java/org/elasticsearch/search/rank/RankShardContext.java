@@ -45,5 +45,5 @@ public abstract class RankShardContext {
      * know any searches that match the same document must be on the same shard, we can sort on the shard
      * instead for a top window_size set of results and reduce the amount of data we serialize.
      */
-    public abstract RankShardResult sort(List<TopDocs> rrfRankResults);
+    public abstract RankShardResult combine(List<TopDocs> rrfRankResults);
 }

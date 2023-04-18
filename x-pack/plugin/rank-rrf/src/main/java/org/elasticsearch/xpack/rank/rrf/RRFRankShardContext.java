@@ -30,7 +30,7 @@ public class RRFRankShardContext extends RankShardContext {
     }
 
     @Override
-    public RRFRankShardResult sort(List<TopDocs> rrfRankResults) {
+    public RRFRankShardResult combine(List<TopDocs> rrfRankResults) {
         // combine the disjointed sets of TopDocs into a single set or RRFRankDocs
         // each RRFRankDoc will have both the position and score for each query where
         // it was within the result set for that query

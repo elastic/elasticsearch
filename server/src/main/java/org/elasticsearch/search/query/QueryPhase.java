@@ -108,7 +108,7 @@ public class QueryPhase {
             searchTimedOut = rrfQuerySearchResult.searchTimedOut();
         }
 
-        querySearchResult.setRankShardResult(rankShardContext.sort(rrfRankResults));
+        querySearchResult.setRankShardResult(rankShardContext.combine(rrfRankResults));
 
         // record values relevant to all queries
         querySearchResult.searchTimedOut(searchTimedOut);

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.rank;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -22,16 +21,6 @@ public class TestRankDoc extends RankDoc {
 
     public TestRankDoc(StreamInput in) throws IOException {
         super(in);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return TestRankBuilder.NAME;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_8_0;
     }
 
     @Override

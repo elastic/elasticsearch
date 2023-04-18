@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.elasticsearch.xpack.rank.rrf.RRFRankDoc.NO_RANK;
 
-public class RRFRankDocTests extends AbstractNamedWriteableTestCase<RRFRankDoc> {
+public class RRFRankDocTests extends AbstractWireSerializingTestCase<RRFRankDoc> {
 
     static RRFRankDoc createTestRRFRankDoc(int queryCount) {
         RRFRankDoc instance = new RRFRankDoc(randomNonNegativeInt(), randomBoolean() ? -1 : randomNonNegativeInt(), queryCount);
@@ -33,6 +32,11 @@ public class RRFRankDocTests extends AbstractNamedWriteableTestCase<RRFRankDoc> 
     static RRFRankDoc createTestRRFRankDoc() {
         int queryCount = randomIntBetween(2, 20);
         return createTestRRFRankDoc(queryCount);
+    }
+
+    @Override
+    protected Reader<RRFRankDoc> instanceReader() {
+        return RRFRankDoc::new;
     }
 
     @Override
@@ -66,15 +70,5 @@ public class RRFRankDocTests extends AbstractNamedWriteableTestCase<RRFRankDoc> 
             mutated.shardIndex = mutated.shardIndex == -1 ? randomNonNegativeInt() : -1;
         }
         return mutated;
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(List.of(new NamedWriteableRegistry.Entry(RRFRankDoc.class, RankRRFPlugin.NAME, RRFRankDoc::new)));
-    }
-
-    @Override
-    protected Class<RRFRankDoc> categoryClass() {
-        return RRFRankDoc.class;
     }
 }

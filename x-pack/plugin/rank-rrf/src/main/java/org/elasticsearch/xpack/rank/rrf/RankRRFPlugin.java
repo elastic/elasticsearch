@@ -12,7 +12,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.rank.RankBuilder;
-import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -33,8 +32,7 @@ public class RankRRFPlugin extends Plugin {
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
             new NamedWriteableRegistry.Entry(RankBuilder.class, NAME, RRFRankBuilder::new),
-            new NamedWriteableRegistry.Entry(RankShardResult.class, NAME, RRFRankShardResult::new),
-            new NamedWriteableRegistry.Entry(RankDoc.class, NAME, RRFRankDoc::new)
+            new NamedWriteableRegistry.Entry(RankShardResult.class, NAME, RRFRankShardResult::new)
         );
     }
 

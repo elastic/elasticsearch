@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.InternalAggregationsTests;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.TestRankBuilder;
 import org.elasticsearch.search.rank.TestRankDoc;
@@ -49,7 +48,6 @@ public class QuerySearchResultTests extends ESTestCase {
     public QuerySearchResultTests() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(searchModule.getNamedWriteables());
-        namedWriteables.add(new NamedWriteableRegistry.Entry(RankDoc.class, TestRankBuilder.NAME, TestRankDoc::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(RankShardResult.class, TestRankBuilder.NAME, TestRankShardResult::new));
         this.namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
     }

@@ -408,58 +408,17 @@ public class RecoverySourceHandler {
 
             primary.acquirePrimaryOperationPermit(listener, ThreadPool.Names.SAME, reason);
             try (var ignored = FutureUtils.get(future)) {
-                ensureNotRelocatedPrimary(primary);
+                // check that the IndexShard still has the primary authority. This needs to be checked under operation permit to prevent
+                // races, as IndexShard will switch its authority only when it holds all operation permits, see IndexShard.relocated()
+                if (primary.isRelocatedPrimary()) {
+                    throw new IndexShardRelocatedException(primary.shardId());
+                }
                 runnable.run();
             } finally {
                 // add a listener to release the permit because we might have been interrupted while waiting (double-releasing is ok)
                 listener.addListener(ActionListener.wrap(Releasable::close, e -> {}));
             }
         });
-    }
-
-    /**
-     * Run {@code action} while holding a primary permit, checking for cancellation both before and after. Completing the listener passed to
-     * {@code action} releases the permit before passing the result through to {@code outerListener}.
-     */
-    static <T> void runUnderPrimaryPermit(
-        Consumer<ActionListener<T>> action,
-        String reason,
-        IndexShard primary,
-        CancellableThreads cancellableThreads,
-        ActionListener<T> listener
-    ) {
-        primary.acquirePrimaryOperationPermit(listener.delegateFailure((l1, permit) -> ActionListener.run(new ActionListener<T>() {
-            @Override
-            public void onResponse(T result) {
-                ActionListener.completeWith(l1, () -> {
-                    try (permit) {
-                        cancellableThreads.checkForCancel();
-                    }
-                    return result;
-                });
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    Releasables.closeExpectNoException(permit);
-                } finally {
-                    l1.onFailure(e);
-                }
-            }
-        }, l2 -> {
-            cancellableThreads.checkForCancel();
-            ensureNotRelocatedPrimary(primary);
-            action.accept(l2);
-        })), ThreadPool.Names.GENERIC, reason);
-    }
-
-    private static void ensureNotRelocatedPrimary(IndexShard indexShard) {
-        // check that the IndexShard still has the primary authority. This needs to be checked under operation permit to prevent
-        // races, as IndexShard will switch its authority only when it holds all operation permits, see IndexShard.relocated()
-        if (indexShard.isRelocatedPrimary()) {
-            throw new IndexShardRelocatedException(indexShard.shardId());
-        }
     }
 
     /**
@@ -969,8 +928,8 @@ public class RecoverySourceHandler {
         }
     }
 
-    void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> outerListener) {
-        runUnderPrimaryPermit(listener -> {
+    void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {
+        runUnderPrimaryPermit(() -> {
             // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
             // checkpoint of the safe commit we're creating and this lease's retained seqno with the retention lock, and by cloning an
             // existing lease we (approximately) know that all our peers are also retaining history as requested by the cloned lease. If
@@ -1003,7 +962,7 @@ public class RecoverySourceHandler {
                 addRetentionLeaseStep.addListener(listener.map(rr -> newLease));
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
             }
-        }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, outerListener);
+        }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads);
     }
 
     boolean hasSameLegacySyncId(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {

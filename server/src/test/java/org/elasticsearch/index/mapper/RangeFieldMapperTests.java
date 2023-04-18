@@ -156,8 +156,8 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             b.field("coerce", false);
         }));
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        Exception e = expectThrows(
+            DocumentParsingException.class,
             () -> mapper2.parse(source(b -> b.startObject("field").field(getFromField(), "5.2").field(getToField(), "10").endObject()))
         );
         assertThat(e.getCause().getMessage(), containsString("passed as String"));

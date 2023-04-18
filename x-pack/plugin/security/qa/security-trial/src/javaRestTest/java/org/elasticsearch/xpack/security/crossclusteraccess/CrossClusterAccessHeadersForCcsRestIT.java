@@ -726,7 +726,8 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
 
             // Remote clusters with new configurable model
             switch (numberOfConfigurables) {
-                case 0 -> {}
+                case 0 -> {
+                }
                 case 1 -> setupClusterSettings(CLUSTER_A, remoteClusterServerPortAddress, useProxyModes.get(0));
                 case 2 -> {
                     setupClusterSettings(CLUSTER_A, remoteClusterServerPortAddress, useProxyModes.get(0));
@@ -985,7 +986,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
                         actual.headers().get(CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY)
                     );
-                    final var expectedCrossClusterAccessSubjectInfo = CrossClusterAccessUser.subjectInfoWithEmptyRoleDescriptors(
+                    final var expectedCrossClusterAccessSubjectInfo = CrossClusterAccessUser.subjectInfo(
                         TransportVersion.CURRENT,
                         // Since we are running on a multi-node cluster the actual node name may be different between runs
                         // so just copy the one from the actual result

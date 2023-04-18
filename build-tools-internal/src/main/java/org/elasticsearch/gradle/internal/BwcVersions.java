@@ -65,7 +65,7 @@ import static java.util.Collections.unmodifiableList;
 public class BwcVersions {
 
     private static final Pattern LINE_PATTERN = Pattern.compile(
-        "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*;"
+        "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)?.*\\);"
     );
     private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.17.0");
     private static final String GLIBC_VERSION_ENV_VAR = "GLIBC_VERSION";
@@ -96,7 +96,6 @@ public class BwcVersions {
     }
 
     private static List<Version> parseVersionLines(List<String> versionLines) {
-
         return versionLines.stream()
             .map(LINE_PATTERN::matcher)
             .filter(Matcher::matches)

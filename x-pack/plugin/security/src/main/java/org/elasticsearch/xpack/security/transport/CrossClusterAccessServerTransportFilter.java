@@ -25,8 +25,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
@@ -88,7 +90,10 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
                 ResolveIndexAction.NAME,
                 FieldCapabilitiesAction.NAME,
                 FieldCapabilitiesAction.NAME + "[n]",
-                "indices:data/read/eql"
+                "indices:data/read/eql",
+                // transform
+                XPackInfoAction.NAME,
+                GetCheckpointAction.NAME
             )
         ).collect(Collectors.toUnmodifiableSet());
     }

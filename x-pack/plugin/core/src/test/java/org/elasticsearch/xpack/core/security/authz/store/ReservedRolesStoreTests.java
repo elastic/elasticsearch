@@ -936,7 +936,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             // Hidden data indices for endpoint package
             ".logs-endpoint.action.responses-" + randomAlphaOfLengthBetween(3, 8),
             ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(3, 8),
-            ".logs-endpoint.actions-" + randomAlphaOfLengthBetween(3, 8)
+            ".logs-endpoint.actions-" + randomAlphaOfLengthBetween(3, 8),
+            "profiling-" + randomAlphaOfLengthBetween(3, 8)
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
@@ -980,7 +981,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 || indexName.startsWith("synthetics-icmp-*")
                 || indexName.startsWith("synthetics-browser-*")
                 || indexName.startsWith("synthetics-browser.network-*")
-                || indexName.startsWith("synthetics-browser.screenshot-*");
+                || indexName.startsWith("synthetics-browser.screenshot-*")
+                || indexName.startsWith("profiling-*");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(isAlsoIlmDeleteIndex));
         });
 

@@ -1336,6 +1336,16 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
+        public void setRequestId(long requestId) {
+            request.setRequestId(requestId);
+        }
+
+        @Override
+        public long getRequestId() {
+            return request.getRequestId();
+        }
+
+        @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return request.createTask(id, type, action, parentTaskId, headers);
         }

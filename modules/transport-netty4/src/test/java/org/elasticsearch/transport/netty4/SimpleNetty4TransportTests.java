@@ -23,7 +23,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
@@ -68,7 +67,6 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             new NoneCircuitBreakerService(),
             new SharedGroupFactory(settings)
         ) {
-
             @Override
             public void executeHandshake(
                 DiscoveryNode node,
@@ -79,7 +77,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
-                    listener.onResponse(TransportVersionUtils.minimumCompatibilityVersion(version));
+                    assert getVersion().equals(TransportVersion.CURRENT);
+                    listener.onResponse(TransportVersion.MINIMUM_COMPATIBLE);
                 }
             }
         };

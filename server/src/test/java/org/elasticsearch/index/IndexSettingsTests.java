@@ -76,8 +76,9 @@ public class IndexSettingsTests extends ESTestCase {
         Setting<Integer> integerSetting = Setting.intSetting("index.test.setting.int", -1, Property.Dynamic, Property.IndexScope);
         IndexMetadata metadata = newIndexMeta("index", theSettings);
         IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY, integerSetting);
-        settings.getScopedSettings()
-            .addSettingsUpdateConsumer(integerSetting, integer::set, (i) -> { if (i == 42) throw new AssertionError("boom"); });
+        settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, integer::set, (i) -> {
+            if (i == 42) throw new AssertionError("boom");
+        });
 
         assertEquals(version, settings.getIndexVersionCreated());
         assertEquals("0xdeadbeef", settings.getUUID());
@@ -646,15 +647,15 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testArchiveBrokenIndexSettings() {
-        Settings settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
-            Settings.EMPTY,
-            e -> { assert false : "should not have been invoked, no unknown settings"; },
-            (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; }
-        );
+        Settings settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(Settings.EMPTY, e -> {
+            assert false : "should not have been invoked, no unknown settings";
+        }, (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; });
         assertSame(settings, Settings.EMPTY);
         settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
             Settings.builder().put("index.refresh_interval", "-200").build(),
-            e -> { assert false : "should not have been invoked, no invalid settings"; },
+            e -> {
+                assert false : "should not have been invoked, no invalid settings";
+            },
             (e, ex) -> {
                 assertThat(e.getKey(), equalTo("index.refresh_interval"));
                 assertThat(e.getValue(), equalTo("-200"));
@@ -665,11 +666,9 @@ public class IndexSettingsTests extends ESTestCase {
         assertNull(settings.get("index.refresh_interval"));
 
         Settings prevSettings = settings; // no double archive
-        settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
-            prevSettings,
-            e -> { assert false : "should not have been invoked, no unknown settings"; },
-            (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; }
-        );
+        settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(prevSettings, e -> {
+            assert false : "should not have been invoked, no unknown settings";
+        }, (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; });
         assertSame(prevSettings, settings);
 
         settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(

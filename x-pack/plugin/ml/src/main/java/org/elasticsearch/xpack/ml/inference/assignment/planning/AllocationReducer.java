@@ -106,7 +106,7 @@ public class AllocationReducer {
                 logger.debug(
                     () -> format(
                         "[%s] removing assignment with [%s] allocations on node [%s]",
-                        assignment.getModelId(),
+                        assignment.getDeploymentId(),
                         smallestAssignmentInLargestZone.getValue(),
                         smallestAssignmentInLargestZone.getKey()
                     )
@@ -118,7 +118,7 @@ public class AllocationReducer {
                 logger.debug(
                     () -> format(
                         "[%s] removing 1 allocation from assignment with [%s] allocations on node [%s]",
-                        assignment.getModelId(),
+                        assignment.getDeploymentId(),
                         smallestAssignmentInLargestZone.getValue(),
                         smallestAssignmentInLargestZone.getKey()
                     )

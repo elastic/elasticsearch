@@ -132,6 +132,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build()
     );
+    private static final BytesArray TRANSLOG_OPERATION_SOURCE = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
     private final ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     private final RecoveryPlannerService recoveryPlannerService = PeerOnlyRecoveryPlannerService.INSTANCE;
@@ -1955,29 +1956,33 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         };
     }
 
+    public static Translog.Operation generateOperation(long seqNo) {
+        final Translog.Operation op;
+        if (randomBoolean()) {
+            op = new Translog.Index(
+                "id",
+                seqNo,
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                TRANSLOG_OPERATION_SOURCE,
+                randomBoolean() ? randomAlphaOfLengthBetween(1, 5) : null,
+                randomNonNegativeLong()
+            );
+        } else if (randomBoolean()) {
+            op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
+        } else {
+            op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
+        }
+        return op;
+    }
+
     private static List<Translog.Operation> generateOperations(int numOps) {
         final List<Translog.Operation> operations = new ArrayList<>(numOps);
         final BytesArray source = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
         final Set<Long> seqNos = new HashSet<>();
         for (int i = 0; i < numOps; i++) {
             final long seqNo = randomValueOtherThanMany(n -> seqNos.add(n) == false, ESTestCase::randomNonNegativeLong);
-            final Translog.Operation op;
-            if (randomBoolean()) {
-                op = new Translog.Index(
-                    "id",
-                    seqNo,
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    source,
-                    randomBoolean() ? randomAlphaOfLengthBetween(1, 5) : null,
-                    randomNonNegativeLong()
-                );
-            } else if (randomBoolean()) {
-                op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
-            } else {
-                op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
-            }
-            operations.add(op);
+            operations.add(generateOperation(seqNo));
         }
         return operations;
     }

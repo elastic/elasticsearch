@@ -183,7 +183,11 @@ public class PutRoleRequestTests extends ESTestCase {
         final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(
             RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES
         );
-        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(random(), versionBeforeRemoteIndices);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_17_0,
+            versionBeforeRemoteIndices
+        );
         out.setTransportVersion(version);
 
         final PutRoleRequest original = buildRandomRequest(randomBoolean());

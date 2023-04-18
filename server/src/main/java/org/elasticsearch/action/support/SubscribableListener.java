@@ -261,7 +261,7 @@ public class SubscribableListener<T> implements ActionListener<T> {
         }
     }
 
-    private record SuccessResult<T> (T result) {
+    private record SuccessResult<T>(T result) {
         public void complete(ActionListener<T> listener) {
             try {
                 listener.onResponse(result);

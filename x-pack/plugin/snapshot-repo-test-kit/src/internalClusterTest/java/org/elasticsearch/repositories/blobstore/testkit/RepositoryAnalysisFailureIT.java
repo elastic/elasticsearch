@@ -321,7 +321,19 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             @Override
             public long onCompareAndExchange(AtomicLong register, long expected, long updated) {
                 if (randomBoolean() && sawSpuriousValue.compareAndSet(false, true)) {
-                    return randomFrom(expectedMax, randomLongBetween(expectedMax, Long.MAX_VALUE), randomLongBetween(Long.MIN_VALUE, -1));
+                    if (register.get() == expectedMax) {
+                        return randomFrom(
+                            randomLongBetween(0L, expectedMax - 1),
+                            randomLongBetween(expectedMax + 1, Long.MAX_VALUE),
+                            randomLongBetween(Long.MIN_VALUE, -1)
+                        );
+                    } else {
+                        return randomFrom(
+                            expectedMax,
+                            randomLongBetween(expectedMax, Long.MAX_VALUE),
+                            randomLongBetween(Long.MIN_VALUE, -1)
+                        );
+                    }
                 }
                 return register.compareAndExchange(expected, updated);
             }

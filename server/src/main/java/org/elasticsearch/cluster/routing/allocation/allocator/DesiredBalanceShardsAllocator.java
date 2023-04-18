@@ -262,7 +262,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         @Override
         public void onFailure(Exception e) {
             assert MasterService.isPublishFailureException(e) : e;
-            if (e.getCause() != null && e.getCause()instanceof EsRejectedExecutionException esRejectedExecutionException) {
+            if (e.getCause() != null && e.getCause() instanceof EsRejectedExecutionException esRejectedExecutionException) {
                 assert esRejectedExecutionException.isExecutorShutdown();
                 // TODO now what? onNoLongerMaster() asserts it's on the master thread but we could be anywhere here
             } else {

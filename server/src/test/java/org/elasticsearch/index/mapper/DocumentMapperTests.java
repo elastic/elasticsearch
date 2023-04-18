@@ -156,10 +156,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
         final DocumentMapper documentMapper = mapperService.documentMapper();
 
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> documentMapper.mappers().indexAnalyzer("non_existing_field", f -> { throw new IllegalArgumentException(); })
-        );
+        expectThrows(IllegalArgumentException.class, () -> documentMapper.mappers().indexAnalyzer("non_existing_field", f -> {
+            throw new IllegalArgumentException();
+        }));
 
         final AtomicBoolean stopped = new AtomicBoolean(false);
         final CyclicBarrier barrier = new CyclicBarrier(2);

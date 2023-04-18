@@ -1003,15 +1003,12 @@ public class RecoverySourceHandler {
         final var leaseListener = new SubscribableListener<Void>();
         final var delayedListener = new ThreadedActionListener<>(
             shard.getThreadPool().generic(),
-            outerListener.<ReplicationResponse>delegateFailure((l, ignored) -> leaseListener.addListener(l))
+            outerListener.<Void>delegateFailure((l, ignored) -> leaseListener.addListener(l))
         );
 
         runUnderPrimaryPermit(permitListener -> ActionListener.completeWith(permitListener, () -> {
             try {
-                shard.removePeerRecoveryRetentionLease(
-                    request.targetNode().getId(),
-                    new ThreadedActionListener<>(shard.getThreadPool().generic(), delayedListener)
-                );
+                shard.removePeerRecoveryRetentionLease(request.targetNode().getId(), delayedListener.map(ignored -> null));
             } catch (RetentionLeaseNotFoundException e) {
                 // this counts as success
                 logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());

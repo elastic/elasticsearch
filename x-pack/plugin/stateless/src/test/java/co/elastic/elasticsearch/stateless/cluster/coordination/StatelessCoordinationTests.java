@@ -20,7 +20,11 @@ import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
+import org.elasticsearch.cluster.coordination.stateless.AtomicRegisterPreVoteCollector;
+import org.elasticsearch.cluster.coordination.stateless.Heartbeat;
+import org.elasticsearch.cluster.coordination.stateless.HeartbeatStore;
 import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator;
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -40,9 +44,9 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.cluster.coordination.AtomicRegisterCoordinatorTests.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
-import static org.elasticsearch.cluster.coordination.AtomicRegisterCoordinatorTests.StoreHeartbeatService.MAX_MISSED_HEARTBEATS;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
+import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
+import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.MAX_MISSED_HEARTBEATS;
 
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
@@ -174,7 +178,7 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
         );
     }
 
-    private static class InMemoryHeartBeatStore implements AtomicRegisterCoordinatorTests.HeartbeatStore {
+    private static class InMemoryHeartBeatStore implements HeartbeatStore {
         private Heartbeat heartbeat;
 
         @Override

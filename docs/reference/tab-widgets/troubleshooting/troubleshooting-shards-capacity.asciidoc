@@ -58,11 +58,10 @@ The response will look like this:
 }
 ----
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
-
++
 <1> Current value of the setting `cluster.max_shards_per_node`
 <2> Current number of open shards across the cluster
 +
-
 . Update the <<cluster-max-shards-per-node,`cluster.max_shards_per_node`>> setting with a value over :
 +
 [source,console]
@@ -136,9 +135,9 @@ Check the current status of the cluster according the shards capacity indicator:
 ----
 GET _health_report/shards_capacity
 ----
-+
+
 The response will look like this:
-+
+
 [source,console-result]
 ----
 {
@@ -192,9 +191,9 @@ status of the `shards_capacity` indicator by checking the `data` section of the
 ----
 GET _health_report/shards_capacity
 ----
-+
+
 The response will look like this:
-+
+
 [source,console-result]
 ----
 {
@@ -419,6 +418,8 @@ status of the `shards_capacity` indicator by checking the `data` section of the
 ----
 GET _health_report/shards_capacity
 ----
+
+The response will look like this:
 
 [source,console-result]
 ----

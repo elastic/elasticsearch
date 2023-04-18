@@ -19,6 +19,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.OptionalLong;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -55,7 +56,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
         PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
@@ -118,7 +119,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
         PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
@@ -160,7 +161,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
         PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
@@ -215,7 +216,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         ) {
             @Override
             protected long absoluteTimeInMillis() {
@@ -264,4 +265,30 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             assertThat(noRecentLeaderFound.get(), is(false));
         }
     }
+
+    public void testUnexpectedEmptyRegisterTermReturnsAnError() {
+        final var heartbeatFrequency = TimeValue.timeValueSeconds(randomIntBetween(15, 30));
+        final var maxTimeSinceLastHeartbeat = TimeValue.timeValueSeconds(2 * heartbeatFrequency.seconds());
+        final var currentLeader = new DiscoveryNode("master", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final var fakeClock = new AtomicLong();
+        final var heartbeatStore = new InMemoryHeartbeatStore();
+        final var heartbeatService = new StoreHeartbeatService(
+            heartbeatStore,
+            threadPool,
+            heartbeatFrequency,
+            maxTimeSinceLastHeartbeat,
+            listener -> listener.onResponse(OptionalLong.empty())
+        ) {
+            @Override
+            protected long absoluteTimeInMillis() {
+                return fakeClock.get();
+            }
+        };
+
+        PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
+        heartbeatService.start(currentLeader, 1, completionListener);
+        expectThrows(Exception.class, completionListener::get);
+    }
+
 }

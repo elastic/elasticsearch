@@ -9,7 +9,6 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.Collector;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
@@ -26,8 +25,7 @@ import java.util.List;
  */
 public class AggregationPhase {
 
-    @Inject
-    public AggregationPhase() {}
+    private AggregationPhase() {}
 
     public static void preProcess(SearchContext context) {
         if (context.aggregations() == null) {

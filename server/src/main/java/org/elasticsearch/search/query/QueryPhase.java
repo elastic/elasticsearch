@@ -56,7 +56,7 @@ import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDo
 public class QueryPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
 
-    public QueryPhase() {}
+    private QueryPhase() {}
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {

@@ -45,7 +45,10 @@ import static org.hamcrest.Matchers.is;
 public class StatelessElectionStrategyTests extends ESTestCase {
     public void testTermIsClaimedOnNewElections() throws Exception {
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
-            var electionStrategy = new StatelessElectionStrategy(fakeStatelessNode.objectStoreService.getTermLeaseBlobContainer());
+            var electionStrategy = new StatelessElectionStrategy(
+                fakeStatelessNode.objectStoreService::getTermLeaseBlobContainer,
+                fakeStatelessNode.threadPool
+            );
 
             var localNode = newDiscoveryNode("local-node");
 
@@ -94,7 +97,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                 }
             };
 
-            var electionStrategy = new StatelessElectionStrategy(termLeaseBlobContainer);
+            var electionStrategy = new StatelessElectionStrategy(() -> termLeaseBlobContainer, fakeStatelessNode.threadPool);
 
             var localNode = newDiscoveryNode("local-node");
 
@@ -107,7 +110,10 @@ public class StatelessElectionStrategyTests extends ESTestCase {
 
     public void testElectionQuorum() throws Exception {
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
-            var electionStrategy = new StatelessElectionStrategy(fakeStatelessNode.objectStoreService.getTermLeaseBlobContainer());
+            var electionStrategy = new StatelessElectionStrategy(
+                fakeStatelessNode.objectStoreService::getTermLeaseBlobContainer,
+                fakeStatelessNode.threadPool
+            );
             var localNode = newDiscoveryNode("local-node");
             var anotherNode = newDiscoveryNode("another-node");
 
@@ -144,7 +150,10 @@ public class StatelessElectionStrategyTests extends ESTestCase {
 
     public void testPublishQuorum() throws Exception {
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
-            var electionStrategy = new StatelessElectionStrategy(fakeStatelessNode.objectStoreService.getTermLeaseBlobContainer());
+            var electionStrategy = new StatelessElectionStrategy(
+                fakeStatelessNode.objectStoreService::getTermLeaseBlobContainer,
+                fakeStatelessNode.threadPool
+            );
             var localNode = newDiscoveryNode("local-node");
 
             var votingConfiguration = new CoordinationMetadata.VotingConfiguration(Set.of(localNode.getId()));
@@ -171,7 +180,10 @@ public class StatelessElectionStrategyTests extends ESTestCase {
     public void testBeforeCommitChecksIfTheTermIsStillFresh() throws Exception {
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
             var localNode = newDiscoveryNode("local-node");
-            var electionStrategy = new StatelessElectionStrategy(fakeStatelessNode.objectStoreService.getTermLeaseBlobContainer());
+            var electionStrategy = new StatelessElectionStrategy(
+                fakeStatelessNode.objectStoreService::getTermLeaseBlobContainer,
+                fakeStatelessNode.threadPool
+            );
             PlainActionFuture.<StartJoinRequest, Exception>get(f -> electionStrategy.onNewElection(localNode, 1, f));
 
             PlainActionFuture.<Void, Exception>get(f -> electionStrategy.beforeCommit(1, 1, f));
@@ -185,7 +197,10 @@ public class StatelessElectionStrategyTests extends ESTestCase {
 
     public void testTermsAreAssignedOncePerNode() throws Exception {
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
-            var electionStrategy = new StatelessElectionStrategy(fakeStatelessNode.objectStoreService.getTermLeaseBlobContainer());
+            var electionStrategy = new StatelessElectionStrategy(
+                fakeStatelessNode.objectStoreService::getTermLeaseBlobContainer,
+                fakeStatelessNode.threadPool
+            );
 
             var numberOfTermsGrantedBeforeStopping = 100;
             var latch = new CountDownLatch(numberOfTermsGrantedBeforeStopping);

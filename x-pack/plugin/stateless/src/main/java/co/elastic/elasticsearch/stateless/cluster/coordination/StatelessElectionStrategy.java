@@ -9,6 +9,7 @@
 package co.elastic.elasticsearch.stateless.cluster.coordination;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationState;
@@ -17,15 +18,21 @@ import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.StartJoinRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Objects;
 import java.util.OptionalLong;
+import java.util.function.Supplier;
 
 public class StatelessElectionStrategy extends ElectionStrategy {
+    public static final String NAME = "stateless_election_strategy";
     private static final String LEASE_BLOB = "lease";
-    private final BlobContainer blobContainer;
+    private final Supplier<BlobContainer> blobContainerSupplier;
+    private final ThreadPool threadPool;
 
-    StatelessElectionStrategy(BlobContainer blobContainer) {
-        this.blobContainer = blobContainer;
+    public StatelessElectionStrategy(Supplier<BlobContainer> blobContainerSupplier, ThreadPool threadPool) {
+        this.blobContainerSupplier = blobContainerSupplier;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -74,7 +81,7 @@ public class StatelessElectionStrategy extends ElectionStrategy {
             long currentLeaseTerm = currentLeaseTermOpt.orElse(0);
             final long electionTerm = Math.max(proposedTerm, currentLeaseTerm + 1);
 
-            blobContainer.compareAndSetRegister(
+            blobContainer().compareAndSetRegister(
                 LEASE_BLOB,
                 currentLeaseTerm,
                 electionTerm,
@@ -116,8 +123,15 @@ public class StatelessElectionStrategy extends ElectionStrategy {
         return false;
     }
 
-    // Visible for testing
-    void getCurrentLeaseTerm(ActionListener<OptionalLong> listener) {
-        blobContainer.getRegister(LEASE_BLOB, listener);
+    public void getCurrentLeaseTerm(ActionListener<OptionalLong> listener) {
+        threadPool.executor(getExecutorName()).execute(ActionRunnable.wrap(listener, l -> blobContainer().getRegister(LEASE_BLOB, l)));
+    }
+
+    protected String getExecutorName() {
+        return ThreadPool.Names.SNAPSHOT_META;
+    }
+
+    private BlobContainer blobContainer() {
+        return Objects.requireNonNull(blobContainerSupplier.get());
     }
 }

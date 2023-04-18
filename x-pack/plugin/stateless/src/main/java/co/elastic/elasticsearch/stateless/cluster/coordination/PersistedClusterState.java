@@ -10,4 +10,4 @@ package co.elastic.elasticsearch.stateless.cluster.coordination;
 
 import org.elasticsearch.cluster.metadata.Metadata;
 
-record PersistedClusterState(long term, long version, String clusterUUID, Metadata metadata) {}
+record PersistedClusterState(long term, long version, Metadata metadata) {}

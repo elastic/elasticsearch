@@ -176,7 +176,7 @@ DELETE kibana_sample_data_ecommerce
 PUT /kibana_sample_data_ecommerce/_ccr/follow?wait_for_active_shards=1
 { 
   "remote_cluster": "clusterB", 
-  "leader_index": "kibana_sample_data_ecommerce" 
+  "leader_index": "kibana_sample_data_ecommerce_copy" 
 }
 ----
 // TEST[continued]
@@ -187,7 +187,8 @@ PUT /kibana_sample_data_ecommerce/_ccr/follow?wait_for_active_shards=1
 [source,console]
 ----
 ### On clusterA ###
-GET kibana_sample_data_ecommerce/_search?q=kimchy
+GET kibana_sample_data_ecommerce_copy/_search?q=kimchy
 ----
 // TEST[continued]
-+ TIP: If a soft delete is merged away before it can be replicated to a follower the following process will fail due to incomplete history on the leader, see <<ccr-index-soft-deletes-retention-period, index.soft_deletes.retention_lease.period>> for more details.
++ 
+TIP: If a soft delete is merged away before it can be replicated to a follower the following process will fail due to incomplete history on the leader, see <<ccr-index-soft-deletes-retention-period, index.soft_deletes.retention_lease.period>> for more details.

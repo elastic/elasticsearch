@@ -271,4 +271,5 @@ POST logs-generic-default/_update_by_query
   }
 }
 ----
-+ TIP: If a soft delete is merged away before it can be replicated to a follower the following process will fail due to incomplete history on the leader, see <<ccr-index-soft-deletes-retention-period, index.soft_deletes.retention_lease.period>> for more details.
++ 
+TIP: If a soft delete is merged away before it can be replicated to a follower the following process will fail due to incomplete history on the leader, see <<ccr-index-soft-deletes-retention-period, index.soft_deletes.retention_lease.period>> for more details.

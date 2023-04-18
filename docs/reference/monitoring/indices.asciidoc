@@ -5,7 +5,7 @@
 Monitoring data is stored in data streams or indices in {es}. The default data
 stream or index settings may not work for your situation. For example, you might
 want to change index lifecycle management (ILM) settings, add custom mappings,
-or the change the number of shards and replicas. The steps to change these
+or change the number of shards and replicas. The steps to change these
 settings depend on the monitoring method:
 
 * <<config-monitoring-data-streams-elastic-agent>>

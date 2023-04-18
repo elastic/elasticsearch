@@ -299,6 +299,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                     trainedModelConfig.validateNoPackageOverrides();
                 } catch (ValidationException e) {
                     listener.onFailure(e);
+                    return;
                 }
                 modelPackageConfigHolder.set(resolvedModelPackageConfig);
                 setTrainedModelConfigFieldsFromPackagedModel(trainedModelConfig, resolvedModelPackageConfig);

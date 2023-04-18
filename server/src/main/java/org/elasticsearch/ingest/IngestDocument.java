@@ -73,7 +73,7 @@ public final class IngestDocument {
     }
 
     /**
-     * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided as argument
+     * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided.
      */
     public IngestDocument(IngestDocument other) {
         this(
@@ -84,7 +84,7 @@ public final class IngestDocument {
     }
 
     /**
-     * Constructor to create an IngestDocument from its constituent maps.  The maps are shallow copied.
+     * Constructor to create an IngestDocument from its constituent maps. The maps are shallow copied.
      */
     public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         Map<String, Object> source;
@@ -107,7 +107,7 @@ public final class IngestDocument {
     }
 
     /**
-     * Constructor to create an IngestDocument from its constituent maps
+     * Constructor to create an IngestDocument from its constituent maps.
      */
     IngestDocument(IngestCtxMap ctxMap, Map<String, Object> ingestMetadata) {
         this.ctxMap = Objects.requireNonNull(ctxMap);
@@ -990,7 +990,7 @@ public final class IngestDocument {
     /**
      * Provides a shallowly read-only, very limited, map-like view of two maps. The only methods that are implemented are
      * {@link Map#get(Object)} and {@link Map#containsKey(Object)}, everything else throws UnsupportedOperationException.
-     *
+     * <p>
      * The overrides map has higher priority than the primary map -- values in that map under some key will take priority over values
      * in the primary map under the same key.
      *

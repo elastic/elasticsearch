@@ -19,16 +19,18 @@ package co.elastic.elasticsearch.stateless;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
@@ -69,21 +71,51 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
                 });
                 threads[j].start();
             }
-            final Set<String> existingNodes = new HashSet<>(internalCluster().nodesInclude(indexName));
-            if (existingNodes.size() == 1) {
-                startIndexNode();
-            }
+            var initialPrimaryTerms = getPrimaryTerms(indexName);
+            var existingNodes = new HashSet<>(internalCluster().nodesInclude(indexName));
+            startIndexNode();
 
-            final String stoppedNode = randomFrom(existingNodes);
-            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", stoppedNode), indexName);
-            ensureGreen(TimeValue.timeValueSeconds(30L), indexName);
+            final String nodeToRemove = randomFrom(existingNodes);
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", nodeToRemove), indexName);
+
+            assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(nodeToRemove))));
+            ensureGreen(indexName);
+
             running.set(false);
             for (Thread thread : threads) {
                 thread.join();
             }
-            internalCluster().stopNode(stoppedNode);
+
+            var updatedPrimaryTerms = getPrimaryTerms(indexName);
+            assertPrimaryTermIncremented(initialPrimaryTerms, updatedPrimaryTerms);
+
+            internalCluster().stopNode(nodeToRemove);
             ensureGreen(indexName);
         }
+    }
+
+    private long[] getPrimaryTerms(String indexName) {
+        var response = client().admin().cluster().prepareState().get();
+        var state = response.getState();
+
+        var indexMetadata = state.metadata().index(indexName);
+        long[] primaryTerms = new long[indexMetadata.getNumberOfShards()];
+        for (int i = 0; i < primaryTerms.length; i++) {
+            primaryTerms[i] = indexMetadata.primaryTerm(i);
+        }
+        return primaryTerms;
+    }
+
+    private void assertPrimaryTermIncremented(long[] initial, long[] updated) {
+        assertThat(updated.length, equalTo(initial.length));
+        long totalInitial = 0;
+        long totalUpdated = 0;
+        for (int i = 0; i < initial.length; i++) {
+            totalInitial += initial[i];
+            totalUpdated += updated[i];
+            assertThat(updated[i], anyOf(equalTo(initial[i]), equalTo(initial[i] + 1)));
+        }
+        assertThat("At least 1 primary term should increment", totalUpdated, equalTo(totalInitial + 1));
     }
 
     public void testRecoverIndexingShard() throws Exception {

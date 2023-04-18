@@ -99,6 +99,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
+import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.core.Strings.format;
 
 public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, ClusterPlugin {
@@ -405,5 +407,10 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             throw new IllegalArgumentException(NAME + " does not support roles " + nonStatelessDataNodeRoles);
         }
         logger.info("{} is enabled", NAME);
+        if (Objects.equals(SHARDS_ALLOCATOR_TYPE_SETTING.get(settings), DESIRED_BALANCE_ALLOCATOR) == false) {
+            throw new IllegalArgumentException(
+                NAME + " can only be used with " + SHARDS_ALLOCATOR_TYPE_SETTING.getKey() + "=" + DESIRED_BALANCE_ALLOCATOR
+            );
+        }
     }
 }

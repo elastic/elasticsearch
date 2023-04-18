@@ -48,10 +48,14 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
             DocumentParsingException.class,
             () -> client().prepareIndex("test")
                 .setSource(
-                    "routing_field", randomAlphaOfLength(10),
-                    dimensionFieldName, randomAlphaOfLength(1536),
-                    "gauge", randomIntBetween(10, 20),
-                    "@timestamp", Instant.now().toEpochMilli()
+                    "routing_field",
+                    randomAlphaOfLength(10),
+                    dimensionFieldName,
+                    randomAlphaOfLength(1536),
+                    "gauge",
+                    randomIntBetween(10, 20),
+                    "@timestamp",
+                    Instant.now().toEpochMilli()
                 )
                 .get()
         );

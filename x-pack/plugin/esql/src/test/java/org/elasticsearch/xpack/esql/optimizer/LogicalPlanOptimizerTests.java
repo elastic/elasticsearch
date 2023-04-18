@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -35,12 +37,16 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -70,6 +76,8 @@ import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.ql.TestUtils.lessThanOf;
 import static org.elasticsearch.xpack.ql.TestUtils.relation;
+import static org.elasticsearch.xpack.ql.TestUtils.rlike;
+import static org.elasticsearch.xpack.ql.TestUtils.wildcardLike;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.contains;
@@ -229,10 +237,38 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testCombineFiltersLikeRLike() {
+        EsRelation relation = relation();
+        RLike conditionA = rlike(getFieldAttribute("a"), "foo");
+        WildcardLike conditionB = wildcardLike(getFieldAttribute("b"), "bar");
+
+        Filter fa = new Filter(EMPTY, relation, conditionA);
+        Filter fb = new Filter(EMPTY, fa, conditionB);
+
+        assertEquals(
+            new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
+            new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb)
+        );
+    }
+
     public void testPushDownFilter() {
         EsRelation relation = relation();
         GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);
         LessThan conditionB = lessThanOf(getFieldAttribute("b"), TWO);
+
+        Filter fa = new Filter(EMPTY, relation, conditionA);
+        List<FieldAttribute> projections = singletonList(getFieldAttribute("b"));
+        EsqlProject project = new EsqlProject(EMPTY, fa, projections);
+        Filter fb = new Filter(EMPTY, project, conditionB);
+
+        Filter combinedFilter = new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB));
+        assertEquals(new EsqlProject(EMPTY, combinedFilter, projections), new LogicalPlanOptimizer.PushDownAndCombineFilters().apply(fb));
+    }
+
+    public void testPushDownLikeRlikeFilter() {
+        EsRelation relation = relation();
+        RLike conditionA = rlike(getFieldAttribute("a"), "foo");
+        WildcardLike conditionB = wildcardLike(getFieldAttribute("b"), "bar");
 
         Filter fa = new Filter(EMPTY, relation, conditionA);
         List<FieldAttribute> projections = singletonList(getFieldAttribute("b"));
@@ -871,6 +907,62 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testSimplifyLikeNoWildcard() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name like "foo"
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+
+        assertTrue(filter.condition() instanceof Equals);
+        Equals equals = as(filter.condition(), Equals.class);
+        assertEquals(BytesRefs.toBytesRef("foo"), equals.right().fold());
+        assertTrue(filter.child() instanceof EsRelation);
+    }
+
+    public void testSimplifyLikeMatchAll() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name like "*"
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+
+        assertTrue(filter.condition() instanceof Not);
+        var not = as(filter.condition(), Not.class);
+        assertEquals(IsNull.class, not.field().getClass());
+        assertTrue(filter.child() instanceof EsRelation);
+    }
+
+    public void testSimplifyRLikeNoWildcard() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name rlike "foo"
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+
+        assertTrue(filter.condition() instanceof Equals);
+        Equals equals = as(filter.condition(), Equals.class);
+        assertEquals(BytesRefs.toBytesRef("foo"), equals.right().fold());
+        assertTrue(filter.child() instanceof EsRelation);
+    }
+
+    public void testSimplifyRLikeMatchAll() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where first_name rlike ".*"
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+
+        assertTrue(filter.condition() instanceof Not);
+        var not = as(filter.condition(), Not.class);
+        assertEquals(IsNull.class, not.field().getClass());
+        assertTrue(filter.child() instanceof EsRelation);
     }
 
     private LogicalPlan optimizedPlan(String query) {

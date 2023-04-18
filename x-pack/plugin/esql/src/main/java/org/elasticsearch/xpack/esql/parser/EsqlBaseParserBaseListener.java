@@ -113,6 +113,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterRegexExpression(EsqlBaseParser.RegexExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitRegexExpression(EsqlBaseParser.RegexExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx) { }
   /**
    * {@inheritDoc}
@@ -120,6 +132,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx) { }
   /**
    * {@inheritDoc}
    *

@@ -85,10 +85,12 @@ LAST : 'last';
 LP : '(';
 OPENING_BRACKET : '[' -> pushMode(DEFAULT_MODE);
 CLOSING_BRACKET : ']' -> popMode, popMode; // pop twice, once to clear mode of current cmd and once to exit DEFAULT_MODE
+LIKE: 'like';
 NOT : 'not';
 NULL : 'null';
 NULLS : 'nulls';
 OR : 'or';
+RLIKE: 'rlike';
 RP : ')';
 TRUE : 'true';
 INFO : 'info';

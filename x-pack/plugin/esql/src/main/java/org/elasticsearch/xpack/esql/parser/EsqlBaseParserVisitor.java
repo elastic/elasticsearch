@@ -63,12 +63,25 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitBooleanDefault(EsqlBaseParser.BooleanDefaultContext ctx);
   /**
+   * Visit a parse tree produced by the {@code regexExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRegexExpression(EsqlBaseParser.RegexExpressionContext ctx);
+  /**
    * Visit a parse tree produced by the {@code logicalBinary}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
    * @return the visitor result
    */
   T visitLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#regexBooleanExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx);
   /**
    * Visit a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#valueExpression}.

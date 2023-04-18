@@ -35,6 +35,11 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Great
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -245,6 +250,20 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression right = expression(ctx.right);
 
         return type == EsqlBaseParser.AND ? new And(source, left, right) : new Or(source, left, right);
+    }
+
+    @Override
+    public Expression visitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx) {
+        int type = ctx.kind.getType();
+        Source source = source(ctx);
+        Expression left = expression(ctx.valueExpression());
+        Literal pattern = visitString(ctx.pattern);
+        RegexMatch<?> result = switch (type) {
+            case EsqlBaseParser.LIKE -> new WildcardLike(source, left, new WildcardPattern(pattern.fold().toString()));
+            case EsqlBaseParser.RLIKE -> new RLike(source, left, new RLikePattern(pattern.fold().toString()));
+            default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
+        };
+        return ctx.NOT() == null ? result : new Not(source, result);
     }
 
     @Override

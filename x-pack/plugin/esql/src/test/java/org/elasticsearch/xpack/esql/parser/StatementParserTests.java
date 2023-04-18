@@ -29,6 +29,8 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Great
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
@@ -505,7 +507,25 @@ public class StatementParserTests extends ESTestCase {
             pe.getMessage(),
             containsString("Invalid pattern [%{_invalid_:x}] for grok: Unable to find pattern [_invalid_] in Grok's pattern dictionary")
         );
+    }
 
+    public void testLikeRLike() {
+        LogicalPlan cmd = processingCommand("where foo like \"*bar*\"");
+        assertEquals(Filter.class, cmd.getClass());
+        Filter filter = (Filter) cmd;
+        assertEquals(WildcardLike.class, filter.condition().getClass());
+        WildcardLike like = (WildcardLike) filter.condition();
+        assertEquals("*bar*", like.pattern().pattern());
+
+        cmd = processingCommand("where foo rlike \".*bar.*\"");
+        assertEquals(Filter.class, cmd.getClass());
+        filter = (Filter) cmd;
+        assertEquals(RLike.class, filter.condition().getClass());
+        RLike rlike = (RLike) filter.condition();
+        assertEquals(".*bar.*", rlike.pattern().asJavaRegex());
+
+        expectError("from a | where foo like 12", "mismatched input '12'");
+        expectError("from a | where foo rlike 12", "mismatched input '12'");
     }
 
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {

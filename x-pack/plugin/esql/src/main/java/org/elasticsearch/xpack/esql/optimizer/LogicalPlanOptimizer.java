@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -26,6 +27,10 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
@@ -42,6 +47,7 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
@@ -71,6 +77,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new LiteralsOnTheRight(),
             new BinaryComparisonSimplification(),
             new BooleanFunctionEqualsElimination(),
+            new ReplaceRegexMatch(),
             // new CombineDisjunctionsToIn(), //TODO enable again when IN is supported
             new SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible),
             // prune/elimination
@@ -464,4 +471,36 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    /**
+     * LIKE/RLIKE expressions can be simplified in some specific cases:
+     *
+     *  field LIKE "foo"  ->   field == "foo"       // constant match, no wildcards
+     *  field LIKE "*"    ->   NOT (field IS NULL)  // match all
+     */
+    public static class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionRule<RegexMatch<?>> {
+
+        public ReplaceRegexMatch() {
+            super(OptimizerRules.TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(RegexMatch<?> regexMatch) {
+            Expression e = regexMatch;
+            StringPattern pattern = regexMatch.pattern();
+            if (pattern.matchesAll()) {
+                e = new Not(e.source(), new IsNull(e.source(), regexMatch.field()));
+            } else {
+                String match = pattern.exactMatch();
+                if (match != null) {
+                    Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
+                    e = regexToEquals(regexMatch, literal);
+                }
+            }
+            return e;
+        }
+
+        protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
+            return new Equals(regexMatch.source(), regexMatch.field(), literal);
+        }
+    }
 }

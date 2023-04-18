@@ -1126,6 +1126,24 @@ public class AnalyzerTests extends ESTestCase {
             """, errorMsg);
     }
 
+    public void testRegexOnInt() {
+        for (String op : new String[] { "like", "rlike" }) {
+            var e = expectThrows(VerificationException.class, () -> analyze("""
+                from test
+                | where emp_no COMPARISON "foo"
+                """.replace("COMPARISON", op)));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "argument of [emp_no COMPARISON \"foo\"] must be [string], found value [emp_no] type [integer]".replace(
+                        "COMPARISON",
+                        op
+                    )
+                )
+            );
+        }
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

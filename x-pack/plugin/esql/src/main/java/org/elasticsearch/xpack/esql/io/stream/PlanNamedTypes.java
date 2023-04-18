@@ -85,6 +85,11 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DateEsField;
@@ -176,6 +181,9 @@ public final class PlanNamedTypes {
             of(BinaryComparison.class, GreaterThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, LessThan.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, LessThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
+            // RegexMatch
+            of(RegexMatch.class, WildcardLike.class, PlanNamedTypes::writeWildcardLike, PlanNamedTypes::readWildcardLike),
+            of(RegexMatch.class, RLike.class, PlanNamedTypes::writeRLike, PlanNamedTypes::readRLike),
             // BinaryLogic
             of(BinaryLogic.class, And.class, PlanNamedTypes::writeBinaryLogic, PlanNamedTypes::readBinaryLogic),
             of(BinaryLogic.class, Or.class, PlanNamedTypes::writeBinaryLogic, PlanNamedTypes::readBinaryLogic),
@@ -575,6 +583,26 @@ public final class PlanNamedTypes {
         out.writeExpression(binaryComparison.left());
         out.writeExpression(binaryComparison.right());
         out.writeOptionalZoneId(binaryComparison.zoneId());
+    }
+
+    // -- RegexMatch
+
+    static WildcardLike readWildcardLike(PlanStreamInput in, String name) throws IOException {
+        return new WildcardLike(Source.EMPTY, in.readExpression(), new WildcardPattern(in.readString()));
+    }
+
+    static void writeWildcardLike(PlanStreamOutput out, WildcardLike like) throws IOException {
+        out.writeExpression(like.field());
+        out.writeString(like.pattern().pattern());
+    }
+
+    static RLike readRLike(PlanStreamInput in, String name) throws IOException {
+        return new RLike(Source.EMPTY, in.readExpression(), new RLikePattern(in.readString()));
+    }
+
+    static void writeRLike(PlanStreamOutput out, RLike like) throws IOException {
+        out.writeExpression(like.field());
+        out.writeString(like.pattern().asJavaRegex());
     }
 
     // -- BinaryLogic

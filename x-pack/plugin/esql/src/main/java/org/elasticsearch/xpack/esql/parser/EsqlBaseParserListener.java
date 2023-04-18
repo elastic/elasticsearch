@@ -96,6 +96,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitBooleanDefault(EsqlBaseParser.BooleanDefaultContext ctx);
   /**
+   * Enter a parse tree produced by the {@code regexExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterRegexExpression(EsqlBaseParser.RegexExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code regexExpression}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitRegexExpression(EsqlBaseParser.RegexExpressionContext ctx);
+  /**
    * Enter a parse tree produced by the {@code logicalBinary}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -107,6 +119,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#regexBooleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#regexBooleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx);
   /**
    * Enter a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#valueExpression}.

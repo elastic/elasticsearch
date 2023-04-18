@@ -16,7 +16,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -988,6 +990,128 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 "emp_no" : {
                   "value" : 10011
             """));
+    }
+
+    public void testEvalLike() {
+        var plan = physicalPlan("""
+            from test
+            | eval x = concat(first_name, "--")
+            | where x like "%foo%"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var limit = as(extractRest.child(), LimitExec.class);
+        var filter = as(limit.child(), FilterExec.class);
+        var eval = as(filter.child(), EvalExec.class);
+        var fieldExtract = as(eval.child(), FieldExtractExec.class);
+        assertEquals(EsQueryExec.class, fieldExtract.child().getClass());
+    }
+
+    public void testPushDownLike() {
+        var plan = physicalPlan("""
+            from test
+            | where first_name like "*foo*"
+            """);
+
+        assertThat("Expected to find an EsSourceExec found", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        QueryBuilder query = source.query();
+        assertNotNull(query);
+        assertEquals(WildcardQueryBuilder.class, query.getClass());
+        WildcardQueryBuilder wildcard = ((WildcardQueryBuilder) query);
+        assertEquals("first_name", wildcard.fieldName());
+        assertEquals("*foo*", wildcard.value());
+    }
+
+    public void testNotLike() {
+        var plan = physicalPlan("""
+            from test
+            | where not first_name like "%foo%"
+            """);
+
+        assertThat("Expected to find an EsSourceExec found", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var limit = as(extractRest.child(), LimitExec.class);
+        var filter = as(limit.child(), FilterExec.class);
+        var fieldExtract = as(filter.child(), FieldExtractExec.class);
+        assertEquals(EsQueryExec.class, fieldExtract.child().getClass());
+    }
+
+    public void testEvalRLike() {
+        var plan = physicalPlan("""
+            from test
+            | eval x = concat(first_name, "--")
+            | where x rlike ".*foo.*"
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var limit = as(extractRest.child(), LimitExec.class);
+        var filter = as(limit.child(), FilterExec.class);
+        var eval = as(filter.child(), EvalExec.class);
+        var fieldExtract = as(eval.child(), FieldExtractExec.class);
+        assertEquals(EsQueryExec.class, fieldExtract.child().getClass());
+    }
+
+    public void testPushDownRLike() {
+        var plan = physicalPlan("""
+            from test
+            | where first_name rlike ".*foo.*"
+            """);
+
+        assertThat("Expected to find an EsSourceExec found", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        QueryBuilder query = source.query();
+        assertNotNull(query);
+        assertEquals(RegexpQueryBuilder.class, query.getClass());
+        RegexpQueryBuilder wildcard = ((RegexpQueryBuilder) query);
+        assertEquals("first_name", wildcard.fieldName());
+        assertEquals(".*foo.*", wildcard.value());
+    }
+
+    public void testNotRLike() {
+        var plan = physicalPlan("""
+            from test
+            | where not first_name rlike ".*foo.*"
+            """);
+
+        assertThat("Expected to find an EsSourceExec found", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var limit = as(extractRest.child(), LimitExec.class);
+        var filter = as(limit.child(), FilterExec.class);
+        var fieldExtract = as(filter.child(), FieldExtractExec.class);
+        assertEquals(EsQueryExec.class, fieldExtract.child().getClass());
     }
 
     public void testTopNNotPushedDownOnOverlimit() {

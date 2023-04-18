@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
@@ -503,6 +504,8 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                 return bc.left() instanceof FieldAttribute && bc.right().foldable();
             } else if (exp instanceof BinaryLogic bl) {
                 return canPushToSource(bl.left()) && canPushToSource(bl.right());
+            } else if (exp instanceof RegexMatch<?> rm) {
+                return rm.field() instanceof FieldAttribute;
             }
             return false;
         }

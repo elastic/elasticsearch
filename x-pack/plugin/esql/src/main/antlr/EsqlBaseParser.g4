@@ -47,8 +47,14 @@ whereCommand
 booleanExpression
     : NOT booleanExpression                                               #logicalNot
     | valueExpression                                                     #booleanDefault
+    | regexBooleanExpression                                              #regexExpression
     | left=booleanExpression operator=AND right=booleanExpression         #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression          #logicalBinary
+    ;
+
+regexBooleanExpression
+    : valueExpression (NOT)? kind=LIKE pattern=string
+    | valueExpression (NOT)? kind=RLIKE pattern=string
     ;
 
 valueExpression

@@ -60,7 +60,7 @@ emp_no:integer | first_name:keyword
 ;
 
 
-EvalTwoEqualsOr
+evalTwoEqualsOr
 from employees | eval x = emp_no + 10010 - emp_no | where emp_no == x or emp_no == 10011 | project emp_no, first_name | sort emp_no;  
 
 emp_no:integer | first_name:keyword
@@ -69,7 +69,7 @@ emp_no:integer | first_name:keyword
 ;
 
 
-EvalTwoInequalityAnd
+evalTwoInequalityAnd
 from employees | eval x = emp_no + 10010 - emp_no | where emp_no >= x and emp_no <= 10011 | project emp_no, first_name | sort emp_no;  
 
 emp_no:integer | first_name:keyword

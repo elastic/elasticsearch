@@ -46,14 +46,23 @@ public class GeoShapeIndexer implements ShapeIndexer {
         this.name = name;
     }
 
+    @Override
     public List<IndexableField> indexShape(Geometry geometry) {
         if (geometry == null) {
             return Collections.emptyList();
         }
-        if (GeometryNormalizer.needsNormalize(orientation, geometry)) {
-            geometry = GeometryNormalizer.apply(orientation, geometry);
-        }
-        LuceneGeometryIndexer visitor = new LuceneGeometryIndexer(name);
+        return getIndexableFields(normalize(geometry));
+    }
+
+    /** Normalise the geometry, that is make sure latitude and longitude are between expected values
+     * and split geometries across the dateline when needed */
+    public Geometry normalize(Geometry geometry) {
+        return GeometryNormalizer.needsNormalize(orientation, geometry) ? GeometryNormalizer.apply(orientation, geometry) : geometry;
+    }
+
+    /** Generates lucene indexable fields from a geometry. It expects geometries that have already been normalised. */
+    public List<IndexableField> getIndexableFields(Geometry geometry) {
+        final LuceneGeometryIndexer visitor = new LuceneGeometryIndexer(name);
         geometry.visit(visitor);
         return visitor.fields();
     }

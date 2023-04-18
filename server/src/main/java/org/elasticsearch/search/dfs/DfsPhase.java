@@ -16,6 +16,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -122,11 +123,11 @@ public class DfsPhase {
                 maybeStop.accept(DfsTimingType.CREATE_WEIGHT);
             }
             for (RescoreContext rescoreContext : context.rescore()) {
-                for (Query query : rescoreContext.getQueries()) {
+                for (ParsedQuery parsedQuery : rescoreContext.getParsedQueries()) {
                     final Query rewritten;
                     try {
                         maybeStart.accept(DfsTimingType.REWRITE);
-                        rewritten = searcher.rewrite(query);
+                        rewritten = searcher.rewrite(parsedQuery.query());
                     } finally {
                         maybeStop.accept(DfsTimingType.REWRITE);
                     }

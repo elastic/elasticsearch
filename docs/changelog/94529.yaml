@@ -1,0 +1,5 @@
+pr: 94529
+summary: Add `_meta` field to data frame analytics config
+area: Machine Learning
+type: enhancement
+issues: []

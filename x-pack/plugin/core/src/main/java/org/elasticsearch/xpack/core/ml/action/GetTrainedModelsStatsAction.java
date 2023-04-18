@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xcontent.ParseField;
@@ -168,7 +169,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 builder.field(PIPELINE_COUNT.getPreferredName(), pipelineCount);
                 if (pipelineCount > 0) {
                     // Ingest stats is a fragment
-                    ingestStats.toXContent(builder, params);
+                    ChunkedToXContent.wrapAsToXContent(ingestStats).toXContent(builder, params);
                 }
                 if (this.inferenceStats != null) {
                     builder.field(INFERENCE_STATS.getPreferredName(), this.inferenceStats);

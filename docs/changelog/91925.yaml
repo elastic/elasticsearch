@@ -1,5 +1,0 @@
-pr: 91925
-summary: Secure settings that can fall back to yml in Stateless
-area: Distributed
-type: feature
-issues: []

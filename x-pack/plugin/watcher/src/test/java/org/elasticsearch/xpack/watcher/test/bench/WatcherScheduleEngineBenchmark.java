@@ -103,7 +103,9 @@ public class WatcherScheduleEngineBenchmark {
                     Settings.builder().put(SETTINGS).put("node.data", false).build(),
                     emptyMap(),
                     null,
-                    () -> { throw new IllegalArgumentException("settings must have [node.name]"); }
+                    () -> {
+                        throw new IllegalArgumentException("settings must have [node.name]");
+                    }
                 )
             ).start()
         ) {

@@ -49,6 +49,100 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         );
     }
 
+    public void testUseES87TSDBEncodingForTimestampField() throws IOException {
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, true);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
+    }
+
+    public void testDoNotUseES87TSDBEncodingForTimestampFieldNonTimeSeriesIndex() throws IOException {
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, false, true);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
+    }
+
+    public void testUseES87TSDBEncodingForCounterField() throws IOException {
+        String mapping = """
+            {
+                "_data_stream_timestamp": {
+                    "enabled": true
+                },
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "counter": {
+                        "type": "long",
+                        "time_series_metric": "counter"
+                    }
+                }
+            }
+            """;
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, mapping);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(true));
+    }
+
+    public void testUseES87TSDBEncodingForCounterFieldNonTimeSeriesIndex() throws IOException {
+        String mapping = """
+            {
+                "_data_stream_timestamp": {
+                    "enabled": true
+                },
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "counter": {
+                        "type": "long",
+                        "time_series_metric": "counter"
+                    }
+                }
+            }
+            """;
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(false, true, mapping);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(false));
+    }
+
+    public void testUseES87TSDBEncodingForGaugeField() throws IOException {
+        String mapping = """
+            {
+                "_data_stream_timestamp": {
+                    "enabled": true
+                },
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "gauge": {
+                        "type": "long",
+                        "time_series_metric": "gauge"
+                    }
+                }
+            }
+            """;
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(true, true, mapping);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(true));
+    }
+
+    public void testUseES87TSDBEncodingForGaugeFieldNonTimeSeriesIndex() throws IOException {
+        String mapping = """
+            {
+                "_data_stream_timestamp": {
+                    "enabled": true
+                },
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "gauge": {
+                        "type": "long",
+                        "time_series_metric": "gauge"
+                    }
+                }
+            }
+            """;
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(false, true, mapping);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
+    }
+
     private PerFieldMapperCodec createCodec(boolean timestampField, boolean timeSeries, boolean disableBloomFilter) throws IOException {
         Settings.Builder settings = Settings.builder();
         if (timeSeries) {
@@ -74,6 +168,45 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 """;
             mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         }
+        return new PerFieldMapperCodec(Lucene95Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+    }
+
+    public void testUseES87TSDBEncodingSettingDisabled() throws IOException {
+        String mapping = """
+            {
+                "_data_stream_timestamp": {
+                    "enabled": true
+                },
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "counter": {
+                        "type": "long",
+                        "time_series_metric": "counter"
+                    },
+                    "gauge": {
+                        "type": "long",
+                        "time_series_metric": "gauge"
+                    }
+                }
+            }
+            """;
+        PerFieldMapperCodec perFieldMapperCodec = createCodec(false, true, mapping);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(false));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
+    }
+
+    private PerFieldMapperCodec createCodec(boolean enableES87TSDBCodec, boolean timeSeries, String mapping) throws IOException {
+        Settings.Builder settings = Settings.builder();
+        if (timeSeries) {
+            settings.put(IndexSettings.MODE.getKey(), "time_series");
+            settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
+        }
+        settings.put(IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING.getKey(), enableES87TSDBCodec);
+        MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
+        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         return new PerFieldMapperCodec(Lucene95Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE);
     }
 

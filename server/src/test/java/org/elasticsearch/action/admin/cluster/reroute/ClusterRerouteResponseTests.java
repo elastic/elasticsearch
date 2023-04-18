@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -83,7 +84,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
 
     public void testToXContentWithDeprecatedClusterState() {
         var clusterState = createClusterState();
-        assertXContent(createClusterRerouteResponse(clusterState), ToXContent.EMPTY_PARAMS, 32, Strings.format("""
+        assertXContent(createClusterRerouteResponse(clusterState), ToXContent.EMPTY_PARAMS, 35, Strings.format("""
             {
               "acknowledged": true,
               "state": {
@@ -118,6 +119,12 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "version": "%s"
                   }
                 },
+                "transport_versions": [
+                  {
+                    "node_id": "node0",
+                    "transport_version": "8000099"
+                  }
+                ],
                 "metadata": {
                   "cluster_uuid": "_na_",
                   "cluster_uuid_committed": false,
@@ -297,6 +304,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         var node0 = new DiscoveryNode("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000), Version.CURRENT);
         return ClusterState.builder(new ClusterName("test"))
             .nodes(new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build())
+            .putTransportVersion(node0.getId(), TransportVersion.V_8_0_0)
             .metadata(
                 Metadata.builder()
                     .put(

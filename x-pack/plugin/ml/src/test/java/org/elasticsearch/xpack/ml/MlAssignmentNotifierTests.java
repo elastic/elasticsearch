@@ -87,7 +87,11 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             )
             .build();
         notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
-        verify(anomalyDetectionAuditor, times(1)).info("job_id", "Opening job on node [_node_id]");
+        if (anomalyDetectionAuditor.includeNodeInfo()) {
+            verify(anomalyDetectionAuditor, times(1)).info("job_id", "Opening job on node [_node_id]");
+        } else {
+            verify(anomalyDetectionAuditor, times(1)).info("job_id", "Opening job");
+        }
 
         // no longer master
         newState = ClusterState.builder(new ClusterName("_name"))
@@ -99,7 +103,9 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             )
             .build();
         notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
-        verifyNoMoreInteractions(anomalyDetectionAuditor);
+        if (anomalyDetectionAuditor.includeNodeInfo()) {
+            verifyNoMoreInteractions(anomalyDetectionAuditor);
+        }
     }
 
     public void testClusterChanged_unassign() {
@@ -138,7 +144,13 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             )
             .build();
         notifier.clusterChanged(new ClusterChangedEvent("_test", newState, previous));
-        verify(anomalyDetectionAuditor, times(1)).info("job_id", "Job unassigned from node [_node_id]");
+        if (anomalyDetectionAuditor.includeNodeInfo()) {
+            verify(anomalyDetectionAuditor, times(1)).info("job_id", "Job unassigned from node [_node_id]");
+        } else {
+            verify(anomalyDetectionAuditor, times(1)).info("job_id", "Job relocating.");
+        }
+
+        verify(anomalyDetectionAuditor, times(2)).includeNodeInfo();
 
         // no longer master
         newState = ClusterState.builder(new ClusterName("_name"))
@@ -215,6 +227,11 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             )
             .build();
         notifier.auditUnassignedMlTasks(newState.nodes(), newState.metadata().custom(PersistentTasksCustomMetadata.TYPE));
-        verify(anomalyDetectionAuditor, times(1)).warning("job_id", "No node found to open job. Reasons [test assignment]");
+        if (anomalyDetectionAuditor.includeNodeInfo()) {
+            verify(anomalyDetectionAuditor, times(1)).warning("job_id", "No node found to open job. Reasons [test assignment]");
+        } else {
+            // need to account for includeNodeInfo being called here, in the test, and also in anomalyDetectionAuditor
+            verify(anomalyDetectionAuditor, times(2)).includeNodeInfo();
+        }
     }
 }

@@ -10,8 +10,8 @@
   },
   "template": {
     "settings": {
-      "index.lifecycle.name": ".fleet-files-ilm-policy",
-      "index.auto_expand_replicas": "0-1"
+      "index.auto_expand_replicas": "0-1",
+      "index.hidden": true
     },
     "mappings": {
       "_doc": {

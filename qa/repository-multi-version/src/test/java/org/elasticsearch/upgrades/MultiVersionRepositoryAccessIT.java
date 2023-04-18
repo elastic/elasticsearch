@@ -8,6 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -45,6 +46,7 @@ import static org.hamcrest.Matchers.is;
  * </ul>
  */
 @SuppressWarnings("removal")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94459")
 public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private enum TestStep {

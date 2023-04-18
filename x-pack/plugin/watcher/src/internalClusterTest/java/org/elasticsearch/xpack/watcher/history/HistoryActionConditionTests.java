@@ -92,6 +92,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     /**
      * A hard failure is where an exception is thrown by the script condition.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94836")
     @SuppressWarnings("unchecked")
     public void testActionConditionWithHardFailures() throws Exception {
         final String id = "testActionConditionWithHardFailures";
@@ -143,6 +144,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94836")
     @SuppressWarnings("unchecked")
     public void testActionConditionWithFailures() throws Exception {
         final String id = "testActionConditionWithFailures";

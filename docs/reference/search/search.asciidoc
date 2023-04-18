@@ -511,9 +511,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
 
 `query_vector_builder`::
 (Optional, object)
-A configuration object indicating how to build a query_vector before executing 
-the request. You must provide a `query_vector_builder` or `query_vector`, but 
+A configuration object indicating how to build a query_vector before executing
+the request. You must provide a `query_vector_builder` or `query_vector`, but
 not both. Refer to <<semantic-search>> to learn more.
+
+`similarity`::
+(Optional, float)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
 
 ====
 

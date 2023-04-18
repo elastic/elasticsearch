@@ -1,6 +1,0 @@
-pr: 93157
-summary: Take into account `max_headroom` in disk watermark calculations
-area: Health
-type: bug
-issues:
- - 93155

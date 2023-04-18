@@ -12,6 +12,8 @@ module org.elasticsearch.dlm {
     requires org.elasticsearch.xcontent;
     requires org.apache.lucene.core;
     requires org.apache.logging.log4j;
+    requires org.elasticsearch.datastreams;
 
+    exports org.elasticsearch.dlm.action to org.elasticsearch.server;
     exports org.elasticsearch.dlm;
 }

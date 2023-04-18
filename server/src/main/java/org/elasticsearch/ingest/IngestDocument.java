@@ -62,8 +62,8 @@ public final class IngestDocument {
 
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
-
     private boolean doNoSelfReferencesCheck = false;
+    private boolean reroute = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
@@ -80,6 +80,7 @@ public final class IngestDocument {
             new IngestCtxMap(deepCopyMap(other.ctxMap.getSource()), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
+        this.reroute = other.reroute;
     }
 
     /**
@@ -901,6 +902,29 @@ public final class IngestDocument {
     @Override
     public String toString() {
         return "IngestDocument{" + " sourceAndMetadata=" + ctxMap + ", ingestMetadata=" + ingestMetadata + '}';
+    }
+
+    public void reroute(String destIndex) {
+        getMetadata().setIndex(destIndex);
+        reroute = true;
+    }
+
+    /**
+     * The document is redirected to another target.
+     * This implies that we'll skip the current pipeline and invoke the default pipeline of the new target
+     *
+     * @return whether the document is redirected to another target
+     */
+    boolean isReroute() {
+        return reroute;
+    }
+
+    /**
+     * Set the {@link #reroute} flag to false so that subsequent calls to {@link #isReroute()} will return false until/unless
+     * {@link #reroute(String)} is called.
+     */
+    void resetReroute() {
+        reroute = false;
     }
 
     public enum Metadata {

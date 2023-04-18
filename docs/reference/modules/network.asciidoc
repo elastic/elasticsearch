@@ -137,12 +137,18 @@ interface and one for its transport interface. These two addresses can be
 anything, and don't need to be addresses of the network interfaces on the host.
 The only requirements are that each node must be:
 
-* Accessible at its transport publish address by all other
-  nodes in its cluster, and by any remote clusters that will discover it using
+* Accessible at its HTTP publish address by all clients that will discover it
+  using sniffing.
+
+* Accessible at its transport publish address by all other nodes in its
+  cluster, and by any remote clusters that will discover it using
   <<sniff-mode>>.
 
-* Accessible at its HTTP publish address by all clients
-  that will discover it using sniffing.
+If you specify the transport publish address using a hostname then {es} will
+resolve this hostname to an IP address once during startup, and other nodes
+will use the resulting IP address instead of resolving the name again
+themselves. To avoid confusion, use a hostname which resolves to the node's
+address in all network locations.
 
 ===== Using a single address
 

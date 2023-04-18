@@ -520,11 +520,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     }
 
     @Override
-    public Number nextKey(Number key) {
-        return nextKey(key.doubleValue());
-    }
-
-    @Override
     public InternalAggregation createAggregation(List<MultiBucketsAggregation.Bucket> buckets) {
         // convert buckets to the right type
         List<Bucket> buckets2 = new ArrayList<>(buckets.size());

@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -39,7 +40,6 @@ import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -216,6 +216,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         private final GroupedActionListener<NodeResponse> readNodesListener;
         private final StepListener<WriteDetails> write1Step = new StepListener<>();
         private final StepListener<WriteDetails> write2Step = new StepListener<>();
+        private final CancellableThreads cancellableThreads = new CancellableThreads();
 
         BlobAnalysis(
             TransportService transportService,
@@ -271,6 +272,8 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 ),
                 this::cancelReadsCleanUpAndReturnFailure
             );
+
+            task.addListener(() -> { cancellableThreads.cancel(task.getReasonCancelled()); });
         }
 
         void run() {
@@ -332,15 +335,21 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                         blobContainer.writeBlob(request.blobName, bytesReference, failIfExists);
                     }
                 } else {
-                    blobContainer.writeBlob(
-                        request.blobName,
-                        repository.maybeRateLimitSnapshots(
-                            new RandomBlobContentStream(content, request.getTargetLength()),
-                            throttledNanos::addAndGet
-                        ),
-                        request.targetLength,
-                        failIfExists
-                    );
+                    cancellableThreads.execute(() -> {
+                        try {
+                            blobContainer.writeBlob(
+                                request.blobName,
+                                repository.maybeRateLimitSnapshots(
+                                    new RandomBlobContentStream(content, request.getTargetLength()),
+                                    throttledNanos::addAndGet
+                                ),
+                                request.targetLength,
+                                failIfExists
+                            );
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
                 }
                 final long elapsedNanos = System.nanoTime() - startNanos;
                 final long checksum = content.getChecksum(checksumStart, checksumEnd);
@@ -621,7 +630,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         }
     }
 
-    public static class Request extends ActionRequest implements TaskAwareRequest {
+    public static class Request extends ActionRequest {
         private final String repositoryName;
         private final String blobPath;
         private final String blobName;

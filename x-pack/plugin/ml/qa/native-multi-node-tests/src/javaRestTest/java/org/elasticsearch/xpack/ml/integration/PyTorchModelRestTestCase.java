@@ -57,7 +57,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("""
             {"persistent" : {
-                    "logger.org.elasticsearch.xpack.ml.inference.assignment" : "TRACE",
+                    "logger.org.elasticsearch.xpack.ml.inference.assignment" : "DEBUG",
                     "logger.org.elasticsearch.xpack.ml.inference.deployment" : "DEBUG",
                     "logger.org.elasticsearch.xpack.ml.inference.pytorch" : "DEBUG",
                     "logger.org.elasticsearch.xpack.ml.process.logging" : "DEBUG"
@@ -118,6 +118,19 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         assertThat(stats, hasSize(1));
         int allocations = (int) XContentMapValues.extractValue("deployment_stats.allocation_status.allocation_count", stats.get(0));
         assertThat(allocations, equalTo(expectedAllocationCount));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void assertInferenceCount(int expectedCount, String deploymentId) throws IOException {
+        Response noInferenceCallsStatsResponse = getTrainedModelStats(deploymentId);
+        Map<String, Object> stats = entityAsMap(noInferenceCallsStatsResponse);
+
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "trained_model_stats.0.deployment_stats.nodes",
+            stats
+        );
+        int inferenceCount = sumInferenceCountOnNodes(nodes);
+        assertEquals(expectedCount, inferenceCount);
     }
 
     protected int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
@@ -192,30 +205,38 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         return startDeployment(modelId, AllocationStatus.State.STARTED.toString());
     }
 
+    protected Response startWithDeploymentId(String modelId, String deploymentId) throws IOException {
+        return startDeployment(modelId, deploymentId, AllocationStatus.State.STARTED.toString(), 1, 1, Priority.NORMAL);
+    }
+
     protected Response startDeployment(String modelId, String waitForState) throws IOException {
-        return startDeployment(modelId, waitForState, 1, 1, Priority.NORMAL);
+        return startDeployment(modelId, null, waitForState, 1, 1, Priority.NORMAL);
     }
 
     protected Response startDeployment(
         String modelId,
+        String deploymentId,
         String waitForState,
         int numberOfAllocations,
         int threadsPerAllocation,
         Priority priority
     ) throws IOException {
-        Request request = new Request(
-            "POST",
-            "/_ml/trained_models/"
-                + modelId
-                + "/deployment/_start?timeout=40s&wait_for="
-                + waitForState
-                + "&threads_per_allocation="
-                + threadsPerAllocation
-                + "&number_of_allocations="
-                + numberOfAllocations
-                + "&priority="
-                + priority
-        );
+        String endPoint = "/_ml/trained_models/"
+            + modelId
+            + "/deployment/_start?timeout=40s&wait_for="
+            + waitForState
+            + "&threads_per_allocation="
+            + threadsPerAllocation
+            + "&number_of_allocations="
+            + numberOfAllocations
+            + "&priority="
+            + priority;
+
+        if (deploymentId != null) {
+            endPoint = endPoint + "&deployment_id=" + deploymentId;
+        }
+
+        Request request = new Request("POST", endPoint);
         return client().performRequest(request);
     }
 

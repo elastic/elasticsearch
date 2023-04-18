@@ -68,7 +68,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
         MlMemoryTracker memoryTracker,
         IndexNameExpressionResolver expressionResolver,
         Client client,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        boolean includeNodeInfo
     ) {
         super(
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
@@ -79,7 +80,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             expressionResolver
         );
         this.autodetectProcessManager = autodetectProcessManager;
-        this.auditor = new AnomalyDetectionAuditor(client, clusterService);
+        this.auditor = new AnomalyDetectionAuditor(client, clusterService, includeNodeInfo);
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
         this.client = client;
         this.licenseState = licenseState;

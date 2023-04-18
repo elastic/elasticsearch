@@ -91,6 +91,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils.executeAndAssertSuccessful;
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.ingest.IngestService.NOOP_PIPELINE_NAME;
+import static org.elasticsearch.ingest.IngestService.hasPipeline;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -112,6 +114,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class IngestServiceTests extends ESTestCase {
@@ -205,10 +209,12 @@ public class IngestServiceTests extends ESTestCase {
             .build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         assertThat(ingestService.pipelines().size(), is(1));
-        assertThat(ingestService.pipelines().get("_id").pipeline.getId(), equalTo("_id"));
-        assertThat(ingestService.pipelines().get("_id").pipeline.getDescription(), nullValue());
-        assertThat(ingestService.pipelines().get("_id").pipeline.getProcessors().size(), equalTo(1));
-        assertThat(ingestService.pipelines().get("_id").pipeline.getProcessors().get(0).getType(), equalTo("set"));
+
+        Pipeline p = ingestService.getPipeline("_id");
+        assertThat(p.getId(), equalTo("_id"));
+        assertThat(p.getDescription(), nullValue());
+        assertThat(p.getProcessors().size(), equalTo(1));
+        assertThat(p.getProcessors().get(0).getType(), equalTo("set"));
     }
 
     public void testInnerUpdatePipelines() {
@@ -220,39 +226,55 @@ public class IngestServiceTests extends ESTestCase {
 
         ingestService.innerUpdatePipelines(ingestMetadata);
         assertThat(ingestService.pipelines().size(), is(1));
-        assertThat(ingestService.pipelines().get("_id1").pipeline.getId(), equalTo("_id1"));
-        assertThat(ingestService.pipelines().get("_id1").pipeline.getProcessors().size(), equalTo(0));
+        {
+            Pipeline p1 = ingestService.getPipeline("_id1");
+            assertThat(p1.getId(), equalTo("_id1"));
+            assertThat(p1.getProcessors().size(), equalTo(0));
+        }
 
         PipelineConfiguration pipeline2 = new PipelineConfiguration("_id2", new BytesArray("{\"processors\": []}"), XContentType.JSON);
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id2", pipeline2));
 
         ingestService.innerUpdatePipelines(ingestMetadata);
         assertThat(ingestService.pipelines().size(), is(2));
-        assertThat(ingestService.pipelines().get("_id1").pipeline.getId(), equalTo("_id1"));
-        assertThat(ingestService.pipelines().get("_id1").pipeline.getProcessors().size(), equalTo(0));
-        assertThat(ingestService.pipelines().get("_id2").pipeline.getId(), equalTo("_id2"));
-        assertThat(ingestService.pipelines().get("_id2").pipeline.getProcessors().size(), equalTo(0));
+        {
+            Pipeline p1 = ingestService.getPipeline("_id1");
+            assertThat(p1.getId(), equalTo("_id1"));
+            assertThat(p1.getProcessors().size(), equalTo(0));
+            Pipeline p2 = ingestService.getPipeline("_id2");
+            assertThat(p2.getId(), equalTo("_id2"));
+            assertThat(p2.getProcessors().size(), equalTo(0));
+        }
 
         PipelineConfiguration pipeline3 = new PipelineConfiguration("_id3", new BytesArray("{\"processors\": []}"), XContentType.JSON);
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id2", pipeline2, "_id3", pipeline3));
 
         ingestService.innerUpdatePipelines(ingestMetadata);
         assertThat(ingestService.pipelines().size(), is(3));
-        assertThat(ingestService.pipelines().get("_id1").pipeline.getId(), equalTo("_id1"));
-        assertThat(ingestService.pipelines().get("_id1").pipeline.getProcessors().size(), equalTo(0));
-        assertThat(ingestService.pipelines().get("_id2").pipeline.getId(), equalTo("_id2"));
-        assertThat(ingestService.pipelines().get("_id2").pipeline.getProcessors().size(), equalTo(0));
-        assertThat(ingestService.pipelines().get("_id3").pipeline.getId(), equalTo("_id3"));
-        assertThat(ingestService.pipelines().get("_id3").pipeline.getProcessors().size(), equalTo(0));
+        {
+            Pipeline p1 = ingestService.getPipeline("_id1");
+            assertThat(p1.getId(), equalTo("_id1"));
+            assertThat(p1.getProcessors().size(), equalTo(0));
+            Pipeline p2 = ingestService.getPipeline("_id2");
+            assertThat(p2.getId(), equalTo("_id2"));
+            assertThat(p2.getProcessors().size(), equalTo(0));
+            Pipeline p3 = ingestService.getPipeline("_id3");
+            assertThat(p3.getId(), equalTo("_id3"));
+            assertThat(p3.getProcessors().size(), equalTo(0));
+        }
 
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id3", pipeline3));
 
         ingestService.innerUpdatePipelines(ingestMetadata);
         assertThat(ingestService.pipelines().size(), is(2));
-        assertThat(ingestService.pipelines().get("_id1").pipeline.getId(), equalTo("_id1"));
-        assertThat(ingestService.pipelines().get("_id1").pipeline.getProcessors().size(), equalTo(0));
-        assertThat(ingestService.pipelines().get("_id3").pipeline.getId(), equalTo("_id3"));
-        assertThat(ingestService.pipelines().get("_id3").pipeline.getProcessors().size(), equalTo(0));
+        {
+            Pipeline p1 = ingestService.getPipeline("_id1");
+            assertThat(p1.getId(), equalTo("_id1"));
+            assertThat(p1.getProcessors().size(), equalTo(0));
+            Pipeline p3 = ingestService.getPipeline("_id3");
+            assertThat(p3.getId(), equalTo("_id3"));
+            assertThat(p3.getProcessors().size(), equalTo(0));
+        }
 
         pipeline3 = new PipelineConfiguration("_id3", new BytesArray("""
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
@@ -260,11 +282,15 @@ public class IngestServiceTests extends ESTestCase {
 
         ingestService.innerUpdatePipelines(ingestMetadata);
         assertThat(ingestService.pipelines().size(), is(2));
-        assertThat(ingestService.pipelines().get("_id1").pipeline.getId(), equalTo("_id1"));
-        assertThat(ingestService.pipelines().get("_id1").pipeline.getProcessors().size(), equalTo(0));
-        assertThat(ingestService.pipelines().get("_id3").pipeline.getId(), equalTo("_id3"));
-        assertThat(ingestService.pipelines().get("_id3").pipeline.getProcessors().size(), equalTo(1));
-        assertThat(ingestService.pipelines().get("_id3").pipeline.getProcessors().get(0).getType(), equalTo("set"));
+        {
+            Pipeline p1 = ingestService.getPipeline("_id1");
+            assertThat(p1.getId(), equalTo("_id1"));
+            assertThat(p1.getProcessors().size(), equalTo(0));
+            Pipeline p3 = ingestService.getPipeline("_id3");
+            assertThat(p3.getId(), equalTo("_id3"));
+            assertThat(p3.getProcessors().size(), equalTo(1));
+            assertThat(p3.getProcessors().get(0).getType(), equalTo("set"));
+        }
 
         // Perform an update with no changes:
         Map<String, IngestService.PipelineHolder> pipelines = ingestService.pipelines();
@@ -1867,6 +1893,36 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(indexRequest8.getRawTimestamp(), equalTo(100));
     }
 
+    public void testUpdateIndexRequestWithPipelinesShouldShortCircuitExecution() {
+        var mockedRequest = mock(DocWriteRequest.class);
+        var mockedIndexRequest = mock(IndexRequest.class);
+        var mockedMetadata = mock(Metadata.class);
+
+        when(mockedIndexRequest.isPipelineResolved()).thenReturn(true);
+
+        IngestService.resolvePipelinesAndUpdateIndexRequest(mockedRequest, mockedIndexRequest, mockedMetadata);
+
+        verify(mockedIndexRequest, times(1)).isPipelineResolved();
+        verifyNoMoreInteractions(mockedIndexRequest);
+        verifyNoInteractions(mockedRequest, mockedMetadata);
+    }
+
+    public void testHasPipeline() {
+        var indexRequest = new IndexRequest("idx").isPipelineResolved(true);
+
+        indexRequest.setPipeline(NOOP_PIPELINE_NAME).setFinalPipeline(NOOP_PIPELINE_NAME);
+        assertFalse(hasPipeline(indexRequest));
+
+        indexRequest.setPipeline("some-pipeline").setFinalPipeline(NOOP_PIPELINE_NAME);
+        assertTrue(hasPipeline(indexRequest));
+
+        indexRequest.setPipeline(NOOP_PIPELINE_NAME).setFinalPipeline("some-final-pipeline");
+        assertTrue(hasPipeline(indexRequest));
+
+        indexRequest.setPipeline("some-pipeline").setFinalPipeline("some-final-pipeline");
+        assertTrue(hasPipeline(indexRequest));
+    }
+
     public void testResolveRequiredOrDefaultPipelineDefaultPipeline() {
         IndexMetadata.Builder builder = IndexMetadata.builder("idx")
             .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
@@ -1877,16 +1933,16 @@ public class IngestServiceTests extends ESTestCase {
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("idx");
-        boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-        assertThat(result, is(true));
-        assertThat(indexRequest.isPipelineResolved(), is(true));
+        IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+        assertTrue(hasPipeline(indexRequest));
+        assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
 
         // alias name matches with IDM:
         indexRequest = new IndexRequest("alias");
-        result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-        assertThat(result, is(true));
-        assertThat(indexRequest.isPipelineResolved(), is(true));
+        IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+        assertTrue(hasPipeline(indexRequest));
+        assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
 
         // index name matches with ITMD:
@@ -1895,9 +1951,9 @@ public class IngestServiceTests extends ESTestCase {
             .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"));
         metadata = Metadata.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
-        result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-        assertThat(result, is(true));
-        assertThat(indexRequest.isPipelineResolved(), is(true));
+        IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+        assertTrue(hasPipeline(indexRequest));
+        assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("default-pipeline"));
     }
 
@@ -1911,17 +1967,17 @@ public class IngestServiceTests extends ESTestCase {
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("idx");
-        boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-        assertThat(result, is(true));
-        assertThat(indexRequest.isPipelineResolved(), is(true));
+        IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+        assertTrue(hasPipeline(indexRequest));
+        assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
 
         // alias name matches with IDM:
         indexRequest = new IndexRequest("alias");
-        result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-        assertThat(result, is(true));
-        assertThat(indexRequest.isPipelineResolved(), is(true));
+        IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+        assertTrue(hasPipeline(indexRequest));
+        assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
 
@@ -1931,9 +1987,9 @@ public class IngestServiceTests extends ESTestCase {
             .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"));
         metadata = Metadata.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
-        result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-        assertThat(result, is(true));
-        assertThat(indexRequest.isPipelineResolved(), is(true));
+        IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+        assertTrue(hasPipeline(indexRequest));
+        assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
     }
@@ -1949,9 +2005,9 @@ public class IngestServiceTests extends ESTestCase {
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("<idx-{now/d}>");
-        boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata, epochMillis);
-        assertThat(result, is(true));
-        assertThat(indexRequest.isPipelineResolved(), is(true));
+        IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, epochMillis);
+        assertTrue(hasPipeline(indexRequest));
+        assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
         assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
     }
@@ -1961,19 +2017,19 @@ public class IngestServiceTests extends ESTestCase {
         {
             Metadata metadata = Metadata.builder().build();
             IndexRequest indexRequest = new IndexRequest("idx");
-            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-            assertThat(result, is(false));
-            assertThat(indexRequest.isPipelineResolved(), is(true));
-            assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+            assertFalse(hasPipeline(indexRequest));
+            assertTrue(indexRequest.isPipelineResolved());
+            assertThat(indexRequest.getPipeline(), equalTo(NOOP_PIPELINE_NAME));
         }
 
         // request pipeline:
         {
             Metadata metadata = Metadata.builder().build();
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
-            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-            assertThat(result, is(true));
-            assertThat(indexRequest.isPipelineResolved(), is(true));
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+            assertTrue(hasPipeline(indexRequest));
+            assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
         }
 
@@ -1985,9 +2041,9 @@ public class IngestServiceTests extends ESTestCase {
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
-            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-            assertThat(result, is(true));
-            assertThat(indexRequest.isPipelineResolved(), is(true));
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+            assertTrue(hasPipeline(indexRequest));
+            assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
         }
 
@@ -1999,9 +2055,9 @@ public class IngestServiceTests extends ESTestCase {
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
-            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-            assertThat(result, is(true));
-            assertThat(indexRequest.isPipelineResolved(), is(true));
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+            assertTrue(hasPipeline(indexRequest));
+            assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
             assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
         }
@@ -2188,38 +2244,38 @@ public class IngestServiceTests extends ESTestCase {
         // _none request pipeline:
         {
             Metadata metadata = Metadata.builder().build();
-            IndexRequest indexRequest = new IndexRequest("idx").setPipeline(IngestService.NOOP_PIPELINE_NAME);
-            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-            assertThat(result, is(false));
-            assertThat(indexRequest.isPipelineResolved(), is(true));
-            assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline(NOOP_PIPELINE_NAME);
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+            assertFalse(hasPipeline(indexRequest));
+            assertTrue(indexRequest.isPipelineResolved());
+            assertThat(indexRequest.getPipeline(), equalTo(NOOP_PIPELINE_NAME));
         }
 
         // _none default pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), IngestService.NOOP_PIPELINE_NAME))
+                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
             IndexRequest indexRequest = new IndexRequest("idx");
-            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-            assertThat(result, is(false));
-            assertThat(indexRequest.isPipelineResolved(), is(true));
-            assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+            assertFalse(hasPipeline(indexRequest));
+            assertTrue(indexRequest.isPipelineResolved());
+            assertThat(indexRequest.getPipeline(), equalTo(NOOP_PIPELINE_NAME));
         }
 
         // _none default pipeline with request pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), IngestService.NOOP_PIPELINE_NAME))
+                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("pipeline1");
-            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-            assertThat(result, is(true));
-            assertThat(indexRequest.isPipelineResolved(), is(true));
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+            assertTrue(hasPipeline(indexRequest));
+            assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo("pipeline1"));
         }
 
@@ -2230,11 +2286,11 @@ public class IngestServiceTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
-            IndexRequest indexRequest = new IndexRequest("idx").setPipeline(IngestService.NOOP_PIPELINE_NAME);
-            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-            assertThat(result, is(false));
-            assertThat(indexRequest.isPipelineResolved(), is(true));
-            assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline(NOOP_PIPELINE_NAME);
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+            assertFalse(hasPipeline(indexRequest));
+            assertTrue(indexRequest.isPipelineResolved());
+            assertThat(indexRequest.getPipeline(), equalTo(NOOP_PIPELINE_NAME));
         }
 
         // _none request pipeline with final pipeline:
@@ -2244,27 +2300,27 @@ public class IngestServiceTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
-            IndexRequest indexRequest = new IndexRequest("idx").setPipeline(IngestService.NOOP_PIPELINE_NAME);
-            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-            assertThat(result, is(true));
-            assertThat(indexRequest.isPipelineResolved(), is(true));
-            assertThat(indexRequest.getPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline(NOOP_PIPELINE_NAME);
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+            assertTrue(hasPipeline(indexRequest));
+            assertTrue(indexRequest.isPipelineResolved());
+            assertThat(indexRequest.getPipeline(), equalTo(NOOP_PIPELINE_NAME));
             assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
         }
 
         // _none final pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), IngestService.NOOP_PIPELINE_NAME))
+                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
             IndexRequest indexRequest = new IndexRequest("idx").setPipeline("pipeline1");
-            boolean result = IngestService.resolvePipelines(indexRequest, indexRequest, metadata);
-            assertThat(result, is(true));
-            assertThat(indexRequest.isPipelineResolved(), is(true));
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+            assertTrue(hasPipeline(indexRequest));
+            assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo("pipeline1"));
-            assertThat(indexRequest.getFinalPipeline(), equalTo(IngestService.NOOP_PIPELINE_NAME));
+            assertThat(indexRequest.getFinalPipeline(), equalTo(NOOP_PIPELINE_NAME));
         }
     }
 

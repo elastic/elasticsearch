@@ -63,39 +63,40 @@ public class AuthenticationSerializationTests extends ESTestCase {
         assertThat(readFromAuthenticatingUser, equalTo(authentication.getAuthenticatingSubject().getUser()));
     }
 
-    public void testWriteToAndReadFromWithRemoteAccess() throws Exception {
-        final Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
-        assertThat(authentication.isRemoteAccess(), is(true));
+    public void testWriteToAndReadFromWithCrossClusterAccess() throws Exception {
+        final Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
+        assertThat(authentication.isCrossClusterAccess(), is(true));
 
         BytesStreamOutput output = new BytesStreamOutput();
         authentication.writeTo(output);
         final Authentication readFrom = new Authentication(output.bytes().streamInput());
-        assertThat(readFrom.isRemoteAccess(), is(true));
+        assertThat(readFrom.isCrossClusterAccess(), is(true));
 
         assertThat(readFrom, not(sameInstance(authentication)));
         assertThat(readFrom, equalTo(authentication));
     }
 
-    public void testWriteToWithRemoteAccessThrowsOnUnsupportedVersion() throws Exception {
+    public void testWriteToWithCrossClusterAccessThrowsOnUnsupportedVersion() throws Exception {
         final Authentication authentication = randomBoolean()
-            ? AuthenticationTestHelper.builder().remoteAccess().build()
+            ? AuthenticationTestHelper.builder().crossClusterAccess().build()
             : AuthenticationTestHelper.builder().build();
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            Authentication.VERSION_REMOTE_ACCESS_REALM
+            TransportVersion.V_7_17_0,
+            TransportVersionUtils.getPreviousVersion(Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM)
         );
         out.setTransportVersion(version);
 
-        if (authentication.isRemoteAccess()) {
+        if (authentication.isCrossClusterAccess()) {
             final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.writeTo(out));
             assertThat(
                 ex.getMessage(),
                 containsString(
                     "versions of Elasticsearch before ["
-                        + Authentication.VERSION_REMOTE_ACCESS_REALM
-                        + "] can't handle remote access authentication and attempted to send to ["
+                        + Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM
+                        + "] can't handle cross cluster access authentication and attempted to send to ["
                         + out.getTransportVersion()
                         + "]"
                 )

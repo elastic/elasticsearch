@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
@@ -1180,6 +1181,12 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             DocumentField field = fields.get("_id");
             assertEquals("1", field.getValue());
         });
+    }
+
+    public void testStoredFieldsSpec() throws IOException {
+        List<FieldAndFormat> fields = List.of(new FieldAndFormat("field", null));
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(createMapperService()), fields);
+        assertEquals(StoredFieldsSpec.NEEDS_SOURCE, fieldFetcher.storedFieldsSpec());
     }
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {

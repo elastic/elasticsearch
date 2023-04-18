@@ -145,7 +145,6 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
         );
 
         action.masterOperation(mock(Task.class), new DesiredBalanceRequest(), clusterState, listener);
-        ClusterServiceUtils.awaitNoPendingTasks(clusterService);
 
         try {
             assertThat(listener.get(), notNullValue());

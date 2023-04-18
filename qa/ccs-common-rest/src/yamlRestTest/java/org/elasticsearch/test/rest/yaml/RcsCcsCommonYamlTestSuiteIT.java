@@ -119,7 +119,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static Map<String, Object> createCrossClusterAccessApiKey() throws IOException {
         assert fulfillingCluster != null;
-        final var createApiKeyRequest = new Request("POST", "/_security/api_key");
+        final var createApiKeyRequest = new Request("POST", "/_security/_ccs/api_key");
         createApiKeyRequest.setJsonEntity("""
             {
               "name": "cross_cluster_access_key",

@@ -110,7 +110,7 @@ public class CrossClusterAccessHeadersTests extends ESTestCase {
     }
 
     private static String encodedApiKeyWithPrefix(String id, String key) {
-        return "ApiKey " + encodedApiKey(id, key);
+        return "ApiKey ccs_" + encodedApiKey(id, key);
     }
 
     private static String encodedApiKey(String id, String key) {

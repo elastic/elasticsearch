@@ -95,8 +95,8 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
 
     private static final String CLUSTER_A = "my_remote_cluster_a";
     private static final String CLUSTER_B = "my_remote_cluster_b";
-    private static final String CLUSTER_A_CREDENTIALS = "cluster_a_credentials";
-    private static final String CLUSTER_B_CREDENTIALS = "cluster_b_credentials";
+    private static final String CLUSTER_A_CREDENTIALS = "ccs_cluster_a_credentials";
+    private static final String CLUSTER_B_CREDENTIALS = "ccs_cluster_b_credentials";
     private static final String REMOTE_SEARCH_USER = "remote_search_user";
     private static final SecureString PASSWORD = new SecureString("super-secret-password".toCharArray());
     private static final String REMOTE_SEARCH_ROLE = "remote_search";

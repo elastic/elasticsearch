@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
+import org.elasticsearch.core.Nullable;
+
 public enum ApiKeyType {
 
     DEFAULT() {
@@ -36,7 +38,10 @@ public enum ApiKeyType {
 
     public abstract String getCredentialsPrefix();
 
-    public static ApiKeyType fromDocType(String docType) {
+    public static ApiKeyType fromDocType(@Nullable String docType) {
+        if (docType == null) {
+            return DEFAULT;
+        }
         return switch (docType) {
             case "api_key" -> DEFAULT;
             case "api_key_ccs" -> CCS;

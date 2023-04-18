@@ -16,8 +16,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyType;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCcsApiKeyAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
@@ -68,7 +71,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
 
         try (var ignored = threadContext.stashContext()) {
             new CrossClusterAccessHeaders(
-                ApiKeyService.withApiKeyPrefix("abc"),
+                ApiKeyService.withApiKeyPrefix("ccs_abc"),
                 AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
             ).writeToContext(threadContext);
             authenticateAndAssertExpectedErrorMessage(
@@ -85,8 +88,8 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         }
 
         try (var ignored = threadContext.stashContext()) {
-            final String randomApiKey = Base64.getEncoder()
-                .encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
+            final String randomApiKey = "ccs_"
+                + Base64.getEncoder().encodeToString((UUIDs.base64UUID() + ":" + UUIDs.base64UUID()).getBytes(StandardCharsets.UTF_8));
             threadContext.putHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY, ApiKeyService.withApiKeyPrefix(randomApiKey));
             authenticateAndAssertExpectedErrorMessage(
                 service,
@@ -139,11 +142,11 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
     }
 
     private String getEncodedCrossClusterAccessApiKey() {
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client().admin().cluster()).setName("cross_cluster_access_key")
-            .get();
-        return ApiKeyService.withApiKeyPrefix(
-            Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey()).getBytes(StandardCharsets.UTF_8))
-        );
+        final CreateApiKeyRequest request = new CreateApiKeyRequestBuilder(client().admin().cluster()).setName("cross_cluster_access_key")
+            .setType(ApiKeyType.CCS)
+            .request();
+        final CreateApiKeyResponse response = client().execute(CreateCcsApiKeyAction.INSTANCE, request).actionGet();
+        return ApiKeyService.withApiKeyPrefix(response.getEncoded());
     }
 
     private void authenticateAndAssertExpectedErrorMessage(

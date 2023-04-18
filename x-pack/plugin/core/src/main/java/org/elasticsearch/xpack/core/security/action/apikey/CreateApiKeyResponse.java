@@ -111,6 +111,15 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         return expiration;
     }
 
+    public String getEncoded() {
+        final String encoded = Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
+        if (type == ApiKeyType.DEFAULT) {
+            return encoded;
+        } else {
+            return type.getCredentialsPrefix() + encoded;
+        }
+    }
+
     @Override
     public int hashCode() {
         final int prime = 31;
@@ -175,13 +184,8 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
             } finally {
                 Arrays.fill(charBytes, (byte) 0);
             }
-            builder.field("encoded", Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8)));
-        } else {
-            builder.field(
-                "encoded",
-                type.getCredentialsPrefix() + Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8))
-            );
         }
+        builder.field("encoded", getEncoded());
         return builder.endObject();
     }
 

@@ -12,6 +12,32 @@ This API allows a user to modify the settings for the Watcher internal index (`.
 
 And example of modifying the Watcher settings:
 
+
+[source,console]
+----------------------------------------------------------------
+PUT /_watcher/watch/test_watch
+{
+  "trigger": {
+    "schedule": {
+      "hourly": {
+        "minute": [ 0, 5 ]
+        }
+      }
+  },
+  "input": {
+    "simple": {
+      "payload": {
+        "send": "yes"
+      }
+    }
+  },
+  "condition": {
+    "always": {}
+  }
+}
+----------------------------------------------------------------
+// TESTSETUP
+
 [source,console]
 -----------------------------------------------------------
 PUT /_watcher/settings

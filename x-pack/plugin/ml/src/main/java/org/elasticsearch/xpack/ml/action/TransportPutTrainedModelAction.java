@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.io.IOException;
@@ -193,6 +194,16 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             listener.onFailure(
                 ExceptionsHelper.badRequestException(
                     "requested model_id [{}] is the same as an existing model_alias. Model model_aliases and ids must be unique",
+                    config.getModelId()
+                )
+            );
+            return;
+        }
+
+        if (TrainedModelAssignmentMetadata.fromState(state).hasDeployment(trainedModelConfig.getModelId())) {
+            listener.onFailure(
+                ExceptionsHelper.badRequestException(
+                    "Cannot create model [{}] the id is the same as an current model deployment",
                     config.getModelId()
                 )
             );

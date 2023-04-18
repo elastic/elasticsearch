@@ -100,6 +100,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                             try {
                                 // success means (amongst other things) that the cluster names match
                                 logger.trace("[{}] handshake successful: {}", transportAddress, remoteNode);
+                                IOUtils.closeWhileHandlingException(connection);
 
                                 if (remoteNode.equals(transportService.getLocalNode())) {
                                     listener.onFailure(

@@ -132,10 +132,11 @@ public abstract class PeerFinder {
 
     public void deactivate(DiscoveryNode leader) {
         final boolean peersRemoved;
-        final Collection<Releasable> connectionReferences = new ArrayList<>();
+        final Collection<Releasable> connectionReferences;
         synchronized (mutex) {
             logger.trace("deactivating and setting leader to {}", leader);
             active = false;
+            connectionReferences = new ArrayList<>(peersByAddress.size());
             for (Peer peer : peersByAddress.values()) {
                 connectionReferences.add(peer.getConnectionReference());
             }

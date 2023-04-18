@@ -990,7 +990,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public String toString() {
-            return "ExecutionResult[" + task + "]";
+            return "TaskContext[" + task + "]";
         }
     }
 
@@ -1007,14 +1007,20 @@ public class MasterService extends AbstractLifecycleComponent {
             && (resultingState.nodes().isLocalNodeElectedMaster() == false)) {
             throw new AssertionError("update task submitted to MasterService cannot remove master");
         }
-        assert assertAllTasksComplete(executionResults);
+        assert assertAllTasksComplete(executor, executionResults);
         return resultingState;
     }
 
-    private static <T extends ClusterStateTaskListener> boolean assertAllTasksComplete(List<ExecutionResult<T>> executionResults) {
-        for (final var executionResult : executionResults) {
-            assert executionResult.incomplete() == false : "missing result for " + executionResult;
-        }
+    private static <T extends ClusterStateTaskListener> boolean assertAllTasksComplete(
+        ClusterStateTaskExecutor<T> executor,
+        List<ExecutionResult<T>> executionResults
+    ) {
+        final var incompleteTaskContexts = executionResults.stream().filter(ExecutionResult::incomplete).toList();
+        assert incompleteTaskContexts.isEmpty()
+            : "cluster state task executors must mark all tasks as successful or failed, but ["
+                + executor
+                + "] left the following tasks incomplete: "
+                + incompleteTaskContexts;
         return true;
     }
 

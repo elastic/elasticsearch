@@ -7,11 +7,10 @@
 
 This API allows a user to modify the settings for the Watcher internal index (`.watches`). Only a subset of settings are allowed to by modified. This includes:
 
-- `index.auto_expand_replias`
+- `index.auto_expand_replicas`
 - `index.number_of_replicas`
 
-And example of modifying the Watcher settings:
-
+An example of modifying the Watcher settings:
 
 [source,console]
 ----------------------------------------------------------------

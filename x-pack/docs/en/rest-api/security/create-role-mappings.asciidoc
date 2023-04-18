@@ -199,7 +199,8 @@ system (such as Active Directory, or a SAML Identity Provider) do not have a
 1-to-1 correspondence with the names of roles in {es}. The role mapping is the
 means by which you link a _group name_ with a _role name_.
 
-If there are multiple groups use array syntax for groups field. 
+If there are multiple groups, you can use array syntax for the groups field.
+This matches any of the groups (rather than all of the groups):
 
 [source,console]
 ------------------------------------------------------------

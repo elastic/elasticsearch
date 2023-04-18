@@ -85,6 +85,8 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(getSearchApp, equalTo(searchApp));
         checkAliases(searchApp);
 
+        assertThat(getSearchApp.searchApplicationTemplate(), equalTo(SearchApplicationTemplate.DEFAULT_TEMPLATE));
+
         expectThrows(VersionConflictEngineException.class, () -> awaitPutSearchApplication(searchApp, true));
     }
 

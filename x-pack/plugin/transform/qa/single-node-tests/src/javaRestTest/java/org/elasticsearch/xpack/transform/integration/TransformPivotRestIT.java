@@ -109,6 +109,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             transformIndex,
             null,
             null,
+            null,
+            null,
             BASIC_AUTH_VALUE_NO_ACCESS,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS,
             REVIEWS_INDEX_NAME
@@ -136,6 +138,9 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         createPivotReviewsTransform(
             transformId,
             transformIndex,
+            null,
+            null,
+            null,
             null,
             null,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS,

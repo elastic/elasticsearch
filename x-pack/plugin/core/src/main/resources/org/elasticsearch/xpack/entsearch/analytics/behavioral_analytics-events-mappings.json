@@ -62,16 +62,84 @@
         "page": {
           "properties": {
             "url": {
-              "ignore_above": 1024,
-              "type": "keyword"
+              "properties": {
+                "domain": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "extension": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "fragment": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "original": {
+                  "fields": {
+                    "text": {
+                      "type": "match_only_text"
+                    }
+                  },
+                  "type": "wildcard"
+                },
+                "path": {
+                  "type": "wildcard"
+                },
+                "port": {
+                  "type": "long"
+                },
+                "query": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "scheme": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                }
+              }
             },
             "title": {
               "ignore_above": 1024,
               "type": "keyword"
             },
             "referrer": {
-              "ignore_above": 1024,
-              "type": "keyword"
+              "properties": {
+                "domain": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "extension": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "fragment": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "original": {
+                  "fields": {
+                    "text": {
+                      "type": "match_only_text"
+                    }
+                  },
+                  "type": "wildcard"
+                },
+                "path": {
+                  "type": "wildcard"
+                },
+                "port": {
+                  "type": "long"
+                },
+                "query": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "scheme": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                }
+              }
             }
           }
         },
@@ -133,8 +201,42 @@
                     "page": {
                       "properties": {
                         "url": {
-                          "type": "keyword",
-                          "ignore_above": 1024
+                          "properties": {
+                            "domain": {
+                              "ignore_above": 1024,
+                              "type": "keyword"
+                            },
+                            "extension": {
+                              "ignore_above": 1024,
+                              "type": "keyword"
+                            },
+                            "fragment": {
+                              "ignore_above": 1024,
+                              "type": "keyword"
+                            },
+                            "original": {
+                              "fields": {
+                                "text": {
+                                  "type": "match_only_text"
+                                }
+                              },
+                              "type": "wildcard"
+                            },
+                            "path": {
+                              "type": "wildcard"
+                            },
+                            "port": {
+                              "type": "long"
+                            },
+                            "query": {
+                              "ignore_above": 1024,
+                              "type": "keyword"
+                            },
+                            "scheme": {
+                              "ignore_above": 1024,
+                              "type": "keyword"
+                            }
+                          }
                         },
                         "title": {
                           "type": "keyword",

@@ -127,7 +127,7 @@ public class SegmentInfoCachingDirectory extends BaseDirectory {
                     var bso = new BytesStreamOutput(Math.toIntExact(blobLocation.length()));
                     var inputStream = blobContainer.readBlob(blobLocation.blobName(), blobLocation.offset(), blobLocation.length())
                 ) {
-                    Streams.copy(inputStream, bso);
+                    Streams.copy(inputStream, bso, false);
                     return bso.bytes();
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);

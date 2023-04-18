@@ -252,7 +252,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             this::startElection,
             this::updateMaxTermSeen,
             electionStrategy,
-            nodeHealthService
+            nodeHealthService,
+            leaderHeartbeatService
         );
         configuredHostsResolver = new SeedHostsResolver(nodeName, settings, transportService, seedHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(

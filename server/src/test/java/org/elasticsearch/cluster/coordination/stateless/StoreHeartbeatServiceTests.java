@@ -65,7 +65,6 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
         Heartbeat firstHeartbeat = PlainActionFuture.get(heartbeatStore::readLatestHeartbeat);
         assertThat(firstHeartbeat, is(notNullValue()));
         assertThat(firstHeartbeat.term(), is(equalTo(1L)));
-        assertThat(firstHeartbeat.leader(), is(equalTo(currentLeader)));
         assertThat(firstHeartbeat.absoluteTimeInMillis(), is(lessThanOrEqualTo(threadPool.absoluteTimeInMillis())));
 
         final var nextTask = threadPool.scheduledTasks.poll();
@@ -79,7 +78,6 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
         Heartbeat secondHeartbeat = PlainActionFuture.get(heartbeatStore::readLatestHeartbeat);
         assertThat(secondHeartbeat, is(notNullValue()));
         assertThat(secondHeartbeat.term(), is(equalTo(1L)));
-        assertThat(secondHeartbeat.leader(), is(equalTo(currentLeader)));
         assertThat(secondHeartbeat.absoluteTimeInMillis(), is(greaterThanOrEqualTo(firstHeartbeat.absoluteTimeInMillis())));
 
         final var secondScheduledTask = threadPool.scheduledTasks.poll();
@@ -199,7 +197,6 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
         final var currentTermProvider = new AtomicLong(1);
         final var heartbeatFrequency = TimeValue.timeValueSeconds(randomIntBetween(15, 30));
         final var maxTimeSinceLastHeartbeat = TimeValue.timeValueSeconds(2 * heartbeatFrequency.seconds());
-        final var currentLeader = new DiscoveryNode("master", buildNewFakeTransportAddress(), Version.CURRENT);
 
         final var fakeClock = new AtomicLong();
         final var failReadingHeartbeat = new AtomicBoolean();
@@ -238,7 +235,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
 
         // Recent heartbeat
         {
-            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(currentLeader, 1, fakeClock.get()), f));
+            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
 
             AtomicBoolean noRecentLeaderFound = new AtomicBoolean();
             heartbeatService.runIfNoRecentLeader(() -> noRecentLeaderFound.set(true));
@@ -247,7 +244,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
 
         // Stale heartbeat
         {
-            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(currentLeader, 1, fakeClock.get()), f));
+            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
             fakeClock.set(maxTimeSinceLastHeartbeat.millis() + 1);
 
             AtomicBoolean noRecentLeaderFound = new AtomicBoolean();
@@ -257,7 +254,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
 
         // Failing store
         {
-            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(currentLeader, 1, fakeClock.get()), f));
+            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
             fakeClock.set(maxTimeSinceLastHeartbeat.millis() + 1);
 
             failReadingHeartbeat.set(true);

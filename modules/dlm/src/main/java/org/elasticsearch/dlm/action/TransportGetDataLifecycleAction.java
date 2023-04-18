@@ -27,6 +27,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Collects the data streams from the cluster state, filters the ones that do not have a lifecycle configured and then returns
@@ -78,7 +79,7 @@ public class TransportGetDataLifecycleAction extends TransportMasterNodeReadActi
             new GetDataLifecycleAction.Response(
                 results.stream()
                     .map(dataStreams::get)
-                    .filter(dataStream -> dataStream != null && dataStream.getLifecycle() != null)
+                    .filter(Objects::nonNull)
                     .map(
                         dataStream -> new GetDataLifecycleAction.Response.DataStreamLifecycle(
                             dataStream.getName(),

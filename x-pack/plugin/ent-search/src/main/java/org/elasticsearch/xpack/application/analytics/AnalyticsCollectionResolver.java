@@ -24,6 +24,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.function.Predicate.not;
+import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PATTERN;
 
 /**
  * A service that allows the resolution of {@link AnalyticsCollection} by name.
@@ -82,7 +83,7 @@ public class AnalyticsCollectionResolver {
         List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
             state,
             IndicesOptions.lenientExpandOpen(),
-            AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PATTERN
+            EVENT_DATA_STREAM_INDEX_PATTERN
         );
 
         Map<String, AnalyticsCollection> collections = dataStreams.stream()

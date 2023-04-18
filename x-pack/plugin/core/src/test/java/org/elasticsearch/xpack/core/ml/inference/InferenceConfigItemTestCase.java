@@ -29,6 +29,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassification
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
@@ -61,6 +63,8 @@ public abstract class InferenceConfigItemTestCase<T extends VersionedNamedWritea
             return TextSimilarityConfigTests.mutateForVersion(textSimilarityConfig, version);
         } else if (inferenceConfig instanceof ZeroShotClassificationConfig zeroShotClassificationConfig) {
             return ZeroShotClassificationConfigTests.mutateForVersion(zeroShotClassificationConfig, version);
+        } else if (inferenceConfig instanceof TextExpansionConfig textExpansionConfig) {
+            return TextExpansionConfigTests.mutateForVersion(textExpansionConfig, version);
         } else {
             throw new IllegalArgumentException("unknown inference config [" + inferenceConfig.getName() + "]");
         }

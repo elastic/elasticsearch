@@ -56,6 +56,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PATTERN;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -387,7 +388,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
             assertThat(putRequest.indexTemplate().version(), equalTo((long) AnalyticsTemplateRegistry.REGISTRY_VERSION));
             final List<String> indexPatterns = putRequest.indexTemplate().indexPatterns();
             assertThat(indexPatterns, hasSize(1));
-            assertThat(indexPatterns.get(0), equalTo(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PATTERN));
+            assertThat(indexPatterns.get(0), equalTo(EVENT_DATA_STREAM_INDEX_PATTERN));
             assertNotNull(listener);
             return new TestPutIndexTemplateResponse(true);
         } else {

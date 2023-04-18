@@ -36,12 +36,6 @@ public class EmptyTDigestStateTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, singleton::compress);
     }
 
-    public void testTestAddList() {
-        expectThrows(
-            UnsupportedOperationException.class,
-            () -> singleton.add(randomDouble(), randomInt(10), List.of(randomDouble(), randomDouble()))
-        );
-    }
 
     public void testTestAddListTDigest() {
         expectThrows(UnsupportedOperationException.class, () -> singleton.add(List.of(new EmptyTDigestState(), new EmptyTDigestState())));

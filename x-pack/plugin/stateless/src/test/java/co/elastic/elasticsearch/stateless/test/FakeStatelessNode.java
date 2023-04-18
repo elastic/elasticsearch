@@ -9,6 +9,7 @@
 package co.elastic.elasticsearch.stateless.test;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
@@ -83,6 +84,7 @@ public class FakeStatelessNode implements Closeable {
     public final TransportService transportService;
     public final RepositoriesService repoService;
     public final ObjectStoreService objectStoreService;
+    public final StatelessCommitService commitService;
     public final NodeEnvironment nodeEnvironment;
     public final ThreadPool threadPool;
 
@@ -186,7 +188,9 @@ public class FakeStatelessNode implements Closeable {
             transportService.acceptIncomingRequests();
             localCloseables.add(transportService::stop);
 
-            objectStoreService = new ObjectStoreService(nodeSettings, () -> repoService, threadPool, clusterService, client);
+            commitService = new StatelessCommitService();
+            commitService.register(shardId);
+            objectStoreService = new ObjectStoreService(nodeSettings, () -> repoService, threadPool, clusterService, commitService, client);
             objectStoreService.start();
             indexingDirectory.getSearchDirectory().setBlobContainer(() -> objectStoreService.getBlobContainer(shardId, 1));
 

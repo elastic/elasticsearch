@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.allocation.StatelessShardRoutingRoleSt
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
@@ -133,6 +134,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
 
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
 
+    private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
 
     private final SetOnce<SharedBlobCacheService<FileCacheKey>> sharedBlobCacheService = new SetOnce<>();
@@ -200,7 +202,15 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     ) {
         // use the settings that include additional settings.
         Settings settings = environment.settings();
-        var objectStoreService = new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService, client);
+        commitService.set(new StatelessCommitService());
+        var objectStoreService = new ObjectStoreService(
+            settings,
+            repositoriesServiceSupplier,
+            threadPool,
+            clusterService,
+            commitService.get(),
+            client
+        );
         this.objectStoreService.set(objectStoreService);
         var sharedBlobCache = new SharedBlobCacheService<FileCacheKey>(nodeEnvironment, settings, threadPool);
         this.sharedBlobCacheService.set(sharedBlobCache);
@@ -243,6 +253,19 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     public void onIndexModule(IndexModule indexModule) {
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
+            StatelessCommitService statelessCommitService = commitService.get();
+            indexModule.addIndexEventListener(new IndexEventListener() {
+
+                @Override
+                public void afterIndexShardCreated(IndexShard indexShard) {
+                    statelessCommitService.register(indexShard.shardId());
+                }
+
+                @Override
+                public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+                    statelessCommitService.unregisterShard(shardId);
+                }
+            });
             indexModule.setIndexCommitListener(createIndexCommitListener());
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isPromotableToPrimary()) {
@@ -379,6 +402,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
      */
     protected Engine.IndexCommitListener createIndexCommitListener() {
         final ObjectStoreService service = getObjectStoreService();
+        final StatelessCommitService statelessCommitService = commitService.get();
         return new Engine.IndexCommitListener() {
             @Override
             public void onNewCommit(
@@ -390,19 +414,36 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             ) {
                 store.incRef();
                 Map<String, StoreFileMetadata> commitFiles;
+                final IndexCommit indexCommit = indexCommitRef.getIndexCommit();
+                final Collection<String> commitFileNames;
                 try {
-                    Store.MetadataSnapshot metadata = store.getMetadata(indexCommitRef.getIndexCommit());
+                    // TODO: Eventually we will probably not need to reading the metadata here. The input streams will check the checksum
+                    // and we can get the file length from the directory. We just need to propagate a blob location to the search shard
+                    Store.MetadataSnapshot metadata = store.getMetadata(indexCommit);
                     commitFiles = metadata.fileMetadataMap();
+                    commitFileNames = indexCommit.getFileNames();
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 } finally {
                     store.decRef();
                 }
+
+                statelessCommitService.markNewCommit(shardId, commitFileNames, additionalFiles);
                 service.onCommitCreation(new StatelessCommitRef(shardId, indexCommitRef, commitFiles, additionalFiles, primaryTerm));
             }
 
             @Override
-            public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {}
+            public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {
+                final Collection<String> commitFileNames;
+                try {
+                    commitFileNames = deletedCommit.getFileNames();
+                } catch (IOException e) {
+                    // TODO: Exception handling? Although this should never happen. As far as I can tell, none of the Lucene implementations
+                    // throw this.
+                    throw new UncheckedIOException(e);
+                }
+                statelessCommitService.markCommitDeleted(shardId, commitFileNames);
+            }
         };
     }
 

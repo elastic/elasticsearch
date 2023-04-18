@@ -14,9 +14,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,7 +37,6 @@ import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
@@ -51,8 +48,6 @@ import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
-import java.time.Clock;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -183,7 +178,22 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
         // <3> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
         ActionListener<ValidateTransformAction.Response> validationListener = ActionListener.wrap(validationResponse -> {
-            createDestinationIndex(state, transformConfigHolder.get(), validationResponse.getDestIndexMappings(), createOrGetIndexListener);
+            if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
+                logger.debug(
+                    () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
+                );
+                createOrGetIndexListener.onResponse(true);
+                return;
+            }
+            TransformIndex.createDestinationIndex(
+                client,
+                auditor,
+                indexNameExpressionResolver,
+                state,
+                transformConfigHolder.get(),
+                validationResponse.getDestIndexMappings(),
+                createOrGetIndexListener
+            );
         }, e -> {
             if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
                 logger.debug(
@@ -259,60 +269,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
         // <0> Get the config to verify it exists and is valid
         transformConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
-    }
-
-    private void createDestinationIndex(
-        ClusterState state,
-        TransformConfig config,
-        Map<String, String> destIndexMappings,
-        ActionListener<Boolean> listener
-    ) {
-        if (Boolean.TRUE.equals(config.getSettings().getUnattended())) {
-            logger.debug(() -> format("[%s] Skip dest index creation as this is an unattended transform", config.getId()));
-            listener.onResponse(true);
-            return;
-        }
-
-        final String destinationIndex = config.getDestination().getIndex();
-        String[] dest = indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), destinationIndex);
-
-        if (dest.length == 0) {
-            TransformDestIndexSettings generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
-                destIndexMappings,
-                config.getId(),
-                Clock.systemUTC()
-            );
-            TransformIndex.createDestinationIndex(client, config, generatedDestIndexSettings, ActionListener.wrap(r -> {
-                String message = Boolean.FALSE.equals(config.getSettings().getDeduceMappings())
-                    ? "Created destination index [" + destinationIndex + "]."
-                    : "Created destination index [" + destinationIndex + "] with deduced mappings.";
-                auditor.info(config.getId(), message);
-                listener.onResponse(r);
-            }, listener::onFailure));
-        } else {
-            auditor.info(config.getId(), "Using existing destination index [" + destinationIndex + "].");
-            ClientHelper.executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                ClientHelper.TRANSFORM_ORIGIN,
-                client.admin().indices().prepareStats(dest).clear().setDocs(true).request(),
-                ActionListener.<IndicesStatsResponse>wrap(r -> {
-                    long docTotal = r.getTotal().docs.getCount();
-                    if (docTotal > 0L) {
-                        auditor.warning(
-                            config.getId(),
-                            "Non-empty destination index [" + destinationIndex + "]. " + "Contains [" + docTotal + "] total documents."
-                        );
-                    }
-                    listener.onResponse(true);
-                }, e -> {
-                    String msg = "Unable to determine destination index stats, error: " + e.getMessage();
-                    logger.warn(msg, e);
-                    auditor.warning(config.getId(), msg);
-                    listener.onResponse(true);
-                }),
-                client.admin().indices()::stats
-            );
-        }
     }
 
     @Override

@@ -1694,9 +1694,7 @@ public class Security extends Plugin
             ) {
                 @Override
                 protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    ValidationResult validationResult = HttpHeadersValidator.extractValidationResult(
-                        restRequest.getHttpRequest()
-                    );
+                    ValidationResult validationResult = HttpHeadersValidator.extractValidationResult(restRequest.getHttpRequest());
                     assert validationResult != null : "all HTTP requests must be authenticated";
                     validationResult.assertValid();
                 }

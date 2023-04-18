@@ -154,7 +154,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("wait_for_status", "yellow");
                     request.addParameter("timeout", "70s");
                 }));
-                assertThatTrainedModelAssignmentMetadataIsEmpty("upgrade-deployment-test-stop-mixed-cluster");
+                assertThatTrainedModelAssignmentMetadataIsEmpty(modelId);
 
             }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");

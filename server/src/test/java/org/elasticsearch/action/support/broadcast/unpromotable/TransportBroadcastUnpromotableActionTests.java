@@ -35,7 +35,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -146,10 +145,10 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
     private static List<Tuple<ShardRoutingState, ShardRouting.Role>> getReplicaRolesWithRandomStates(
         int numPromotableReplicas,
         int numSearchReplicas,
-        List<ShardRoutingState> possibleStates
+        ShardRoutingState... possibleStates
     ) {
         return getReplicaRoles(numPromotableReplicas, numSearchReplicas).stream()
-            .map(role -> new Tuple<>(randomFrom(possibleStates), role))
+            .map(role -> new Tuple<>(getValidStateForRole(role, possibleStates), role))
             .collect(Collectors.toList());
     }
 
@@ -157,11 +156,16 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         int numPromotableReplicas,
         int numSearchReplicas
     ) {
-        return getReplicaRolesWithRandomStates(
-            numPromotableReplicas,
-            numSearchReplicas,
-            Arrays.stream(ShardRoutingState.values()).toList()
-        );
+        return getReplicaRolesWithRandomStates(numPromotableReplicas, numSearchReplicas, ShardRoutingState.values());
+    }
+
+    private static ShardRoutingState getValidStateForRole(ShardRouting.Role role, ShardRoutingState... possibleStates) {
+        ShardRoutingState state;
+        do {
+            state = randomFrom(possibleStates);
+            // relocation is not possible for unserchable shards until ES-4677 is implemented
+        } while (role.isSearchable() == false && state == ShardRoutingState.RELOCATING);
+        return state;
     }
 
     private static List<Tuple<ShardRoutingState, ShardRouting.Role>> getReplicaRolesWithState(
@@ -169,7 +173,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         int numSearchReplicas,
         ShardRoutingState state
     ) {
-        return getReplicaRolesWithRandomStates(numPromotableReplicas, numSearchReplicas, List.of(state));
+        return getReplicaRolesWithRandomStates(numPromotableReplicas, numSearchReplicas, state);
     }
 
     private int countRequestsForIndex(ClusterState state, String index) {
@@ -193,7 +197,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         return totalRequests;
     }
 
-    public void testNotStartedPrimary() throws Exception {
+    public void testNotStartedPrimary() {
         final String index = "test";
         final int numPromotableReplicas = randomInt(2);
         final int numSearchReplicas = randomInt(2);
@@ -208,7 +212,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         assertThat(countRequestsForIndex(state, index), is(equalTo(0)));
     }
 
-    public void testMixOfStartedPromotableAndSearchReplicas() throws Exception {
+    public void testMixOfStartedPromotableAndSearchReplicas() {
         final String index = "test";
         final int numShards = 1 + randomInt(3);
         final int numPromotableReplicas = randomInt(2);
@@ -224,7 +228,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         assertThat(countRequestsForIndex(state, index), is(equalTo(numShards * numSearchReplicas)));
     }
 
-    public void testSearchReplicasWithRandomStates() throws Exception {
+    public void testSearchReplicasWithRandomStates() {
         final String index = "test";
         final int numPromotableReplicas = randomInt(2);
         final int numSearchReplicas = randomInt(6);
@@ -250,7 +254,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         assertThat(countRequestsForIndex(state, index), is(equalTo(numReachableUnpromotables)));
     }
 
-    public void testInvalidNodes() throws Exception {
+    public void testInvalidNodes() {
         final String index = "test";
         ClusterState state = stateWithAssignedPrimariesAndReplicas(
             new String[] { index },
@@ -298,7 +302,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         );
     }
 
-    public void testNullIndexShardRoutingTable() throws Exception {
+    public void testNullIndexShardRoutingTable() {
         PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
         IndexShardRoutingTable shardRoutingTable = null;
         assertThat(

@@ -14,12 +14,22 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 
 public final class RoutingNodesHelper {
 
     private RoutingNodesHelper() {}
+
+    public static int numberOfShardsWithState(RoutingNodes nodes, ShardRoutingState state) {
+        assert state != ShardRoutingState.UNASSIGNED : "unassigned state is not supported here, use nodes.unassigned().size() instead";
+        int count = 0;
+        for (RoutingNode routingNode : nodes) {
+            count += routingNode.numberOfShardsWithState(state);
+        }
+        return count;
+    }
 
     public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState state) {
         return state == ShardRoutingState.UNASSIGNED
@@ -31,6 +41,14 @@ public final class RoutingNodesHelper {
         return shardsWithState(routingNodes, states).stream()
             .filter(shardRouting -> Objects.equals(shardRouting.getIndexName(), index))
             .toList();
+    }
+
+    public static Stream<ShardRouting> assignedShardsIn(RoutingNodes routingNodes) {
+        return routingNodes.stream().flatMap(RoutingNodesHelper::assignedShardsIn);
+    }
+
+    public static Stream<ShardRouting> assignedShardsIn(RoutingNode routingNode) {
+        return StreamSupport.stream(routingNode.spliterator(), false);
     }
 
     /**

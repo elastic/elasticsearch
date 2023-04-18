@@ -22,6 +22,7 @@ import fixture.azure.AzureHttpHandler;
 
 import com.sun.net.httpserver.HttpHandler;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-5680")
 public class AzureObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     private static final String DEFAULT_ACCOUNT_NAME = "account";

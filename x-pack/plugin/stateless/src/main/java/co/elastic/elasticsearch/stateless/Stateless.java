@@ -22,6 +22,9 @@ import co.elastic.elasticsearch.stateless.allocation.StatelessAllocationDecider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessExistingShardsAllocator;
 import co.elastic.elasticsearch.stateless.allocation.StatelessIndexSettingProvider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessShardRoutingRoleStrategy;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
@@ -31,6 +34,8 @@ import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsInfoTransportAction;
 import co.elastic.elasticsearch.stateless.xpack.DummySearchableSnapshotsUsageTransportAction;
+import co.elastic.elasticsearch.stateless.xpack.DummyVotingOnlyInfoTransportAction;
+import co.elastic.elasticsearch.stateless.xpack.DummyVotingOnlyUsageTransportAction;
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -38,8 +43,15 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.coordination.ElectionStrategy;
+import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
+import org.elasticsearch.cluster.coordination.PreVoteCollector;
+import org.elasticsearch.cluster.coordination.stateless.AtomicRegisterPreVoteCollector;
+import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator;
+import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -56,6 +68,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -76,6 +89,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -96,6 +110,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -103,7 +118,7 @@ import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.core.Strings.format;
 
-public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, ClusterPlugin {
+public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, ClusterPlugin, ClusterCoordinationPlugin {
 
     private static final Logger logger = LogManager.getLogger(Stateless.class);
 
@@ -124,6 +139,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
 
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();
+    private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
+    private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
@@ -146,19 +163,22 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         return List.of(
             new ActionHandler<>(TransportNewCommitNotificationAction.TYPE, TransportNewCommitNotificationAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsInfoTransportAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsUsageTransportAction.class)
+            new ActionHandler<>(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsUsageTransportAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.VOTING_ONLY, DummyVotingOnlyInfoTransportAction.class),
+            new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY, DummyVotingOnlyUsageTransportAction.class)
         );
     }
 
     @Override
     public Settings additionalSettings() {
+        var settings = Settings.builder().put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME);
+
         if (sharedCachedSettingExplicitlySet == false && hasSearchRole) {
-            return Settings.builder()
-                .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "75%")
+            return settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "75%")
                 .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "250GB")
                 .build();
         } else {
-            return Settings.EMPTY;
+            return settings.build();
         }
     }
 
@@ -187,6 +207,16 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, settings, objectStoreService);
         this.translogReplicator.set(translogReplicator);
         this.clusterService.set(clusterService);
+        var statelessElectionStrategy = new StatelessElectionStrategy(objectStoreService::getTermLeaseBlobContainer, threadPool);
+        this.electionStrategy.set(statelessElectionStrategy);
+        LongSupplier currentTermSupplierSync = () -> PlainActionFuture.get(statelessElectionStrategy::getCurrentLeaseTerm).orElse(0L);
+        var storeHeartbeatService = StoreHeartbeatService.create(
+            new StatelessHeartbeatStore(objectStoreService::getLeaderHeartbeatContainer, threadPool),
+            threadPool,
+            environment.settings(),
+            currentTermSupplierSync
+        );
+        this.storeHeartbeatService.set(storeHeartbeatService);
         return List.of(objectStoreService, translogReplicator, sharedBlobCache);
     }
 
@@ -389,6 +419,59 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         return List.of(new StatelessIndexSettingProvider());
+    }
+
+    @Override
+    public Optional<PersistedStateFactory> getPersistedStateFactory() {
+        return Optional.of((settings, transportService, persistedClusterStateService) -> {
+            assert persistedClusterStateService instanceof StatelessPersistedClusterStateService;
+            return ((StatelessPersistedClusterStateService) persistedClusterStateService).createPersistedState(
+                settings,
+                transportService.getLocalNode()
+            );
+        });
+    }
+
+    @Override
+    public Optional<PersistedClusterStateServiceFactory> getPersistedClusterStateServiceFactory() {
+        return Optional.of(
+            (nodeEnvironment, xContentRegistry, clusterSettings, threadPool) -> new StatelessPersistedClusterStateService(
+                nodeEnvironment,
+                xContentRegistry,
+                clusterSettings,
+                threadPool::relativeTimeInMillis,
+                objectStoreService::get,
+                threadPool
+            )
+        );
+    }
+
+    @Override
+    public Optional<ReconfiguratorFactory> getReconfiguratorFactory() {
+        return Optional.of(SingleNodeReconfigurator::new);
+    }
+
+    @Override
+    public Optional<PreVoteCollector.Factory> getPreVoteCollectorFactory() {
+        return Optional.of(
+            (
+                transportService,
+                startElection,
+                updateMaxTermSeen,
+                electionStrategy,
+                nodeHealthService,
+                leaderHeartbeatService) -> new AtomicRegisterPreVoteCollector((StoreHeartbeatService) leaderHeartbeatService, startElection)
+        );
+    }
+
+    @Override
+    public Optional<LeaderHeartbeatService> getLeaderHeartbeatService(Settings settings) {
+        return Optional.of(Objects.requireNonNull(storeHeartbeatService.get()));
+    }
+
+    @Override
+    public Map<String, ElectionStrategy> getElectionStrategies() {
+        return Map.of(StatelessElectionStrategy.NAME, Objects.requireNonNull(electionStrategy.get()));
     }
 
     /**

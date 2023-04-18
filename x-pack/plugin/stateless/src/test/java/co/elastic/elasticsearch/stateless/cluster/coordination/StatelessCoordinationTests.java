@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.AtomicRegisterCoordinatorTests;
-import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
@@ -33,55 +32,43 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clusterState;
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.MAX_MISSED_HEARTBEATS;
 
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
-    FakeStatelessNode statelessNode;
-
-    @Before
-    public void setUpBlobStore() throws IOException {
-        this.statelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry());
-    }
-
-    @After
-    public void tearDownBlobStore() {
-        IOUtils.closeWhileHandlingException(statelessNode);
-    }
-
     @Override
     protected CoordinatorStrategy getCoordinatorStrategy() {
-        final var inMemoryClusterStateStore = new InMemoryClusterStateStore();
         final var inMemoryHeartBeatStore = new InMemoryHeartBeatStore();
-        return new StatelessCoordinatorStrategy(
-            inMemoryClusterStateStore,
-            inMemoryHeartBeatStore,
-            statelessNode.objectStoreService.getTermLeaseBlobContainer()
-        );
+        try {
+            var statelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry());
+            return new StatelessCoordinatorStrategy(
+                inMemoryHeartBeatStore,
+                statelessNode.objectStoreService.getTermLeaseBlobContainer(),
+                statelessNode
+            );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     class StatelessCoordinatorStrategy implements CoordinatorStrategy {
-        private final ClusterStateStore clusterStateStore;
         private final HeartbeatStore heartBeatStore;
         private final BlobContainer termLeaseContainer;
+        private final FakeStatelessNode statelessNode;
 
-        StatelessCoordinatorStrategy(ClusterStateStore clusterStateStore, HeartbeatStore heartBeatStore, BlobContainer termLeaseContainer) {
-            this.clusterStateStore = clusterStateStore;
+        StatelessCoordinatorStrategy(HeartbeatStore heartBeatStore, BlobContainer termLeaseContainer, FakeStatelessNode statelessNode) {
             this.heartBeatStore = heartBeatStore;
             this.termLeaseContainer = termLeaseContainer;
+            this.statelessNode = statelessNode;
         }
 
         @Override
@@ -91,7 +78,12 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
             ClusterSettings clusterSettings,
             CoordinationState.PersistedState persistedState
         ) {
-            final var statelessElectionStrategy = new StatelessElectionStrategy(termLeaseContainer);
+            final var statelessElectionStrategy = new StatelessElectionStrategy(() -> termLeaseContainer, threadPool) {
+                @Override
+                protected String getExecutorName() {
+                    return ThreadPool.Names.SAME;
+                }
+            };
             final var heartbeatFrequency = HEARTBEAT_FREQUENCY.get(settings);
             final var storeHeartbeatService = new StoreHeartbeatService(
                 heartBeatStore,
@@ -124,7 +116,8 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
                         startElection,
                         updateMaxTermSeen,
                         electionStrategy,
-                        nodeHealthService) -> new AtomicRegisterPreVoteCollector(storeHeartbeatService, startElection);
+                        nodeHealthService,
+                        leaderHeartbeatService) -> new AtomicRegisterPreVoteCollector(storeHeartbeatService, startElection);
                 }
             };
         }
@@ -135,13 +128,7 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
             BooleanSupplier disruptStorage,
             ThreadPool threadPool
         ) {
-            return new StatelessPersistedState(emptyClusterState(localNode), 0, clusterStateStore) {
-                @Override
-                public void close() throws IOException {
-                    super.close();
-                    assertTrue(openPersistedStates.remove(this));
-                }
-            };
+            return getPersistedState(localNode, threadPool);
         }
 
         @Override
@@ -155,27 +142,85 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
             BooleanSupplier disruptStorage,
             ThreadPool threadPool
         ) {
-            return new StatelessPersistedState(emptyClusterState(newLocalNode), 0, clusterStateStore) {
-                @Override
-                public void close() throws IOException {
-                    super.close();
-                    assertTrue(openPersistedStates.remove(this));
-                }
-            };
+            return getPersistedState(newLocalNode, threadPool);
+        }
+
+        private CoordinationState.PersistedState getPersistedState(DiscoveryNode localNode, ThreadPool threadPool) {
+            try {
+                final var nodeEnvironment = newNodeEnvironment();
+                final var persistedClusterStateService = new StatelessPersistedClusterStateService(
+                    nodeEnvironment,
+                    xContentRegistry(),
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    threadPool::relativeTimeInMillis,
+                    () -> statelessNode.objectStoreService,
+                    threadPool
+                ) {
+                    @Override
+                    protected String getUploadsThreadPool() {
+                        return ThreadPool.Names.SAME;
+                    }
+
+                    @Override
+                    protected String getDownloadsThreadPool() {
+                        return ThreadPool.Names.SAME;
+                    }
+                };
+                return new FilterPersistedState(persistedClusterStateService.createPersistedState(Settings.EMPTY, localNode)) {
+                    @Override
+                    public void close() throws IOException {
+                        super.close();
+                        assertTrue(openPersistedStates.remove(this));
+                        IOUtils.close(nodeEnvironment);
+                    }
+                };
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public void close() {
+            IOUtils.closeWhileHandlingException(statelessNode);
         }
     }
 
-    private ClusterState emptyClusterState(DiscoveryNode localNode) {
-        return ClusterStateUpdaters.addStateNotRecoveredBlock(
-            clusterState(
-                0L,
-                0L,
-                localNode,
-                CoordinationMetadata.VotingConfiguration.of(localNode),
-                CoordinationMetadata.VotingConfiguration.of(localNode),
-                0L
-            )
-        );
+    static class FilterPersistedState implements CoordinationState.PersistedState {
+        private final CoordinationState.PersistedState delegate;
+
+        FilterPersistedState(CoordinationState.PersistedState delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public long getCurrentTerm() {
+            return delegate.getCurrentTerm();
+        }
+
+        @Override
+        public ClusterState getLastAcceptedState() {
+            return delegate.getLastAcceptedState();
+        }
+
+        @Override
+        public void setCurrentTerm(long currentTerm) {
+            delegate.setCurrentTerm(currentTerm);
+        }
+
+        @Override
+        public void setLastAcceptedState(ClusterState clusterState) {
+            delegate.setLastAcceptedState(clusterState);
+        }
+
+        @Override
+        public void getLatestStoredState(long term, ActionListener<ClusterState> listener) {
+            delegate.getLatestStoredState(term, listener);
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
     }
 
     private static class InMemoryHeartBeatStore implements HeartbeatStore {

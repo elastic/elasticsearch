@@ -46,6 +46,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -82,6 +83,8 @@ public class FakeStatelessNode implements Closeable {
     public final TransportService transportService;
     public final RepositoriesService repoService;
     public final ObjectStoreService objectStoreService;
+    public final NodeEnvironment nodeEnvironment;
+    public final ThreadPool threadPool;
 
     private final Closeable closeables;
 
@@ -121,15 +124,15 @@ public class FakeStatelessNode implements Closeable {
 
         try (var localCloseables = new TransferableCloseables()) {
 
-            final var threadPool = new TestThreadPool("test");
+            threadPool = new TestThreadPool("test");
             localCloseables.add(() -> TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
 
             transport = localCloseables.add(new MockTransport());
             clusterService = localCloseables.add(ClusterServiceUtils.createClusterService(threadPool));
             client = localCloseables.add(new NodeClient(nodeSettings, threadPool));
-            final var nodeEnv = nodeEnvironmentSupplier.apply(nodeSettings);
-            localCloseables.add(nodeEnv);
-            final var sharedCacheService = new SharedBlobCacheService<FileCacheKey>(nodeEnv, nodeSettings, threadPool);
+            nodeEnvironment = nodeEnvironmentSupplier.apply(nodeSettings);
+            localCloseables.add(nodeEnvironment);
+            final var sharedCacheService = new SharedBlobCacheService<FileCacheKey>(nodeEnvironment, nodeSettings, threadPool);
             localCloseables.add(sharedCacheService);
             indexingDirectory = localCloseables.add(
                 new IndexDirectory(new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath), sharedCacheService, shardId)

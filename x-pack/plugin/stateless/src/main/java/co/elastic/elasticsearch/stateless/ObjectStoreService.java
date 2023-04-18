@@ -253,6 +253,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         return objectStore.blobStore().blobContainer(objectStore.basePath().add("cluster_state"));
     }
 
+    public BlobContainer getClusterStateBlobContainerForTerm(long term) {
+        final BlobStoreRepository objectStore = getObjectStore();
+        return objectStore.blobStore().blobContainer(objectStore.basePath().add("cluster_state").add(String.valueOf(term)));
+    }
+
+    public BlobContainer getLeaderHeartbeatContainer() {
+        final BlobStoreRepository objectStore = getObjectStore();
+        return objectStore.blobStore().blobContainer(objectStore.basePath().add("cluster_state").add("heartbeat"));
+    }
+
     /**
      * Gets the translog blob container of the local node
      */

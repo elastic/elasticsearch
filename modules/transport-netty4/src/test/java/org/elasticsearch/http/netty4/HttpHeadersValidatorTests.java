@@ -14,7 +14,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
 
 import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders;
-import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationResultContext;
+import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationResult;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.nullValue;
 public final class HttpHeadersValidatorTests extends ESTestCase {
 
     public void testRemoveHeaderPreservesValidationResult() {
-        final ValidationResultContext validationResultContext = () -> {};
+        final ValidationResult validationResult = () -> {};
         final DefaultHttpRequest httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
         String header1 = "header1";
         String headerValue1 = "headerValue1";
@@ -34,7 +34,7 @@ public final class HttpHeadersValidatorTests extends ESTestCase {
         final DefaultHttpRequest validatableHttpRequest = (DefaultHttpRequest) HttpHeadersValidator.wrapAsValidatableMessage(httpRequest);
         boolean validated = randomBoolean();
         if (validated) {
-            ((ValidatableHttpHeaders) validatableHttpRequest.headers()).markAsSuccessfullyValidated(validationResultContext);
+            ((ValidatableHttpHeaders) validatableHttpRequest.headers()).markAsSuccessfullyValidated(validationResult);
         }
         if (randomBoolean()) {
             validatableHttpRequest.headers().remove("header1");
@@ -48,7 +48,7 @@ public final class HttpHeadersValidatorTests extends ESTestCase {
         if (validated) {
             assertThat(
                 ((ValidatableHttpHeaders) validatableHttpRequest.headers()).validationResultContextSetOnce.get(),
-                is(validationResultContext)
+                is(validationResult)
             );
         } else {
             assertThat(((ValidatableHttpHeaders) validatableHttpRequest.headers()).validationResultContextSetOnce.get(), nullValue());
@@ -56,7 +56,7 @@ public final class HttpHeadersValidatorTests extends ESTestCase {
     }
 
     public void testCopyHeaderPreservesValidationResult() {
-        final ValidationResultContext validationResultContext = () -> {};
+        final ValidationResult validationResult = () -> {};
         final DefaultHttpRequest httpRequest = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
         String header = "header";
         String headerValue = "headerValue";
@@ -64,11 +64,11 @@ public final class HttpHeadersValidatorTests extends ESTestCase {
         final DefaultHttpRequest validatableHttpRequest = (DefaultHttpRequest) HttpHeadersValidator.wrapAsValidatableMessage(httpRequest);
         boolean validated = randomBoolean();
         if (validated) {
-            ((ValidatableHttpHeaders) validatableHttpRequest.headers()).markAsSuccessfullyValidated(validationResultContext);
+            ((ValidatableHttpHeaders) validatableHttpRequest.headers()).markAsSuccessfullyValidated(validationResult);
         }
         HttpHeaders httpHeadersCopy = ((ValidatableHttpHeaders) validatableHttpRequest.headers()).copy();
         if (validated) {
-            assertThat(((ValidatableHttpHeaders) httpHeadersCopy).validationResultContextSetOnce.get(), is(validationResultContext));
+            assertThat(((ValidatableHttpHeaders) httpHeadersCopy).validationResultContextSetOnce.get(), is(validationResult));
         } else {
             assertThat(((ValidatableHttpHeaders) httpHeadersCopy).validationResultContextSetOnce.get(), nullValue());
         }

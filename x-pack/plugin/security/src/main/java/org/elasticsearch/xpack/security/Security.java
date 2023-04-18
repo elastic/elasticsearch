@@ -56,7 +56,7 @@ import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.HttpHeadersValidator;
-import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationResultContext;
+import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationResult;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -1647,7 +1647,7 @@ public class Security extends Plugin
             }
             final AuthenticationService authenticationService = this.authcService.get();
             final ThreadContext threadContext = this.threadContext.get();
-            final TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationResultContext>> authenticateMessage = (
+            final TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationResult>> authenticateMessage = (
                 httpRequest,
                 channel,
                 listener) -> {
@@ -1694,11 +1694,11 @@ public class Security extends Plugin
             ) {
                 @Override
                 protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    ValidationResultContext validationResultContext = HttpHeadersValidator.extractValidationContext(
+                    ValidationResult validationResult = HttpHeadersValidator.extractValidationResult(
                         restRequest.getHttpRequest()
                     );
-                    assert validationResultContext != null : "all HTTP requests must be authenticated";
-                    validationResultContext.assertValid();
+                    assert validationResult != null : "all HTTP requests must be authenticated";
+                    validationResult.assertValid();
                 }
             };
         });

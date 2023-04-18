@@ -58,7 +58,7 @@ import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
-import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationResultContext;
+import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationResult;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -653,12 +653,12 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         final AtomicReference<String> urlReference = new AtomicReference<>();
         final AtomicReference<String> headerReference = new AtomicReference<>();
         final AtomicReference<String> headerValueReference = new AtomicReference<>();
-        final AtomicReference<ValidationResultContext> validationResultContextReference = new AtomicReference<>();
+        final AtomicReference<ValidationResult> validationResultContextReference = new AtomicReference<>();
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
                 assertThat(
-                    HttpHeadersValidator.extractValidationContext(request.getHttpRequest()),
+                    HttpHeadersValidator.extractValidationResult(request.getHttpRequest()),
                     is(validationResultContextReference.get())
                 );
                 assertThat(request.getHttpRequest().uri(), is(urlReference.get()));
@@ -697,7 +697,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 @Override
                 protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
                     assertThat(
-                        HttpHeadersValidator.extractValidationContext(restRequest.getHttpRequest()),
+                        HttpHeadersValidator.extractValidationResult(restRequest.getHttpRequest()),
                         is(validationResultContextReference.get())
                     );
                 }

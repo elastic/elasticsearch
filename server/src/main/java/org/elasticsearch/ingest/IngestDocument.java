@@ -72,6 +72,10 @@ public final class IngestDocument {
         this.templateModel = initializeTemplateModel();
     }
 
+    // note: these rest of these constructors deal with the data-centric view of the IngestDocument, not the execution-centric view.
+    // For example, the copy constructor doesn't populate the `executedPipelines` or `indexHistory` (as well as some other fields),
+    // because those fields are execution-centric.
+
     /**
      * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided.
      */
@@ -80,7 +84,6 @@ public final class IngestDocument {
             new IngestCtxMap(deepCopyMap(other.ctxMap.getSource()), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
-        this.reroute = other.reroute;
     }
 
     /**

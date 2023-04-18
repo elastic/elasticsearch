@@ -106,6 +106,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
                         modified = true;
                     }
                 }
+                c.success(() -> {});
             }
             return modified ? builder.build() : context.initialState();
         }

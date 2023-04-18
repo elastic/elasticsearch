@@ -69,6 +69,6 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
             .map(o -> (Map<?, ?>) o)
             .collect(Collectors.toMap(m -> m.get("node_id"), m -> TransportVersion.fromString(m.get("transport_version").toString())));
 
-        assertThat(tvs.values(), everyItem(equalTo(TransportVersion.CURRENT)));
+        assertThat(tvs + " should be updated", tvs.values(), everyItem(equalTo(TransportVersion.CURRENT)));
     }
 }

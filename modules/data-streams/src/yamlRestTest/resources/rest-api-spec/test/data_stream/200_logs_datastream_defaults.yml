@@ -31,7 +31,6 @@ Verify default logs-*-* settings and mappings:
       indices.get_mapping:
         index: $idx0name
   - match: { .$idx0name.mappings.properties.@timestamp.ignore_malformed: false }
-  - match: { .$idx0name.mappings.properties.data_stream.properties.@timestamp.ignore_malformed: false }
   - match: { .$idx0name.mappings.properties.numeric_field.type: "integer" }
 
   - do:

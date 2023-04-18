@@ -490,6 +490,78 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CircuitBreakerService breakerService,
         AggTestConfig aggTestConfig
     ) throws IOException {
+        List<InternalAggregation> aggs = new ArrayList<>();
+        final PipelineTree pipelines = aggTestConfig.builder().buildPipelineTree();
+
+        List<C> aggregators = doCollection(indexSettings, searcher, breakerService, aggTestConfig);
+
+        for (C agg : aggregators) {
+            aggs.add(agg.buildTopLevel());
+        }
+        assertRoundTrip(aggs);
+
+        BigArrays bigArraysForReduction = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
+        try {
+            if (aggTestConfig.incrementalReduce() && aggs.size() > 1) {
+                // sometimes do an incremental reduce
+                int toReduceSize = aggs.size();
+                Collections.shuffle(aggs, random());
+                int r = randomIntBetween(1, toReduceSize);
+                List<InternalAggregation> toReduce = aggs.subList(0, r);
+                AggregationReduceContext reduceContext = new AggregationReduceContext.ForPartial(
+                    bigArraysForReduction,
+                    getMockScriptService(),
+                    () -> false,
+                    aggTestConfig.builder()
+                );
+                A reduced = (A) aggs.get(0).reduce(toReduce, reduceContext);
+                aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
+                aggs.add(reduced);
+                assertRoundTrip(aggs);
+            }
+
+            // now do the final reduce
+            MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
+                aggTestConfig.maxBuckets(),
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+            );
+            AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+                bigArraysForReduction,
+                getMockScriptService(),
+                () -> false,
+                aggTestConfig.builder(),
+                reduceBucketConsumer,
+                pipelines
+            );
+
+            @SuppressWarnings("unchecked")
+            A internalAgg = (A) aggs.get(0).reduce(aggs, reduceContext);
+            assertRoundTrip(internalAgg);
+
+            // materialize any parent pipelines
+            internalAgg = (A) internalAgg.reducePipelines(internalAgg, reduceContext, pipelines);
+
+            // materialize any sibling pipelines at top level
+            for (PipelineAggregator pipelineAggregator : pipelines.aggregators()) {
+                internalAgg = (A) pipelineAggregator.reduce(internalAgg, reduceContext);
+            }
+            doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+            assertRoundTrip(internalAgg);
+            if (aggTestConfig.builder() instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) {
+                verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) aggTestConfig.builder(), internalAgg);
+            }
+            return internalAgg;
+        } finally {
+            Releasables.close(breakerService);
+        }
+    }
+
+    private <C extends Aggregator> List<C> doCollection(
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        CircuitBreakerService breakerService,
+        AggTestConfig aggTestConfig
+    ) throws IOException {
         Query query = aggTestConfig.query();
         AggregationBuilder builder = aggTestConfig.builder();
         int maxBucket = aggTestConfig.maxBuckets();
@@ -498,10 +570,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MappedFieldType[] fieldTypes = aggTestConfig.fieldTypes();
 
         final IndexReaderContext ctx = searcher.getTopReaderContext();
-        final PipelineTree pipelines = builder.buildPipelineTree();
-        List<InternalAggregation> aggs = new ArrayList<>();
         Query rewritten = searcher.rewrite(query);
 
+        List<C> aggregators = new ArrayList<>();
         if (splitLeavesIntoSeparateAggregators
             && searcher.getIndexReader().leaves().size() > 0
             && builder.isInSortOrderExecutionRequired() == false) {
@@ -535,7 +606,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     }
                     a.postCollection();
                     assertEquals(shouldBeCached, context.isCacheable());
-                    aggs.add(a.buildTopLevel());
+                    aggregators.add(a);
+                    // aggs.add(a.buildTopLevel());
                 } finally {
                     Releasables.close(context);
                 }
@@ -560,75 +632,24 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)).asCollector());
                 }
                 root.postCollection();
-                aggs.add(root.buildTopLevel());
+                aggregators.add(root);
+                // aggs.add(root.buildTopLevel());
             } finally {
                 Releasables.close(context);
             }
         }
-        assertRoundTrip(aggs);
-
-        BigArrays bigArraysForReduction = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
-        try {
-            if (aggTestConfig.incrementalReduce() && aggs.size() > 1) {
-                // sometimes do an incremental reduce
-                int toReduceSize = aggs.size();
-                Collections.shuffle(aggs, random());
-                int r = randomIntBetween(1, toReduceSize);
-                List<InternalAggregation> toReduce = aggs.subList(0, r);
-                AggregationReduceContext reduceContext = new AggregationReduceContext.ForPartial(
-                    bigArraysForReduction,
-                    getMockScriptService(),
-                    () -> false,
-                    builder
-                );
-                A reduced = (A) aggs.get(0).reduce(toReduce, reduceContext);
-                aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
-                aggs.add(reduced);
-                assertRoundTrip(aggs);
-            }
-
-            // now do the final reduce
-            MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
-                maxBucket,
-                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-            );
-            AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
-                bigArraysForReduction,
-                getMockScriptService(),
-                () -> false,
-                builder,
-                reduceBucketConsumer,
-                pipelines
-            );
-
-            @SuppressWarnings("unchecked")
-            A internalAgg = (A) aggs.get(0).reduce(aggs, reduceContext);
-            assertRoundTrip(internalAgg);
-
-            // materialize any parent pipelines
-            internalAgg = (A) internalAgg.reducePipelines(internalAgg, reduceContext, pipelines);
-
-            // materialize any sibling pipelines at top level
-            for (PipelineAggregator pipelineAggregator : pipelines.aggregators()) {
-                internalAgg = (A) pipelineAggregator.reduce(internalAgg, reduceContext);
-            }
-            doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
-            assertRoundTrip(internalAgg);
-            if (builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) {
-                verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) builder, internalAgg);
-            }
-            return internalAgg;
-        } finally {
-            Releasables.close(breakerService);
-        }
+        return aggregators;
     }
 
+    /*
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceDense(
         IndexSearcher searcher,
         AggTestConfig aggTestConfig
     ) {
 
     }
+
+     */
 
     protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
@@ -658,13 +679,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
                 V agg = searchAndReduce(indexSearcher, aggTestConfig);
                 verify.accept(agg);
+                verifyOutputFieldNames(aggTestConfig.builder(), agg);
 
+                /*
                 if (aggTestConfig.builder().supportsDenseAggregations()) {
-                    V agg = searchAndReduceDense(indexSearcher, aggTestConfig);
+                    agg = searchAndReduceDense(indexSearcher, aggTestConfig);
                     verify.accept(agg);
+                    verifyOutputFieldNames(aggTestConfig.builder(), agg);
                 }
 
-                verifyOutputFieldNames(aggTestConfig.builder(), agg);
+                 */
+
             }
         }
     }

@@ -159,6 +159,5 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
         assert scoreDoc instanceof RRFRankDoc;
         RRFRankDoc rankResult = (RRFRankDoc) scoreDoc;
         searchHit.setRank(rankResult.rank);
-        searchHit.setPositions(rankResult.positions);
     }
 }

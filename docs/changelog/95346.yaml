@@ -1,5 +1,5 @@
 pr: 95346
 summary: Dense aggs reduce prototype
 area: Aggregations
-type: tech debt
+type: feature
 issues: []

@@ -37,7 +37,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -1156,7 +1155,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         transportService.connectToNode(
                             // Note: This connection must be explicitly closed in the connectionListener
                             masterEligibleNode,
-                            ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
                             connectionListener
                         );
                     }

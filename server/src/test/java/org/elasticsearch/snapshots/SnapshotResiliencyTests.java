@@ -1313,7 +1313,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .forEach(
                         n -> n.transportService.connectToNode(
                             node.node,
-                            null,
                             ActionTestUtils.assertNoFailureListener(c -> logger.info("--> Connected [{}] to [{}]", n.node, node.node))
                         )
                     )

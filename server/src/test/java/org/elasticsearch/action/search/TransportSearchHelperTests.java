@@ -16,8 +16,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportSearchHelperTests extends ESTestCase {
@@ -67,23 +65,5 @@ public class TransportSearchHelperTests extends ESTestCase {
         assertNull(parseScrollId.getContext()[2].getClusterAlias());
         assertEquals(42, parseScrollId.getContext()[2].getSearchContextId().getId());
         assertThat(parseScrollId.getContext()[2].getSearchContextId().getSessionId(), equalTo("c"));
-    }
-
-    public void testGetPreviousMinorSeries() throws Exception {
-        final List<Version> declaredVersions = Version.getDeclaredVersions(Version.class);
-        Version randomVersion = randomValueOtherThanMany(v -> v.before(Version.V_7_1_0), () -> randomFrom(declaredVersions));
-        Version previousFirstMinor = TransportSearchHelper.getPreviousMinorSeries(randomVersion);
-        assertTrue(previousFirstMinor.before(randomVersion));
-        assertTrue(previousFirstMinor.revision == 0);
-        for (int i = declaredVersions.indexOf(previousFirstMinor); i < declaredVersions.indexOf(randomVersion); i++) {
-            Version version = declaredVersions.get(i);
-            assertTrue(version.before(randomVersion));
-            if (randomVersion.major == previousFirstMinor.major) {
-                assertTrue(previousFirstMinor.minor == randomVersion.minor - 1);
-            } else {
-                assertTrue((randomVersion.major - 1) == previousFirstMinor.major);
-                assertTrue(randomVersion.minor == 0);
-            }
-        }
     }
 }

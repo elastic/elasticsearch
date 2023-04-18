@@ -20,8 +20,12 @@ import org.gradle.platform.Architecture;
 import org.gradle.platform.OperatingSystem;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -30,18 +34,28 @@ public abstract class JavaToolchainResolverImplementation implements JavaToolcha
     public static final Pattern VERSION_PATTERN = Pattern.compile(
         "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
     );
-    private final JavaLanguageVersion supportedLanguageVersion;
+    private final Map<String, String> javaVersionProperties;
 
     public JavaToolchainResolverImplementation() {
-        this.supportedLanguageVersion = resolveSupportedLanguageVersion();
+        this.javaVersionProperties = resolveSupportedLanguageVersion();
     }
 
     @NotNull
-    private static JavaLanguageVersion resolveSupportedLanguageVersion() {
-        String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
-        Matcher matcher = VERSION_PATTERN.matcher(bundledJdkVersion);
-        System.out.println("matcher.matches() = " + matcher.matches());
-        return JavaLanguageVersion.of(matcher.group(1));
+    private static Map<String, String> resolveSupportedLanguageVersion() {
+        Properties props = new Properties();
+        InputStream propsStream = VersionProperties.class.getResourceAsStream("/java.properties");
+        if (propsStream == null) {
+            throw new IllegalStateException("/java.properties resource missing");
+        }
+        try {
+            props.load(propsStream);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to load version properties", e);
+        }
+        Map map = props;
+        Map<String, String> stringStringHashMap = map;
+
+        return stringStringHashMap;
     }
 
     /**
@@ -52,60 +66,77 @@ public abstract class JavaToolchainResolverImplementation implements JavaToolcha
         if (isRequestSupported(request) == false) {
             return Optional.empty();
         }
-        String bundledJdkVendor = VersionProperties.getBundledJdkVendor();
-        String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
-        Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(bundledJdkVersion);
+        String jdkPropertyName = "jdk_" + request.getJavaToolchainSpec().getLanguageVersion().get().asInt();
+        String jdkVersion = javaVersionProperties.get(jdkPropertyName);
+        Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(jdkVersion);
         jdkVersionMatcher.matches();
         String major = jdkVersionMatcher.group(1);
         String baseVersion = major + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
-
         String build = jdkVersionMatcher.group(3);
         String hash = jdkVersionMatcher.group(5);
-
-        OperatingSystem requestOperatingSystem = request.getBuildPlatform().getOperatingSystem();
-        OperatingSystem effectiveOs = requestOperatingSystem != null ? requestOperatingSystem : OperatingSystem.MAC_OS;
-        String extension = effectiveOs.equals(OperatingSystem.WINDOWS) ? "zip" : "tar.gz";
 
         JavaToolchainSpec javaToolchainSpec = request.getJavaToolchainSpec();
         JvmVendorSpec jvmVendorSpec = javaToolchainSpec.getVendor().get();
 
-        String repoUrl = null;
-        String artifactPattern = null;
+        if (jvmVendorSpec.matches("any")
+            || jvmVendorSpec.equals(JvmVendorSpec.ORACLE) && javaVersionProperties.get(jdkPropertyName + "_vendor").equals("openjdk")) {
+            return calculateOracleOpenJdkURI(request, major, baseVersion, build, hash);
+        } else if (jvmVendorSpec.equals(JvmVendorSpec.ADOPTIUM)
+            && javaVersionProperties.get(jdkPropertyName + "_vendor").equals("adoptium")) {
+                return calculateAdoptiumJdkURI(request, major, build);
+            }
+        System.out.println("jvmVendorSpec.equals(JvmVendorSpec.ADOPTIUM) = " + jvmVendorSpec.equals(JvmVendorSpec.ADOPTIUM));
+
+        System.out.println("Optional.empty()");
+        return Optional.empty();
+    }
+
+    private Optional<JavaToolchainDownload> calculateAdoptiumJdkURI(JavaToolchainRequest request, String baseVersion, String build) {
         String arch = toArchString(request.getBuildPlatform().getArchitecture());
         String os = toOsString(request.getBuildPlatform().getOperatingSystem());
-        if (jvmVendorSpec.matches("any") || jvmVendorSpec.equals(JvmVendorSpec.ORACLE)) {
-            repoUrl = "https://download.oracle.com/";
-            if (hash != null) {
-                // current pattern since 12.0.1
-                artifactPattern = "java/GA/jdk"
+        String versionSpecificUrl = baseVersion.equals("8") ? "-" : "+";
+        String urlString = "https://api.adoptium.net/v3/binary/version/jdk"
+            + baseVersion
+            + versionSpecificUrl
+            + build
+            + "/"
+            + os
+            + "/"
+            + arch
+            + "/jdk/hotspot/normal/adoptium";
+        return Optional.of(() -> URI.create(urlString));
+    }
+
+    @NotNull
+    private Optional<JavaToolchainDownload> calculateOracleOpenJdkURI(
+        JavaToolchainRequest request,
+        String major,
+        String baseVersion,
+        String build,
+        String hash
+    ) {
+        OperatingSystem operatingSystem = request.getBuildPlatform().getOperatingSystem();
+        String extension = operatingSystem.equals(OperatingSystem.WINDOWS) ? "zip" : "tar.gz";
+        String arch = toArchString(request.getBuildPlatform().getArchitecture());
+        String os = toOsString(operatingSystem);
+        return Optional.of(
+            () -> URI.create(
+                "https://download.oracle.com/java/GA/jdk"
                     + major
                     + "/"
                     + hash
                     + "/"
                     + build
                     + "/GPL/openjdk-"
-                    + major
+                    + baseVersion
                     + "_"
                     + os
                     + "-"
                     + arch
                     + "_bin."
-                    + extension;
-            } else {
-                // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
-                artifactPattern = "java/GA/jdk"
-                    + "jdk.getMajor()"
-                    + "/"
-                    + "jdk.getBuild()"
-                    + "/GPL/openjdk-[revision]_[module]-[classifier]_bin."
-                    + extension;
-            }
-        }
-        System.out.println("repoUrl = " + repoUrl + artifactPattern);
-        String finalRepoUrl = repoUrl;
-        // JavaToolchainDownload download = (JavaToolchainDownload) ;
-        String finalArtifactPattern = artifactPattern;
-        return Optional.of(() -> URI.create(finalRepoUrl + finalArtifactPattern));
+                    + extension
+            )
+        );
     }
 
     private String toOsString(OperatingSystem operatingSystem) {
@@ -126,19 +157,17 @@ public abstract class JavaToolchainResolverImplementation implements JavaToolcha
     }
 
     private boolean isRequestSupported(JavaToolchainRequest request) {
-        return isRequestedVendorSupported(request.getJavaToolchainSpec().getVendor())
-            && isMajorVersionSupported(request.getJavaToolchainSpec().getLanguageVersion());
+        JavaLanguageVersion javaLanguageVersion = request.getJavaToolchainSpec().getLanguageVersion().get();
+        String resolvedSupportedJavaVersion = javaVersionProperties.get("jdk_" + javaLanguageVersion.asInt());
+        String resolvedSupportedJavaVersionVendor = javaVersionProperties.get("jdk_" + javaLanguageVersion.asInt() + "_vendor");
+        return resolvedSupportedJavaVersion != null
+            && isRequestedVendorSupported(resolvedSupportedJavaVersionVendor, request.getJavaToolchainSpec().getVendor());
     }
 
-    private boolean isMajorVersionSupported(Property<JavaLanguageVersion> requestedLanguageVersion) {
-        JavaLanguageVersion javaLanguageVersion = requestedLanguageVersion.get() != null
-            ? requestedLanguageVersion.get()
-            : supportedLanguageVersion;
-        return javaLanguageVersion.equals(supportedLanguageVersion);
-    }
-
-    private static boolean isRequestedVendorSupported(Property<JvmVendorSpec> jvmVendorSpecProperty) {
+    private static boolean isRequestedVendorSupported(Object resolvedSupportedVendor, Property<JvmVendorSpec> jvmVendorSpecProperty) {
         JvmVendorSpec jvmVendorSpec = jvmVendorSpecProperty.get();
-        return jvmVendorSpec.matches("any") || jvmVendorSpec.equals(JvmVendorSpec.ORACLE);
+        return jvmVendorSpec.matches("any")
+            || (jvmVendorSpec.equals(JvmVendorSpec.ORACLE) && "openjdk".equals(resolvedSupportedVendor))
+            || (jvmVendorSpec.equals(JvmVendorSpec.ADOPTIUM) && "adoptium".equals(resolvedSupportedVendor));
     }
 }

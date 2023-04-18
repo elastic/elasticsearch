@@ -105,7 +105,6 @@ public class Util {
         return project.getExtensions().getByType(JavaPluginExtension.class) == null;
     }
 
-
     public static Object toStringable(Supplier<String> getter) {
         return new Object() {
             @Override

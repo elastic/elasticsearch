@@ -62,24 +62,42 @@ class JavaToolchainResolverImplementationSpec extends Specification {
         matcher.group(5) == "bdc68b4b9cbc4ebcb30745c85038d91d"
     }
 
-    def "resolves #os #arch oracle openjdk"() {
+    def "resolves #os #arch #vendor openjdk #langVersion"() {
         given:
         def resolver = resolverImplementation()
 
         when:
-        Optional<JavaToolchainDownload> download = resolver.resolve(request(null, ORACLE, platform(os, arch)))
+        Optional<JavaToolchainDownload> download = resolver.resolve(request(JavaLanguageVersion.of(langVersion), vendor, platform(os, arch)))
 
         then:
         download.get().uri == URI.create(expectedUrl)
         where:
-        os      | arch    | expectedUrl
-        MAC_OS  | X86_64  | "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_macos-x64_bin.tar.gz"
-        MAC_OS  | AARCH64 | "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_macos-aarch64_bin.tar.gz"
-        LINUX   | X86_64  | "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_linux-x64_bin.tar.gz"
-        LINUX   | AARCH64 | "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_linux-aarch64_bin.tar.gz"
-        WINDOWS | X86_64  | "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_windows-x64_bin.zip"
-        WINDOWS | AARCH64 | "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_windows-aarch64_bin.zip"
+        langVersion | vendor   | os      | arch    | expectedUrl
+        20          | ORACLE   | MAC_OS  | X86_64  | "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_macos-x64_bin.tar.gz"
+        20          | ORACLE   | MAC_OS  | AARCH64 | "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_macos-aarch64_bin.tar.gz"
+        20          | ORACLE   | LINUX   | X86_64  | "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_linux-x64_bin.tar.gz"
+        20          | ORACLE   | LINUX   | AARCH64 | "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_linux-aarch64_bin.tar.gz"
+        20          | ORACLE   | WINDOWS | X86_64  | "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_windows-x64_bin.zip"
+        20          | ORACLE   | WINDOWS | AARCH64 | "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_windows-aarch64_bin.zip"
+
+        19          | ORACLE   | MAC_OS  | X86_64  | "https://download.oracle.com/java/GA/jdk19/fdb695a9d9064ad6b064dc6df578380c/7/GPL/openjdk-19.0.2_macos-x64_bin.tar.gz"
+        19          | ORACLE   | MAC_OS  | AARCH64 | "https://download.oracle.com/java/GA/jdk19/fdb695a9d9064ad6b064dc6df578380c/7/GPL/openjdk-19.0.2_macos-aarch64_bin.tar.gz"
+        19          | ORACLE   | LINUX   | X86_64  | "https://download.oracle.com/java/GA/jdk19/fdb695a9d9064ad6b064dc6df578380c/7/GPL/openjdk-19.0.2_linux-x64_bin.tar.gz"
+        19          | ORACLE   | LINUX   | AARCH64 | "https://download.oracle.com/java/GA/jdk19/fdb695a9d9064ad6b064dc6df578380c/7/GPL/openjdk-19.0.2_linux-aarch64_bin.tar.gz"
+        19          | ORACLE   | WINDOWS | X86_64  | "https://download.oracle.com/java/GA/jdk19/fdb695a9d9064ad6b064dc6df578380c/7/GPL/openjdk-19.0.2_windows-x64_bin.zip"
+        19          | ORACLE   | WINDOWS | AARCH64 | "https://download.oracle.com/java/GA/jdk19/fdb695a9d9064ad6b064dc6df578380c/7/GPL/openjdk-19.0.2_windows-aarch64_bin.zip"
+
+        18          | ORACLE   | MAC_OS  | X86_64  | "https://download.oracle.com/java/GA/jdk18/db379da656dc47308e138f21b33976fa/1/GPL/openjdk-18.0.2.1_macos-x64_bin.tar.gz"
+        18          | ORACLE   | MAC_OS  | AARCH64 | "https://download.oracle.com/java/GA/jdk18/db379da656dc47308e138f21b33976fa/1/GPL/openjdk-18.0.2.1_macos-aarch64_bin.tar.gz"
+        18          | ORACLE   | LINUX   | X86_64  | "https://download.oracle.com/java/GA/jdk18/db379da656dc47308e138f21b33976fa/1/GPL/openjdk-18.0.2.1_linux-x64_bin.tar.gz"
+        18          | ORACLE   | LINUX   | AARCH64 | "https://download.oracle.com/java/GA/jdk18/db379da656dc47308e138f21b33976fa/1/GPL/openjdk-18.0.2.1_linux-aarch64_bin.tar.gz"
+        18          | ORACLE   | WINDOWS | X86_64  | "https://download.oracle.com/java/GA/jdk18/db379da656dc47308e138f21b33976fa/1/GPL/openjdk-18.0.2.1_windows-x64_bin.zip"
+        18          | ORACLE   | WINDOWS | AARCH64 | "https://download.oracle.com/java/GA/jdk18/db379da656dc47308e138f21b33976fa/1/GPL/openjdk-18.0.2.1_windows-aarch64_bin.zip"
+
+        17          | ADOPTIUM | MAC_OS  | X86_64  | "https://api.adoptium.net/v3/binary/version/jdk17+35/macos/x64/jdk/hotspot/normal/adoptium"
+        17          | ADOPTIUM | MAC_OS  | AARCH64 | "https://api.adoptium.net/v3/binary/version/jdk17+35/macos/aarch64/jdk/hotspot/normal/adoptium"
     }
+
 
     def "does not provide jdk vendor #vendor"() {
         given:
@@ -92,7 +110,7 @@ class JavaToolchainResolverImplementationSpec extends Specification {
         download.isEmpty()
 
         where:
-        vendor << [ADOPTIUM, AMAZON, ADOPTOPENJDK, APPLE, AZUL, BELLSOFT, GRAAL_VM, HEWLETT_PACKARD, IBM, MICROSOFT, SAP]
+        vendor << [AMAZON, ADOPTOPENJDK, APPLE, AZUL, BELLSOFT, GRAAL_VM, HEWLETT_PACKARD, IBM, MICROSOFT, SAP]
     }
 
     def "does not provide unsupported jdk versions"() {
@@ -121,7 +139,6 @@ class JavaToolchainResolverImplementationSpec extends Specification {
         _ * request.getJavaToolchainSpec() >> toolchainSpec
         _ * request.getBuildPlatform() >> platform
         return request
-
     }
 
     JvmVendorSpec vendor() {

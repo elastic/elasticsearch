@@ -95,7 +95,14 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
                         is(explainIndex.getTimeSinceRollover(() -> now).toHumanReadableString(2))
                     );
                 }
-                assertThat(explainIndexMap.get("generation_time"), is(explainIndex.getGenerationTime(() -> now).toHumanReadableString(2)));
+                if (explainIndex.getGenerationTime(() -> now) != null) {
+                    assertThat(
+                        explainIndexMap.get("generation_time"),
+                        is(explainIndex.getGenerationTime(() -> now).toHumanReadableString(2))
+                    );
+                } else {
+                    assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
+                }
                 assertThat(explainIndexMap.get("lifecycle"), is(new HashMap<>())); // empty lifecycle
                 assertThat(explainIndexMap.get("error"), is(explainIndex.getError()));
             }
@@ -141,7 +148,14 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
                         is(explainIndex.getTimeSinceRollover(() -> now).toHumanReadableString(2))
                     );
                 }
-                assertThat(explainIndexMap.get("generation_time"), is(explainIndex.getGenerationTime(() -> now).toHumanReadableString(2)));
+                if (explainIndex.getGenerationTime(() -> now) != null) {
+                    assertThat(
+                        explainIndexMap.get("generation_time"),
+                        is(explainIndex.getGenerationTime(() -> now).toHumanReadableString(2))
+                    );
+                } else {
+                    assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
+                }
                 assertThat(explainIndexMap.get("error"), is(explainIndex.getError()));
 
                 Map<String, Object> lifecycleRollover = (Map<String, Object>) ((Map<String, Object>) explainIndexMap.get("lifecycle")).get(
@@ -205,7 +219,7 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
             true,
             now,
             randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
-            TimeValue.timeValueMillis(now),
+            randomBoolean() ? TimeValue.timeValueMillis(now) : null,
             lifecycle,
             randomBoolean() ? new NullPointerException("bad times").getMessage() : null
         );

@@ -46,7 +46,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
     @Nullable
     private final Long rolloverDate;
     @Nullable
-    private final TimeValue generationDate;
+    private final Long generationDateMillis;
     @Nullable
     private final DataLifecycle lifecycle;
     @Nullable
@@ -66,7 +66,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         this.managedByDLM = managedByDLM;
         this.indexCreationDate = indexCreationDate;
         this.rolloverDate = rolloverDate;
-        this.generationDate = generationDate;
+        this.generationDateMillis = generationDate == null ? null : generationDate.millis();
         this.lifecycle = lifecycle;
         this.error = error;
     }
@@ -77,18 +77,13 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         if (managedByDLM) {
             this.indexCreationDate = in.readOptionalLong();
             this.rolloverDate = in.readOptionalLong();
-            Long generationDateMillis = in.readOptionalLong();
-            if (generationDateMillis == null) {
-                this.generationDate = null;
-            } else {
-                this.generationDate = TimeValue.timeValueMillis(generationDateMillis);
-            }
+            this.generationDateMillis = in.readOptionalLong();
             this.lifecycle = in.readOptionalWriteable(DataLifecycle::new);
             this.error = in.readOptionalString();
         } else {
             this.indexCreationDate = null;
             this.rolloverDate = null;
-            this.generationDate = null;
+            this.generationDateMillis = null;
             this.lifecycle = null;
             this.error = null;
         }
@@ -120,7 +115,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
                 builder.timeField(ROLLOVER_DATE_MILLIS_FIELD.getPreferredName(), ROLLOVER_DATE_FIELD.getPreferredName(), rolloverDate);
                 builder.field(TIME_SINCE_ROLLOVER_FIELD.getPreferredName(), getTimeSinceRollover(nowSupplier).toHumanReadableString(2));
             }
-            if (generationDate != null) {
+            if (generationDateMillis != null) {
                 builder.field(GENERATION_TIME.getPreferredName(), getGenerationTime(nowSupplier).toHumanReadableString(2));
             }
             if (this.lifecycle != null) {
@@ -142,7 +137,7 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
         if (managedByDLM) {
             out.writeOptionalLong(indexCreationDate);
             out.writeOptionalLong(rolloverDate);
-            out.writeOptionalLong(generationDate == null ? null : generationDate.millis());
+            out.writeOptionalLong(generationDateMillis);
             out.writeOptionalWriteable(lifecycle);
             out.writeOptionalString(error);
         }
@@ -156,10 +151,10 @@ public class ExplainIndexDataLifecycle implements Writeable, ToXContentObject {
      */
     @Nullable
     public TimeValue getGenerationTime(Supplier<Long> now) {
-        if (generationDate == null) {
+        if (generationDateMillis == null) {
             return null;
         }
-        return TimeValue.timeValueMillis(Math.max(0L, now.get() - generationDate.getMillis()));
+        return TimeValue.timeValueMillis(Math.max(0L, now.get() - generationDateMillis));
     }
 
     /**

@@ -628,8 +628,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     /**
      * Returns the non-write backing indices that are older than the provided age, *excluding the write index*.
      * The index age is calculated from the rollover or index creation date (or the origination date if present).
-     * Note that the write index is also evaluated and could be returned in the list
-     * of results.
      * If an indices predicate is provided the returned list of indices will be filtered
      * according to the predicate definition. This is useful for things like "return only
      * the backing indices that are managed by DLM".
@@ -689,28 +687,26 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Returns the rollover or creation date for the provided index, or the origination date if one is set.
-     * We look for the rollover information for the provided data stream as the
-     * rollover target. If the index has not been rolled over for the provided
-     * data stream name we return the index creation date. If this is the write index, we return null.
-     * @param index
-     * @return The generation date, or null if this is the write index
+     * Returns the generation date of the index whose metadata is passed. The generation date of the index represents the time at which the
+     * index started progressing towards the user configurable / business specific parts of the lifecycle (e.g. retention).
+     * The generation date is the origination date if it exists, or the rollover date if it exists and the origination date does not, or
+     * the creation date if neither the origination date nor the rollover date exist.
+     * If the index is the write index the generation date will be null because it is not eligible for retention or other parts of the
+     * lifecycle.
+     * @param indexMetadata The metadata of the index whose generation date is returned
+     * @return The generation date of the index, or null if this is the write index
      */
     @Nullable
-    public TimeValue getGenerationLifecycleDate(IndexMetadata index) {
-        /*
-         * If it exists, the origination date is used in place of the creation date and the rollover date. The only exception is for a
-         * write index -- if the write index has not been rolled over yet then we use the creation date so that it is properly rolled over.
-         */
-        if (index.getIndex().equals(getWriteIndex())) {
+    public TimeValue getGenerationLifecycleDate(IndexMetadata indexMetadata) {
+        if (indexMetadata.getIndex().equals(getWriteIndex())) {
             return null;
         }
-        Long originationDate = index.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, null);
-        RolloverInfo rolloverInfo = index.getRolloverInfos().get(getName());
+        Long originationDate = indexMetadata.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, null);
+        RolloverInfo rolloverInfo = indexMetadata.getRolloverInfos().get(getName());
         if (rolloverInfo != null) {
             return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, rolloverInfo::getTime));
         } else {
-            return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, index::getCreationDate));
+            return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, indexMetadata::getCreationDate));
         }
     }
 

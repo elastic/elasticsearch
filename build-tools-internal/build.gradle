@@ -109,7 +109,7 @@ gradlePlugin {
     }
     javaToolChainPlugin {
       id = 'elasticsearch.java-toolchain'
-      implementationClass = 'org.elasticsearch.gradle.toolchain.internal.JavaToolChainResolverPlugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.toolchain.JavaToolChainResolverPlugin'
     }
     javaDoc {
       id = 'elasticsearch.java-doc'

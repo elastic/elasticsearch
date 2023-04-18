@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.toolchain;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.provider.Property;
-import org.gradle.internal.jvm.Jvm;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainDownload;
 import org.gradle.jvm.toolchain.JavaToolchainRequest;
@@ -19,81 +18,87 @@ import org.gradle.jvm.toolchain.JavaToolchainSpec;
 import org.gradle.jvm.toolchain.JvmVendorSpec;
 import org.gradle.platform.Architecture;
 import org.gradle.platform.OperatingSystem;
+import org.jetbrains.annotations.NotNull;
 
 import java.net.URI;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public abstract class JavaToolchainResolverImplementation implements JavaToolchainResolver {
+
+    public static final Pattern VERSION_PATTERN = Pattern.compile(
+        "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
+    );
+    private final JavaLanguageVersion supportedLanguageVersion;
+
+    public JavaToolchainResolverImplementation() {
+        this.supportedLanguageVersion = resolveSupportedLanguageVersion();
+    }
+
+    @NotNull
+    private static JavaLanguageVersion resolveSupportedLanguageVersion() {
+        String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
+        Matcher matcher = VERSION_PATTERN.matcher(bundledJdkVersion);
+        System.out.println("matcher.matches() = " + matcher.matches());
+        return JavaLanguageVersion.of(matcher.group(1));
+    }
 
     /**
      * We need some place to map JavaLanguageVersion to build, minor version etc.
      * */
     @Override
     public Optional<JavaToolchainDownload> resolve(JavaToolchainRequest request) {
+        if (isRequestSupported(request) == false) {
+            return Optional.empty();
+        }
         String bundledJdkVendor = VersionProperties.getBundledJdkVendor();
         String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
-        System.out.println("bundledJdkVersion = " + bundledJdkVersion);
-        mapBundledJdkVendorToVendorSpec(bundledJdkVendor);
-        mapBundledJdkVersionToMajorVersion(bundledJdkVendor);
+        Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(bundledJdkVersion);
+        jdkVersionMatcher.matches();
+        String major = jdkVersionMatcher.group(1);
+        String baseVersion = major + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
+
+        String build = jdkVersionMatcher.group(3);
+        String hash = jdkVersionMatcher.group(5);
+
+        OperatingSystem requestOperatingSystem = request.getBuildPlatform().getOperatingSystem();
+        OperatingSystem effectiveOs = requestOperatingSystem != null ? requestOperatingSystem : OperatingSystem.MAC_OS;
+        String extension = effectiveOs.equals(OperatingSystem.WINDOWS) ? "zip" : "tar.gz";
 
         JavaToolchainSpec javaToolchainSpec = request.getJavaToolchainSpec();
-        Property<JavaLanguageVersion> languageVersion = javaToolchainSpec.getLanguageVersion();
-
-        System.out.println("languageVersion.get() = " + languageVersion.get());
-        Architecture architecture = request.getBuildPlatform().getArchitecture();
-        OperatingSystem operatingSystem = request.getBuildPlatform().getOperatingSystem();
-        System.out.println("operatingSystem = " + operatingSystem);
-        System.out.println("architecture = " + architecture);
-
-        JavaLanguageVersion majorVersion = javaToolchainSpec.getLanguageVersion().getOrNull();
         JvmVendorSpec jvmVendorSpec = javaToolchainSpec.getVendor().get();
-        System.out.println("jvmVendorSpec = " + jvmVendorSpec);
 
         String repoUrl = null;
         String artifactPattern = null;
-        String os = "linux";
-        String arch = "x64";
-
-        // if (jvmVendorSpec == null || jvmVendorSpec.equals(JvmVendorSpec.ADOPTIUM)) {
-        // repoUrl = "https://api.adoptium.net/v3/binary/version/";
-        //
-        // if (majorVersion != null && majorVersion == JavaLanguageVersion.of(8)) {
-        // // legacy pattern for JDK 8
-        // artifactPattern = "jdk"
-        // + "BASE_VERSION" // jdk.getBaseVersion()"
-        // + "-"
-        // + "BUILD" // jdk.getBuild()
-        // + "/[module]/[classifier]/jdk/hotspot/normal/adoptium";
-        // } else {
-        // // current pattern since JDK 9
-        // // jdk-12.0.2+10/linux/x64/jdk/hotspot/normal/adoptium
-        //
-        // artifactPattern = "jdk-"
-        // + "BASE_VERSION" // jdk.getBaseVersion()
-        // + "+"
-        // + "BUILD" // jdk.getBuild()
-        // + "/" + os + "/" + arch + "/[classifier]/jdk/hotspot/normal/adoptium";
-        //// + "/[module]/[classifier]/jdk/hotspot/normal/adoptium";
-        // }
-        // }
-        if (jvmVendorSpec == null || jvmVendorSpec.equals(JvmVendorSpec.ORACLE)) {
-            repoUrl = "https://download.oracle.com";
-            if ("jdk.getHash()" != null) {
+        String arch = toArchString(request.getBuildPlatform().getArchitecture());
+        String os = toOsString(request.getBuildPlatform().getOperatingSystem());
+        if (jvmVendorSpec.matches("any") || jvmVendorSpec.equals(JvmVendorSpec.ORACLE)) {
+            repoUrl = "https://download.oracle.com/";
+            if (hash != null) {
                 // current pattern since 12.0.1
                 artifactPattern = "java/GA/jdk"
-                    + "jdk.getBaseVersion()"
+                    + major
                     + "/"
-                    + "jdk.getHash()"
+                    + hash
                     + "/"
-                    + "jdk.getBuild()"
-                    + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
+                    + build
+                    + "/GPL/openjdk-"
+                    + major
+                    + "_"
+                    + os
+                    + "-"
+                    + arch
+                    + "_bin."
+                    + extension;
             } else {
                 // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
                 artifactPattern = "java/GA/jdk"
                     + "jdk.getMajor()"
                     + "/"
                     + "jdk.getBuild()"
-                    + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
+                    + "/GPL/openjdk-[revision]_[module]-[classifier]_bin."
+                    + extension;
             }
         }
         System.out.println("repoUrl = " + repoUrl + artifactPattern);
@@ -103,11 +108,37 @@ public abstract class JavaToolchainResolverImplementation implements JavaToolcha
         return Optional.of(() -> URI.create(finalRepoUrl + finalArtifactPattern));
     }
 
-    private void mapBundledJdkVersionToMajorVersion(String bundledJdkVersion) {
-
+    private String toOsString(OperatingSystem operatingSystem) {
+        return switch (operatingSystem) {
+            case MAC_OS -> "macos"; // todo: different for vendor adoptium
+            case LINUX -> "linux";
+            case WINDOWS -> "windows";
+            default -> throw new UnsupportedOperationException("Operating system " + operatingSystem);
+        };
     }
 
-    private JvmVendorSpec mapBundledJdkVendorToVendorSpec(String bundledJdkVendor) {
-        return bundledJdkVendor.equals("openjdk") ? JvmVendorSpec.ORACLE : JvmVendorSpec.matching(bundledJdkVendor);
+    private String toArchString(Architecture architecture) {
+        return switch (architecture) {
+            case X86_64 -> "x64";
+            case AARCH64 -> "aarch64";
+            case X86 -> "x86";
+        };
+    }
+
+    private boolean isRequestSupported(JavaToolchainRequest request) {
+        return isRequestedVendorSupported(request.getJavaToolchainSpec().getVendor())
+            && isMajorVersionSupported(request.getJavaToolchainSpec().getLanguageVersion());
+    }
+
+    private boolean isMajorVersionSupported(Property<JavaLanguageVersion> requestedLanguageVersion) {
+        JavaLanguageVersion javaLanguageVersion = requestedLanguageVersion.get() != null
+            ? requestedLanguageVersion.get()
+            : supportedLanguageVersion;
+        return javaLanguageVersion.equals(supportedLanguageVersion);
+    }
+
+    private static boolean isRequestedVendorSupported(Property<JvmVendorSpec> jvmVendorSpecProperty) {
+        JvmVendorSpec jvmVendorSpec = jvmVendorSpecProperty.get();
+        return jvmVendorSpec.matches("any") || jvmVendorSpec.equals(JvmVendorSpec.ORACLE);
     }
 }

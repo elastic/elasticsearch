@@ -57,6 +57,7 @@ public class SearchDirectory extends BaseDirectory {
      * version until they are initialized from the repository.
      */
     private static final Directory EMPTY_COMMIT_DIRECTORY = new ByteBuffersDirectory();
+    private static final String EMPTY_SEGMENTS_FILE_NAME;
 
     static {
         var emptySegmentInfos = new SegmentInfos(Version.CURRENT.luceneVersion.major);
@@ -77,6 +78,7 @@ public class SearchDirectory extends BaseDirectory {
         );
         try {
             emptySegmentInfos.commit(EMPTY_COMMIT_DIRECTORY);
+            EMPTY_SEGMENTS_FILE_NAME = emptySegmentInfos.getSegmentsFileName();
         } catch (IOException e) {
             throw new AssertionError(e);
         }
@@ -213,6 +215,10 @@ public class SearchDirectory extends BaseDirectory {
             return EMPTY_COMMIT_DIRECTORY.openInput(name, context);
         }
         final Long len = current.get(name);
+        if (len == null && EMPTY_SEGMENTS_FILE_NAME.equals(name)) {
+            throw new FileNotFoundException("The file [" + EMPTY_SEGMENTS_FILE_NAME + "] was not found.");
+        }
+        // TODO: This assertion will not make sense once we start pruning files from the commit map
         assert len != null : "unknown file [" + name + "] accessed";
         return new SearchIndexInput(
             name,

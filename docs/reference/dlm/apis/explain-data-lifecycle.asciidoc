@@ -16,7 +16,7 @@ Retrieves the current data lifecycle status for one or more data stream backing 
 [[dlm-explain-lifecycle-desc]]
 ==== {api-description-title}
 
-Retrieves information about the index's current DLM lifecycle state, such as
+Retrieves information about the index's current {dlm-init} lifecycle state, such as
 time since index creation, time since rollover, the lifecycle configuration
 managing the index, or any error that {es} might've encountered during the lifecycle
 execution.
@@ -47,7 +47,7 @@ GET .ds-metrics-2023.03.22-000001/_lifecycle/explain
 --------------------------------------------------
 // TEST[skip:we're not setting up DLM in these tests]
 
-If the index is managed by DLM `explain` will show the `managed_by_dlm` field
+If the index is managed by {dlm-init} `explain` will show the `managed_by_dlm` field
 set to `true` and the rest of the response will contain information about the
 lifecycle execution status for this index:
 
@@ -69,8 +69,8 @@ lifecycle execution status for this index:
 --------------------------------------------------
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
 
-<1> Shows if the index is being managed by DLM. If the index is not managed by
-DLM the other fields will not be shown
+<1> Shows if the index is being managed by {dlm-init}. If the index is not managed by
+{dlm-init} the other fields will not be shown
 <2> When the index was created, this timestamp is used to determine when to
 rollover
 <3> The time since the index creation (used for calculating when to rollover

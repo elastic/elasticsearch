@@ -96,6 +96,9 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         SearchRequest searchRequest = createSearchRequest();
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
+        } else {
+            // tests version prior to 8.8 so remove possible rank builder
+            searchRequest.source().rankBuilder(null);
         }
         searchRequest.source()
             .knnSearch(
@@ -141,6 +144,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         if (version.before(TransportVersion.V_8_7_0) && searchRequest.hasKnnSearch() && searchRequest.source().knnSearch().size() > 1) {
             // Versions before 8.7.0 don't support more than one KNN clause
             searchRequest.source().knnSearch(List.of(searchRequest.source().knnSearch().get(0)));
+        }
+        if (version.before(TransportVersion.V_8_8_0)) {
+            // Versions before 8.8 don't support rank
+            searchRequest.source().rankBuilder(null);
         }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());

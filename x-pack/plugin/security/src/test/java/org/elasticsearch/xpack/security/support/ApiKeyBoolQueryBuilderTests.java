@@ -68,7 +68,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final Authentication authentication = AuthenticationTests.randomAuthentication(null, AuthenticationTests.randomRealmRef(true));
         final QueryBuilder query = randomSimpleQuery("name");
         final ApiKeyBoolQueryBuilder apiKeysQuery = ApiKeyBoolQueryBuilder.build(query, authentication);
-        assertThat(apiKeysQuery.filter().get(0), is(QueryBuilders.termQuery("doc_type", "api_key")));
+        assertThat(apiKeysQuery.filter().get(0), is(QueryBuilders.prefixQuery("doc_type", "api_key")));
         assertThat(
             apiKeysQuery.filter().get(1),
             is(QueryBuilders.termQuery("creator.principal", authentication.getEffectiveSubject().getUser().principal()))
@@ -125,7 +125,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         assertThat(apiKeyQb1.must(), hasSize(1));
         assertThat(apiKeyQb1.should(), empty());
         assertThat(apiKeyQb1.mustNot(), empty());
-        assertThat(apiKeyQb1.filter(), hasItem(QueryBuilders.termQuery("doc_type", "api_key")));
+        assertThat(apiKeyQb1.filter(), hasItem(QueryBuilders.prefixQuery("doc_type", "api_key")));
         assertThat(apiKeyQb1.must().get(0).getClass(), is(BoolQueryBuilder.class));
         final BoolQueryBuilder processed = (BoolQueryBuilder) apiKeyQb1.must().get(0);
         assertThat(processed.must(), equalTo(bq1.must()));
@@ -304,7 +304,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             apiKeyId
         );
         final ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(randomFrom(randomSimpleQuery("name"), null), authentication);
-        assertThat(apiKeyQb.filter(), hasItem(QueryBuilders.termQuery("doc_type", "api_key")));
+        assertThat(apiKeyQb.filter(), hasItem(QueryBuilders.prefixQuery("doc_type", "api_key")));
         assertThat(apiKeyQb.filter(), hasItem(QueryBuilders.idsQuery().addIds(apiKeyId)));
     }
 
@@ -330,7 +330,13 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             .filter(q -> q.getClass() == TermQueryBuilder.class)
             .map(q -> (TermQueryBuilder) q)
             .toList();
-        assertTrue(tqb.stream().anyMatch(q -> q.equals(QueryBuilders.termQuery("doc_type", "api_key"))));
+        assertTrue(qb.filter().stream().anyMatch(q -> {
+            if (q instanceof PrefixQueryBuilder prefixQueryBuilder) {
+                return prefixQueryBuilder.equals(QueryBuilders.prefixQuery("doc_type", "api_key"));
+            } else {
+                return false;
+            }
+        }));
         if (authentication == null) {
             return;
         }

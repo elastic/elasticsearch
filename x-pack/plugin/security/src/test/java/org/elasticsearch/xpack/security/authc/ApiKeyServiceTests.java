@@ -266,7 +266,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         String[] apiKeyIds = generateRandomStringArray(4, 4, true, true);
         PlainActionFuture<GetApiKeyResponse> getApiKeyResponsePlainActionFuture = new PlainActionFuture<>();
         service.getApiKeys(realmNames, username, apiKeyName, apiKeyIds, randomBoolean(), getApiKeyResponsePlainActionFuture);
-        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "api_key"));
+        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.prefixQuery("doc_type", "api_key"));
         if (realmNames != null && realmNames.length > 0) {
             if (realmNames.length == 1) {
                 boolQuery.filter(QueryBuilders.termQuery("creator.realm", realmNames[0]));
@@ -336,7 +336,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
         PlainActionFuture<InvalidateApiKeyResponse> invalidateApiKeyResponseListener = new PlainActionFuture<>();
         service.invalidateApiKeys(realmNames, username, apiKeyName, apiKeyIds, invalidateApiKeyResponseListener);
-        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "api_key"));
+        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.prefixQuery("doc_type", "api_key"));
         if (realmNames != null && realmNames.length > 0) {
             if (realmNames.length == 1) {
                 boolQuery.filter(QueryBuilders.termQuery("creator.realm", realmNames[0]));

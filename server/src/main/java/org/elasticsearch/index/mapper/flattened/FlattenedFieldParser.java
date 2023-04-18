@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -57,17 +56,6 @@ class FlattenedFieldParser {
         this.ignoreAbove = ignoreAbove;
         this.nullValue = nullValue;
         this.dimensions = dimensions;
-    }
-
-    FlattenedFieldParser(
-        String rootFieldName,
-        String keyedFieldName,
-        MappedFieldType fieldType,
-        int depthLimit,
-        int ignoreAbove,
-        String nullValue
-    ) {
-        this(rootFieldName, keyedFieldName, fieldType, depthLimit, ignoreAbove, nullValue, Collections.emptyList());
     }
 
     public List<IndexableField> parse(XContentParser parser) throws IOException {

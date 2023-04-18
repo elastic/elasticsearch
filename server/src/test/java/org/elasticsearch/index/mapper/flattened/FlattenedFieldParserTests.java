@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 public class FlattenedFieldParserTests extends ESTestCase {
@@ -31,7 +32,15 @@ public class FlattenedFieldParserTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        parser = new FlattenedFieldParser("field", "field._keyed", new FakeFieldType("field"), Integer.MAX_VALUE, Integer.MAX_VALUE, null);
+        parser = new FlattenedFieldParser(
+            "field",
+            "field._keyed",
+            new FakeFieldType("field"),
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            null,
+            Collections.emptyList()
+        );
     }
 
     public void testTextValues() throws Exception {
@@ -276,7 +285,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             new FakeFieldType("field"),
             2,
             Integer.MAX_VALUE,
-            null
+            null,
+            Collections.emptyList()
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> configuredParser.parse(xContentParser));
@@ -298,7 +308,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             new FakeFieldType("field"),
             3,
             Integer.MAX_VALUE,
-            null
+            null,
+            Collections.emptyList()
         );
 
         List<IndexableField> fields = configuredParser.parse(xContentParser);
@@ -314,7 +325,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             new FakeFieldType("field"),
             Integer.MAX_VALUE,
             10,
-            null
+            null,
+            Collections.emptyList()
         );
 
         List<IndexableField> fields = configuredParser.parse(xContentParser);
@@ -354,7 +366,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
             fieldType,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE,
-            "placeholder"
+            "placeholder",
+            Collections.emptyList()
         );
 
         fields = configuredParser.parse(xContentParser);

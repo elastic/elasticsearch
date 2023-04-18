@@ -97,15 +97,15 @@ PUT my-data-stream/_bulk
 // TEST[continued]
 
 You can use the <<dlm-get-lifecycle,get data stream lifecycle API>> to see the data lifecycle of your data stream.
-+
+
 [source,console]
 ----
 GET _data_stream/my-data-stream/_lifecycle
 ----
 // TEST[continued]
-+
+
 The result will look like this:
-+
+
 [source,console-result]
 ----
 {

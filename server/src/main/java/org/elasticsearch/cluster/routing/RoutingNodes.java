@@ -449,6 +449,30 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         return Tuple.tuple(source, target);
     }
 
+    public void relocateOrReinitializeShard(
+        ShardRouting startedShard,
+        String nodeId,
+        long expectedShardSize,
+        RoutingChangesObserver changes
+    ) {
+        if (startedShard.isSearchable() == false) {
+            remove(startedShard);
+            var unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, "relocating unsearchable shard");
+            var assignedShards = assignedShards(startedShard.shardId());
+            var promotableShard = assignedShards.stream().filter(ShardRouting::isPromotableToPrimary).findAny();
+            assert promotableShard.isEmpty() : "multiple promotable shards are not supported yet";
+            // replicas needs to be removed as well as they could not be active when primary is unassigned
+            // see org.elasticsearch.cluster.routing.IndexShardRoutingTable.Builder.noAssignedReplicaWithoutActivePrimary
+            for (ShardRouting replica : List.copyOf(assignedShards)) {
+                remove(replica);
+                unassignedShards.ignoreShard(replica.moveToUnassigned(unassignedInfo), AllocationStatus.NO_ATTEMPT, changes);
+            }
+            initializeShard(startedShard.moveToUnassigned(unassignedInfo), nodeId, null, expectedShardSize, changes);
+        } else {
+            relocateShard(startedShard, nodeId, expectedShardSize, changes);
+        }
+    }
+
     /**
      * Applies the relevant logic to start an initializing shard.
      *
@@ -499,7 +523,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                                 routing,
                                 new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, "primary changed")
                             );
-                            relocateShard(
+                            relocateOrReinitializeShard(
                                 startedReplica,
                                 sourceShard.relocatingNodeId(),
                                 sourceShard.getExpectedShardSize(),

@@ -347,6 +347,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeOptionalNamedWriteable(rankBuilder);
+        } else if (rankBuilder != null) {
+            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
         }
     }
 

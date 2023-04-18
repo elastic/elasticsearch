@@ -355,6 +355,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         out.writeOptionalWriteable(source);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeNamedWriteableList(rankQueryBuilders);
+        } else if (rankQueryBuilders.isEmpty() == false) {
+            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
         }
         if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // types not supported so send an empty array to previous versions

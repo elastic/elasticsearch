@@ -244,8 +244,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         out.writeFloat(score);
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
             out.writeVInt(rank);
-        } else {
-
+        } else if (rank != NO_RANK) {
+            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
         }
         out.writeOptionalText(id);
         if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {

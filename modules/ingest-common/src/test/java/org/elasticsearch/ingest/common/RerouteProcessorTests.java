@@ -201,6 +201,14 @@ public class RerouteProcessorTests extends ESTestCase {
         }
     }
 
+    public void testRouteOnNonStringFieldFails() {
+        IngestDocument ingestDocument = createIngestDocument("logs-generic-default");
+        ingestDocument.setFieldValue("numeric_field", 42);
+        RerouteProcessor processor = createRerouteProcessor(List.of("{{numeric_field}}"), List.of());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("field [numeric_field] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
+    }
+
     public void testDatasetSanitization() {
         assertDatasetSanitization("\\/*?\"<>| ,#:-", "_____________");
         assertDatasetSanitization("foo*bar", "foo_bar");

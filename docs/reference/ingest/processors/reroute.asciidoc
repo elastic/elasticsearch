@@ -71,7 +71,8 @@ The `if` option can be used to define the condition in which the document should
 // NOTCONSOLE
 
 The dataset and namespace options can contain either a single value or a list of values that are used as a fallback.
-If a field reference evaluates to `null`, is not present in the document, or if the value is not a `String`, the next value or field reference is used.
+If a field reference evaluates to `null`, is not present in the document, the next value or field reference is used.
+If a field reference evaluates to a non-`String` value, the processor fails.
 
 In the following example, the processor would first try to resolve the value for the `service.name` field to determine the value for `dataset`.
 If that field resolves to `null`, is missing, or is a non-string value, it would try the next element in the list.

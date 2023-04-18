@@ -253,12 +253,7 @@ public final class RerouteProcessor extends AbstractProcessor {
         @Nullable
         public String resolve(IngestDocument ingestDocument) {
             if (fieldReference != null) {
-                try {
-                    return sanitizer.apply(ingestDocument.getFieldValue(fieldReference, String.class, true));
-                } catch (IllegalArgumentException e) {
-                    // thrown if fieldReference refers to something that isn't a String
-                    return null;
-                }
+                return sanitizer.apply(ingestDocument.getFieldValue(fieldReference, String.class, true));
             } else {
                 return value;
             }

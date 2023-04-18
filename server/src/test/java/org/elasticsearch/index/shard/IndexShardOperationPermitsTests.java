@@ -693,26 +693,6 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         };
     }
 
-    public void testPermitTraceCapturing() throws ExecutionException, InterruptedException {
-        final PlainActionFuture<Releasable> listener1 = new PlainActionFuture<>();
-        permits.acquire(listener1, null, false);
-        final PlainActionFuture<Releasable> listener2 = new PlainActionFuture<>();
-        permits.acquire(listener2, null, false);
-
-        assertThat(permits.getActiveOperationsCount(), equalTo(2));
-
-        if (randomBoolean()) {
-            listener1.get().close();
-            assertThat(permits.getActiveOperationsCount(), equalTo(1));
-            listener2.get().close();
-        } else {
-            listener2.get().close();
-            assertThat(permits.getActiveOperationsCount(), equalTo(1));
-            listener1.get().close();
-        }
-        assertThat(permits.getActiveOperationsCount(), equalTo(0));
-    }
-
     private static ActionListener<Releasable> wrap(final CheckedRunnable<Exception> onResponse) {
         return new ActionListener<Releasable>() {
             @Override

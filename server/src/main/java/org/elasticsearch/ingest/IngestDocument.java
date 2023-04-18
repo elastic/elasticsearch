@@ -62,6 +62,19 @@ public final class IngestDocument {
 
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
+
+    /**
+     * An ordered set of the values of the _index that have been used for this document.
+     * <p>
+     * IMPORTANT: This is only updated after a top-level pipeline has run (see {@code IngestService#executePipelines(...)}).
+     * <p>
+     * For example, if a processor changes the _index for a document from 'foo' to 'bar',
+     * and then another processor changes the value back to 'foo', then the overall effect
+     * of the pipeline was that the _index value did not change and so only 'foo' would appear
+     * in the index history.
+     */
+    private Set<String> indexHistory = new LinkedHashSet<>();
+
     private boolean doNoSelfReferencesCheck = false;
     private boolean reroute = false;
 
@@ -70,6 +83,9 @@ public final class IngestDocument {
         this.ingestMetadata = new HashMap<>();
         this.ingestMetadata.put(TIMESTAMP, ctxMap.getMetadata().getNow());
         this.templateModel = initializeTemplateModel();
+
+        // initialize the index history by putting the current index into it
+        this.indexHistory.add(index);
     }
 
     // note: these rest of these constructors deal with the data-centric view of the IngestDocument, not the execution-centric view.
@@ -842,6 +858,24 @@ public final class IngestDocument {
         List<String> pipelineStack = new ArrayList<>(executedPipelines);
         Collections.reverse(pipelineStack);
         return pipelineStack;
+    }
+
+    /**
+     * Adds an index to the index history for this document, returning true if the index
+     * was added to the index history (i.e. if it wasn't already in the index history).
+     *
+     * @param index the index to potentially add to the index history
+     * @return true if the index history did not already contain the index in question
+     */
+    public boolean updateIndexHistory(String index) {
+        return indexHistory.add(index);
+    }
+
+    /**
+     * @return an unmodifiable view of the document's index history
+     */
+    public Set<String> getIndexHistory() {
+        return Collections.unmodifiableSet(indexHistory);
     }
 
     /**

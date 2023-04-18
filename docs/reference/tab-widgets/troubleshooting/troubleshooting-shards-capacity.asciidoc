@@ -103,13 +103,106 @@ PUT _cluster/settings
 ----
 // end::non-frozen-nodes-self-managed[]
 
-
-
-
 // tag::frozen-nodes-cloud[]
-gfotrn cld
+
+**Use {kib}**
+
+//tag::kibana-api-ex[]
+. Log in to the {ess-console}[{ecloud} console].
++
+
+. On the **Elasticsearch Service** panel, click the name of your deployment.
++
+
+NOTE: If the name of your deployment is disabled your {kib} instances might be
+unhealthy, in which case please contact https://support.elastic.co[Elastic Support].
+If your deployment doesn't include {kib}, all you need to do is
+{cloud}/ec-access-kibana.html[enable it first].
+
+. Open your deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
+and go to **Dev Tools > Console**.
++
+[role="screenshot"]
+image::images/kibana-console.png[{kib} Console,align="center"]
+
+. Update the <<cluster-max-shards-per-node-frozen,`cluster.max_shards_per_node.frozen`>> setting:
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.max_shards_per_node.frozen": 4200
+  }
+}
+----
++
+This increase should only be temporary. As a long-term solution, we recommend
+you add nodes to the oversharded data tier or
+<<reduce-cluster-shard-count,reduce your cluster's shard count>> on nodes that belong
+to the frozen tier.
+
+. To verify that the change has fixed the issue, you can get the current
+status of the `shards_capacity` indicator by checking the `data` section of the
+<<health-api-example,health API>>:
++
+[source,console]
+----
+GET _health_report/shards_capacity
+----
+
+
+. When a long-term solution is in place, we recommend you reset the
+`cluster.max_shards_per_node.frozen` limit.
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.max_shards_per_node.frozen": null
+  }
+}
+----
+
 // end::frozen-nodes-cloud[]
 
 // tag::frozen-nodes-self-managed[]
-self
+
+Using the <<cluster-update-settings,`cluster settings API`>>, update the
+<<cluster-max-shards-per-node-frozen,`cluster.max_shards_per_node.frozen`>> setting:
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.max_shards_per_node.frozen": 4200
+  }
+}
+----
+
+This increase should only be temporary. As a long-term solution, we recommend
+you add nodes to the oversharded data tier or
+<<reduce-cluster-shard-count,reduce your cluster's shard count>> on nodes that belong
+to the frozen tier. To verify that the change has fixed the issue, you can get the current
+status of the `shards_capacity` indicator by checking the `data` section of the
+<<health-api-example,health API>>:
+
+[source,console]
+----
+GET _health_report/shards_capacity
+----
+
+When a long-term solution is in place, we recommend you reset the
+`cluster.max_shards_per_node.frozen` limit.
+
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.max_shards_per_node.frozen": null
+  }
+}
+----
 // end::frozen-nodes-self-managed[]

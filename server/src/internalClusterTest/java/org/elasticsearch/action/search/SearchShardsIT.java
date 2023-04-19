@@ -24,7 +24,8 @@ import static org.hamcrest.Matchers.not;
 public class SearchShardsIT extends ESIntegTestCase {
 
     public void testBasic() {
-        for (int i = 0; i < 6; i++) {
+        int indicesWithData = between(1, 10);
+        for (int i = 0; i < indicesWithData; i++) {
             String index = "index-with-data-" + i;
             ElasticsearchAssertions.assertAcked(
                 admin().indices().prepareCreate(index).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
@@ -35,7 +36,8 @@ public class SearchShardsIT extends ESIntegTestCase {
             }
             client().admin().indices().prepareRefresh(index).get();
         }
-        for (int i = 0; i < 5; i++) {
+        int indicesWithoutData = between(1, 10);
+        for (int i = 0; i < indicesWithoutData; i++) {
             String index = "index-without-data-" + i;
             ElasticsearchAssertions.assertAcked(
                 admin().indices().prepareCreate(index).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
@@ -46,7 +48,7 @@ public class SearchShardsIT extends ESIntegTestCase {
             SearchRequest rangeQuery = new SearchRequest().indices("index-*")
                 .source(new SearchSourceBuilder().query(new RangeQueryBuilder("value").from(0).includeLower(true)));
             var resp = client().execute(SearchShardsAction.INSTANCE, new SearchShardsRequest(rangeQuery)).actionGet();
-            assertThat(resp.getGroups(), hasSize(11));
+            assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
             int skipped = 0;
             for (SearchShardsGroup g : resp.getGroups()) {
                 String indexName = g.shardId().getIndexName();
@@ -59,14 +61,14 @@ public class SearchShardsIT extends ESIntegTestCase {
                     assertFalse(g.skipped());
                 }
             }
-            assertThat(skipped, equalTo(5));
+            assertThat(skipped, equalTo(indicesWithoutData));
         }
         // Match all
         {
             SearchRequest matchAll = new SearchRequest().indices("index-*")
                 .source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
             SearchShardsResponse resp = client().execute(SearchShardsAction.INSTANCE, new SearchShardsRequest(matchAll)).actionGet();
-            assertThat(resp.getGroups(), hasSize(11));
+            assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
             for (SearchShardsGroup g : resp.getGroups()) {
                 assertFalse(g.skipped());
                 assertTrue(g.preFiltered());

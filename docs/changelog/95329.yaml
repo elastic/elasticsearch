@@ -2,4 +2,5 @@ pr: 95329
 summary: Change default of `ignore_malformed` to `true` in `logs-*-*` data streams
 area: Data streams
 type: enhancement
-issues: []
+issues:
+ - 95224

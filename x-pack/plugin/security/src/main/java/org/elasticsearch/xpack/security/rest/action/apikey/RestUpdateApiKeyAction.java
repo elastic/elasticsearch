@@ -11,6 +11,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -25,6 +27,7 @@ import java.util.Map;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+@ServerlessScope(Scope.PUBLIC)
 public final class RestUpdateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @SuppressWarnings("unchecked")

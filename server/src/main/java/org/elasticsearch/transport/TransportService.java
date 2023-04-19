@@ -515,7 +515,7 @@ public class TransportService extends AbstractLifecycleComponent
      * and returns the discovery node of the node the connection
      * was established with. The handshake will fail if the cluster
      * name on the target node mismatches the local cluster name.
-     * The ActionListener will be called on the calling thread or the cluster coordination thread pool.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
      *
      * @param connection       the connection to a specific node
      * @param handshakeTimeout handshake timeout
@@ -536,7 +536,7 @@ public class TransportService extends AbstractLifecycleComponent
      * and returns the discovery node of the node the connection
      * was established with. The handshake will fail if the cluster
      * name on the target node doesn't match the local cluster name.
-     * The ActionListener will be called on the calling thread or the cluster coordination thread pool.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
      *
      * @param connection       the connection to a specific node
      * @param handshakeTimeout handshake timeout

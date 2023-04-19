@@ -64,15 +64,20 @@ import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEAR
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_TOP_HITS;
 
 /**
- * A {@link QueryCollectorContext} that creates top docs collector
+ * Creates and holds the main {@link Collector} that will be used to search and collect top hits.
  */
-abstract class TopDocsCollectorContext extends QueryCollectorContext {
-    protected final int numHits;
+abstract class TopDocsCollectorContext {
+    final String profilerName;
+    final DocValueFormat[] sortValueFormats;
 
-    TopDocsCollectorContext(String profilerName, int numHits) {
-        super(profilerName);
-        this.numHits = numHits;
+    TopDocsCollectorContext(String profilerName, DocValueFormat[] sortValueFormats) {
+        this.profilerName = profilerName;
+        this.sortValueFormats = sortValueFormats;
     }
+
+    abstract Collector collector();
+
+    abstract TopDocsAndMaxScore topDocsAndMaxScore() throws IOException;
 
     static class EmptyTopDocsCollectorContext extends TopDocsCollectorContext {
         private final Sort sort;
@@ -85,7 +90,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
          * @param trackTotalHitsUpTo The threshold up to which total hit count needs to be tracked
          */
         private EmptyTopDocsCollectorContext(@Nullable SortAndFormats sortAndFormats, int trackTotalHitsUpTo) {
-            super(REASON_SEARCH_COUNT, 0);
+            super(REASON_SEARCH_COUNT, null);
             this.sort = sortAndFormats == null ? null : sortAndFormats.sort;
             if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 this.collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 0, false);
@@ -108,13 +113,12 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        Collector create(Collector in) {
-            assert in == null;
+        Collector collector() {
             return collector;
         }
 
         @Override
-        void postProcess(QuerySearchResult result) {
+        TopDocsAndMaxScore topDocsAndMaxScore() {
             final TotalHits totalHitCount = hitCountSupplier.get();
             final TopDocs topDocs;
             if (sort != null) {
@@ -122,12 +126,11 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             } else {
                 topDocs = new TopDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS);
             }
-            result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), null);
+            return new TopDocsAndMaxScore(topDocs, Float.NaN);
         }
     }
 
     static class CollapsingTopDocsCollectorContext extends TopDocsCollectorContext {
-        private final DocValueFormat[] sortFmt;
         private final SinglePassGroupingCollector<?> topDocsCollector;
         private final Supplier<Float> maxScoreSupplier;
 
@@ -145,11 +148,10 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             boolean trackMaxScore,
             @Nullable FieldDoc after
         ) {
-            super(REASON_SEARCH_TOP_HITS, numHits);
+            super(REASON_SEARCH_TOP_HITS, sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats);
             assert numHits > 0;
             assert collapseContext != null;
             Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
-            this.sortFmt = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
             this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, after);
 
             MaxScoreCollector maxScoreCollector;
@@ -162,15 +164,14 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        Collector create(Collector in) throws IOException {
-            assert in == null;
+        Collector collector() {
             return topDocsCollector;
         }
 
         @Override
-        void postProcess(QuerySearchResult result) throws IOException {
+        TopDocsAndMaxScore topDocsAndMaxScore() throws IOException {
             TopFieldGroups topDocs = topDocsCollector.getTopGroups(0);
-            result.topDocs(new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get()), sortFmt);
+            return new TopDocsAndMaxScore(topDocs, maxScoreSupplier.get());
         }
     }
 
@@ -189,7 +190,6 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             }
         }
 
-        protected final @Nullable SortAndFormats sortAndFormats;
         private final Collector collector;
         private final Supplier<TotalHits> totalHitsSupplier;
         private final Supplier<TopDocs> topDocsSupplier;
@@ -197,12 +197,13 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
 
         /**
          * Ctr
-         * @param reader The index reader
-         * @param query The Lucene query
-         * @param sortAndFormats The sort clause if provided
-         * @param numHits The number of top hits to retrieve
-         * @param searchAfter The doc this request should "search after"
-         * @param trackMaxScore True if max score should be tracked
+         *
+         * @param reader             The index reader
+         * @param query              The Lucene query
+         * @param sortAndFormats     The sort clause if provided
+         * @param numHits            The number of top hits to retrieve
+         * @param searchAfter        The doc this request should "search after"
+         * @param trackMaxScore      True if max score should be tracked
          * @param trackTotalHitsUpTo Threshold up to which total hit count should be tracked
          * @param hasFilterCollector True if the collector chain contains at least one collector that can filter documents out
          */
@@ -216,11 +217,9 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             int trackTotalHitsUpTo,
             boolean hasFilterCollector
         ) throws IOException {
-            super(REASON_SEARCH_TOP_HITS, numHits);
-            this.sortAndFormats = sortAndFormats;
+            super(REASON_SEARCH_TOP_HITS, sortAndFormats == null ? null : sortAndFormats.formats);
 
             final TopDocsCollector<?> topDocsCollector;
-
             if ((sortAndFormats == null || SortField.FIELD_SCORE.equals(sortAndFormats.sort.getSort()[0])) && hasInfMaxScore(query)) {
                 // disable max score optimization since we have a mandatory clause
                 // that doesn't track the maximum score
@@ -268,8 +267,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        Collector create(Collector in) {
-            assert in == null;
+        Collector collector() {
             return collector;
         }
 
@@ -286,9 +284,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        void postProcess(QuerySearchResult result) throws IOException {
-            final TopDocsAndMaxScore topDocs = newTopDocs();
-            result.topDocs(topDocs, sortAndFormats == null ? null : sortAndFormats.formats);
+        TopDocsAndMaxScore topDocsAndMaxScore() {
+            return newTopDocs();
         }
     }
 
@@ -322,7 +319,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         }
 
         @Override
-        void postProcess(QuerySearchResult result) throws IOException {
+        TopDocsAndMaxScore topDocsAndMaxScore() {
             final TopDocsAndMaxScore topDocs = newTopDocs();
             if (scrollContext.totalHits == null) {
                 // first round
@@ -341,7 +338,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                     scrollContext.lastEmittedDoc = topDocs.topDocs.scoreDocs[topDocs.topDocs.scoreDocs.length - 1];
                 }
             }
-            result.topDocs(topDocs, sortAndFormats == null ? null : sortAndFormats.formats);
+            return topDocs;
         }
     }
 

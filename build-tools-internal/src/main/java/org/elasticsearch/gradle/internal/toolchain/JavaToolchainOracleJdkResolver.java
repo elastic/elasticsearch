@@ -54,13 +54,13 @@ public abstract class JavaToolchainOracleJdkResolver implements JavaToolchainRes
         JavaLanguageVersion requestedLanguageVersion = request.getJavaToolchainSpec().getLanguageVersion().get();
         boolean currentBundledVersionRequested = VersionProperties.getBundledJdkVersion()
             .startsWith(Integer.toString(requestedLanguageVersion.asInt()));
-        return currentBundledVersionRequested ? resolveCurrentBundledJdkURI(request) : resolveArchivedOracleJdk(request);
+        return currentBundledVersionRequested ? resolveCurrentBundledOpenJdkURI(request) : resolveArchivedOracleJdk(request);
     }
 
     /**
      * This resolves the oracle built openjdk
      * */
-    private Optional<JavaToolchainDownload> resolveCurrentBundledJdkURI(JavaToolchainRequest request) {
+    private Optional<JavaToolchainDownload> resolveCurrentBundledOpenJdkURI(JavaToolchainRequest request) {
         Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(bundledJdkVersion);
         jdkVersionMatcher.matches();
         String bundledMajor = jdkVersionMatcher.group(1);

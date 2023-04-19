@@ -53,11 +53,6 @@ class InternalProfileCollector implements Collector {
         this.children = children;
     }
 
-    /** Return the wrapped collector. */
-    public Collector getDelegate() {
-        return collector.getDelegate();
-    }
-
     /**
      * @return the profiled time for this collector (inclusive of children)
      */

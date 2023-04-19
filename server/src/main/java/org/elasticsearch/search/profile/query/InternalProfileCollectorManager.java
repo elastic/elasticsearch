@@ -47,7 +47,7 @@ public final class InternalProfileCollectorManager implements CollectorManager<C
     public Void reduce(Collection<Collector> collectors) throws IOException {
         assert collectors.size() == 1;
         assert this.rootCollector == collectors.iterator().next();
-        return in.reduce(collectors);
+        return null;
     }
 
     public CollectorResult getCollectorTree() {

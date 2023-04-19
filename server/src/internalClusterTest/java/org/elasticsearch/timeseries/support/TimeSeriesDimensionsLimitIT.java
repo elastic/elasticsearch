@@ -104,6 +104,22 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         assertThat(ex.getMessage(), equalTo("Limit of total dimension fields [" + dimensionFieldLimit + "] has been exceeded"));
     }
 
+    public void testTotalNumberOfDimensionFieldsDefaultLimit() {
+        int dimensionFieldLimit = 21;
+        final Exception ex = expectThrows(IllegalArgumentException.class, () -> createTimeSeriesIndex(mapping -> {
+            mapping.startObject("routing_field").field("type", "keyword").field("time_series_dimension", true).endObject();
+            for (int i = 0; i < dimensionFieldLimit; i++) {
+                mapping.startObject(randomAlphaOfLength(10)).field("type", "keyword").field("time_series_dimension", true).endObject();
+            }
+        },
+            mapping -> mapping.startObject("gauge").field("type", "integer").field("time_series_metric", "gauge").endObject(),
+            () -> List.of("routing_field"),
+            0 // NOTE: using default field limit
+        ));
+
+        assertThat(ex.getMessage(), equalTo("Limit of total dimension fields [" + dimensionFieldLimit + "] has been exceeded"));
+    }
+
     public void testTotalDimensionFieldsSizeLuceneLimit() throws IOException {
         int dimensionFieldLimit = 21;
         final List<String> dimensionFieldNames = new ArrayList<>();
@@ -168,14 +184,17 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         dimensions.accept(mapping);
         mapping.endObject().endObject();
 
-        Settings settings = Settings.builder()
+        Settings.Builder settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPaths.get())
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
-            .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), dimensionsFieldLimit)
-            .build();
-        client().admin().indices().prepareCreate("test").setSettings(settings).setMapping(mapping).get();
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+
+        if (dimensionsFieldLimit > 0) {
+            settings.put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), dimensionsFieldLimit);
+        }
+
+        client().admin().indices().prepareCreate("test").setSettings(settings.build()).setMapping(mapping).get();
     }
 
 }

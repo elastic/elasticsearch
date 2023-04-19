@@ -128,8 +128,10 @@ public class QueryPhase {
             final LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
 
             // create the top docs collector last when the other collectors are known
-            final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext,
-                searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null);
+            final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(
+                searchContext,
+                searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null
+            );
             collectors.add(topDocsFactory);
 
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {

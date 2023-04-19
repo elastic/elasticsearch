@@ -286,12 +286,12 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             return value;
         }
 
-        value = archiver.get(uid);
+        value = tombstones.get(uid);
         if (value != null) {
             return value;
         }
 
-        return tombstones.get(uid);
+        return archiver.get(uid);
     }
 
     VersionValue getVersionForAssert(final BytesRef uid) {

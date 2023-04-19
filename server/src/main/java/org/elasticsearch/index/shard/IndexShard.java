@@ -52,8 +52,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
@@ -65,7 +63,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -332,7 +329,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.indexSortSupplier = indexSortSupplier;
         this.indexEventListener = indexEventListener;
         this.threadPool = threadPool;
-        this.translogSyncProcessor = createTranslogSyncProcessor(logger, threadPool.getThreadContext(), this::getEngine);
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.internalIndexingStats = new InternalIndexingStats();
@@ -2147,7 +2143,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 assert origin == Engine.Operation.Origin.LOCAL_RESET;
                 assert getActiveOperationsCount() == OPERATIONS_BLOCKED
-                    : "locally resetting without blocking operations, active operations are [" + getActiveOperations() + "]";
+                    : "locally resetting without blocking operations, active operations [" + getActiveOperationsCount() + "]";
             }
             if (writeAllowedStates.contains(state) == false) {
                 throw new IllegalIndexShardStateException(
@@ -2252,7 +2248,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     void recoverFromLocalShards(
-        Consumer<MappingMetadata> mappingUpdateConsumer,
+        BiConsumer<MappingMetadata, ActionListener<Void>> mappingUpdateConsumer,
         List<IndexShard> localShards,
         ActionListener<Boolean> listener
     ) throws IOException {
@@ -3030,7 +3026,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         PeerRecoveryTargetService recoveryTargetService,
         PeerRecoveryTargetService.RecoveryListener recoveryListener,
         RepositoriesService repositoriesService,
-        Consumer<MappingMetadata> mappingUpdateConsumer,
+        BiConsumer<MappingMetadata, ActionListener<Void>> mappingUpdateConsumer,
         IndicesService indicesService
     ) {
         // TODO: Create a proper object to encapsulate the recovery context
@@ -3305,29 +3301,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided
      * ActionListener will then be called using the provided executor.
      *
-     * @param debugInfo an extra information that can be useful when tracing an unreleased permit. When assertions are enabled
-     *                  the tracing will capture the supplied object's {@link Object#toString()} value. Otherwise the object
-     *                  isn't used
      */
-    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay, Object debugInfo) {
-        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, debugInfo, false);
+    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay) {
+        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false);
     }
 
-    public void acquirePrimaryOperationPermit(
-        ActionListener<Releasable> onPermitAcquired,
-        String executorOnDelay,
-        Object debugInfo,
-        boolean forceExecution
-    ) {
+    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay, boolean forceExecution) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquirePrimaryOperationPermit should only be called on primary shard: " + shardRouting;
-
-        indexShardOperationPermits.acquire(
-            wrapPrimaryOperationPermitListener(onPermitAcquired),
-            executorOnDelay,
-            forceExecution,
-            debugInfo
-        );
+        indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquired), executorOnDelay, forceExecution);
     }
 
     /**
@@ -3378,21 +3360,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Runs the specified runnable under a permit and otherwise calling back the specified failure callback. This method is really a
-     * convenience for {@link #acquirePrimaryOperationPermit(ActionListener, String, Object)} where the listener equates to
+     * convenience for {@link #acquirePrimaryOperationPermit(ActionListener, String)} where the listener equates to
      * try-with-resources closing the releasable after executing the runnable on successfully acquiring the permit, an otherwise calling
      * back the failure callback.
      *
      * @param runnable the runnable to execute under permit
      * @param onFailure the callback on failure
      * @param executorOnDelay the executor to execute the runnable on if permit acquisition is blocked
-     * @param debugInfo debug info
      */
-    public void runUnderPrimaryPermit(
-        final Runnable runnable,
-        final Consumer<Exception> onFailure,
-        final String executorOnDelay,
-        final Object debugInfo
-    ) {
+    public void runUnderPrimaryPermit(final Runnable runnable, final Consumer<Exception> onFailure, final String executorOnDelay) {
         verifyNotClosed();
         assert shardRouting.primary() : "runUnderPrimaryPermit should only be called on primary shard but was " + shardRouting;
         final ActionListener<Releasable> onPermitAcquired = ActionListener.wrap(releasable -> {
@@ -3400,7 +3376,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 runnable.run();
             }
         }, onFailure);
-        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, debugInfo);
+        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay);
     }
 
     private <E extends Exception> void bumpPrimaryTerm(
@@ -3465,7 +3441,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Acquire a replica operation permit whenever the shard is ready for indexing (see
-     * {@link #acquirePrimaryOperationPermit(ActionListener, String, Object)}). If the given primary term is lower than then one in
+     * {@link #acquirePrimaryOperationPermit(ActionListener, String)}). If the given primary term is lower than then one in
      * {@link #shardRouting}, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with an
      * {@link IllegalStateException}. If permit acquisition is delayed, the listener will be invoked on the executor with the specified
      * name.
@@ -3476,17 +3452,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *                                   after this replication request was executed on it (see {@link #getMaxSeqNoOfUpdatesOrDeletes()}
      * @param onPermitAcquired           the listener for permit acquisition
      * @param executorOnDelay            the name of the executor to invoke the listener on if permit acquisition is delayed
-     * @param debugInfo                  an extra information that can be useful when tracing an unreleased permit. When assertions are
-     *                                   enabled the tracing will capture the supplied object's {@link Object#toString()} value.
-     *                                   Otherwise the object isn't used
      */
     public void acquireReplicaOperationPermit(
         final long opPrimaryTerm,
         final long globalCheckpoint,
         final long maxSeqNoOfUpdatesOrDeletes,
         final ActionListener<Releasable> onPermitAcquired,
-        final String executorOnDelay,
-        final Object debugInfo
+        final String executorOnDelay
     ) {
         innerAcquireReplicaOperationPermit(
             opPrimaryTerm,
@@ -3494,7 +3466,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             maxSeqNoOfUpdatesOrDeletes,
             onPermitAcquired,
             false,
-            (listener) -> indexShardOperationPermits.acquire(listener, executorOnDelay, true, debugInfo)
+            (listener) -> indexShardOperationPermits.acquire(listener, executorOnDelay, true)
         );
     }
 
@@ -3626,37 +3598,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * @return a list of describing each permit that wasn't released yet. The description consist of the debugInfo supplied
-     *         when the permit was acquired plus a stack traces that was captured when the permit was request.
-     */
-    public List<String> getActiveOperations() {
-        return indexShardOperationPermits.getActiveOperations();
-    }
-
-    private final AsyncIOProcessor<Translog.Location> translogSyncProcessor;
-
-    private static AsyncIOProcessor<Translog.Location> createTranslogSyncProcessor(
-        Logger logger,
-        ThreadContext threadContext,
-        Supplier<Engine> engineSupplier
-    ) {
-        return new AsyncIOProcessor<>(logger, 1024, threadContext) {
-            @Override
-            protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
-                try {
-                    engineSupplier.get().ensureTranslogSynced(candidates.stream().map(Tuple::v1));
-                } catch (AlreadyClosedException ex) {
-                    // that's fine since we already synced everything on engine close - this also is conform with the methods
-                    // documentation
-                } catch (IOException ex) { // if this fails we are in deep shit - fail the request
-                    logger.debug("failed to sync translog", ex);
-                    throw ex;
-                }
-            }
-        };
-    }
-
-    /**
      * Syncs the given location with the underlying storage unless already synced. This method might return immediately without
      * actually fsyncing the location until the sync listener is called. Yet, unless there is already another thread fsyncing
      * the transaction log the caller thread will be hijacked to run the fsync for all pending fsync operations.
@@ -3667,7 +3608,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
         verifyNotClosed();
-        translogSyncProcessor.put(location, syncListener);
+        getEngine().asyncEnsureTranslogSynced(location, syncListener);
     }
 
     public void sync() throws IOException {
@@ -4005,7 +3946,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     void resetEngineToGlobalCheckpoint() throws IOException {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert getActiveOperationsCount() == OPERATIONS_BLOCKED
-            : "resetting engine without blocking operations; active operations are [" + getActiveOperations() + ']';
+            : "resetting engine without blocking operations; active operations are [" + getActiveOperationsCount() + ']';
         sync(); // persist the global checkpoint to disk
         final SeqNoStats seqNoStats = seqNoStats();
         final TranslogStats translogStats = translogStats();
@@ -4112,7 +4053,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * These transfers guarantee that every index/delete operation when executing on a replica engine will observe this marker a value
      * which is at least the value of the max_seq_no_of_updates marker on the primary after that operation was executed on the primary.
      *
-     * @see #acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)
+     * @see #acquireReplicaOperationPermit(long, long, long, ActionListener, String)
      * @see RecoveryTarget#indexTranslogOperations(List, int, long, long, RetentionLeases, long, ActionListener)
      */
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {

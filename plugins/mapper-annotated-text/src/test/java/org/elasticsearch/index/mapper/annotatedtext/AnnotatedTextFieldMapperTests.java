@@ -555,7 +555,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPayloads(), equalTo(true));
     }
 
-    public void testNullConfigValuesFail() throws MapperParsingException {
+    public void testNullConfigValuesFail() {
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
             b.field("type", "annotated_text");
             b.nullField("analyzer");

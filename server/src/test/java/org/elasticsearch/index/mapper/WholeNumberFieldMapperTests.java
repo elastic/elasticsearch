@@ -76,7 +76,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         }));
 
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
         );
         assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));

@@ -58,16 +58,21 @@ public class TrainedModelAssignmentMetadataTests extends AbstractChunkedSerializ
 
     public void testIsAllocated() {
         String allocatedModelId = "test_model_id";
+        String allocatedDeploymentId = "test_deployment";
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.Builder.empty()
-            .addNewAssignment(allocatedModelId, TrainedModelAssignment.Builder.empty(randomParams(allocatedModelId)))
+            .addNewAssignment(
+                allocatedDeploymentId,
+                TrainedModelAssignment.Builder.empty(randomParams(allocatedDeploymentId, allocatedModelId))
+            )
             .build();
-        assertThat(metadata.isAssigned(allocatedModelId), is(true));
+        assertThat(metadata.isAssigned(allocatedDeploymentId), is(true));
         assertThat(metadata.isAssigned("unknown_model_id"), is(false));
     }
 
-    private static StartTrainedModelDeploymentAction.TaskParams randomParams(String modelId) {
+    private static StartTrainedModelDeploymentAction.TaskParams randomParams(String deploymentId, String modelId) {
         return new StartTrainedModelDeploymentAction.TaskParams(
             modelId,
+            deploymentId,
             randomNonNegativeLong(),
             randomIntBetween(1, 8),
             randomIntBetween(1, 8),

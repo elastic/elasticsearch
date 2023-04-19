@@ -124,10 +124,9 @@ public class NotificationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put("xpack.notification.test.account." + accountName, "bar").build();
         final AtomicInteger validationInvocationCount = new AtomicInteger(0);
 
-        TestNotificationService service = new TestNotificationService(
-            settings,
-            (String name, Settings accountSettings) -> { validationInvocationCount.incrementAndGet(); }
-        );
+        TestNotificationService service = new TestNotificationService(settings, (String name, Settings accountSettings) -> {
+            validationInvocationCount.incrementAndGet();
+        });
         assertThat(validationInvocationCount.get(), is(0));
         assertThat(service.getAccount(accountName), is(accountName));
         assertThat(validationInvocationCount.get(), is(1));

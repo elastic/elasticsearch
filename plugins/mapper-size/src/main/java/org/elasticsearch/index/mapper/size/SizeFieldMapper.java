@@ -21,7 +21,6 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
-import java.util.List;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_size";
@@ -57,7 +56,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
-                return (lookup, doc, ignoredValues) -> List.of();
+                return ValueFetcher.EMPTY;
             }
             return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
         }

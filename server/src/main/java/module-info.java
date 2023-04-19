@@ -160,6 +160,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.cluster.action.shard;
     exports org.elasticsearch.cluster.block;
     exports org.elasticsearch.cluster.coordination;
+    exports org.elasticsearch.cluster.coordination.stateless;
     exports org.elasticsearch.cluster.health;
     exports org.elasticsearch.cluster.metadata;
     exports org.elasticsearch.cluster.node;
@@ -355,7 +356,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.snapshots;
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
-    exports org.elasticsearch.timeseries.support;
     exports org.elasticsearch.tracing;
     exports org.elasticsearch.transport;
     exports org.elasticsearch.upgrades;
@@ -375,6 +375,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+    uses org.elasticsearch.jdk.ModuleQualifiedExportsService;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

@@ -11,6 +11,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 publishing {
   publications {
@@ -34,6 +35,8 @@ dependencies {
   api project(":libs:elasticsearch-plugin-analysis-api")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
+  // no compile dependency by server, but server defines security policy for this codebase so it i>
+  runtimeOnly project(":libs:elasticsearch-preallocate")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"

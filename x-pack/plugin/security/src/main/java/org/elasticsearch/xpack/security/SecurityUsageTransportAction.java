@@ -21,6 +21,7 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -45,9 +46,11 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.FIPS_MODE_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.TOKEN_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
+import static org.elasticsearch.xpack.security.Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE;
 
 public class SecurityUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -132,7 +135,8 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
                     fips140Usage,
                     operatorPrivilegesUsage,
                     domainsUsageRef.get(),
-                    userProfileUsageRef.get()
+                    userProfileUsageRef.get(),
+                    remoteClusterServerUsage()
                 );
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
             }
@@ -183,6 +187,19 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         }
     }
 
+    private Map<String, Object> remoteClusterServerUsage() {
+        if (TcpTransport.isUntrustedRemoteClusterEnabled() && XPackSettings.SECURITY_ENABLED.get(settings)) {
+            return Map.of(
+                "available",
+                CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.checkWithoutTracking(licenseState),
+                "enabled",
+                RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(settings)
+            );
+        } else {
+            return Map.of();
+        }
+    }
+
     static Map<String, Object> sslUsage(Settings settings) {
         // If security has been explicitly disabled in the settings, then SSL is also explicitly disabled, and we don't want to report
         // these http/transport settings as they would be misleading (they could report `true` even though they were ignored)
@@ -190,8 +207,11 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
             Map<String, Object> map = Maps.newMapWithExpectedSize(2);
             map.put("http", singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
             map.put("transport", singletonMap("enabled", TRANSPORT_SSL_ENABLED.get(settings)));
-            if (RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
-                map.put("remote_cluster_server", singletonMap("enabled", REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings)));
+            if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+                if (RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(settings)) {
+                    map.put("remote_cluster_server", singletonMap("enabled", REMOTE_CLUSTER_SERVER_SSL_ENABLED.get(settings)));
+                }
+                map.put("remote_cluster_client", singletonMap("enabled", REMOTE_CLUSTER_CLIENT_SSL_ENABLED.get(settings)));
             }
             return map;
         } else {

@@ -334,6 +334,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateNotSaved(savedClusterState.v1(), savedClusterState.v2());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94464")
     public void testSettingsAppliedOnMasterReElection() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start master node");

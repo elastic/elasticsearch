@@ -222,7 +222,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @param os       the output stream
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
-     * @param responseContentType  a content-type header value to be send back on a response
+     * @param responseContentType  a content-type header value to be sent back on a response
      */
     public XContentBuilder(
         XContent xContent,
@@ -245,7 +245,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @param os       the output stream
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
-     * @param responseContentType  a content-type header value to be send back on a response
+     * @param responseContentType  a content-type header value to be sent back on a response
      * @param restApiVersion a rest api version indicating with which version the XContent is compatible with.
      */
     public XContentBuilder(

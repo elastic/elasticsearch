@@ -8,10 +8,8 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94849")
 public class KnnVectorQueryBuilderTests extends AbstractKnnVectorQueryBuilderTestCase {
     @Override
     DenseVectorFieldMapper.ElementType elementType() {

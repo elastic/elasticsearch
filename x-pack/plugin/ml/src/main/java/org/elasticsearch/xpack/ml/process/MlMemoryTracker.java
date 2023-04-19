@@ -266,7 +266,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             return null;
         }
 
-        return Optional.ofNullable(TrainedModelAssignmentMetadata.fromState(clusterService.state()).modelAssignments().get(modelId))
+        return Optional.ofNullable(TrainedModelAssignmentMetadata.fromState(clusterService.state()).allAssignments().get(modelId))
             .map(TrainedModelAssignment::getTaskParams)
             .map(StartTrainedModelDeploymentAction.TaskParams::estimateMemoryUsageBytes)
             .orElse(null);

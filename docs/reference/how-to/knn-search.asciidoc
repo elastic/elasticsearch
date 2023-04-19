@@ -44,6 +44,9 @@ For example your index might also include text fields and numerics, which also
 benefit from using filesystem cache. It's recommended to run benchmarks with
 your specific dataset to ensure there's a sufficient amount of memory to give
 good search performance.
+You can find https://elasticsearch-benchmarks.elastic.co/#tracks/so_vector[here]
+and https://elasticsearch-benchmarks.elastic.co/#tracks/dense_vector[here] some examples
+of datasets and configurations that we use for our nightly benchmarks.
 
 [discrete]
 include::search-speed.asciidoc[tag=warm-fs-cache]

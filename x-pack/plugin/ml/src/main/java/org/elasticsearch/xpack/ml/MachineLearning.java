@@ -546,7 +546,7 @@ public class MachineLearning extends Plugin
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         if (this.enabled == false) {
-            return Collections.emptyMap();
+            return Map.of();
         }
 
         InferenceProcessor.Factory inferenceFactory = new InferenceProcessor.Factory(
@@ -556,7 +556,7 @@ public class MachineLearning extends Plugin
             machineLearningExtension.get().includeNodeInfo()
         );
         parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
-        return Collections.singletonMap(InferenceProcessor.TYPE, inferenceFactory);
+        return Map.of(InferenceProcessor.TYPE, inferenceFactory);
     }
 
     @Override

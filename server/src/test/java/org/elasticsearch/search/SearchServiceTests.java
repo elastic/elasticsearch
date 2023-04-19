@@ -832,13 +832,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<QuerySpec<?>> getQueries() {
-            return singletonList(
-                new QuerySpec<>(
-                    "fail_on_rewrite_query",
-                    FailOnRewriteQueryBuilder::new,
-                    parseContext -> { throw new UnsupportedOperationException("No query parser for this plugin"); }
-                )
-            );
+            return singletonList(new QuerySpec<>("fail_on_rewrite_query", FailOnRewriteQueryBuilder::new, parseContext -> {
+                throw new UnsupportedOperationException("No query parser for this plugin");
+            }));
         }
     }
 

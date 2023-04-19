@@ -347,9 +347,17 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             ),
                             3,
                             null,
-                            new AssignmentStats("model_3", null, null, null, null, Instant.now(), List.of(), Priority.NORMAL).setState(
-                                AssignmentState.STOPPING
-                            )
+                            new AssignmentStats(
+                                "deployment_3",
+                                "model_3",
+                                null,
+                                null,
+                                null,
+                                null,
+                                Instant.now(),
+                                List.of(),
+                                Priority.NORMAL
+                            ).setState(AssignmentState.STOPPING)
                         ),
                         new GetTrainedModelsStatsAction.Response.TrainedModelStats(
                             trainedModel4.getModelId(),
@@ -371,6 +379,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             4,
                             null,
                             new AssignmentStats(
+                                "deployment_4",
                                 "model_4",
                                 2,
                                 2,

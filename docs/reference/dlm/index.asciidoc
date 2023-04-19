@@ -10,7 +10,7 @@ according to your retention requirements. For example, you could use {dlm-init} 
 * Ensure that data indexed in a data stream will be kept at least for the retention time you defined.
 * Older data will be deleted by {es} any moment later in time considering {es}'s performance.
 
-You can create a data stream via index templates and directly configure your data lifecycle or you
+You can create a data stream via index templates and configure your data lifecycle as part of the index template or you
 can do it later on an existing data stream via the <<data-lifecycle-management-api, {dlm-init} APIs>>.
 
 In the following sections, we will go through the following tutorials:

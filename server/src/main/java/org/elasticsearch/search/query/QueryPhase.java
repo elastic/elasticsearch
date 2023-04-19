@@ -174,7 +174,7 @@ public class QueryPhase {
             }
 
             try {
-                searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, timeoutRunnable);
+                searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
                 assert executor instanceof EWMATrackingEsThreadPoolExecutor
                     || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
@@ -201,7 +201,7 @@ public class QueryPhase {
         Query query,
         LinkedList<QueryCollectorManagerContext> collectors,
         boolean hasFilterCollector,
-        Runnable timeoutRunnable
+        boolean timeoutSet
     ) throws IOException {
         // create the top docs collector last when the other collectors are known
         final TopDocsCollectorManagerContext topDocsFactory = createTopDocsCollectorManagerContext(searchContext, hasFilterCollector);
@@ -222,7 +222,7 @@ public class QueryPhase {
         } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
             queryResult.terminatedEarly(true);
         } catch (TimeExceededException e) {
-            assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
+            assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
             if (searchContext.request().allowPartialSearchResults() == false) {
                 // Can't rethrow TimeExceededException because not serializable
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");

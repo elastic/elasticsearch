@@ -494,7 +494,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         final PipelineTree pipelines = aggTestConfig.builder().buildPipelineTree();
 
         List<C> aggregators = doCollection(indexSettings, searcher, breakerService, aggTestConfig);
-
         for (C agg : aggregators) {
             aggs.add(agg.buildTopLevel());
         }
@@ -641,15 +640,68 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return aggregators;
     }
 
-    /*
+
+    /**
+     * For aggregations supporting the dense format, use the dense reduction path and then render the final
+     * results as {@link InternalAggregation}s
+     */
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceDense(
         IndexSearcher searcher,
         AggTestConfig aggTestConfig
-    ) {
+    ) throws IOException {
+        IndexSettings indexSettings = createIndexSettings();
+        final PipelineTree pipelines = aggTestConfig.builder().buildPipelineTree();
 
+        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
+        List<C> aggregators = doCollection(indexSettings, searcher, breakerService, aggTestConfig);
+
+        List<CollectedAggregator> collectedAggregators = new ArrayList<>();
+        for (C agg : aggregators) {
+            collectedAggregators.add(agg.getDenseRepresentation());
+        }
+
+        // NOCOMMIT - TODO: confirm that the CollectedAggregators round trip here
+
+        BigArrays bigArraysForReduction = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService);
+
+        try {
+            // NOCOMMIT - TODO: incremental reduce case
+            // now do the final reduce
+            MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
+                aggTestConfig.maxBuckets(),
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+            );
+            AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+                bigArraysForReduction,
+                getMockScriptService(),
+                () -> false,
+                aggTestConfig.builder(),
+                reduceBucketConsumer,
+                pipelines
+            );
+
+            @SuppressWarnings("unchecked")
+            A internalAgg = (A) collectedAggregators.get(0).reduce(collectedAggregators, reduceContext).convertToLegacy(0);
+            assertRoundTrip(internalAgg);
+
+            // NOCOMMIT - TODO: what do we do with pipelines in dense format land?
+            // materialize any parent pipelines
+            internalAgg = (A) internalAgg.reducePipelines(internalAgg, reduceContext, pipelines);
+
+            // materialize any sibling pipelines at top level
+            for (PipelineAggregator pipelineAggregator : pipelines.aggregators()) {
+                internalAgg = (A) pipelineAggregator.reduce(internalAgg, reduceContext);
+            }
+            doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+            assertRoundTrip(internalAgg);
+            if (aggTestConfig.builder() instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) {
+                verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) aggTestConfig.builder(), internalAgg);
+            }
+            return internalAgg;
+        } finally {
+            Releasables.close(breakerService);
+        }
     }
-
-     */
 
     protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
@@ -681,14 +733,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 verify.accept(agg);
                 verifyOutputFieldNames(aggTestConfig.builder(), agg);
 
-                /*
                 if (aggTestConfig.builder().supportsDenseAggregations()) {
                     agg = searchAndReduceDense(indexSearcher, aggTestConfig);
                     verify.accept(agg);
                     verifyOutputFieldNames(aggTestConfig.builder(), agg);
                 }
-
-                 */
 
             }
         }

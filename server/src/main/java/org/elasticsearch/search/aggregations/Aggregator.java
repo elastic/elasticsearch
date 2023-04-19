@@ -160,6 +160,13 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public abstract InternalAggregation buildEmptyAggregation();
 
     /**
+     * Eventually, this should be abstract. Until we have all the aggregations converted though,
+     * this seems like a good default behavior.
+     */
+    public CollectedAggregator getDenseRepresentation() {
+        throw new UnsupportedOperationException();
+    }
+    /**
      * Collect debug information to add to the profiling results. This will
      * only be called if the aggregation is being profiled.
      * <p>

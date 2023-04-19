@@ -11,6 +11,7 @@ import io.netty.channel.Channel;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -370,6 +371,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -1686,7 +1688,7 @@ public class Security extends Plugin
                 }
                 // the thread context here is identical to how the `try` block found it
             };
-            return new Netty4HttpServerTransport(
+            return getHttpServerTransportWithHeadersValidator(
                 settings,
                 networkService,
                 threadPool,
@@ -1698,16 +1700,48 @@ public class Security extends Plugin
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
                 new HttpHeadersValidator(authenticateMessage)
-            ) {
-                @Override
-                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    ValidationResult validationResult = HttpHeadersValidator.extractValidationResult(restRequest.getHttpRequest());
-                    assert validationResult != null : "all HTTP requests must be authenticated";
-                    validationResult.assertValid();
-                }
-            };
+            );
         });
         return httpTransports;
+    }
+
+    // "public" so it can be used in tests
+    public static Netty4HttpServerTransport getHttpServerTransportWithHeadersValidator(
+        Settings settings,
+        NetworkService networkService,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SharedGroupFactory sharedGroupFactory,
+        Tracer tracer,
+        TLSConfig tlsConfig,
+        @Nullable AcceptChannelHandler.AcceptPredicate acceptPredicate,
+        HttpHeadersValidator headersValidator
+    ) {
+        return new Netty4HttpServerTransport(
+            settings,
+            networkService,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            clusterSettings,
+            sharedGroupFactory,
+            tracer,
+            tlsConfig,
+            acceptPredicate,
+            Objects.requireNonNull(headersValidator)
+        ) {
+            @Override
+            protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                ValidationResult validationResult = HttpHeadersValidator.extractValidationResult(restRequest.getHttpRequest());
+                if (validationResult != null) {
+                    validationResult.assertValid();
+                } else {
+                    throw new ElasticsearchSecurityException("Request is not validated");
+                }
+            }
+        };
     }
 
     @Override

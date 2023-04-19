@@ -34,7 +34,7 @@ import static org.elasticsearch.http.netty4.Netty4HttpRequest.translateRequestMe
  * Provides utilities used to hook into the netty pipeline and run a validation check on each HTTP request's headers.
  * See also {@link Netty4HttpHeaderValidator}.
  */
-public class HttpHeadersValidator {
+public final class HttpHeadersValidator {
 
     /**
      * An async HTTP headers validator function that receives as arguments part of the incoming HTTP request

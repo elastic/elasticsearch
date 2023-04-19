@@ -45,7 +45,7 @@ public class SearchShardsIT extends ESIntegTestCase {
         {
             SearchRequest rangeQuery = new SearchRequest().indices("index-*")
                 .source(new SearchSourceBuilder().query(new RangeQueryBuilder("value").from(0).includeLower(true)));
-            SearchShardsResponse resp = client().execute(SearchShardsAction.INSTANCE, new SearchShardsRequest(rangeQuery)).actionGet();
+            var resp = client().execute(SearchShardsAction.INSTANCE, new SearchShardsRequest(rangeQuery)).actionGet();
             assertThat(resp.getGroups(), hasSize(11));
             int skipped = 0;
             for (SearchShardsGroup g : resp.getGroups()) {
@@ -74,7 +74,7 @@ public class SearchShardsIT extends ESIntegTestCase {
         }
     }
 
-    public void testSearchShards() {
+    public void testRandom() {
         int numIndices = randomIntBetween(1, 10);
         for (int i = 0; i < numIndices; i++) {
             String index = "index-" + i;
@@ -98,10 +98,7 @@ public class SearchShardsIT extends ESIntegTestCase {
             SearchRequest searchRequest = new SearchRequest().indices("index-*").source(new SearchSourceBuilder().query(rangeQuery));
             searchRequest.setPreFilterShardSize(1);
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            SearchShardsResponse searchShardsResponse = client().execute(
-                SearchShardsAction.INSTANCE,
-                new SearchShardsRequest(searchRequest)
-            ).actionGet();
+            var searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, new SearchShardsRequest(searchRequest)).actionGet();
 
             assertThat(searchShardsResponse.getGroups(), hasSize(searchResponse.getTotalShards()));
             long skippedShards = searchShardsResponse.getGroups().stream().filter(SearchShardsGroup::skipped).count();

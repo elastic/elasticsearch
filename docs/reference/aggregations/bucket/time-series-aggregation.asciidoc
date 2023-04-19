@@ -86,8 +86,6 @@ GET /_search
 This will return all results in the time series, however a more typical query will use sub aggregations to reduce the
 date returned to something more relevant.
 
-//////////////////////////
-
 [[search-aggregations-bucket-terms-aggregation-size]]
 ==== Size
 

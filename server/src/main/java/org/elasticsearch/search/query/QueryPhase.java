@@ -208,7 +208,7 @@ public class QueryPhase {
         // add the top docs collector, the first collector context in the chain
         collectors.addFirst(topDocsFactory);
 
-        CollectorManager<Collector, Void> manager;
+        final CollectorManager<Collector, Void> manager;
         if (searchContext.getProfilers() != null) {
             final InternalProfileCollectorManager profileManager = createQueryCollectorManagerWithProfiler(collectors);
             searchContext.getProfilers().getCurrentQueryProfiler().setCollectorManager(profileManager);

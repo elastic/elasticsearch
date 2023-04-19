@@ -36,7 +36,7 @@ configure(allprojects) {
                     (OS.current() == OS.WINDOWS ? '.exe' : '')
         } else {
             test.javaLauncher = javaToolchains.launcherFor {
-                languageVersion = JavaLanguageVersion.of(20)
+                languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)
             }
         }
     }

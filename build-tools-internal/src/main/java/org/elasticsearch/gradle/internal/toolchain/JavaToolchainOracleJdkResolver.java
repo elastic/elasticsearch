@@ -91,7 +91,7 @@ public abstract class JavaToolchainOracleJdkResolver implements JavaToolchainRes
     }
 
     /**
-     * This resolves archives oracle jdks.
+     * This resolves archived oracle jdks.
      * */
     private Optional<JavaToolchainDownload> resolveArchivedOracleJdk(JavaToolchainRequest request) {
         Integer majorVersion = request.getJavaToolchainSpec().getLanguageVersion().get().asInt();

@@ -14,6 +14,8 @@ public enum AggregationName {
 
     count,
 
+    count_distinct,
+
     max,
 
     median,
@@ -28,6 +30,7 @@ public enum AggregationName {
         return switch (planName) {
             case "avg" -> avg;
             case "count" -> count;
+            case "countdistinct" -> count_distinct;
             case "max" -> max;
             case "median" -> median;
             case "medianabsolutedeviation" -> median_absolute_deviation;

@@ -285,6 +285,7 @@ setup:
         - cidr_match
         - concat
         - count
+        - count_distinct
         - date_format
         - date_trunc
         - is_finite
@@ -310,6 +311,7 @@ setup:
         - cidr_match(arg1, arg2...)
         - concat(arg1, arg2...)
         - count(arg1)
+        - count_distinct(arg1)
         - date_format(arg1, arg2)
         - date_trunc(arg1, arg2)
         - is_finite(arg1)

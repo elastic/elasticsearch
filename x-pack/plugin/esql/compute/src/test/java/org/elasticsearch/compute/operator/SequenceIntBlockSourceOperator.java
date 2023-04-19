@@ -14,8 +14,8 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 /**
- * A source operator whose output is the given long values. This operator produces pages
- * containing a single Block. The Block contains the long values from the given list, in order.
+ * A source operator whose output is the given integer values. This operator produces pages
+ * containing a single Block. The Block contains the integer values from the given list, in order.
  */
 public class SequenceIntBlockSourceOperator extends AbstractBlockSourceOperator {
 

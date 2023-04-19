@@ -12,6 +12,10 @@ public enum AggregationType {
 
     agnostic,
 
+    booleans,
+
+    bytesrefs,
+
     ints,
 
     longs,

@@ -21,12 +21,15 @@ import java.util.function.BiFunction;
 
 import static org.elasticsearch.compute.aggregation.AggregationName.avg;
 import static org.elasticsearch.compute.aggregation.AggregationName.count;
+import static org.elasticsearch.compute.aggregation.AggregationName.count_distinct;
 import static org.elasticsearch.compute.aggregation.AggregationName.max;
 import static org.elasticsearch.compute.aggregation.AggregationName.median;
 import static org.elasticsearch.compute.aggregation.AggregationName.median_absolute_deviation;
 import static org.elasticsearch.compute.aggregation.AggregationName.min;
 import static org.elasticsearch.compute.aggregation.AggregationName.sum;
 import static org.elasticsearch.compute.aggregation.AggregationType.agnostic;
+import static org.elasticsearch.compute.aggregation.AggregationType.booleans;
+import static org.elasticsearch.compute.aggregation.AggregationType.bytesrefs;
 import static org.elasticsearch.compute.aggregation.AggregationType.doubles;
 import static org.elasticsearch.compute.aggregation.AggregationType.ints;
 import static org.elasticsearch.compute.aggregation.AggregationType.longs;
@@ -82,9 +85,20 @@ public interface GroupingAggregatorFunction extends Releasable {
                 case count -> COUNT;
                 default -> throw new IllegalArgumentException("unknown " + name + ", type:" + type);
             };
+            case booleans -> switch (name) {
+                case count -> COUNT;
+                case count_distinct -> COUNT_DISTINCT_BOOLEANS;
+                default -> throw new IllegalArgumentException("unknown " + name + ", type:" + type);
+            };
+            case bytesrefs -> switch (name) {
+                case count -> COUNT;
+                case count_distinct -> COUNT_DISTINCT_BYTESREFS;
+                default -> throw new IllegalArgumentException("unknown " + name + ", type:" + type);
+            };
             case ints -> switch (name) {
                 case avg -> AVG_INTS;
                 case count -> COUNT;
+                case count_distinct -> COUNT_DISTINCT_INTS;
                 case max -> MAX_INTS;
                 case median -> MEDIAN_INTS;
                 case median_absolute_deviation -> MEDIAN_ABSOLUTE_DEVIATION_INTS;
@@ -94,6 +108,7 @@ public interface GroupingAggregatorFunction extends Releasable {
             case longs -> switch (name) {
                 case avg -> AVG_LONGS;
                 case count -> COUNT;
+                case count_distinct -> COUNT_DISTINCT_LONGS;
                 case max -> MAX_LONGS;
                 case median -> MEDIAN_LONGS;
                 case median_absolute_deviation -> MEDIAN_ABSOLUTE_DEVIATION_LONGS;
@@ -103,6 +118,7 @@ public interface GroupingAggregatorFunction extends Releasable {
             case doubles -> switch (name) {
                 case avg -> AVG_DOUBLES;
                 case count -> COUNT;
+                case count_distinct -> COUNT_DISTINCT_DOUBLES;
                 case max -> MAX_DOUBLES;
                 case median -> MEDIAN_DOUBLES;
                 case median_absolute_deviation -> MEDIAN_ABSOLUTE_DEVIATION_DOUBLES;
@@ -117,6 +133,12 @@ public interface GroupingAggregatorFunction extends Releasable {
     Factory AVG_INTS = new Factory(avg, ints, AvgIntGroupingAggregatorFunction::create);
 
     Factory COUNT = new Factory(count, agnostic, CountGroupingAggregatorFunction::create);
+
+    Factory COUNT_DISTINCT_BOOLEANS = new Factory(count_distinct, booleans, CountDistinctBooleanGroupingAggregatorFunction::create);
+    Factory COUNT_DISTINCT_BYTESREFS = new Factory(count_distinct, bytesrefs, CountDistinctBytesRefGroupingAggregatorFunction::create);
+    Factory COUNT_DISTINCT_DOUBLES = new Factory(count_distinct, doubles, CountDistinctDoubleGroupingAggregatorFunction::create);
+    Factory COUNT_DISTINCT_LONGS = new Factory(count_distinct, longs, CountDistinctLongGroupingAggregatorFunction::create);
+    Factory COUNT_DISTINCT_INTS = new Factory(count_distinct, ints, CountDistinctIntGroupingAggregatorFunction::create);
 
     Factory MIN_DOUBLES = new Factory(min, doubles, MinDoubleGroupingAggregatorFunction::create);
     Factory MIN_LONGS = new Factory(min, longs, MinLongGroupingAggregatorFunction::create);

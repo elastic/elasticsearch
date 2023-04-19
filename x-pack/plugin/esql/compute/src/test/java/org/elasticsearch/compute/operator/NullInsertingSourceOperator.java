@@ -7,7 +7,10 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
@@ -76,6 +79,12 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
     private void copyValue(Block from, int valueIndex, Block.Builder into) {
         ElementType elementType = from.elementType();
         switch (elementType) {
+            case BOOLEAN:
+                ((BooleanBlock.Builder) into).appendBoolean(((BooleanBlock) from).getBoolean(valueIndex));
+                break;
+            case BYTES_REF:
+                ((BytesRefBlock.Builder) into).appendBytesRef(((BytesRefBlock) from).getBytesRef(valueIndex, new BytesRef()));
+                break;
             case LONG:
                 ((LongBlock.Builder) into).appendLong(((LongBlock) from).getLong(valueIndex));
                 break;

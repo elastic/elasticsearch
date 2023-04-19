@@ -30,6 +30,8 @@ import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_STATE_VECTOR_BUILDER;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
+import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
+import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
@@ -103,6 +105,8 @@ public class AggregatorImplementer {
                 return "long";
             case "int":
                 return "int";
+            case "boolean":
+                return "boolean";
             default:
                 throw new IllegalArgumentException("unknown primitive type for " + initReturn);
         }
@@ -110,6 +114,7 @@ public class AggregatorImplementer {
 
     static ClassName valueBlockType(ExecutableElement init, ExecutableElement combine) {
         return switch (primitiveType(init, combine)) {
+            case "boolean" -> BOOLEAN_BLOCK;
             case "double" -> DOUBLE_BLOCK;
             case "long" -> LONG_BLOCK;
             case "int" -> INT_BLOCK;
@@ -119,6 +124,7 @@ public class AggregatorImplementer {
 
     static ClassName valueVectorType(ExecutableElement init, ExecutableElement combine) {
         return switch (primitiveType(init, combine)) {
+            case "boolean" -> BOOLEAN_VECTOR;
             case "double" -> DOUBLE_VECTOR;
             case "long" -> LONG_VECTOR;
             case "int" -> INT_VECTOR;

@@ -29,6 +29,12 @@ class AggregateMapper {
         if (aggregateFunction.field().dataType() == DataTypes.DOUBLE) {
             return AggregationType.doubles;
         }
+        if (aggregateFunction.field().dataType() == DataTypes.BOOLEAN) {
+            return AggregationType.booleans;
+        }
+        if (aggregateFunction.field().dataType() == DataTypes.KEYWORD) {
+            return AggregationType.bytesrefs;
+        }
         // agnostic here means "only works if the aggregation doesn't care about type".
         return AggregationType.agnostic;
     }

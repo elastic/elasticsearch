@@ -43,24 +43,26 @@ public class AggregationPhase {
         } catch (IOException e) {
             throw new AggregationInitializationException("Could not initialize aggregators", e);
         }
+        final CollectorManager<Collector, Void> collectorManager;
         if (context.aggregations().factories().context() != null
             && context.aggregations().factories().context().isInSortOrderExecutionRequired()) {
             TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), getCancellationChecks(context));
+            searcher.setProfiler(context);
             try {
                 searcher.search(context.rewrittenQuery(), bucketCollector);
             } catch (IOException e) {
                 throw new AggregationExecutionException("Could not perform time series aggregation", e);
             }
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(BucketCollector.NO_OP_COLLECTOR));
+            collectorManager = new SingleThreadCollectorManager(BucketCollector.NO_OP_COLLECTOR);
         } else {
-            CollectorManager<Collector, Void> collectorManager = new SingleThreadCollectorManager(bucketCollector.asCollector());
-            if (context.getProfilers() != null) {
-                context.registerAggsCollectorManager(
-                    new InternalProfileCollectorManager(collectorManager, CollectorResult.REASON_AGGREGATION, List.of())
-                );
-            } else {
-                context.registerAggsCollectorManager(collectorManager);
-            }
+            collectorManager = new SingleThreadCollectorManager(bucketCollector.asCollector());
+        }
+        if (context.getProfilers() != null) {
+            context.registerAggsCollectorManager(
+                new InternalProfileCollectorManager(collectorManager, CollectorResult.REASON_AGGREGATION, List.of())
+            );
+        } else {
+            context.registerAggsCollectorManager(collectorManager);
         }
     }
 

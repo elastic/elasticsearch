@@ -81,7 +81,9 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateW
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.GetWatcherSettingsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.UpdateWatcherSettingsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
@@ -150,8 +152,10 @@ import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction.Deact
 import org.elasticsearch.xpack.watcher.rest.action.RestDeleteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestGetWatchAction;
+import org.elasticsearch.xpack.watcher.rest.action.RestGetWatcherSettingsAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestQueryWatchesAction;
+import org.elasticsearch.xpack.watcher.rest.action.RestUpdateWatcherSettingsAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
@@ -166,8 +170,10 @@ import org.elasticsearch.xpack.watcher.transport.actions.TransportActivateWatchA
 import org.elasticsearch.xpack.watcher.transport.actions.TransportDeleteWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportExecuteWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportGetWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportGetWatcherSettingsAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportPutWatchAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportQueryWatchesAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportUpdateWatcherSettingsAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportWatcherServiceAction;
 import org.elasticsearch.xpack.watcher.transport.actions.TransportWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
@@ -675,6 +681,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             new ActionHandler<>(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class),
             new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class),
             new ActionHandler<>(QueryWatchesAction.INSTANCE, TransportQueryWatchesAction.class),
+            new ActionHandler<>(UpdateWatcherSettingsAction.INSTANCE, TransportUpdateWatcherSettingsAction.class),
+            new ActionHandler<>(GetWatcherSettingsAction.INSTANCE, TransportGetWatcherSettingsAction.class),
             usageAction,
             infoAction
         );
@@ -704,7 +712,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             new RestActivateWatchAction(),
             new DeactivateRestHandler(),
             new RestExecuteWatchAction(),
-            new RestQueryWatchesAction()
+            new RestQueryWatchesAction(),
+            new RestUpdateWatcherSettingsAction(),
+            new RestGetWatcherSettingsAction()
         );
     }
 

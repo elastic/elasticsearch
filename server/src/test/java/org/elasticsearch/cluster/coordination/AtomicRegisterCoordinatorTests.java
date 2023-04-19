@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -192,7 +193,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 threadPool,
                 heartbeatFrequency,
                 TimeValue.timeValueMillis(heartbeatFrequency.millis() * MAX_MISSED_HEARTBEATS.get(settings)),
-                atomicRegister::readCurrentTerm
+                listener -> listener.onResponse(OptionalLong.of(atomicRegister.readCurrentTerm()))
             );
             var reconfigurator = new SingleNodeReconfigurator(settings, clusterSettings);
             var electionStrategy = new AtomicRegisterElectionStrategy(atomicRegister);

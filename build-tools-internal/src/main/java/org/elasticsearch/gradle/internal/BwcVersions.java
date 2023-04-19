@@ -148,7 +148,7 @@ public class BwcVersions {
         // Grab the latest version from the previous major if necessary as well, this is going to be a maintenance release
         Version maintenance = versions.stream()
             .filter(v -> v.getMajor() == currentVersion.getMajor() - 1)
-            .min(Comparator.reverseOrder())
+            .max(Comparator.naturalOrder())
             .orElseThrow();
         // This is considered the maintenance release only if we haven't yet encountered it
         boolean hasMaintenanceRelease = unreleased.add(maintenance);

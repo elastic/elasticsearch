@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      version: all
+      reason: https://github.com/elastic/elasticsearch/issues/95293
+
   - do:
       indices.create:
         index: test-search-index1

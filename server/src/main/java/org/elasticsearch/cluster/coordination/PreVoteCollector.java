@@ -51,7 +51,8 @@ public abstract class PreVoteCollector {
             Runnable startElection,
             LongConsumer updateMaxTermSeen,
             ElectionStrategy electionStrategy,
-            NodeHealthService nodeHealthService
+            NodeHealthService nodeHealthService,
+            LeaderHeartbeatService leaderHeartbeatService
         );
     }
 }

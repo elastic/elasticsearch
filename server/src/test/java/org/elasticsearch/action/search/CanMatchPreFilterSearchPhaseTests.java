@@ -50,7 +50,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -146,19 +145,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             Collections.emptyMap(),
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest,
-            null,
             shardsIter,
             timeProvider,
             null,
-            (iter) -> new SearchPhase("test") {
-                @Override
-                public void run() throws IOException {
-                    result.set(iter);
-                    latch.countDown();
-                }
-            },
-            SearchResponse.Clusters.EMPTY,
-            EMPTY_CONTEXT_PROVIDER
+            EMPTY_CONTEXT_PROVIDER,
+            ActionListener.wrap(iter -> {
+                result.set(iter);
+                latch.countDown();
+            }, e -> { throw new AssertionError(e); })
         );
 
         canMatchPhase.start();
@@ -248,19 +242,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             Collections.emptyMap(),
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest,
-            null,
             shardsIter,
             timeProvider,
             null,
-            (iter) -> new SearchPhase("test") {
-                @Override
-                public void run() throws IOException {
-                    result.set(iter);
-                    latch.countDown();
-                }
-            },
-            SearchResponse.Clusters.EMPTY,
-            EMPTY_CONTEXT_PROVIDER
+            EMPTY_CONTEXT_PROVIDER,
+            ActionListener.wrap(iter -> {
+                result.set(iter);
+                latch.countDown();
+            }, e -> { throw new AssertionError(e); })
         );
 
         canMatchPhase.start();
@@ -345,19 +334,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 Collections.emptyMap(),
                 threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 searchRequest,
-                null,
                 shardsIter,
                 timeProvider,
                 null,
-                (iter) -> new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        result.set(iter);
-                        latch.countDown();
-                    }
-                },
-                SearchResponse.Clusters.EMPTY,
-                EMPTY_CONTEXT_PROVIDER
+                EMPTY_CONTEXT_PROVIDER,
+                ActionListener.wrap(iter -> {
+                    result.set(iter);
+                    latch.countDown();
+                }, e -> { throw new AssertionError(e); })
             );
 
             canMatchPhase.start();
@@ -451,19 +435,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 Collections.emptyMap(),
                 threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 searchRequest,
-                null,
                 shardsIter,
                 timeProvider,
                 null,
-                (iter) -> new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        result.set(iter);
-                        latch.countDown();
-                    }
-                },
-                SearchResponse.Clusters.EMPTY,
-                EMPTY_CONTEXT_PROVIDER
+                EMPTY_CONTEXT_PROVIDER,
+                ActionListener.wrap(iter -> {
+                    result.set(iter);
+                    latch.countDown();
+                }, e -> { throw new AssertionError(e); })
             );
 
             canMatchPhase.start();
@@ -828,19 +807,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             Collections.emptyMap(),
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest,
-            null,
             shardsIter,
             timeProvider,
             null,
-            (iter) -> new SearchPhase("test") {
-                @Override
-                public void run() throws IOException {
-                    result.set(iter);
-                    latch.countDown();
-                }
-            },
-            SearchResponse.Clusters.EMPTY,
-            contextProvider
+            contextProvider,
+            ActionListener.wrap(iter -> {
+                result.set(iter);
+                latch.countDown();
+            }, e -> { throw new AssertionError(e); })
         );
 
         canMatchPhase.start();

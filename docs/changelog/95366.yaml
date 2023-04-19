@@ -1,0 +1,5 @@
+pr: 95366
+summary: Update apm agent to 1.36.0
+area: Infra/Core
+type: upgrade
+issues: []

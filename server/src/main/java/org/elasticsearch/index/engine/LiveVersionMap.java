@@ -480,4 +480,9 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         assert keyedLock.isHeldByCurrentThread(uid) : "Thread [" + Thread.currentThread().getName() + "], uid [" + uid.utf8ToString() + "]";
         return true;
     }
+
+    // Package private for testing purposes only
+    LiveVersionMapArchiver getArchiver() {
+        return archiver;
+    }
 }

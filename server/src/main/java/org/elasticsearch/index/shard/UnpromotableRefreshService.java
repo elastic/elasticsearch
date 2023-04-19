@@ -33,7 +33,7 @@ public class UnpromotableRefreshService {
         this.transportService = null;
     }
 
-    public UnpromotableRefresher getShardUnpromotableRefresher(IndexShard indexShard) {
+    public Refresher getShardUnpromotableRefresher(IndexShard indexShard) {
         return (generation, listener) -> refresh(generation, indexShard, listener);
     }
 
@@ -56,13 +56,13 @@ public class UnpromotableRefreshService {
     }
 
     @FunctionalInterface
-    public interface UnpromotableRefresher {
+    public interface Refresher {
         void refresh(long generation, ActionListener<Void> listener);
     }
 
     public static final UnpromotableRefreshService EMPTY = new UnpromotableRefreshService() {
         @Override
-        public UnpromotableRefresher getShardUnpromotableRefresher(IndexShard indexShard) {
+        public Refresher getShardUnpromotableRefresher(IndexShard indexShard) {
             return (generation, listener) -> {};
         }
     };

@@ -3144,7 +3144,12 @@ public class InternalEngine extends Engine {
         this.flushListener.addOrNotify(location, listener);
     }
 
-    protected LiveVersionMapArchiver createArchiver(UnpromotableRefreshService.UnpromotableRefresher unpromotableRefresher) {
+    protected LiveVersionMapArchiver createArchiver(UnpromotableRefreshService.Refresher unpromotableRefresher) {
         return LiveVersionMapArchiver.NOOP_ARCHIVER;
+    }
+
+    // Package private for testing purposes only
+    LiveVersionMap getLiveVersionMap() {
+        return versionMap;
     }
 }

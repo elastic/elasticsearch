@@ -86,7 +86,7 @@ public final class EngineConfig {
     }
 
     private final LongSupplier primaryTermSupplier;
-    private final UnpromotableRefreshService.UnpromotableRefresher unpromotableRefresher;
+    private final UnpromotableRefreshService.Refresher unpromotableRefresher;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -221,7 +221,7 @@ public final class EngineConfig {
         LongSupplier relativeTimeInNanosSupplier,
         Engine.IndexCommitListener indexCommitListener,
         boolean promotableToPrimary,
-        UnpromotableRefreshService.UnpromotableRefresher unpromotableRefresher
+        UnpromotableRefreshService.Refresher unpromotableRefresher
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -487,7 +487,7 @@ public final class EngineConfig {
         return promotableToPrimary;
     }
 
-    public UnpromotableRefreshService.UnpromotableRefresher getUnpromotableRefresher() {
+    public UnpromotableRefreshService.Refresher getUnpromotableRefresher() {
         return unpromotableRefresher;
     }
 }

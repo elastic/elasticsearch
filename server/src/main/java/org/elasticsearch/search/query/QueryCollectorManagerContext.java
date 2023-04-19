@@ -93,7 +93,7 @@ abstract class QueryCollectorManagerContext {
 
             @Override
             CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) throws IOException {
-                return SingleThreadCollectorManagerFactory.wrap(new MinimumScoreCollector(in.newCollector(), minScore));
+                return new SingleThreadCollectorManager(new MinimumScoreCollector(in.newCollector(), minScore));
             }
         };
     }
@@ -106,7 +106,7 @@ abstract class QueryCollectorManagerContext {
             @Override
             CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) throws IOException {
                 final Weight filterWeight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
-                return SingleThreadCollectorManagerFactory.wrap(new FilteredCollector(in.newCollector(), filterWeight));
+                return new SingleThreadCollectorManager(new FilteredCollector(in.newCollector(), filterWeight));
             }
         };
     }
@@ -120,7 +120,7 @@ abstract class QueryCollectorManagerContext {
             @Override
             CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) throws IOException {
                 assert in != null;
-                return SingleThreadCollectorManagerFactory.wrap(MultiCollector.wrap(in.newCollector(), collectorManager.newCollector()));
+                return new SingleThreadCollectorManager(MultiCollector.wrap(in.newCollector(), collectorManager.newCollector()));
             }
 
             @Override
@@ -150,7 +150,7 @@ abstract class QueryCollectorManagerContext {
             CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) throws IOException {
                 assert in != null;
                 final Collector collector = new EarlyTerminatingCollector(EMPTY_COLLECTOR, numHits, true);
-                return SingleThreadCollectorManagerFactory.wrap(MultiCollector.wrap(collector, in.newCollector()));
+                return new SingleThreadCollectorManager(MultiCollector.wrap(collector, in.newCollector()));
             }
         };
     }

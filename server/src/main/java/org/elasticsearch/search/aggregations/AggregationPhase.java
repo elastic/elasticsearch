@@ -17,7 +17,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
 import org.elasticsearch.search.query.QueryPhase;
-import org.elasticsearch.search.query.SingleThreadCollectorManagerFactory;
+import org.elasticsearch.search.query.SingleThreadCollectorManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,9 +51,9 @@ public class AggregationPhase {
             } catch (IOException e) {
                 throw new AggregationExecutionException("Could not perform time series aggregation", e);
             }
-            context.registerAggsCollectorManager(SingleThreadCollectorManagerFactory.wrap(BucketCollector.NO_OP_COLLECTOR));
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(BucketCollector.NO_OP_COLLECTOR));
         } else {
-            CollectorManager<Collector, Void> collectorManager = SingleThreadCollectorManagerFactory.wrap(bucketCollector.asCollector());
+            CollectorManager<Collector, Void> collectorManager = new SingleThreadCollectorManager(bucketCollector.asCollector());
             if (context.getProfilers() != null) {
                 context.registerAggsCollectorManager(
                     new InternalProfileCollectorManager(collectorManager, CollectorResult.REASON_AGGREGATION, List.of())

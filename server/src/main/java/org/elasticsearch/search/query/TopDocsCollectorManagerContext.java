@@ -111,7 +111,7 @@ public abstract class TopDocsCollectorManagerContext extends QueryCollectorManag
         @Override
         CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) {
             assert in == null;
-            return SingleThreadCollectorManagerFactory.wrap(collector);
+            return new SingleThreadCollectorManager(collector);
         }
 
         @Override
@@ -165,7 +165,7 @@ public abstract class TopDocsCollectorManagerContext extends QueryCollectorManag
         @Override
         CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) {
             assert in == null;
-            return SingleThreadCollectorManagerFactory.wrap(topDocsCollector);
+            return new SingleThreadCollectorManager(topDocsCollector);
         }
 
         @Override
@@ -271,7 +271,7 @@ public abstract class TopDocsCollectorManagerContext extends QueryCollectorManag
         @Override
         CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) {
             assert in == null;
-            return SingleThreadCollectorManagerFactory.wrap(collector);
+            return new SingleThreadCollectorManager(collector);
         }
 
         TopDocsAndMaxScore newTopDocs() {

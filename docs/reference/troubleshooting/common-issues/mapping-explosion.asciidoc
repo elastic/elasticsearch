@@ -1,0 +1,140 @@
+[[mapping-explosion]]
+=== Mapping Explosion
+
+{es}'s search and {k} <<https://www.elastic.co/guide/en/kibana/current/discover.html,Discover>>'s Javascript rendering are 
+dependent on the search's backing index's or indices' total amount of 
+<<mapping-types,mapped fields>>, of all mapping depths. When this total 
+amount is too high or is exponentially climbing, we refer to it as 
+experiencing mapping explosion. Field counts going this high are uncommon 
+and usually suggest an upstream document formatting issue as 
+<<https://www.elastic.co/blog/found-crash-elasticsearch#mapping-explosion, shown in this blog>>. 
+
+Mapping explosion may surface as the following performance symptoms:
+
+* <<cat-nodes,CAT Nodes>> reporting high heap or CPU on master node 
+and/or nodes hosting the index's or indices' shards. This may potentially 
+escalate to temporary node unresponsiveness and/or master overwhelm.
+
+* <<cat-tasks,CAT Tasks>> reporting long search durations only related to 
+this index or indices, even on simple searches. 
+
+* <<cat-tasks,CAT Tasks>> reporting long index durations only related to 
+this index or indices. This usually correlates relates to <<cluster-pending,Pending Tasks>> 
+reporting that the coordinating node is waiting all other nodes to 
+confirm its on mapping update request.
+
+* Discover's "Fields for Wildcard" page-loading API command or <<https://www.elastic.co/guide/en/kibana/current/console-kibana.html,Dev Tool>>'s 
+page-refreshing Autocomplete API commands taking a long time (>10s) or 
+timing out in the browser Dev Tools' Network tab.
+
+* Discover's left-side drawer "Available Fields" taking a long time to 
+Javascript compile in the browser Dev Tools' Performance tab. This may 
+potentially escalate to temporary browser page unresponsiveness.
+
+* Long Elasticsearch start-up durations. See <<https://github.com/elastic/elasticsearch/issues/83203,this discussion>>.
+
+[discrete]
+[[prevent]]
+==== Prevent or Prepare
+
+<<mapping,Mappings>> cannot be field-reduced once initialized. 
+Elasticsearch indices default to <<dynamic-mapping,dynamic mappings>> which 
+doesn't normally cause problems unless it's combined with overriding 
+<<mapping-settings-limit,`index.mapping.total_fields.limit`>>. The 
+default `1000` limit is considered generous, though overriding to `10000` 
+doesn't induce noticable impact depending on use case. However, to give 
+an egregious example, overriding to `100000` and this limit being hit 
+by mapping totals would usually ensure strong performance implications. 
+
+If your index mapped fields expect to contain a large, arbitrary set of 
+keys, you may instead consider: 
+
+* Using the <<flattened,flattened>> data type. Please note, 
+however, that flattened objects is <<https://github.com/elastic/kibana/issues/25820,not fully supported in Kibana>> 
+yet. For example, this could apply to sub-mappings like { `host.name` , 
+`host.os`, `host.version` }. Desired fields can still be accessed by 
+<<runtime-search-request,Runtime Fields>>.
+
+* Using the <<object,object data type. This is helpful when you're 
+interested in storing but not searching a goup of fields. This is commonly 
+used for unknown upstream scenarios which may induce however may fields. 
+For example, this is recommended when sub-mappings start showing new, 
+unexpected fields like { `o365.a01`, `o365.a02`, `o365.b01`, `o365.c99`}. 
+
+* Setting <<mapping-index,`index:false`>> to disable a particular field's 
+searchability. This cannot effect current index mapping, but can apply 
+going forward via an <<index-templates,Index Template>>.
+
+Modifying to the <<nested,nested>> data type would not resolve the core 
+issue. 
+
+[discrete]
+[[check]]
+==== Check for issue
+
+To confirm the field totals of an index to check for mapping explosion:
+
+* Check Elasticsearch cluster logs for errors `Limit of total fields 
+[X] in index [Y] has been exceeded` where `X` is the value of 
+`index.mapping.total_fields.limit` and `Y` is your index.
+
+* For top-level fields, poll <<search-field-caps,Field Capacilities>> 
+for `fields=*`.
+
+* Search the output of <<indices-get-mapping,Get Mapping>> for `"type"`.
+
+* If you're inclined to use the <<https://stedolan.github.io/jq,third-party tool JQ>>, 
+you can process the <<indices-get-mapping,Get Mapping>> `mapping.json` 
+output
+[source]
+----
+$ cat mapping.json | jq -c 'to_entries[]| .key as $index| [.value.mappings| to_entries[]| {(.key):([.value|..|.type?|select(.!=null)]|length)}]| map(to_entries)| flatten| from_entries| ([to_entries[].value]|add)| {index: $index, field_count: .}'
+----
+
+[discrete]
+[[complex]]
+==== Complex Explosions
+
+Mapping Explosion also covers when an individual index field totals are 
+within limits but combined indices fields total very high. It's very 
+common for symptoms to first be noticed on an Index Pattern or 
+<<https://www.elastic.co/guide/en/kibana/current/data-views.html,Data View>> 
+and be traced back to an individual index or a subset of indices via the 
+<<indices-resolve-index-api,Resolve Index>>.
+
+However, though less common, it is possible to only experience Mapping 
+Explosion on the combination of backing indices. For example, if a 
+<<data-streams,Data Stream>>'s backing indices are all at field total 
+limit but each contain unique fields from one another. 
+
+This synergistic situation most easily surfaces by adding a <<https://www.elastic.co/guide/en/kibana/current/data-views.html,Data View>> 
+and checking its "Fields" tab for its total fields count. This statistic 
+does tells you overall fields and not only where <<mapping-index,`index:true`>>, 
+but serves as a good baseline. If your issue only surfaces via a <<https://www.elastic.co/guide/en/kibana/current/data-views.html,Data View>>, 
+you may consider this menu's "Field Filter" if you're not using 
+<<mapping-types.html,multi-fields>>.
+
+
+[discrete]
+[[resolve]]
+==== Resolve
+
+Mapping Explosion is not easily resolved, so it is better prevented via 
+the above. Encountering it usually indicates unexpected upstream data 
+changes or planning failures. If encountered, we recommend reviewing your 
+data architecture. The following options are supplementle to the ones 
+discussed earlier on this page; they should be applied as best use-case 
+applicable:
+
+* Disable <<dynamic-mapping,dynamic mappings>>.
+
+* <<docs-reindex,Reindex>> into an index with a corrected mapping, 
+either via <<index-templates,Index Template>> or <<explicit-mapping,explicitly set>>.
+
+* If index is unneeded/historical, consider <<indices-delete-index,deleting>>.
+
+* <<https://www.elastic.co/guide/en/logstash/current/plugins-inputs-elasticsearch.html,Export>> and <<https://www.elastic.co/guide/en/logstash/current/plugins-outputs-elasticsearch.html,re-import>> data into a mapping-corrected index after <<https://www.elastic.co/guide/en/logstash/current/plugins-filters-prune.html,pruning>> 
+problematic fields via Logstash.
+
+<<indices-split-index,Splitting Index>> would not resolve the core 
+issue. 

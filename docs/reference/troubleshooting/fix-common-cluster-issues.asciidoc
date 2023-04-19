@@ -40,6 +40,11 @@ misconfigured allocation settings to lack of disk space.
 A cluster in which nodes leave unexpectedly is unstable and can create several 
 issues.
 
+<<mapping-explosion,Mapping Explosion>>::
+A cluster in which an index or index pattern as exploded with a high count of 
+mapping fields which causes performance look-up issues for Elasticsearch and 
+Kibana.
+
 include::common-issues/disk-usage-exceeded.asciidoc[]
 include::common-issues/circuit-breaker-errors.asciidoc[]
 include::common-issues/high-cpu-usage.asciidoc[]
@@ -48,3 +53,4 @@ include::common-issues/red-yellow-cluster-status.asciidoc[]
 include::common-issues/rejected-requests.asciidoc[]
 include::common-issues/task-queue-backlog.asciidoc[]
 include::common-issues/diagnose-unassigned-shards.asciidoc[]
+include::common-issues/mapping-explosion.asciidoc[]

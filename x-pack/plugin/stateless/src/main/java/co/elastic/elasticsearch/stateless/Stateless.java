@@ -242,7 +242,9 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             ObjectStoreService.BASE_PATH_SETTING,
             IndexEngine.INDEX_FLUSH_INTERVAL_SETTING,
             ObjectStoreService.OBJECT_STORE_SHUTDOWN_TIMEOUT,
-            TranslogReplicator.FLUSH_INTERVAL_SETTING
+            TranslogReplicator.FLUSH_INTERVAL_SETTING,
+            StoreHeartbeatService.HEARTBEAT_FREQUENCY,
+            StoreHeartbeatService.MAX_MISSED_HEARTBEATS
         );
     }
 

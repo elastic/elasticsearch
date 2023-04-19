@@ -153,9 +153,10 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                             + policy.getName()
                             + "] had ["
                             + policy.getInvocationsSinceLastSuccess()
-                            + "] repeated failures without successful execution since ["
-                            + FORMATTER.formatMillis(policy.getLastSuccess().getSnapshotStartTimestamp())
-                            + "]"
+                            + "] repeated failures without successful execution"
+                            + (policy.getLastSuccess().getSnapshotStartTimestamp() != null
+                                ? " since [" + FORMATTER.formatMillis(policy.getLastSuccess().getSnapshotStartTimestamp()) + "]"
+                                : "")
                     )
                     .collect(Collectors.joining("\n"));
                 String cause = (unhealthyPolicies.size() > 1

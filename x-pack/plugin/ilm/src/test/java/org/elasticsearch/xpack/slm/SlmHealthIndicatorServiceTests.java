@@ -145,7 +145,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var clusterState = createClusterStateWith(
             new SnapshotLifecycleMetadata(
                 createSlmPolicyWithInvocations(
-                    snapshotInvocation(execTime, execTime + 1000L),
+                    snapshotInvocation(randomBoolean() ? null : execTime, execTime + 1000L),
                     snapshotInvocation(null, execTime + window + 1000L),
                     randomLongBetween(0, 4)
                 ),
@@ -174,10 +174,11 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         long execTime = System.currentTimeMillis();
         long window = TimeUnit.HOURS.toMillis(24) + 5000L; // 24 hours and some extra room.
         long failedInvocations = randomLongBetween(5L, Long.MAX_VALUE);
+        Long startTime = randomBoolean() ? null : execTime;
         var clusterState = createClusterStateWith(
             new SnapshotLifecycleMetadata(
                 createSlmPolicyWithInvocations(
-                    snapshotInvocation(execTime, execTime + 1000L),
+                    snapshotInvocation(startTime, execTime + 1000L),
                     snapshotInvocation(null, execTime + window + 1000L),
                     failedInvocations
                 ),
@@ -218,12 +219,17 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new Diagnosis(
                             SlmHealthIndicatorService.checkRecentlyFailedSnapshots(
-                                "An automated snapshot policy is unhealthy:\n"
-                                    + "- [test-policy] had ["
-                                    + failedInvocations
-                                    + "] repeated failures without successful execution since ["
-                                    + FORMATTER.formatMillis(execTime)
-                                    + "]",
+                                startTime != null
+                                    ? "An automated snapshot policy is unhealthy:\n"
+                                        + "- [test-policy] had ["
+                                        + failedInvocations
+                                        + "] repeated failures without successful execution since ["
+                                        + FORMATTER.formatMillis(execTime)
+                                        + "]"
+                                    : "An automated snapshot policy is unhealthy:\n"
+                                        + "- [test-policy] had ["
+                                        + failedInvocations
+                                        + "] repeated failures without successful execution",
                                 "Check the snapshot lifecycle policy for detailed failure info:\n- GET /_slm/policy/policy-id?human"
                             ),
                             List.of(new Diagnosis.Resource(Type.SLM_POLICY, List.of("test-policy")))

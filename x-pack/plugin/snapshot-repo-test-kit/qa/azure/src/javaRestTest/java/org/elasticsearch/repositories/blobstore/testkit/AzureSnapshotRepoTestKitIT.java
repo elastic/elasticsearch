@@ -8,7 +8,6 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import fixture.azure.AzureHttpFixture;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;

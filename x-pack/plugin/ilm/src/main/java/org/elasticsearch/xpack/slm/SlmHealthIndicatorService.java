@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -133,6 +134,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 .values()
                 .stream()
                 .filter(metadata -> snapshotFailuresExceedWarningCount(failedSnapshotWarnThreshold, metadata))
+                .sorted(Comparator.comparing(SnapshotLifecyclePolicyMetadata::getName))
                 .toList();
 
             if (unhealthyPolicies.size() > 0) {
@@ -154,7 +156,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                             + "] had ["
                             + policy.getInvocationsSinceLastSuccess()
                             + "] repeated failures without successful execution"
-                            + (policy.getLastSuccess().getSnapshotStartTimestamp() != null
+                            + (policy.getLastSuccess() != null && policy.getLastSuccess().getSnapshotStartTimestamp() != null
                                 ? " since [" + FORMATTER.formatMillis(policy.getLastSuccess().getSnapshotStartTimestamp()) + "]"
                                 : "")
                     )

@@ -131,8 +131,7 @@ public class TDigestStateTests extends ESTestCase {
         assertTrue(set.stream().anyMatch(digest -> digest.equals(empty2)));
     }
 
-    // NOCOMMIT: put a real test name here
-    public void testSomeStuff() {
+    public void testBasicAssumptions() {
         int size = 7;
         TDigestState[] states = new TDigestState[size];
         for (int counter = 0; counter < size; counter++) {

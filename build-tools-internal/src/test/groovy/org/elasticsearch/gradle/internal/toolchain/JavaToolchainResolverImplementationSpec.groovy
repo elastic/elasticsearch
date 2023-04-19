@@ -117,7 +117,7 @@ class JavaToolchainResolverImplementationSpec extends Specification {
         given:
         def resolver = resolverImplementation()
         when:
-        Optional<JavaToolchainDownload> download = resolver.resolve(request(JavaLanguageVersion.of(19)))
+        Optional<JavaToolchainDownload> download = resolver.resolve(request(JavaLanguageVersion.of(16)))
         then:
         download.isEmpty()
     }

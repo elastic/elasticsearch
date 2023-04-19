@@ -77,6 +77,7 @@ import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.shard.UnpromotableRefreshService;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -704,7 +705,12 @@ public class IndexModuleTests extends ESTestCase {
             IndexService indexService = newIndexService(module);
             closeables.add(() -> indexService.close("close index service at end of test", false));
 
-            IndexShard indexShard = indexService.createShard(shardRouting, s -> {}, RetentionLeaseSyncer.EMPTY);
+            IndexShard indexShard = indexService.createShard(
+                shardRouting,
+                s -> {},
+                RetentionLeaseSyncer.EMPTY,
+                UnpromotableRefreshService.EMPTY
+            );
             closeables.add(() -> indexShard.close("close shard at end of test", true));
             indexShard.markAsRecovering(
                 "test",
@@ -824,7 +830,12 @@ public class IndexModuleTests extends ESTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
             ShardRouting.Role.DEFAULT
         ).initialize("_node_id", null, -1);
-        IndexShard indexShard = indexService.createShard(shardRouting, s -> {}, RetentionLeaseSyncer.EMPTY);
+        IndexShard indexShard = indexService.createShard(
+            shardRouting,
+            s -> {},
+            RetentionLeaseSyncer.EMPTY,
+            UnpromotableRefreshService.EMPTY
+        );
         assertThat(indexShard.getReplicationTracker(), instanceOf(CustomReplicationTracker.class));
     }
 

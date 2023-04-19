@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.UnpromotableRefreshService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -124,7 +125,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             newRouting = newRouting.moveToUnassigned(unassignedInfo)
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
-            IndexShard shard = index.createShard(newRouting, s -> {}, RetentionLeaseSyncer.EMPTY);
+            IndexShard shard = index.createShard(newRouting, s -> {}, RetentionLeaseSyncer.EMPTY, UnpromotableRefreshService.EMPTY);
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
             final DiscoveryNode localNode = new DiscoveryNode(

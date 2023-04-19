@@ -22,11 +22,21 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Maps _uid value to its version information. */
-final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
+public final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
     private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
-    private static final class VersionLookup {
+    private final LiveVersionMapArchiver archiver;
+
+    LiveVersionMap() {
+        this(LiveVersionMapArchiver.NOOP_ARCHIVER);
+    }
+
+    LiveVersionMap(LiveVersionMapArchiver archiver) {
+        this.archiver = archiver;
+    }
+
+    public static final class VersionLookup {
 
         /** Tracks bytes used by current map, i.e. what is freed on refresh. For deletes, which are also added to tombstones,
          *  we only account for the CHM entry here, and account for BytesRef/VersionValue against the tombstones, since refresh would not
@@ -56,7 +66,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             this.map = map;
         }
 
-        VersionValue get(BytesRef key) {
+        public VersionValue get(BytesRef key) {
             return map.get(key);
         }
 
@@ -64,7 +74,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             return map.put(key, value);
         }
 
-        boolean isEmpty() {
+        public boolean isEmpty() {
             return map.isEmpty();
         }
 
@@ -90,7 +100,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
     }
 
-    private static final class Maps {
+    private final class Maps {
 
         // All writes (adds and deletes) go into here:
         final VersionLookup current;
@@ -139,6 +149,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
          * builds a new map that invalidates the old map but maintains the current. This should be called in afterRefresh()
          */
         Maps invalidateOldMap() {
+            // TODO: do these two need be synchronized?
+            archiver.afterRefresh(old);
             return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
         }
 
@@ -250,6 +262,10 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
     }
 
+    public void afterFlush(long generation) {
+        archiver.afterFlush(generation);
+    }
+
     /**
      * Returns the live version (add or delete) for this uid.
      */
@@ -266,6 +282,11 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
 
         value = currentMaps.old.get(uid);
+        if (value != null) {
+            return value;
+        }
+
+        value = archiver.get(uid);
         if (value != null) {
             return value;
         }

@@ -42,6 +42,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.UnpromotableRefreshService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -557,6 +558,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             null,
             primaryReplicaSyncer,
             RetentionLeaseSyncer.EMPTY,
+            UnpromotableRefreshService.EMPTY,
             client
         ) {
             @Override

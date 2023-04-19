@@ -29,6 +29,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+import org.elasticsearch.index.shard.UnpromotableRefreshService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndex;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices;
@@ -236,6 +237,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             final Consumer<IndexShard.ShardFailure> onShardFailure,
             final Consumer<ShardId> globalCheckpointSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
+            final UnpromotableRefreshService unpromotableRefreshService,
             final DiscoveryNode targetNode,
             final DiscoveryNode sourceNode
         ) throws IOException {

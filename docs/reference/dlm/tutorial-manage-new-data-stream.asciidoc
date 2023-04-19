@@ -6,47 +6,20 @@ preview::[]
 
 To create a data stream managed by {dlm-init}, follow these steps:
 
-. <<create-lifecycle-component-template>>
 . <<create-index-template-with-lifecycle>>
 . <<create-data-stream-with-lifecycle>>
-
-[discrete]
-[[create-lifecycle-component-template]]
-==== Create a lifecycle component template
-
-A data stream requires a matching index template. In most cases, you compose this index
-template using one or more component templates. The same way you use separate component
-templates for mappings and index settings you can use to configure {dlm}, the respective
-template is called `lifecycle`.
-
-For more information on how to create a component template see the
-<<indices-component-template,create component template API>>.
-
-[source,console]
-----
-# Creates a component template for lifecycle
-PUT _component_template/my-lifecycle
-{
-  "template": {
-    "lifecycle": {
-      "data_retention": "7d"
-    }
-  },
-  "_meta": {
-    "description": "7d data retention template"
-  }
-}
-----
 
 [discrete]
 [[create-index-template-with-lifecycle]]
 ==== Create an index template
 
-Use your component template to create an index template.
+A data stream requires a matching <<index-templates,index template>>. The same way you use index
+templates for mappings and index settings you can use them to configure {dlm}, the respective
+template is called `lifecycle`. You can define an index template that sets a lifecycle as follows:
 
 * Include the `data_stream` object to enable data streams. {dlm-init} is only supported by data streams.
 
-* Add any component templates that are relevant to your data stream along and at least one lifecycle template.
+* Define the lifecycle in the template section or include a composable template that defines the lifecycle.
 
 * A priority higher than `200` to avoid collisions with built-in templates.
 See <<avoid-index-pattern-collisions>>.
@@ -59,14 +32,17 @@ PUT _index_template/my-index-template
 {
   "index_patterns": ["my-data-stream*"],
   "data_stream": { },
-  "composed_of": [ "my-lifecycle" ],
   "priority": 500,
+  "template": {
+    "lifecycle": {
+      "data_retention": "7d"
+    }
+  },
   "_meta": {
     "description": "Template for my DLM managed data stream"
   }
 }
 ----
-// TEST[continued]
 
 [discrete]
 [[create-data-stream-with-lifecycle]]
@@ -129,7 +105,6 @@ be kept at least for 7 days. After that {es} can delete it at its own discretion
 --------------------------------------------------
 DELETE _data_stream/my-data-stream
 DELETE _index_template/my-index-template
-DELETE _component_template/my-lifecycle
 --------------------------------------------------
 // TEST[continued]
 

@@ -20,6 +20,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -54,7 +55,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         ) {
             @Override
             protected long absoluteTimeInMillis() {
@@ -89,7 +90,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         ) {
             @Override
             protected long absoluteTimeInMillis() {
@@ -124,7 +125,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
         var startElection = new AtomicBoolean();

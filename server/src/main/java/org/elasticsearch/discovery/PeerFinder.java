@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -107,7 +106,7 @@ public abstract class PeerFinder {
 
         transportService.registerRequestHandler(
             REQUEST_PEERS_ACTION_NAME,
-            Names.GENERIC,
+            Names.CLUSTER_COORDINATION,
             false,
             false,
             PeersRequest::new,
@@ -287,20 +286,9 @@ public abstract class PeerFinder {
             }
         });
 
-        transportService.getThreadPool().scheduleUnlessShuttingDown(findPeersInterval, Names.GENERIC, new AbstractRunnable() {
+        transportService.getThreadPool().scheduleUnlessShuttingDown(findPeersInterval, Names.CLUSTER_COORDINATION, new Runnable() {
             @Override
-            public boolean isForceExecution() {
-                return true;
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert false : e;
-                logger.debug("unexpected exception in wakeup", e);
-            }
-
-            @Override
-            protected void doRun() {
+            public void run() {
                 synchronized (mutex) {
                     if (handleWakeUp() == false) {
                         return;
@@ -469,7 +457,7 @@ public abstract class PeerFinder {
 
             final List<DiscoveryNode> knownNodes = List.copyOf(getFoundPeersUnderLock());
 
-            final TransportResponseHandler<PeersResponse> peersResponseHandler = new TransportResponseHandler<PeersResponse>() {
+            final TransportResponseHandler<PeersResponse> peersResponseHandler = new TransportResponseHandler<>() {
 
                 @Override
                 public PeersResponse read(StreamInput in) throws IOException {
@@ -507,7 +495,7 @@ public abstract class PeerFinder {
 
                 @Override
                 public String executor() {
-                    return Names.GENERIC;
+                    return Names.CLUSTER_COORDINATION;
                 }
             };
             transportService.sendRequest(

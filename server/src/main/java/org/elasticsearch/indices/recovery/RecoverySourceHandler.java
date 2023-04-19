@@ -274,26 +274,13 @@ public class RecoverySourceHandler {
                         }
                     });
 
-                    final StepListener<ReplicationResponse> deleteRetentionLeaseStep = new StepListener<>();
-                    runUnderPrimaryPermit(() -> {
-                        try {
-                            // If the target previously had a copy of this shard then a file-based recovery might move its global
-                            // checkpoint backwards. We must therefore remove any existing retention lease so that we can create a
-                            // new one later on in the recovery.
-                            shard.removePeerRecoveryRetentionLease(
-                                request.targetNode().getId(),
-                                new ThreadedActionListener<>(shard.getThreadPool().generic(), deleteRetentionLeaseStep)
-                            );
-                        } catch (RetentionLeaseNotFoundException e) {
-                            logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
-                            deleteRetentionLeaseStep.onResponse(null);
-                        }
-                    }, shard, cancellableThreads);
-
-                    deleteRetentionLeaseStep.whenComplete(ignored -> {
+                    // If the target previously had a copy of this shard then a file-based recovery might move its global checkpoint
+                    // backwards. We must therefore remove any existing retention lease so that we can create a new one later on in the
+                    // recovery.
+                    deleteRetentionLease(ActionListener.wrap(ignored -> {
                         assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
                         phase1(safeCommitRef.getIndexCommit(), startingSeqNo, () -> estimateNumOps, sendFileStep);
-                    }, onFailure);
+                    }, onFailure));
 
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "sendFileStep failed", e);
@@ -996,6 +983,26 @@ public class RecoverySourceHandler {
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
                 return newLease;
             }
+        }), shard, cancellableThreads, leaseListener.delegateResponse((l, e) -> outerListener.onFailure(e)));
+    }
+
+    private void deleteRetentionLease(ActionListener<Void> outerListener) {
+        // NB we release the operation permit as soon as we have deleted the lease, but delay the outer listener until it is synced
+        final var leaseListener = new SubscribableListener<Void>();
+        final var delayedListener = new ThreadedActionListener<>(
+            shard.getThreadPool().generic(),
+            outerListener.<Void>delegateFailure((l, ignored) -> leaseListener.addListener(l))
+        );
+
+        runUnderPrimaryPermit(permitListener -> ActionListener.completeWith(permitListener, () -> {
+            try {
+                shard.removePeerRecoveryRetentionLease(request.targetNode().getId(), delayedListener.map(ignored -> null));
+            } catch (RetentionLeaseNotFoundException e) {
+                // this counts as success
+                logger.debug("no peer-recovery retention lease for [{}]", request.targetAllocationId());
+                leaseListener.addListener(outerListener);
+            }
+            return null;
         }), shard, cancellableThreads, leaseListener.delegateResponse((l, e) -> outerListener.onFailure(e)));
     }
 

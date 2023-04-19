@@ -19,18 +19,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.function.LongSupplier;
+import java.util.OptionalLong;
+import java.util.function.Consumer;
 
 public class StoreHeartbeatService implements LeaderHeartbeatService {
     public static final Setting<TimeValue> HEARTBEAT_FREQUENCY = Setting.timeSetting(
-        "heartbeat_frequency",
+        "cluster.stateless.heartbeat_frequency",
         TimeValue.timeValueSeconds(15),
         TimeValue.timeValueSeconds(1),
         Setting.Property.NodeScope
     );
 
     public static final Setting<Integer> MAX_MISSED_HEARTBEATS = Setting.intSetting(
-        "max_missed_heartbeats",
+        "cluster.stateless.max_missed_heartbeats",
         2,
         1,
         Setting.Property.NodeScope
@@ -41,8 +42,9 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
     private final HeartbeatStore heartbeatStore;
     private final ThreadPool threadPool;
     private final TimeValue heartbeatFrequency;
+    private final TimeValue retryAfterTermReadFailureDelay;
     private final TimeValue maxTimeSinceLastHeartbeat;
-    private final LongSupplier currentTermSupplier;
+    private final Consumer<ActionListener<OptionalLong>> currentTermSupplier;
 
     private volatile HeartbeatTask heartbeatTask;
 
@@ -50,7 +52,7 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
         HeartbeatStore heartbeatStore,
         ThreadPool threadPool,
         Settings settings,
-        LongSupplier currentTermSupplier
+        Consumer<ActionListener<OptionalLong>> currentTermSupplier
     ) {
         TimeValue heartbeatFrequency = HEARTBEAT_FREQUENCY.get(settings);
         return new StoreHeartbeatService(
@@ -67,11 +69,12 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
         ThreadPool threadPool,
         TimeValue heartbeatFrequency,
         TimeValue maxTimeSinceLastHeartbeat,
-        LongSupplier currentTermSupplier
+        Consumer<ActionListener<OptionalLong>> currentTermSupplier
     ) {
         this.heartbeatStore = heartbeatStore;
         this.threadPool = threadPool;
         this.heartbeatFrequency = heartbeatFrequency;
+        this.retryAfterTermReadFailureDelay = TimeValue.timeValueMillis(heartbeatFrequency.millis() / 2);
         this.maxTimeSinceLastHeartbeat = maxTimeSinceLastHeartbeat;
         this.currentTermSupplier = currentTermSupplier;
     }
@@ -113,14 +116,15 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
 
     private class HeartbeatTask extends ActionRunnable<Long> {
         private final long heartbeatTerm;
-        private final ActionListener<Void> rerunListener;
+        private final ActionListener<TimeValue> rerunListener;
 
         HeartbeatTask(long heartbeatTerm, ActionListener<Long> listener) {
             super(listener);
+            assert 0 < heartbeatTerm : heartbeatTerm;
             this.heartbeatTerm = heartbeatTerm;
-            this.rerunListener = listener.delegateFailure((l, v) -> {
+            this.rerunListener = listener.delegateFailure((l, scheduleDelay) -> {
                 try {
-                    threadPool.schedule(HeartbeatTask.this, heartbeatFrequency, ThreadPool.Names.GENERIC);
+                    threadPool.schedule(HeartbeatTask.this, scheduleDelay, ThreadPool.Names.GENERIC);
                 } catch (Exception e) {
                     l.onFailure(e);
                 }
@@ -134,13 +138,22 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
                 return;
             }
 
-            final var registerTerm = currentTermSupplier.getAsLong();
-            if (registerTerm == heartbeatTerm) {
-                heartbeatStore.writeHeartbeat(new Heartbeat(heartbeatTerm, absoluteTimeInMillis()), rerunListener);
-            } else {
-                assert heartbeatTerm < registerTerm;
-                listener.onResponse(registerTerm);
-            }
+            currentTermSupplier.accept(rerunListener.delegateFailure((delegate, registerTermOpt) -> {
+                if (registerTermOpt.isEmpty()) {
+                    rerunListener.onResponse(retryAfterTermReadFailureDelay);
+                } else {
+                    final var registerTerm = registerTermOpt.getAsLong();
+                    if (registerTerm == heartbeatTerm) {
+                        heartbeatStore.writeHeartbeat(
+                            new Heartbeat(heartbeatTerm, absoluteTimeInMillis()),
+                            rerunListener.map(unused -> heartbeatFrequency)
+                        );
+                    } else {
+                        assert heartbeatTerm < registerTerm : heartbeatTerm + " vs " + registerTerm;
+                        listener.onResponse(registerTerm);
+                    }
+                }
+            }));
         }
     }
 }

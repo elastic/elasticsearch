@@ -79,6 +79,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory()),
             entry(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.scriptService)),
             entry(RenameProcessor.TYPE, new RenameProcessor.Factory(parameters.scriptService)),
+            entry(RerouteProcessor.TYPE, new RerouteProcessor.Factory()),
             entry(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService)),
             entry(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService)),
             entry(SortProcessor.TYPE, new SortProcessor.Factory()),

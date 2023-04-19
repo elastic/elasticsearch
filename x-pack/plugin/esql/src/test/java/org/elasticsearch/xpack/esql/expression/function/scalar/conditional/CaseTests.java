@@ -48,7 +48,8 @@ public class CaseTests extends AbstractFunctionTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "CaseEvaluator[resultType=BYTES_REF, children=[Attribute[channel=0], Attribute[channel=1], Attribute[channel=2]]]";
+        return "CaseEvaluator[resultType=BYTES_REF, "
+            + "conditions=[ConditionEvaluator[condition=Attribute[channel=0], value=Attribute[channel=1]]], elseVal=Attribute[channel=2]]";
     }
 
     @Override
@@ -149,13 +150,17 @@ public class CaseTests extends AbstractFunctionTestCase {
             "fourth argument of [<case>] must be [integer], found value [hi] type [keyword]",
             resolveCase(true, 1, false, "hi", 5).message()
         );
+        assertEquals(
+            "argument of [<case>] must be [integer], found value [hi] type [keyword]",
+            resolveCase(true, 1, false, 2, true, 5, "hi").message()
+        );
     }
 
     public void testCaseIsLazy() {
         Case caseExpr = caseExpr(true, 1, true, 2);
         assertEquals(1, valueAt(caseExpr.toEvaluator(child -> {
             Object value = child.fold();
-            if (value.equals(2)) {
+            if (value != null && value.equals(2)) {
                 return () -> page -> {
                     fail("Unexpected evaluation of 4th argument");
                     return null;

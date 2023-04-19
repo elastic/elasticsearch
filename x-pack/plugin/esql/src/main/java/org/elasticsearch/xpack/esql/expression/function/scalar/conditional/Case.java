@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -32,11 +34,20 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
 public class Case extends ScalarFunction implements Mappable {
+    record Condition(Expression condition, Expression value) {}
 
+    private final List<Condition> conditions;
+    private final Expression elseValue;
     private DataType dataType;
 
     public Case(Source source, List<Expression> fields) {
         super(source, fields);
+        int conditionCount = fields.size() / 2;
+        conditions = new ArrayList<>(conditionCount);
+        for (int c = 0; c < conditionCount; c++) {
+            conditions.add(new Condition(fields.get(c * 2), fields.get(c * 2 + 1)));
+        }
+        elseValue = fields.size() % 2 == 0 ? new Literal(source, null, NULL) : fields.get(fields.size() - 1);
     }
 
     @Override
@@ -57,41 +68,39 @@ public class Case extends ScalarFunction implements Mappable {
             return new TypeResolution(format(null, "expected at least two arguments in [{}] but got {}", sourceText(), children().size()));
         }
 
-        for (int i = 0; i + 1 < children().size(); i += 2) {
-            Expression condition = children().get(i);
-            TypeResolution resolution = TypeResolutions.isBoolean(condition, sourceText(), TypeResolutions.ParamOrdinal.fromIndex(i));
+        for (int c = 0; c < conditions.size(); c++) {
+            Condition condition = conditions.get(c);
+
+            TypeResolution resolution = TypeResolutions.isBoolean(
+                condition.condition,
+                sourceText(),
+                TypeResolutions.ParamOrdinal.fromIndex(c * 2)
+            );
             if (resolution.unresolved()) {
                 return resolution;
             }
 
-            resolution = resolveValueTypeAt(i + 1);
+            resolution = resolveValueType(condition.value, c * 2 + 1);
             if (resolution.unresolved()) {
                 return resolution;
             }
         }
 
-        if (children().size() % 2 == 1) { // check default value
-            return resolveValueTypeAt(children().size() - 1);
-        }
-
-        return TypeResolution.TYPE_RESOLVED;
+        return resolveValueType(elseValue, conditions.size() * 2);
     }
 
-    private TypeResolution resolveValueTypeAt(int index) {
-        Expression value = children().get(index);
+    private TypeResolution resolveValueType(Expression value, int position) {
         if (dataType == null || dataType == NULL) {
             dataType = value.dataType();
-        } else {
-            return TypeResolutions.isType(
-                value,
-                t -> t == dataType,
-                sourceText(),
-                TypeResolutions.ParamOrdinal.fromIndex(index),
-                dataType.typeName()
-            );
+            return TypeResolution.TYPE_RESOLVED;
         }
-
-        return TypeResolution.TYPE_RESOLVED;
+        return TypeResolutions.isType(
+            value,
+            t -> t == dataType,
+            sourceText(),
+            TypeResolutions.ParamOrdinal.fromIndex(position),
+            dataType.typeName()
+        );
     }
 
     @Override
@@ -116,48 +125,58 @@ public class Case extends ScalarFunction implements Mappable {
 
     @Override
     public boolean foldable() {
-        for (int c = 0; c + 1 < children().size(); c += 2) {
-            Expression child = children().get(c);
-            if (child.foldable() == false) {
+        for (Condition condition : conditions) {
+            if (condition.condition.foldable() == false) {
                 return false;
             }
-            Boolean b = (Boolean) child.fold();
+            Boolean b = (Boolean) condition.condition.fold();
             if (b != null && b) {
-                return children().get(c + 1).foldable();
+                return condition.value.foldable();
             }
         }
-        if (children().size() % 2 == 0) {
-            return true;
-        }
-        return children().get(children().size() - 1).foldable();
+        return elseValue.foldable();
     }
 
     @Override
     public Object fold() {
-        for (int c = 0; c + 1 < children().size(); c += 2) {
-            Expression child = children().get(c);
-            Boolean b = (Boolean) child.fold();
+        // TODO can we partially fold? like CASE(false, foo, bar) -> bar
+        for (Condition condition : conditions) {
+            Boolean b = (Boolean) condition.condition.fold();
             if (b != null && b) {
-                return children().get(c + 1).fold();
+                return condition.value.fold();
             }
         }
-        if (children().size() % 2 == 0) {
-            return null;
-        }
-        return children().get(children().size() - 1).fold();
+        return elseValue.fold();
     }
 
     @Override
     public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {
+        List<ConditionEvaluatorSupplier> conditionsEval = conditions.stream()
+            .map(c -> new ConditionEvaluatorSupplier(toEvaluator.apply(c.condition), toEvaluator.apply(c.value)))
+            .toList();
+        Supplier<EvalOperator.ExpressionEvaluator> elseValueEval = toEvaluator.apply(elseValue);
         return () -> new CaseEvaluator(
             LocalExecutionPlanner.toElementType(dataType()),
-            children().stream().map(toEvaluator).map(Supplier::get).toList()
+            conditionsEval.stream().map(Supplier::get).toList(),
+            elseValueEval.get()
         );
     }
 
-    private record CaseEvaluator(ElementType resultType, List<EvalOperator.ExpressionEvaluator> children)
+    record ConditionEvaluatorSupplier(
+        Supplier<EvalOperator.ExpressionEvaluator> condition,
+        Supplier<EvalOperator.ExpressionEvaluator> value
+    ) implements Supplier<ConditionEvaluator> {
+        @Override
+        public ConditionEvaluator get() {
+            return new ConditionEvaluator(condition.get(), value.get());
+        }
+    }
+
+    record ConditionEvaluator(EvalOperator.ExpressionEvaluator condition, EvalOperator.ExpressionEvaluator value) {}
+
+    private record CaseEvaluator(ElementType resultType, List<ConditionEvaluator> conditions, EvalOperator.ExpressionEvaluator elseVal)
         implements
             EvalOperator.ExpressionEvaluator {
         @Override
@@ -170,24 +189,18 @@ public class Case extends ScalarFunction implements Mappable {
                 Page limited = new Page(
                     IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
                 );
-                for (int c = 0; c + 1 < children.size(); c += 2) {
-                    BooleanBlock condition = (BooleanBlock) children.get(c).eval(limited);
-                    if (condition.isNull(0)) {
+                for (ConditionEvaluator condition : conditions) {
+                    BooleanBlock b = (BooleanBlock) condition.condition.eval(limited);
+                    if (b.isNull(0)) {
                         continue;
                     }
-                    if (false == condition.getBoolean(condition.getFirstValueIndex(0))) {
+                    if (false == b.getBoolean(b.getFirstValueIndex(0))) {
                         continue;
                     }
-                    Block r = children.get(c + 1).eval(limited);
-                    result.copyFrom(r, 0, 1);
+                    result.copyFrom(condition.value.eval(limited), 0, 1);
                     continue position;
                 }
-                if (children().size() % 2 == 0) {
-                    result.appendNull();
-                    continue;
-                }
-                Block r = children.get(children.size() - 1).eval(limited);
-                result.copyFrom(r, 0, 1);
+                result.copyFrom(elseVal.eval(limited), 0, 1);
             }
             return result.build();
         }

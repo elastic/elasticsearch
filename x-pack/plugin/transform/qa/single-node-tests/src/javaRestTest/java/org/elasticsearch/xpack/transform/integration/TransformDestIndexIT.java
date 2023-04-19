@@ -105,6 +105,7 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         assertAliases(destIndex2, destAliasAll, destAliasLatest);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95310")
     public void testTransformDestIndexCreatedDuringUpdate() throws Exception {
         String transformId = "test_dest_index_on_update";
         String destIndex = transformId + "-dest";

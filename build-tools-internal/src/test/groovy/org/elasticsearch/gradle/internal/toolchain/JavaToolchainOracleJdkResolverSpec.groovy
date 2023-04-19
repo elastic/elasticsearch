@@ -108,12 +108,13 @@ class JavaToolchainOracleJdkResolverSpec extends Specification {
     }
 
     JavaToolchainOracleJdkResolver resolverImplementation() {
-        new JavaToolchainOracleJdkResolver() {
+        var toolChain = new JavaToolchainOracleJdkResolver() {
             @Override
             BuildServiceParameters.None getParameters() {
                 return null
             }
         }
+        toolChain.bundledJdkVersion = "20+36@bdc68b4b9cbc4ebcb30745c85038d91d"
     }
 
     static class TestBuildPlatform implements BuildPlatform {

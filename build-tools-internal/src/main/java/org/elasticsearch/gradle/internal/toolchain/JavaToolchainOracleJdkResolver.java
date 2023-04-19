@@ -33,6 +33,9 @@ public abstract class JavaToolchainOracleJdkResolver implements JavaToolchainRes
 
     private static final Map<Integer, String> ARCHIVED_BASE_VERSIONS = Maps.of(19, "19.0.2", 18, "18.0.2.1", 17, "17.0.7");
 
+    // for testing reasons we keep that a package private field
+    String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
+
     /**
      * We need some place to map JavaLanguageVersion to build, minor version etc.
      * */
@@ -58,7 +61,6 @@ public abstract class JavaToolchainOracleJdkResolver implements JavaToolchainRes
      * This resolves the oracle built openjdk
      * */
     private Optional<JavaToolchainDownload> resolveCurrentBundledJdkURI(JavaToolchainRequest request) {
-        String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
         Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(bundledJdkVersion);
         jdkVersionMatcher.matches();
         String bundledMajor = jdkVersionMatcher.group(1);

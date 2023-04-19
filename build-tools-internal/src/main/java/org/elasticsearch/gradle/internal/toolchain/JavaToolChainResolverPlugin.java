@@ -22,6 +22,6 @@ public abstract class JavaToolChainResolverPlugin implements Plugin<Settings> {
         settings.getPlugins().apply("jvm-toolchain-management");
 
         JavaToolchainResolverRegistry registry = getToolchainResolverRegistry();
-        registry.register(JavaToolchainResolverImplementation.class);
+        registry.register(JavaToolchainOracleJdkResolver.class);
     }
 }

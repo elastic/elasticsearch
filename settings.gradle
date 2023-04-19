@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.internal.toolchain.JavaToolchainResolverImplementation
+import org.elasticsearch.gradle.internal.toolchain.JavaToolchainOracleJdkResolver
 
 pluginManagement {
   repositories {
@@ -29,8 +29,8 @@ dependencyResolutionManagement {
 toolchainManagement {
   jvm {
     javaRepositories {
-      repository('ourJdks') {
-        resolverClass = JavaToolchainResolverImplementation
+      repository('oracleOpendJdk') {
+        resolverClass = JavaToolchainOracleJdkResolver
       }
     }
   }

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
@@ -55,14 +56,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
             CcrSettings.getSettings().stream().filter(Setting::hasNodeScope)
         ).collect(Collectors.toSet());
 
-        final CcrRepository repository = new CcrRepository(
-            repositoryMetadata,
-            mock(Client.class),
-            new CcrLicenseChecker(() -> true, () -> true),
-            Settings.EMPTY,
-            new CcrSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, settings)),
-            mock(ThreadPool.class)
-        );
+        final CcrRepository repository = createCcrRepository(repositoryMetadata, settings);
 
         final ShardId followerShardId = new ShardId(new Index("follower-index-name", "follower-index-uuid"), 0);
         final ShardId leaderShardId = new ShardId(new Index("leader-index-name", "leader-index-uuid"), 0);
@@ -112,6 +106,20 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
         verifyNoMoreInteractions(remoteClient);
     }
 
+    private static CcrRepository createCcrRepository(RepositoryMetadata repositoryMetadata, Set<Setting<?>> settings) {
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        return new CcrRepository(
+            repositoryMetadata,
+            mock(Client.class),
+            new CcrLicenseChecker(() -> true, () -> true),
+            Settings.EMPTY,
+            new CcrSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, settings)),
+            threadPool
+        );
+    }
+
     public void testWhenRetentionLeaseExpiresBeforeWeCanRenewIt() {
         final RepositoryMetadata repositoryMetadata = mock(RepositoryMetadata.class);
         when(repositoryMetadata.name()).thenReturn(CcrRepository.NAME_PREFIX);
@@ -120,14 +128,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
             CcrSettings.getSettings().stream().filter(Setting::hasNodeScope)
         ).collect(Collectors.toSet());
 
-        final CcrRepository repository = new CcrRepository(
-            repositoryMetadata,
-            mock(Client.class),
-            new CcrLicenseChecker(() -> true, () -> true),
-            Settings.EMPTY,
-            new CcrSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, settings)),
-            mock(ThreadPool.class)
-        );
+        final CcrRepository repository = createCcrRepository(repositoryMetadata, settings);
 
         final ShardId followerShardId = new ShardId(new Index("follower-index-name", "follower-index-uuid"), 0);
         final ShardId leaderShardId = new ShardId(new Index("leader-index-name", "leader-index-uuid"), 0);

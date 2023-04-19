@@ -286,7 +286,8 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             .setRefreshPolicy(WAIT_UNTIL)
             .get();
         assertThat(bulkResponse.getItems().length, equalTo(1));
-        assertThat(bulkResponse.getItems()[0].getFailure().getCause(), instanceOf(DocumentMissingException.class));
+        var failure = bulkResponse.getItems()[0].getFailure();
+        assertThat("failure is " + failure, failure.getCause(), instanceOf(DocumentMissingException.class));
     }
 
     public void testSearchShardsNotifiedOnNewCommits() throws Exception {

@@ -29,7 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest endpoint to delete a Role from the security index
  */
-@ServerlessScope(Scope.PUBLIC)
+@ServerlessScope(Scope.INTERNAL)
 public class RestDeleteRoleAction extends SecurityBaseRestHandler {
 
     public RestDeleteRoleAction(Settings settings, XPackLicenseState licenseState) {

@@ -30,7 +30,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest endpoint to add a Role to the security index
  */
-@ServerlessScope(Scope.PUBLIC)
+@ServerlessScope(Scope.INTERNAL)
 public class RestPutRoleAction extends SecurityBaseRestHandler {
 
     public RestPutRoleAction(Settings settings, XPackLicenseState licenseState) {

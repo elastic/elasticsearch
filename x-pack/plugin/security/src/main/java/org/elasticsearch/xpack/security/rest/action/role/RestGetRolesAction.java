@@ -31,7 +31,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Rest endpoint to retrieve a Role from the security index
  */
-@ServerlessScope(Scope.PUBLIC)
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetRolesAction extends SecurityBaseRestHandler {
 
     public RestGetRolesAction(Settings settings, XPackLicenseState licenseState) {

@@ -17,6 +17,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Streamable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
@@ -1359,8 +1360,8 @@ public class JobNodeSelectorTests extends ESTestCase {
         return cs;
     }
 
-    static Collection<DiscoveryNode> shuffled(Collection<DiscoveryNode> nodes) {
-        List<DiscoveryNode> toShuffle = new ArrayList<>(nodes);
+    static Collection<DiscoveryNode> shuffled(Streamable<DiscoveryNode> nodes) {
+        List<DiscoveryNode> toShuffle = new ArrayList<>(nodes.copyToCollection());
         Randomness.shuffle(toShuffle);
         return toShuffle;
     }

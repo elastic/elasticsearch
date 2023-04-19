@@ -42,6 +42,7 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -54,7 +55,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
         Set<String> policyNames = IntStream.range(0, randomIntBetween(1, 10))
             .mapToObj(i -> "test_ " + randomAlphaOfLength(10))
-            .collect(Collectors.toSet());
+            .collect(toSet());
 
         SortedMap<String, AutoscalingPolicyMetadata> policies = new TreeMap<>(
             policyNames.stream()
@@ -198,10 +199,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         assertThat(context.info(), sameInstance(info));
         assertThat(context.snapshotShardSizeInfo(), sameInstance(snapshotShardSizeInfo));
 
-        Set<DiscoveryNodeRole> roles = roleNames.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toSet());
-        Set<DiscoveryNodeRole> otherRoles = mutateRoles(roleNames).stream()
-            .map(DiscoveryNodeRole::getRoleFromRoleName)
-            .collect(Collectors.toSet());
+        Set<DiscoveryNodeRole> roles = roleNames.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(toSet());
+        Set<DiscoveryNodeRole> otherRoles = mutateRoles(roleNames).stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(toSet());
         final long memory = between(0, 1000);
         state = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
@@ -218,7 +217,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         );
 
         assertThat(context.nodes().size(), equalTo(1));
-        assertThat(context.nodes(), equalTo(new HashSet<>(state.nodes())));
+        assertThat(context.nodes(), equalTo(state.nodes().stream().collect(toSet())));
         if (hasDataRole) {
             assertNull(context.currentCapacity());
         } else {

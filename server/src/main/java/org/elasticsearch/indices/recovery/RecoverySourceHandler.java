@@ -999,7 +999,7 @@ public class RecoverySourceHandler {
                 shard.removePeerRecoveryRetentionLease(request.targetNode().getId(), delayedListener.map(ignored -> null));
             } catch (RetentionLeaseNotFoundException e) {
                 // this counts as success
-                logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
+                logger.debug("no peer-recovery retention lease for [{}]", request.targetAllocationId());
                 leaseListener.addListener(outerListener);
             }
             return null;

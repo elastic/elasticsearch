@@ -131,7 +131,8 @@ final class DfsQueryPhase extends SearchPhase {
         }
     }
 
-    private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
+    // package private for testing
+    ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
         SearchSourceBuilder source = request.source();
         if (source == null || source.knnSearch().isEmpty()) {
             return request;

@@ -23,8 +23,8 @@ PUT _data_stream/my-data-stream/_lifecycle
 { } <1>
 ----
 // TEST[setup:my_data_stream]
-<1> An empty payload means that your data stream is still managed and able to support your streaming data but your
-data will never be deleted.
+<1> An empty payload means that your data stream is still managed in order to be able to better store your time series
+data like logs or metrics your data will never be deleted.
 
 * Or you can set the retention period of your choice. For example:
 +
@@ -41,10 +41,10 @@ older than 30 days at its own discretion.
 
 [discrete]
 [[delete-lifecycle]]
-==== "Unmanage" a data stream
+==== Remove lifecycle for a data stream
 
-To "unmanage" a data stream meaning that {dlm-init} will stop managing this data stream you can use the
-<<dlm-delete-lifecycle-request,DELETE lifecycle API>>. For example:
+To remove the lifecycle of a data stream you can use the <<dlm-delete-lifecycle-request,delete lifecycle API>>, removing
+the lifecycle would render this data stream and all its backing indices not managed by {dlm-init}. For example:
 
 [source,console]
 --------------------------------------------------
@@ -53,7 +53,4 @@ DELETE _data_stream/my-data-stream/_lifecycle
 // TEST[continued]
 // TEST[teardown:data_stream_cleanup]
 
-The above request will remove the `lifecycle` configuration from the data stream rendering the data stream itself and
-all its backing indices not managed by {dlm-init}.
-
-The current data lifecycle of the data stream can be retrieved by the <<dlm-get-lifecycle, get lifecycle API>>.
+To check the current data lifecycle of the data stream, you can retrieve it by the <<dlm-get-lifecycle, get lifecycle API>>.

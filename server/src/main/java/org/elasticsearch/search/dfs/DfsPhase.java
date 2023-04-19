@@ -26,7 +26,7 @@ import org.elasticsearch.search.profile.dfs.DfsTimingType;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfiler;
-import org.elasticsearch.search.query.SingleThreadCollectorManager;
+import org.elasticsearch.search.query.SingleThreadCollectorManagerFactory;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -178,7 +178,7 @@ public class DfsPhase {
         for (int i = 0; i < knnSearch.size(); i++) {
             Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(knnSearch.get(i).k(), Integer.MAX_VALUE);
-            CollectorManager<Collector, Void> collectorManager = SingleThreadCollectorManager.wrap(topScoreDocCollector);
+            CollectorManager<Collector, Void> collectorManager = SingleThreadCollectorManagerFactory.wrap(topScoreDocCollector);
             if (context.getProfilers() != null) {
                 InternalProfileCollectorManager ipcm = new InternalProfileCollectorManager(
                     collectorManager,

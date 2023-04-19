@@ -111,7 +111,7 @@ public abstract class TopDocsCollectorManagerContext extends QueryCollectorManag
         @Override
         CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) {
             assert in == null;
-            return SingleThreadCollectorManager.wrap(collector);
+            return SingleThreadCollectorManagerFactory.wrap(collector);
         }
 
         @Override
@@ -165,7 +165,7 @@ public abstract class TopDocsCollectorManagerContext extends QueryCollectorManag
         @Override
         CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) {
             assert in == null;
-            return SingleThreadCollectorManager.wrap(topDocsCollector);
+            return SingleThreadCollectorManagerFactory.wrap(topDocsCollector);
         }
 
         @Override
@@ -271,7 +271,7 @@ public abstract class TopDocsCollectorManagerContext extends QueryCollectorManag
         @Override
         CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) {
             assert in == null;
-            return SingleThreadCollectorManager.wrap(collector);
+            return SingleThreadCollectorManagerFactory.wrap(collector);
         }
 
         TopDocsAndMaxScore newTopDocs() {
@@ -410,7 +410,7 @@ public abstract class TopDocsCollectorManagerContext extends QueryCollectorManag
      * Creates a {@link TopDocsCollectorManagerContext} from the provided <code>searchContext</code>.
      * @param hasFilterCollector True if the collector chain contains at least one collector that can filters document.
      */
-    static TopDocsCollectorManagerContext createTopDocsCollectorContext(SearchContext searchContext, boolean hasFilterCollector)
+    static TopDocsCollectorManagerContext createTopDocsCollectorManagerContext(SearchContext searchContext, boolean hasFilterCollector)
         throws IOException {
         final IndexReader reader = searchContext.searcher().getIndexReader();
         final Query query = searchContext.rewrittenQuery();

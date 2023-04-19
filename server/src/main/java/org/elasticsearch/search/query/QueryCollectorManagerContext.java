@@ -50,16 +50,17 @@ abstract class QueryCollectorManagerContext {
      * Creates a collector manager that delegates documents to the provided <code>in</code> collector manager.
      * @param in The delegate collector manager
      */
-    abstract CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in);
+    abstract CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) throws IOException;
 
     /**
      * Wraps this collector manager with a profiler
      */
-    InternalProfileCollectorManager createCollectorManagerWithProfile(InternalProfileCollectorManager in) {
+    InternalProfileCollectorManager createCollectorManagerWithProfile(InternalProfileCollectorManager in) throws IOException {
         return new InternalProfileCollectorManager(createCollectorManager(in), profilerName, in != null ? List.of(in) : List.of());
     }
 
-    public static CollectorManager<Collector, Void> createQueryCollectorManager(List<QueryCollectorManagerContext> collectors) {
+    public static CollectorManager<Collector, Void> createQueryCollectorManager(List<QueryCollectorManagerContext> collectors)
+        throws IOException {
         CollectorManager<Collector, Void> manager = null;
         for (QueryCollectorManagerContext ctx : collectors) {
             manager = ctx.createCollectorManager(manager);
@@ -67,7 +68,8 @@ abstract class QueryCollectorManagerContext {
         return manager;
     }
 
-    public static InternalProfileCollectorManager createQueryCollectorManagerWithProfiler(List<QueryCollectorManagerContext> collectors) {
+    public static InternalProfileCollectorManager createQueryCollectorManagerWithProfiler(List<QueryCollectorManagerContext> collectors)
+        throws IOException {
         InternalProfileCollectorManager manager = null;
         for (QueryCollectorManagerContext ctx : collectors) {
             manager = ctx.createCollectorManagerWithProfile(manager);
@@ -90,19 +92,8 @@ abstract class QueryCollectorManagerContext {
         return new QueryCollectorManagerContext(REASON_SEARCH_MIN_SCORE) {
 
             @Override
-            CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) {
-                return new SingleThreadCollectorManager() {
-                    @Override
-                    protected Collector getNewCollector() throws IOException {
-                        return new MinimumScoreCollector(in.newCollector(), minScore);
-                    }
-
-                    @Override
-                    protected void reduce(Collector collector) throws IOException {
-                        assert collector instanceof MinimumScoreCollector;
-                        in.reduce(List.of(((MinimumScoreCollector) collector).getDelegate()));
-                    }
-                };
+            CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) throws IOException {
+                return SingleThreadCollectorManagerFactory.wrap(new MinimumScoreCollector(in.newCollector(), minScore));
             }
         };
     }
@@ -113,20 +104,9 @@ abstract class QueryCollectorManagerContext {
     static QueryCollectorManagerContext createFilteredCollectorManagerContext(IndexSearcher searcher, Query query) {
         return new QueryCollectorManagerContext(REASON_SEARCH_POST_FILTER) {
             @Override
-            CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) {
-                return new SingleThreadCollectorManager() {
-                    @Override
-                    protected Collector getNewCollector() throws IOException {
-                        final Weight filterWeight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
-                        return new FilteredCollector(in.newCollector(), filterWeight);
-                    }
-
-                    @Override
-                    protected void reduce(Collector collector) throws IOException {
-                        assert collector instanceof FilteredCollector;
-                        in.reduce(List.of(((FilteredCollector) collector).getDelegate()));
-                    }
-                };
+            CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) throws IOException {
+                final Weight filterWeight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                return SingleThreadCollectorManagerFactory.wrap(new FilteredCollector(in.newCollector(), filterWeight));
             }
         };
     }
@@ -135,15 +115,16 @@ abstract class QueryCollectorManagerContext {
      * Creates a multi collector manager from the provided sub-collector
      */
     static QueryCollectorManagerContext createAggsCollectorManagerContext(CollectorManager<Collector, Void> collectorManager) {
+        assert collectorManager != null;
         return new QueryCollectorManagerContext(REASON_SEARCH_MULTI) {
             @Override
-            CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) {
+            CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) throws IOException {
                 assert in != null;
-                return new SingleThreadMultiCollectorManager(List.of(in, collectorManager));
+                return SingleThreadCollectorManagerFactory.wrap(MultiCollector.wrap(in.newCollector(), collectorManager.newCollector()));
             }
 
             @Override
-            InternalProfileCollectorManager createCollectorManagerWithProfile(InternalProfileCollectorManager in) {
+            InternalProfileCollectorManager createCollectorManagerWithProfile(InternalProfileCollectorManager in) throws IOException {
                 final List<InternalProfileCollectorManager> subCollectors = new ArrayList<>();
                 subCollectors.add(in);
                 if (collectorManager instanceof InternalProfileCollectorManager == false) {
@@ -166,10 +147,10 @@ abstract class QueryCollectorManagerContext {
              * can terminate the collection independently of the provided <code>in</code> {@link Collector}.
              */
             @Override
-            CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) {
+            CollectorManager<Collector, Void> createCollectorManager(CollectorManager<Collector, Void> in) throws IOException {
                 assert in != null;
-                Collector collector = new EarlyTerminatingCollector(EMPTY_COLLECTOR, numHits, true);
-                return new SingleThreadMultiCollectorManager(List.of(SingleThreadCollectorManager.wrap(collector), in));
+                final Collector collector = new EarlyTerminatingCollector(EMPTY_COLLECTOR, numHits, true);
+                return SingleThreadCollectorManagerFactory.wrap(MultiCollector.wrap(collector, in.newCollector()));
             }
         };
     }

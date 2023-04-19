@@ -10,16 +10,16 @@ package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
-import org.elasticsearch.search.query.SingleThreadCollectorManager;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 
 /**
  * This class wraps a Lucene Collector Manager. It assumes execution on a single thread
  * so it delegates all the profiling to the generated collector via {@link #getCollectorTree()}.
  */
-public class InternalProfileCollectorManager extends SingleThreadCollectorManager {
+public final class InternalProfileCollectorManager implements CollectorManager<Collector, Void> {
 
     private final CollectorManager<Collector, Void> in;
     private final String profilerName;
@@ -37,16 +37,17 @@ public class InternalProfileCollectorManager extends SingleThreadCollectorManage
     }
 
     @Override
-    protected Collector getNewCollector() throws IOException {
+    public Collector newCollector() throws IOException {
         assert rootCollector == null;
         rootCollector = new InternalProfileCollector(in.newCollector(), profilerName, children);
         return rootCollector;
     }
 
     @Override
-    protected void reduce(Collector collector) throws IOException {
-        assert collector instanceof InternalProfileCollector;
-        in.reduce(List.of(((InternalProfileCollector) collector).getDelegate()));
+    public Void reduce(Collection<Collector> collectors) throws IOException {
+        assert collectors.size() == 1;
+        assert this.rootCollector == collectors.iterator().next();
+        return in.reduce(collectors);
     }
 
     public CollectorResult getCollectorTree() {

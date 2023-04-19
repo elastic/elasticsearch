@@ -41,10 +41,7 @@ import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.search.query.QueryCollectorManagerContext.createAggsCollectorManagerContext;
@@ -53,7 +50,7 @@ import static org.elasticsearch.search.query.QueryCollectorManagerContext.create
 import static org.elasticsearch.search.query.QueryCollectorManagerContext.createMinScoreCollectorManagerContext;
 import static org.elasticsearch.search.query.QueryCollectorManagerContext.createQueryCollectorManager;
 import static org.elasticsearch.search.query.QueryCollectorManagerContext.createQueryCollectorManagerWithProfiler;
-import static org.elasticsearch.search.query.TopDocsCollectorManagerContext.createTopDocsCollectorContext;
+import static org.elasticsearch.search.query.TopDocsCollectorManagerContext.createTopDocsCollectorManagerContext;
 
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
@@ -176,14 +173,22 @@ public class QueryPhase {
                 timeoutRunnable = null;
             }
 
-            searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, timeoutRunnable);
-            ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-            assert executor instanceof EWMATrackingEsThreadPoolExecutor
-                || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
-                : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
-            if (executor instanceof EWMATrackingEsThreadPoolExecutor rExecutor) {
-                queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
-                queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+            try {
+                searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, timeoutRunnable);
+                ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
+                assert executor instanceof EWMATrackingEsThreadPoolExecutor
+                    || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
+                    : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
+                if (executor instanceof EWMATrackingEsThreadPoolExecutor rExecutor) {
+                    queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                    queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
+                }
+            } finally {
+                // Search phase has finished, no longer need to check for timeout
+                // otherwise aggregation phase might get cancelled.
+                if (timeoutRunnable != null) {
+                    searcher.removeQueryCancellation(timeoutRunnable);
+                }
             }
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
@@ -199,7 +204,7 @@ public class QueryPhase {
         Runnable timeoutRunnable
     ) throws IOException {
         // create the top docs collector last when the other collectors are known
-        final TopDocsCollectorManagerContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
+        final TopDocsCollectorManagerContext topDocsFactory = createTopDocsCollectorManagerContext(searchContext, hasFilterCollector);
         // add the top docs collector, the first collector context in the chain
         collectors.addFirst(topDocsFactory);
 
@@ -211,35 +216,10 @@ public class QueryPhase {
         } else {
             manager = createQueryCollectorManager(collectors);
         }
-        final List<Collector> collectedCollectors;
-        if ((timeoutRunnable != null && searchContext.request().allowPartialSearchResults())
-            || searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
-            // We need to handle the case when the execution is exception driven (timeouts and early termination).
-            // In this case, we need to run the reduce phase ourselves, hence we collect
-            // here the top level collectors.
-            collectedCollectors = new ArrayList<>();
-            final CollectorManager<Collector, Void> in = manager;
-            manager = new CollectorManager<>() {
-                @Override
-                public Collector newCollector() throws IOException {
-                    Collector collector = in.newCollector();
-                    collectedCollectors.add(collector);
-                    return collector;
-                }
-
-                @Override
-                public Void reduce(Collection<Collector> collectors) throws IOException {
-                    return in.reduce(collectors);
-                }
-            };
-        } else {
-            collectedCollectors = null;
-        }
         QuerySearchResult queryResult = searchContext.queryResult();
         try {
             searcher.search(query, manager);
         } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
-            executeReductionAfterExceptionDrivenExecution(searcher, timeoutRunnable, manager, collectedCollectors);
             queryResult.terminatedEarly(true);
         } catch (TimeExceededException e) {
             assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
@@ -247,7 +227,6 @@ public class QueryPhase {
                 // Can't rethrow TimeExceededException because not serializable
                 throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
             }
-            executeReductionAfterExceptionDrivenExecution(searcher, timeoutRunnable, manager, collectedCollectors);
             queryResult.searchTimedOut(true);
         }
         if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER && queryResult.terminatedEarly() == null) {
@@ -256,19 +235,6 @@ public class QueryPhase {
         for (QueryCollectorManagerContext ctx : collectors) {
             ctx.postProcess(queryResult);
         }
-    }
-
-    private static void executeReductionAfterExceptionDrivenExecution(
-        ContextIndexSearcher searcher,
-        Runnable timeoutRunnable,
-        CollectorManager<Collector, Void> manager,
-        List<Collector> collectedCollectors
-    ) throws IOException {
-        // Search phase has finished, no longer need to check for timeout
-        // otherwise reduction phase might get cancelled.
-        searcher.removeQueryCancellation(timeoutRunnable);
-        // Reduce our collectors to collect partial results
-        manager.reduce(collectedCollectors);
     }
 
     /**

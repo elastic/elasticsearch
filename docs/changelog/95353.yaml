@@ -2,4 +2,5 @@ pr: 95353
 summary: Enable downsampling of time series index without any metric field
 area: Rollup
 type: bug
-issues: []
+issues:
+ - 95352

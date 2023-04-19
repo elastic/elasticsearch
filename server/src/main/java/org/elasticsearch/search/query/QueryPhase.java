@@ -146,7 +146,6 @@ public class QueryPhase {
                 topDocsFactory.profilerName,
                 null
             );
-            ;
 
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 // add terminate_after before the filter collectors
@@ -181,14 +180,15 @@ public class QueryPhase {
                 List<Collector> subCollectors = new ArrayList<>();
                 subCollectors.add(collector);
                 subCollectors.add(searchContext.getAggsCollector());
-                collector = MultiCollector.wrap(subCollectors);
-                if (searchContext.getProfilers() != null) {
+                if (searchContext.getProfilers() == null) {
+                    collector = MultiCollector.wrap(subCollectors);
+                } else {
                     List<InternalProfileCollector> profileCollectors = List.of(
                         (InternalProfileCollector) collector,
                         (InternalProfileCollector) searchContext.getAggsCollector()
                     );
                     // in this case we pass both collectors as children profile collectors
-                    collector = new InternalProfileCollector(collector, REASON_SEARCH_MULTI, profileCollectors);
+                    collector = new InternalProfileCollector(MultiCollector.wrap(subCollectors), REASON_SEARCH_MULTI, profileCollectors);
                 }
             }
             if (searchContext.minimumScore() != null) {

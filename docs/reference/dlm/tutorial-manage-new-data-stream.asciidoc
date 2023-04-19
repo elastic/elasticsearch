@@ -8,6 +8,7 @@ To create a data stream managed by {dlm-init}, follow these steps:
 
 . <<create-index-template-with-lifecycle>>
 . <<create-data-stream-with-lifecycle>>
+. <<retrieve-lifecycle-information>>
 
 [discrete]
 [[create-index-template-with-lifecycle]]
@@ -27,7 +28,7 @@ See <<avoid-index-pattern-collisions>>.
 You can use the <<indices-put-template,create index template API>>.
 
 [source,console]
-----
+--------------------------------------------------
 PUT _index_template/my-index-template
 {
   "index_patterns": ["my-data-stream*"],
@@ -42,7 +43,7 @@ PUT _index_template/my-index-template
     "description": "Template for my DLM managed data stream"
   }
 }
-----
+--------------------------------------------------
 
 [discrete]
 [[create-data-stream-with-lifecycle]]
@@ -54,36 +55,41 @@ You can create a data stream in two ways:
 still match one of your template's index patterns.
 +
 [source,console]
-----
+--------------------------------------------------
 PUT _data_stream/my-data-stream
-----
+--------------------------------------------------
 // TEST[continued]
 
 . By <<add-documents-to-a-data-stream,indexing requests>> that
 target the stream's name. This name must match one of your index template's index patterns.
 +
 [source,console]
-----
+--------------------------------------------------
 PUT my-data-stream/_bulk
 { "create":{ } }
 { "@timestamp": "2099-05-06T16:21:15.000Z", "message": "192.0.2.42 - - [06/May/2099:16:21:15 +0000] \"GET /images/bg.jpg HTTP/1.0\" 200 24736" }
 { "create":{ } }
 { "@timestamp": "2099-05-06T16:25:42.000Z", "message": "192.0.2.255 - - [06/May/2099:16:25:42 +0000] \"GET /favicon.ico HTTP/1.0\" 200 3638" }
-----
+--------------------------------------------------
 // TEST[continued]
 
-You can use the <<dlm-get-lifecycle,get data stream lifecycle API>> to see the data lifecycle of your data stream.
+[discrete]
+[[retrieve-lifecycle-information]]
+==== Retrieve lifecycle information
+
+You can use the <<dlm-get-lifecycle,get data stream lifecycle API>> to see the data lifecycle of your data stream and
+the <<dlm-explain-lifecycle,explain data lifecycle>> to see the exact state of each backing index.
 
 [source,console]
-----
+--------------------------------------------------
 GET _data_stream/my-data-stream/_lifecycle
-----
+--------------------------------------------------
 // TEST[continued]
 
 The result will look like this:
 
 [source,console-result]
-----
+--------------------------------------------------
 {
   "data_streams": [
     {
@@ -94,11 +100,42 @@ The result will look like this:
     }
   ]
 }
-----
+--------------------------------------------------
 <1> The name of your data stream.
 <2> The retention period of the data indexed in this data stream, this means that the data in this data stream will
 be kept at least for 7 days. After that {es} can delete it at its own discretion.
 
+If you want to see more information about how the individual backing indices are managed by {dlm-init} use the
+following command:
+
+[source,console]
+--------------------------------------------------
+POST .ds-my-data-stream-*/_lifecycle/explain
+--------------------------------------------------
+// TEST[continued]
+The result will look like this:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "indices": {
+    ".ds-my-data-stream-2023.04.19-000001": {
+      "index": ".ds-my-data-stream-2023.04.19-000001",      <1>
+      "managed_by_dlm": true,                               <2>
+      "index_creation_date_millis": 1681918009501,
+      "time_since_index_creation": "1.6m",                  <3>
+      "lifecycle": {                                        <4>
+        "data_retention": "7d"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:the result is for illustrating purposes only]
+<1> The name of the backing index.
+<2> If it is managed by {dlm-init}.
+<3> Time since the index was created.
+<4> The lifecycle configuration that is applied on this backing index.
 
 //////////////////////////
 [source,console]

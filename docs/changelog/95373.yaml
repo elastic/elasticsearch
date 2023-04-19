@@ -1,0 +1,5 @@
+pr: 95373
+summary: "[8.7] Bump bundled JDK to Java 20.0.1"
+area: Packaging
+type: upgrade
+issues: []

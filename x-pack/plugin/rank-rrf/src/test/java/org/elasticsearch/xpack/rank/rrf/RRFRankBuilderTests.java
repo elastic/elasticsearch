@@ -7,12 +7,17 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.util.List;
 
 public class RRFRankBuilderTests extends AbstractXContentSerializingTestCase<RRFRankBuilder> {
 
@@ -48,5 +53,16 @@ public class RRFRankBuilderTests extends AbstractXContentSerializingTestCase<RRF
         parser.nextToken();
         Assert.assertNull(parser.currentToken());
         return builder;
+    }
+
+    public void testCreateRankContexts() {
+        RRFRankBuilder rrfRankBuilder = createTestInstance();
+
+        List<Query> queries = List.of(new TermQuery(new Term("field0", "test0")), new TermQuery(new Term("field1", "test1")));
+        RankShardContext rsc = rrfRankBuilder.buildRankShardContext(queries, randomInt());
+        assertEquals(queries, rsc.queries());
+        assertEquals(rrfRankBuilder.windowSize(), rsc.windowSize());
+
+        assertNotNull(rrfRankBuilder.buildRankCoordinatorContext(randomInt(), randomInt()));
     }
 }

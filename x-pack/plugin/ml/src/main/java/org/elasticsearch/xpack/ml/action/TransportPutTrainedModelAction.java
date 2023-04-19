@@ -307,7 +307,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         if (config.isPackagedModel()) {
             resolvePackageConfig(config.getModelId(), ActionListener.wrap(resolvedModelPackageConfig -> {
                 try {
-                    trainedModelConfig.validateNoPackageOverrides();
+                    TrainedModelValidator.validatePackage(trainedModelConfig, resolvedModelPackageConfig, state);
                 } catch (ValidationException e) {
                     listener.onFailure(e);
                     return;

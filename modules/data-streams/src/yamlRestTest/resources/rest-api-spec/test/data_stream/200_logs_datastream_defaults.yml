@@ -2,12 +2,12 @@
 Verify default logs-*-* settings and mappings:
   - do:
       indices.create_data_stream:
-        name: logs-test-1
+        name: logs-generic-default
   - is_true: acknowledged
 
   - do:
       indices.get_data_stream:
-        name: logs-test-1
+        name: logs-generic-default
   - set: { data_streams.0.indices.0.index_name: idx0name }
 
   # default backing index settings should be "ignore_malformed": true
@@ -35,7 +35,7 @@ Verify default logs-*-* settings and mappings:
 
   - do:
       index:
-        index: logs-test-1
+        index: logs-generic-default
         refresh: true
         body:
           '@timestamp': '2023-04-18'
@@ -44,64 +44,61 @@ Verify default logs-*-* settings and mappings:
   - match: {result: "created"}
 
   - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              message:
+                value: 'valid'
+          fields:
+            - field: 'numeric_field'
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0.fields: 1 }
+  - match: { hits.hits.0.fields.numeric_field.0: 42 }
+
+  - do:
       index:
-        index:  logs-test-1
+        index:  logs-generic-default
         refresh: true
         body:
           '@timestamp': '2023-04-18'
-          message: 'invalid_type_valid_value'
+          message: 'number_as_string'
           numeric_field: "42"
   - match: {result: "created"}
 
   - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              message:
+                value: 'number_as_string'
+          fields:
+            - field: 'numeric_field'
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0.fields: 1 }
+  - match: { hits.hits.0.fields.numeric_field.0: 42 }
+
+  - do:
       index:
-        index:  logs-test-1
+        index:  logs-generic-default
         refresh: true
         body:
           '@timestamp': '2023-04-18'
-          message: 'invalid_type_invalid_value'
+          message: 'invalid'
           numeric_field: "forty-two"
   - match: {result: "created"}
 
   - do:
       search:
-        index: logs-test-1
+        index: logs-generic-default
         body:
           query:
-            match:
+            term:
               message:
-                query: 'valid'
-                fuzziness: '0'
-          fields:
-            - field: 'numeric_field'
-  - length: { hits.hits: 1 }
-  - length: { hits.hits.0.fields: 1 }
-  - match: { hits.hits.0.fields.numeric_field.0: 42 }
-
-  - do:
-      search:
-        index: logs-test-1
-        body:
-          query:
-            match:
-              message:
-                query: 'invalid_type_valid_value'
-                fuzziness: '0'
-          fields:
-            - field: 'numeric_field'
-  - length: { hits.hits: 1 }
-  - length: { hits.hits.0.fields: 1 }
-  - match: { hits.hits.0.fields.numeric_field.0: 42 }
-
-  - do:
-      search:
-        index: logs-test-1
-        body:
-          query:
-            match:
-              message:
-                query: 'invalid_type_invalid_value'
-                fuzziness: '0'
+                value: 'invalid'
           fields:
             - field: 'numeric_field'
   - length: { hits.hits: 1 }

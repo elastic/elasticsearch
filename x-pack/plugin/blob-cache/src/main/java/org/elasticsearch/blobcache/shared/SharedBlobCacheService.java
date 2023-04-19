@@ -622,7 +622,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
-    private record RegionKey<KeyType> (KeyType file, int region) {
+    private record RegionKey<KeyType>(KeyType file, int region) {
         @Override
         public String toString() {
             return "Chunk{" + "file=" + file + ", region=" + region + '}';

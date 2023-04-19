@@ -14,9 +14,8 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.document.KnnByteVectorField;
-import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -177,9 +177,25 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 )
             );
         }
+        // test max limit for non-indexed vectors
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 b.field("type", "dense_vector");
+                b.field("dims", 3000);
+            })));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Failed to parse mapping: "
+                        + "The number of dimensions for field [field] should be in the range [1, 2048] but was [3000]"
+                )
+            );
+        }
+        // test max limit for indexed vectors
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("index", "true");
                 b.field("dims", 3000);
             })));
             assertThat(
@@ -232,9 +248,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.size());
-        assertThat(fields.get(0), instanceOf(KnnFloatVectorField.class));
+        assertThat(fields.get(0), instanceOf(XKnnFloatVectorField.class));
 
-        KnnFloatVectorField vectorField = (KnnFloatVectorField) fields.get(0);
+        XKnnFloatVectorField vectorField = (XKnnFloatVectorField) fields.get(0);
         assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue(), 0.001f);
         assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
     }
@@ -256,9 +272,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.size());
-        assertThat(fields.get(0), instanceOf(KnnByteVectorField.class));
+        assertThat(fields.get(0), instanceOf(XKnnByteVectorField.class));
 
-        KnnByteVectorField vectorField = (KnnByteVectorField) fields.get(0);
+        XKnnByteVectorField vectorField = (XKnnByteVectorField) fields.get(0);
         vectorField.vectorValue();
         assertArrayEquals(
             "Parsed vector is not equal to original.",
@@ -275,7 +291,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             )
         );
         float[] vector = { -12.1f, 2.7f, -4 };
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", vector))));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", vector)))
+        );
         assertNotNull(e.getCause());
         assertThat(
             e.getCause().getMessage(),
@@ -290,7 +309,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             )
         );
         float[] largerVector = { -12.1f, 2.7f, -4, 1.05f, 10.0f, 29.9f };
-        e = expectThrows(MapperParsingException.class, () -> mapperWithLargerDim.parse(source(b -> b.array("field", largerVector))));
+        e = expectThrows(DocumentParsingException.class, () -> mapperWithLargerDim.parse(source(b -> b.array("field", largerVector))));
         assertNotNull(e.getCause());
         assertThat(
             e.getCause().getMessage(),
@@ -308,7 +327,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             )
         );
         float[] vector = { -0.0f, 0.0f, 0.0f };
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", vector))));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", vector)))
+        );
         assertNotNull(e.getCause());
         assertThat(
             e.getCause().getMessage(),
@@ -329,7 +351,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             )
         );
         float[] vector = { -0.0f, 0.0f, 0.0f };
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", vector))));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", vector)))
+        );
         assertNotNull(e.getCause());
         assertThat(
             e.getCause().getMessage(),
@@ -464,16 +489,16 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
             // test that error is thrown when a document has number of dims more than defined in the mapping
             float[] invalidVector = new float[dims + 1];
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
+            DocumentParsingException e = expectThrows(
+                DocumentParsingException.class,
                 () -> mapper.parse(source(b -> b.array("field", invalidVector)))
             );
             assertThat(e.getCause().getMessage(), containsString("has more dimensions than defined in the mapping [3]"));
 
             // test that error is thrown when a document has number of dims less than defined in the mapping
             float[] invalidVector2 = new float[dims - 1];
-            MapperParsingException e2 = expectThrows(
-                MapperParsingException.class,
+            DocumentParsingException e2 = expectThrows(
+                DocumentParsingException.class,
                 () -> mapper.parse(source(b -> b.array("field", invalidVector2)))
             );
             assertThat(
@@ -481,6 +506,67 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 containsString("has a different number of dimensions [2] than defined in the mapping [3]")
             );
         }
+    }
+
+    /**
+     * Test that max dimensions limit for float dense_vector field
+     * is 2048 as defined by {@link XKnnFloatVectorField}
+     */
+    public void testMaxDimsFloatVector() throws IOException {
+        final int dims = 2048;
+        VectorSimilarity similarity = VectorSimilarity.COSINE;
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", similarity))
+        );
+
+        float[] vector = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            vector[i] = randomFloat();
+        }
+        ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", vector)));
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(XKnnFloatVectorField.class));
+        XKnnFloatVectorField vectorField = (XKnnFloatVectorField) fields.get(0);
+        assertEquals(dims, vectorField.fieldType().vectorDimension());
+        assertEquals(VectorEncoding.FLOAT32, vectorField.fieldType().vectorEncoding());
+        assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
+        assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue(), 0.001f);
+    }
+
+    /**
+     * Test that max dimensions limit for byte dense_vector field
+     * is 2048 as defined by {@link XKnnByteVectorField}
+     */
+    public void testMaxDimsByteVector() throws IOException {
+        final int dims = 2048;
+        VectorSimilarity similarity = VectorSimilarity.COSINE;
+        ;
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", dims)
+                    .field("index", true)
+                    .field("similarity", similarity)
+                    .field("element_type", "byte")
+            )
+        );
+
+        byte[] vector = new byte[dims];
+        for (int i = 0; i < dims; i++) {
+            vector[i] = randomByte();
+        }
+        ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", vector)));
+        List<IndexableField> fields = doc1.rootDoc().getFields("field");
+
+        assertEquals(1, fields.size());
+        assertThat(fields.get(0), instanceOf(XKnnByteVectorField.class));
+        XKnnByteVectorField vectorField = (XKnnByteVectorField) fields.get(0);
+        assertEquals(dims, vectorField.fieldType().vectorDimension());
+        assertEquals(VectorEncoding.BYTE, vectorField.fieldType().vectorEncoding());
+        assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
+        assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue());
     }
 
     @Override
@@ -538,7 +624,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
 
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", new float[] { 128, 0, 0 })))
         );
         assertThat(
@@ -546,14 +632,14 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             containsString("element_type [byte] vectors only support integers between [-128, 127] but found [128] at dim [0];")
         );
 
-        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.array("field", new float[] { 18.2f, 0, 0 }))));
+        e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array("field", new float[] { 18.2f, 0, 0 }))));
         assertThat(
             e.getCause().getMessage(),
             containsString("element_type [byte] vectors only support non-decimal values but found decimal value [18.2] at dim [0];")
         );
 
         e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", new float[] { 0.0f, 0.0f, -129.0f })))
         );
         assertThat(

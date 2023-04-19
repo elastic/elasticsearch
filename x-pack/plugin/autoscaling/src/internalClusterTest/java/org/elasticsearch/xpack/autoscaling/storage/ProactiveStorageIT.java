@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
@@ -36,7 +35,6 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94935")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
 

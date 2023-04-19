@@ -1782,6 +1782,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             public void setParentTask(TaskId taskId) {}
 
             @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
             public TaskId getParentTask() {
                 return TaskId.EMPTY_TASK_ID;
             }
@@ -2025,6 +2028,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         Task asyncTask = testTaskManager.register("enrich", "policy_execution", new TaskAwareRequest() {
             @Override
             public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
 
             @Override
             public TaskId getParentTask() {

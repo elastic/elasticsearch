@@ -158,6 +158,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 settings,
                 client,
                 transformConfigManager,
+                auditor,
                 config,
                 update,
                 configAndVersion.v2(),
@@ -170,7 +171,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         }, failure -> {
             // ignore if transform got deleted while upgrade was running
             if (failure instanceof ResourceNotFoundException) {
-                listener.onResponse(new UpdateResult(null, UpdateResult.Status.DELETED));
+                listener.onResponse(new UpdateResult(null, null, UpdateResult.Status.DELETED));
             } else {
                 listener.onFailure(failure);
             }

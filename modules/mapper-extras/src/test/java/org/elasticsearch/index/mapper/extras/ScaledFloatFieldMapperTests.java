@@ -17,6 +17,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -199,7 +200,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 XContentType.JSON
             )
         );
-        MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
         assertThat(e.getCause().getMessage(), containsString("passed as String"));
     }
 

@@ -54,12 +54,9 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     });
 
     static {
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> SingleNodeShutdownMetadata.parse(p),
-            v -> { throw new IllegalArgumentException("ordered " + NODES_FIELD.getPreferredName() + " are not supported"); },
-            NODES_FIELD
-        );
+        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> SingleNodeShutdownMetadata.parse(p), v -> {
+            throw new IllegalArgumentException("ordered " + NODES_FIELD.getPreferredName() + " are not supported");
+        }, NODES_FIELD);
     }
 
     public static NodesShutdownMetadata fromXContent(XContentParser parser) {

@@ -217,7 +217,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             }
             // Metric mapper rejects multi-valued data
             {
-                Exception e = expectThrows(MapperParsingException.class, () -> metricMapper.parse(source(b -> b.field("field", values))));
+                Exception e = expectThrows(DocumentParsingException.class, () -> metricMapper.parse(source(b -> b.field("field", values))));
                 assertThat(e.getCause().getMessage(), containsString("field type for [field] does not accept more than single value"));
             }
         }
@@ -271,7 +271,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     public void testLatLonStringWithZValueException() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("ignore_z_value", false)));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field", "1.2,1.3,10.0"))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", "1.2,1.3,10.0"))));
         assertThat(e.getCause().getMessage(), containsString("but [ignore_z_value] parameter is [false]"));
     }
 

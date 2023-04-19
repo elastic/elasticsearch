@@ -197,6 +197,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(
+                clusterService,
                 indexSettings,
                 indexAnalyzers,
                 parserConfiguration,
@@ -977,7 +978,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                     && e instanceof ShardNotInPrimaryModeException == false) {
                                     logger.warn(() -> format("%s failed to execute %s sync", shard.shardId(), source), e);
                                 }
-                            }, ThreadPool.Names.SAME, source + " sync");
+                            }, ThreadPool.Names.SAME);
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {
                             // the shard was closed concurrently, continue
                         }

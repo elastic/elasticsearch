@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -728,5 +729,19 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasScript()) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+        if (fieldType().hasDocValues()) {
+            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(name() + "._keyed", simpleName());
+        }
+
+        throw new IllegalArgumentException(
+            "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+        );
     }
 }

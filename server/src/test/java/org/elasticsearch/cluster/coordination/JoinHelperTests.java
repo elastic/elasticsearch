@@ -75,7 +75,9 @@ public class JoinHelperTests extends ESTestCase {
             new NoOpClusterApplier(),
             transportService,
             () -> 0L,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
+            (joinRequest, joinCallback) -> {
+                throw new AssertionError();
+            },
             startJoinRequest -> { throw new AssertionError(); },
             (s, p, r) -> {},
             () -> new StatusInfo(HEALTHY, "info"),
@@ -239,7 +241,9 @@ public class JoinHelperTests extends ESTestCase {
             new NoOpClusterApplier(),
             transportService,
             () -> 0L,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
+            (joinRequest, joinCallback) -> {
+                throw new AssertionError();
+            },
             startJoinRequest -> { throw new AssertionError(); },
             (s, p, r) -> {},
             nodeHealthServiceStatus::get,

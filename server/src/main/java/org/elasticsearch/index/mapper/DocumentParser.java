@@ -22,6 +22,8 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -55,9 +57,12 @@ public final class DocumentParser {
      * @param source        the document to parse
      * @param mappingLookup the mappings information needed to parse the document
      * @return the parsed document
-     * @throws MapperParsingException whenever there's a problem parsing the document
+     * @throws DocumentParsingException whenever there's a problem parsing the document
      */
-    public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws MapperParsingException {
+    public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException {
+        if (source.source() != null && source.source().length() == 0) {
+            throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
+        }
         final InternalDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
         try (XContentParser parser = XContentHelper.createParser(parserConfiguration, source.source(), xContentType)) {
@@ -66,8 +71,11 @@ public final class DocumentParser {
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(mappingLookup.getMapping().getRoot(), metadataFieldsMappers, context);
             validateEnd(context.parser());
-        } catch (Exception e) {
-            throw wrapInMapperParsingException(source, e);
+        } catch (XContentParseException e) {
+            throw new DocumentParsingException(e.getLocation(), e.getMessage(), e);
+        } catch (IOException e) {
+            // IOException from jackson, we don't have any useful location information here
+            throw new DocumentParsingException(XContentLocation.UNKNOWN, "Error parsing document", e);
         }
         assert context.path.atRoot() : "found leftover path elements: " + context.path.pathAsText("");
 
@@ -93,25 +101,29 @@ public final class DocumentParser {
         RootObjectMapper root,
         MetadataFieldMapper[] metadataFieldsMappers,
         DocumentParserContext context
-    ) throws IOException {
+    ) {
 
-        final boolean emptyDoc = isEmptyDoc(root, context.parser());
+        try {
+            final boolean emptyDoc = isEmptyDoc(root, context.parser());
 
-        for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
-            metadataMapper.preParse(context);
-        }
+            for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
+                metadataMapper.preParse(context);
+            }
 
-        if (root.isEnabled() == false) {
-            // entire type is disabled
-            context.parser().skipChildren();
-        } else if (emptyDoc == false) {
-            parseObjectOrNested(context, root);
-        }
+            if (root.isEnabled() == false) {
+                // entire type is disabled
+                context.parser().skipChildren();
+            } else if (emptyDoc == false) {
+                parseObjectOrNested(context, root);
+            }
 
-        executeIndexTimeScripts(context);
+            executeIndexTimeScripts(context);
 
-        for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
-            metadataMapper.postParse(context);
+            for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
+                metadataMapper.postParse(context);
+            }
+        } catch (Exception e) {
+            throw wrapInDocumentParsingException(context, e);
         }
     }
 
@@ -159,7 +171,7 @@ public final class DocumentParser {
     }
 
     private static void throwNoStartOnObject() {
-        throw new MapperParsingException("Malformed content, must start with an object");
+        throw new DocumentParsingException(XContentLocation.UNKNOWN, "Malformed content, must start with an object");
     }
 
     private static void validateEnd(XContentParser parser) throws IOException {
@@ -186,30 +198,25 @@ public final class DocumentParser {
                 case FIELD_NAME:
                     return false;
                 default:
-                    throwOnMalformedContent();
+                    throwOnMalformedContent(parser);
             }
         }
         return false;
     }
 
-    private static void throwOnMalformedContent() {
-        throw new MapperParsingException(
+    private static void throwOnMalformedContent(XContentParser parser) {
+        throw new DocumentParsingException(
+            parser.getTokenLocation(),
             "Malformed content, after first object, either the type field or the actual properties should exist"
         );
     }
 
-    private static MapperParsingException wrapInMapperParsingException(SourceToParse source, Exception e) {
-        // if its already a mapper parsing exception, no need to wrap it...
-        if (e instanceof MapperParsingException) {
-            return (MapperParsingException) e;
+    private static DocumentParsingException wrapInDocumentParsingException(DocumentParserContext context, Exception e) {
+        // if its already a document parsing exception, no need to wrap it...
+        if (e instanceof DocumentParsingException) {
+            return (DocumentParsingException) e;
         }
-
-        // Throw a more meaningful message if the document is empty.
-        if (source.source() != null && source.source().length() == 0) {
-            return new MapperParsingException("failed to parse, document is empty");
-        }
-
-        return new MapperParsingException("failed to parse", e);
+        return new DocumentParsingException(context.parser().getTokenLocation(), "failed to parse: " + e.getMessage(), e);
     }
 
     static Mapping createDynamicUpdate(DocumentParserContext context) {
@@ -241,7 +248,7 @@ public final class DocumentParser {
 
         String currentFieldName = parser.currentName();
         if (token.isValue()) {
-            throwOnConcreteValue(mapper, currentFieldName);
+            throwOnConcreteValue(mapper, currentFieldName, context);
         }
 
         if (mapper.isNested()) {
@@ -264,8 +271,9 @@ public final class DocumentParser {
         }
     }
 
-    private static void throwOnConcreteValue(ObjectMapper mapper, String currentFieldName) {
-        throw new MapperParsingException(
+    private static void throwOnConcreteValue(ObjectMapper mapper, String currentFieldName, DocumentParserContext context) {
+        throw new DocumentParsingException(
+            context.parser().getTokenLocation(),
             "object mapping for ["
                 + mapper.name()
                 + "] tried to parse field ["
@@ -315,13 +323,15 @@ public final class DocumentParser {
     }
 
     private static void throwFieldNameBlank(DocumentParserContext context, String currentFieldName) {
-        throw new MapperParsingException(
+        throw new DocumentParsingException(
+            context.parser().getTokenLocation(),
             "Field name cannot contain only whitespace: [" + context.path().pathAsText(currentFieldName) + "]"
         );
     }
 
     private static void throwEOF(ObjectMapper mapper, DocumentParserContext context) throws IOException {
-        throw new MapperParsingException(
+        throw new DocumentParsingException(
+            context.parser().getTokenLocation(),
             "object mapping for ["
                 + mapper.name()
                 + "] tried to parse field ["
@@ -373,7 +383,7 @@ public final class DocumentParser {
                     XContentParser.Token currentToken = context.parser().currentToken();
                     if (currentToken.isValue() == false && currentToken != XContentParser.Token.VALUE_NULL) {
                         // sanity check, we currently support copy-to only for value-type field, not objects
-                        throwOnCopyToOnObject(mapper, copyToFields);
+                        throwOnCopyToOnObject(mapper, copyToFields, context);
                     }
                     parseCopyFields(context, copyToFields);
                 }
@@ -392,13 +402,15 @@ public final class DocumentParser {
     }
 
     private static void throwOnCopyToOnFieldAlias(DocumentParserContext context, Mapper mapper) {
-        throw new MapperParsingException(
+        throw new DocumentParsingException(
+            context.parser().getTokenLocation(),
             "Cannot " + (context.isWithinCopyTo() ? "copy" : "write") + " to a field alias [" + mapper.name() + "]."
         );
     }
 
-    private static void throwOnCopyToOnObject(Mapper mapper, List<String> copyToFields) {
-        throw new MapperParsingException(
+    private static void throwOnCopyToOnObject(Mapper mapper, List<String> copyToFields, DocumentParserContext context) {
+        throw new DocumentParsingException(
+            context.parser().getTokenLocation(),
             "Cannot copy field ["
                 + mapper.name()
                 + "] to fields "
@@ -430,7 +442,7 @@ public final class DocumentParser {
         throws IOException {
         ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentObjectMapper, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(parentObjectMapper.fullPath(), currentFieldName);
+            throw new StrictDynamicMappingException(context.parser().getTokenLocation(), parentObjectMapper.fullPath(), currentFieldName);
         } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, parentObjectMapper, currentFieldName);
             // not dynamic, read everything up to end object
@@ -447,7 +459,8 @@ public final class DocumentParser {
             }
             if (parentObjectMapper.subobjects() == false) {
                 if (dynamicObjectMapper instanceof NestedObjectMapper) {
-                    throw new MapperParsingException(
+                    throw new DocumentParsingException(
+                        context.parser().getTokenLocation(),
                         "Tried to add nested object ["
                             + dynamicObjectMapper.simpleName()
                             + "] to object ["
@@ -456,7 +469,8 @@ public final class DocumentParser {
                     );
                 }
                 if (dynamicObjectMapper instanceof ObjectMapper) {
-                    throw new MapperParsingException(
+                    throw new DocumentParsingException(
+                        context.parser().getTokenLocation(),
                         "Tried to add subobject ["
                             + dynamicObjectMapper.simpleName()
                             + "] to object ["
@@ -466,7 +480,7 @@ public final class DocumentParser {
                 }
             }
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
-                throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper);
+                throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper, context);
             }
             context.path().add(currentFieldName);
             if (dynamicObjectMapper instanceof ObjectMapper objectMapper) {
@@ -480,8 +494,9 @@ public final class DocumentParser {
         }
     }
 
-    private static void throwOnCreateDynamicNestedViaCopyTo(Mapper dynamicObjectMapper) {
-        throw new MapperParsingException(
+    private static void throwOnCreateDynamicNestedViaCopyTo(Mapper dynamicObjectMapper, DocumentParserContext context) {
+        throw new DocumentParsingException(
+            context.parser().getTokenLocation(),
             "It is forbidden to create dynamic nested objects ([" + dynamicObjectMapper.name() + "]) through `copy_to`"
         );
     }
@@ -500,7 +515,7 @@ public final class DocumentParser {
         } else {
             ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
-                throw new StrictDynamicMappingException(parentMapper.fullPath(), lastFieldName);
+                throw new StrictDynamicMappingException(context.parser().getTokenLocation(), parentMapper.fullPath(), lastFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
                 context.parser().skipChildren();
             } else {
@@ -541,7 +556,7 @@ public final class DocumentParser {
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 parseNullValue(context, mapper, lastFieldName);
             } else if (token == null) {
-                throwEOFOnParseArray(mapper, arrayFieldName);
+                throwEOFOnParseArray(mapper, arrayFieldName, context);
             } else {
                 assert token.isValue();
                 parseValue(context, mapper, lastFieldName);
@@ -549,8 +564,9 @@ public final class DocumentParser {
         }
     }
 
-    private static void throwEOFOnParseArray(ObjectMapper mapper, String arrayFieldName) {
-        throw new MapperParsingException(
+    private static void throwEOFOnParseArray(ObjectMapper mapper, String arrayFieldName, DocumentParserContext context) {
+        throw new DocumentParsingException(
+            context.parser().getTokenLocation(),
             "object mapping for ["
                 + mapper.name()
                 + "] with array for ["
@@ -573,7 +589,8 @@ public final class DocumentParser {
     }
 
     private static void throwOnNoFieldName(DocumentParserContext context, ObjectMapper parentMapper) throws IOException {
-        throw new MapperParsingException(
+        throw new DocumentParsingException(
+            context.parser().getTokenLocation(),
             "object mapping ["
                 + parentMapper.name()
                 + "] trying to serialize a value with"
@@ -590,7 +607,7 @@ public final class DocumentParser {
             // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
         } else if (parentMapper.dynamic() == ObjectMapper.Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(parentMapper.fullPath(), lastFieldName);
+            throw new StrictDynamicMappingException(context.parser().getTokenLocation(), parentMapper.fullPath(), lastFieldName);
         }
     }
 
@@ -598,7 +615,7 @@ public final class DocumentParser {
         throws IOException {
         ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(parentMapper.fullPath(), currentFieldName);
+            throw new StrictDynamicMappingException(context.parser().getTokenLocation(), parentMapper.fullPath(), currentFieldName);
         }
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, parentMapper, currentFieldName);
@@ -613,7 +630,8 @@ public final class DocumentParser {
         }
         String path = parentMapper.fullPath().isEmpty() ? currentFieldName : parentMapper.fullPath() + "." + currentFieldName;
         if (Regex.simpleMatch(context.indexSettings().getIndexMetadata().getRoutingPaths(), path)) {
-            throw new MapperParsingException(
+            throw new DocumentParsingException(
+                context.parser().getTokenLocation(),
                 "All fields matching [routing_path] must be mapped but [" + path + "] was declared as [dynamic: false]"
             );
         }
@@ -841,7 +859,8 @@ public final class DocumentParser {
         protected void addDoc(LuceneDocument doc) {
             numNestedDocs++;
             if (numNestedDocs > maxAllowedNumNestedDocs) {
-                throw new MapperParsingException(
+                throw new DocumentParsingException(
+                    parser.getTokenLocation(),
                     "The number of nested documents has exceeded the allowed limit of ["
                         + maxAllowedNumNestedDocs
                         + "]."

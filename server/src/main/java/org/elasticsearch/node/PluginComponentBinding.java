@@ -54,4 +54,4 @@ public class TransportMyAction extends TransportMasterNodeAction<MyRequest, MyRe
  * @param <I> The interface class
  * @param <T> The implementation class
  */
-public record PluginComponentBinding<I, T extends I> (Class<? extends I> inter, T impl) {}
+public record PluginComponentBinding<I, T extends I>(Class<? extends I> inter, T impl) {}

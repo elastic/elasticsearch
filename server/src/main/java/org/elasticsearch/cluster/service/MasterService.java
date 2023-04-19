@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -250,9 +251,14 @@ public class MasterService extends AbstractLifecycleComponent {
         } else {
             final long publicationStartTime = threadPool.rawRelativeTimeInMillis();
             try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                final var newClusterStateVersion = newClusterState.getVersion();
+
                 final Task task = taskManager.register("master", STATE_UPDATE_ACTION_NAME, new TaskAwareRequest() {
                     @Override
                     public void setParentTask(TaskId taskId) {}
+
+                    @Override
+                    public void setRequestId(long requestId) {}
 
                     @Override
                     public TaskId getParentTask() {
@@ -261,14 +267,28 @@ public class MasterService extends AbstractLifecycleComponent {
 
                     @Override
                     public String getDescription() {
-                        return "publication of cluster state [" + newClusterState.getVersion() + "]";
+                        return "publication of cluster state [" + newClusterStateVersion + "]";
                     }
                 });
-                ActionListener.run(ActionListener.runAfter(listener, () -> taskManager.unregister(task)).delegateResponse((l, e) -> {
-                    assert publicationMayFail() : e;
-                    handleException(summary, publicationStartTime, newClusterState, e);
-                    l.onResponse(null);
-                }),
+
+                ActionListener.run(
+                    new DelegatingActionListener<Void, Void>(
+                        ActionListener.runAfter(listener, () -> taskManager.unregister(task)).delegateResponse((l, e) -> {
+                            assert publicationMayFail() : e;
+                            handleException(summary, publicationStartTime, newClusterState, e);
+                            l.onResponse(null);
+                        })
+                    ) {
+                        @Override
+                        public void onResponse(Void response) {
+                            delegate.onResponse(response);
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "listener for publication of cluster state [" + newClusterStateVersion + "]";
+                        }
+                    },
                     l -> publishClusterStateUpdate(
                         executor,
                         summary,
@@ -394,9 +414,21 @@ public class MasterService extends AbstractLifecycleComponent {
                             clusterStatePublicationEvent,
                             notificationMillis
                         );
+                    } else if (exception instanceof EsRejectedExecutionException esRejectedExecutionException) {
+                        assert esRejectedExecutionException.isExecutorShutdown();
+                        clusterStateUpdateStatsTracker.onPublicationFailure(
+                            threadPool.rawRelativeTimeInMillis(),
+                            clusterStatePublicationEvent,
+                            0L
+                        );
+                        final long version = newClusterState.version();
+                        logger.debug(
+                            () -> format("shut down during publication of cluster state version [%s]: [%s]", version, summary),
+                            exception
+                        );
+                        // TODO also bubble the failure up to the tasks too, see https://github.com/elastic/elasticsearch/issues/94930
                     } else {
-                        assert publicationMayFail() || (exception instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown())
-                            : exception;
+                        assert publicationMayFail() : exception;
                         clusterStateUpdateStatsTracker.onPublicationFailure(
                             threadPool.rawRelativeTimeInMillis(),
                             clusterStatePublicationEvent,
@@ -958,7 +990,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public String toString() {
-            return "ExecutionResult[" + task + "]";
+            return "TaskContext[" + task + "]";
         }
     }
 
@@ -975,14 +1007,20 @@ public class MasterService extends AbstractLifecycleComponent {
             && (resultingState.nodes().isLocalNodeElectedMaster() == false)) {
             throw new AssertionError("update task submitted to MasterService cannot remove master");
         }
-        assert assertAllTasksComplete(executionResults);
+        assert assertAllTasksComplete(executor, executionResults);
         return resultingState;
     }
 
-    private static <T extends ClusterStateTaskListener> boolean assertAllTasksComplete(List<ExecutionResult<T>> executionResults) {
-        for (final var executionResult : executionResults) {
-            assert executionResult.incomplete() == false : "missing result for " + executionResult;
-        }
+    private static <T extends ClusterStateTaskListener> boolean assertAllTasksComplete(
+        ClusterStateTaskExecutor<T> executor,
+        List<ExecutionResult<T>> executionResults
+    ) {
+        final var incompleteTaskContexts = executionResults.stream().filter(ExecutionResult::incomplete).toList();
+        assert incompleteTaskContexts.isEmpty()
+            : "cluster state task executors must mark all tasks as successful or failed, but ["
+                + executor
+                + "] left the following tasks incomplete: "
+                + incompleteTaskContexts;
         return true;
     }
 
@@ -1510,7 +1548,7 @@ public class MasterService extends AbstractLifecycleComponent {
             return "BatchingTaskQueue[" + name + "]";
         }
 
-        private record Entry<T extends ClusterStateTaskListener> (
+        private record Entry<T extends ClusterStateTaskListener>(
             String source,
             T task,
             long insertionIndex,

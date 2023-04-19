@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -29,9 +30,14 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
@@ -256,10 +262,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     public void testMalformedJson() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
-        expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field", "not a JSON object"))));
+        expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.field("field", "not a JSON object"))));
 
         BytesReference doc2 = new BytesArray("{ \"field\": { \"key\": \"value\" ");
-        expectThrows(MapperParsingException.class, () -> mapper.parse(new SourceToParse("1", doc2, XContentType.JSON)));
+        expectThrows(DocumentParsingException.class, () -> mapper.parse(new SourceToParse("1", doc2, XContentType.JSON)));
     }
 
     public void testFieldMultiplicity() throws Exception {
@@ -315,7 +321,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.field("depth_limit", 2);
         }));
 
-        expectThrows(MapperParsingException.class, () -> mapperService.documentMapper().parse(source(b -> {
+        expectThrows(DocumentParsingException.class, () -> mapperService.documentMapper().parse(source(b -> {
             b.startObject("field");
             {
                 b.startObject("key1");
@@ -394,7 +400,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         DocumentMapper newMapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "flattened"); }));
 
         String longKey = "x".repeat(32800);
-        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> newMapper.parse(source(b -> {
+        DocumentParsingException ex = expectThrows(DocumentParsingException.class, () -> newMapper.parse(source(b -> {
             b.startArray("field");
             {
                 b.startObject().field(longKey, "value").endObject();
@@ -410,7 +416,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         );
 
         String value = "x".repeat(32800);
-        ex = expectThrows(MapperParsingException.class, () -> newMapper.parse(source(b -> {
+        ex = expectThrows(DocumentParsingException.class, () -> newMapper.parse(source(b -> {
             b.startArray("field");
             {
                 b.startObject().field("key", value).endObject();
@@ -515,11 +521,68 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        return new FlattenedFieldSyntheticSourceSupport();
     }
 
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    private static void randomMapExample(final TreeMap<Object, Object> example, int depth, int maxDepth) {
+        for (int i = 0; i < randomIntBetween(2, 5); i++) {
+            int j = depth >= maxDepth ? randomIntBetween(1, 2) : randomIntBetween(1, 3);
+            switch (j) {
+                case 1 -> example.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
+                case 2 -> {
+                    int size = randomIntBetween(2, 10);
+                    final Set<String> stringSet = new HashSet<>();
+                    while (stringSet.size() < size) {
+                        stringSet.add(String.valueOf(randomIntBetween(10_000, 20_000)));
+                    }
+                    final List<String> randomList = new ArrayList<>(stringSet);
+                    Collections.sort(randomList);
+                    example.put(randomAlphaOfLength(6), randomList);
+                }
+                case 3 -> {
+                    final TreeMap<Object, Object> nested = new TreeMap<>();
+                    randomMapExample(nested, depth + 1, maxDepth);
+                    example.put(randomAlphaOfLength(10), nested);
+                }
+                default -> throw new IllegalArgumentException("value: [" + j + "] unexpected");
+            }
+        }
+    }
+
+    private static class FlattenedFieldSyntheticSourceSupport implements SyntheticSourceSupport {
+
+        @Override
+        public SyntheticSourceExample example(int maxValues) throws IOException {
+
+            // NOTE: values must be keywords and we use a TreeMap to preserve order (doc values are sorted and the result
+            // is created with keys and nested keys in sorted order).
+            final TreeMap<Object, Object> map = new TreeMap<>();
+            randomMapExample(map, 0, maxValues);
+            return new SyntheticSourceExample(map, map, this::mapping);
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+            return List.of(
+                new SyntheticSourceInvalidExample(
+                    equalTo("field [field] of type [flattened] doesn't support synthetic " + "source because it doesn't have doc values"),
+                    b -> b.field("type", "flattened").field("doc_values", false)
+                )
+            );
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "flattened");
+        }
+    }
+
+    @Override
+    protected boolean supportsCopyTo() {
+        return false;
     }
 }

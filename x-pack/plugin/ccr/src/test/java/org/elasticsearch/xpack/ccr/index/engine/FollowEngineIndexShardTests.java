@@ -102,7 +102,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             releasable.close();
             latch.countDown();
         }, e -> { assert false : "expected no exception, but got [" + e.getMessage() + "]"; });
-        indexShard.acquirePrimaryOperationPermit(actionListener, ThreadPool.Names.GENERIC, "");
+        indexShard.acquirePrimaryOperationPermit(actionListener, ThreadPool.Names.GENERIC);
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(seqNoBeforeGap));
         indexShard.refresh("test");

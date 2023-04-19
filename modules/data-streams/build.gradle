@@ -43,3 +43,9 @@ if (BuildParams.inFipsJvm){
   tasks.named("javaRestTest").configure{enabled = false }
   tasks.named("yamlRestTest").configure{enabled = false }
 }
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("internalClusterTest").configure {
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
+  }
+}

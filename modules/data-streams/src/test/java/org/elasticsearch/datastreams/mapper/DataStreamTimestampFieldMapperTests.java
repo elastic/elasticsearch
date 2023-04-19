@@ -14,8 +14,8 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataMapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -81,10 +81,16 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         ParsedDocument doc = docMapper.parse(source(b -> b.field("@timestamp", "2020-12-12")));
         assertThat(doc.rootDoc().getFields("@timestamp").size(), equalTo(1));
 
-        Exception e = expectThrows(MapperException.class, () -> docMapper.parse(source(b -> b.field("@timestamp1", "2020-12-12"))));
+        Exception e = expectThrows(
+            DocumentParsingException.class,
+            () -> docMapper.parse(source(b -> b.field("@timestamp1", "2020-12-12")))
+        );
         assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
 
-        e = expectThrows(MapperException.class, () -> docMapper.parse(source(b -> b.array("@timestamp", "2020-12-12", "2020-12-13"))));
+        e = expectThrows(
+            DocumentParsingException.class,
+            () -> docMapper.parse(source(b -> b.array("@timestamp", "2020-12-12", "2020-12-13")))
+        );
         assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] encountered multiple values"));
     }
 

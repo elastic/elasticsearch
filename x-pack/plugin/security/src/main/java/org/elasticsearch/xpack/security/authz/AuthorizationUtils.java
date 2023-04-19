@@ -29,6 +29,7 @@ import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TAS
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.IDP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
@@ -140,6 +141,7 @@ public final class AuthorizationUtils {
             case SEARCHABLE_SNAPSHOTS_ORIGIN:
             case LOGSTASH_MANAGEMENT_ORIGIN:
             case FLEET_ORIGIN:
+            case ENT_SEARCH_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
                 securityContext.executeAsInternalUser(XPackUser.INSTANCE, version, consumer);
                 break;

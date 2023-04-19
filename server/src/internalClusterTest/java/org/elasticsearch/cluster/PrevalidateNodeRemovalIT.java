@@ -196,7 +196,9 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         MockTransportService node2TransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node2);
         node2TransportService.addRequestHandlingBehavior(
             TransportPrevalidateShardPathAction.ACTION_NAME + "[n]",
-            (handler, request, channel, task) -> { logger.info("drop the check shards request"); }
+            (handler, request, channel, task) -> {
+                logger.info("drop the check shards request");
+            }
         );
         PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder()
             .setNames(node2)

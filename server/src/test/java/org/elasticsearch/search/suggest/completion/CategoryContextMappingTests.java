@@ -27,10 +27,10 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -281,7 +281,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             .endObject();
 
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> defaultMapper.parse(new SourceToParse("1", BytesReference.bytes(builder), XContentType.JSON))
         );
         assertEquals(
@@ -405,7 +405,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             .endObject();
 
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> defaultMapper.parse(new SourceToParse("1", BytesReference.bytes(builder), XContentType.JSON))
         );
         assertEquals("context array must have string, number or boolean values, but was [VALUE_NULL]", e.getCause().getMessage());

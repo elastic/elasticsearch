@@ -11,7 +11,6 @@ package co.elastic.elasticsearch.stateless.cluster.coordination;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.AtomicRegisterCoordinatorTests;
 import org.elasticsearch.cluster.coordination.CoordinationState;
@@ -90,7 +89,7 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
                 threadPool,
                 heartbeatFrequency,
                 TimeValue.timeValueMillis(heartbeatFrequency.millis() * MAX_MISSED_HEARTBEATS.get(settings)),
-                () -> PlainActionFuture.get(statelessElectionStrategy::getCurrentLeaseTerm).orElse(0L)
+                statelessElectionStrategy::getCurrentLeaseTerm
             );
 
             return new CoordinationServices() {

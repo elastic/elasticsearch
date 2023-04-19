@@ -44,7 +44,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
@@ -111,7 +110,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -219,12 +217,11 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         this.clusterService.set(clusterService);
         var statelessElectionStrategy = new StatelessElectionStrategy(objectStoreService::getTermLeaseBlobContainer, threadPool);
         this.electionStrategy.set(statelessElectionStrategy);
-        LongSupplier currentTermSupplierSync = () -> PlainActionFuture.get(statelessElectionStrategy::getCurrentLeaseTerm).orElse(0L);
         var storeHeartbeatService = StoreHeartbeatService.create(
             new StatelessHeartbeatStore(objectStoreService::getLeaderHeartbeatContainer, threadPool),
             threadPool,
             environment.settings(),
-            currentTermSupplierSync
+            statelessElectionStrategy::getCurrentLeaseTerm
         );
         this.storeHeartbeatService.set(storeHeartbeatService);
         return List.of(objectStoreService, translogReplicator, sharedBlobCache);

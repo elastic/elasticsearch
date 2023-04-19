@@ -151,7 +151,7 @@ setup:
   - is_false:   _all.total.fielddata.fields.baz
   - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
   - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
   - is_false: _all.total.fielddata.global_ordinals.fields.baz
   - gt:       { _all.total.completion.size_in_bytes: 0 }
   - is_false:   _all.total.completion.fields.bar
@@ -184,7 +184,7 @@ setup:
   - is_false:   _all.total.fielddata.fields.baz
   - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
   - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
   - is_false: _all.total.fielddata.global_ordinals.fields.baz
   - gt:       { _all.total.completion.size_in_bytes: 0 }
   - is_false:   _all.total.completion.fields.bar\.completion
@@ -218,9 +218,9 @@ setup:
   - gt:       { _all.total.fielddata.fields.baz.memory_size_in_bytes: 0 }
   - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
   - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
   - gte: { _all.total.fielddata.global_ordinals.fields.baz.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.baz.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.baz.shard_max_value_count: 1 }
   - gt:       { _all.total.completion.size_in_bytes: 0 }
   - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
   - gt:       { _all.total.completion.fields.baz\.completion.size_in_bytes: 0 }
@@ -253,7 +253,7 @@ setup:
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
   - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
   - is_false: _all.total.fielddata.global_ordinals.fields.baz
   - gt:       { _all.total.completion.size_in_bytes: 0 }
   - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
@@ -287,7 +287,7 @@ setup:
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
   - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
   - is_false: _all.total.fielddata.global_ordinals.fields.baz
   - gt:       { _all.total.completion.size_in_bytes: 0 }
   - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
@@ -318,7 +318,7 @@ setup:
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
   - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
   - is_false: _all.total.fielddata.global_ordinals.fields.baz
   - is_false:   _all.total.completion
 
@@ -361,7 +361,7 @@ setup:
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
   - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
   - is_false: _all.total.fielddata.global_ordinals.fields.baz
   - gt:       { _all.total.completion.size_in_bytes: 0 }
   - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
@@ -390,7 +390,7 @@ setup:
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
   - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
   - is_false: _all.total.fielddata.global_ordinals.fields.baz
 
 ---
@@ -417,9 +417,9 @@ setup:
   - gt:       { _all.total.fielddata.fields.baz.memory_size_in_bytes: 0 }
   - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
   - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
   - gte: { _all.total.fielddata.global_ordinals.fields.baz.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.baz.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.baz.shard_max_value_count: 1 }
   - is_false:   _all.total.completion.fields
 
 ---
@@ -446,9 +446,9 @@ setup:
   - gt:       { _all.total.fielddata.fields.baz.memory_size_in_bytes: 0 }
   - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
   - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
   - gte: { _all.total.fielddata.global_ordinals.fields.baz.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.baz.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.baz.shard_max_value_count: 1 }
   - is_false:   _all.total.completion.fields
 
 ---
@@ -474,7 +474,7 @@ setup:
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
   - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
   - is_false: _all.total.fielddata.global_ordinals.fields.baz
   - is_false:   _all.total.completion.fields
 
@@ -501,7 +501,7 @@ setup:
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
   - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
   - is_false: _all.total.fielddata.global_ordinals.fields.baz
   - is_false:   _all.total.completion.fields
 
@@ -528,7 +528,7 @@ setup:
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
   - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
   - is_false: _all.total.fielddata.global_ordinals.fields.baz
   - is_false:   _all.total.completion.fields
 
@@ -555,7 +555,7 @@ setup:
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
   - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.max_shard_value_count: 1 }
+  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
   - is_false: _all.total.fielddata.global_ordinals.fields.baz
   - is_false:   _all.total.completion.fields
 

@@ -20,19 +20,19 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 public class FieldDataStats implements Writeable, ToXContentFragment {
 
+    private static final GlobalOrdinalsStats EMPTY = new GlobalOrdinalsStats(0, Map.of());
     private static final String FIELDDATA = "fielddata";
     private static final String MEMORY_SIZE = "memory_size";
     private static final String MEMORY_SIZE_IN_BYTES = "memory_size_in_bytes";
     private static final String EVICTIONS = "evictions";
     private static final String FIELDS = "fields";
     private static final String GLOBAL_ORDINALS = "global_ordinals";
-    private static final String MAX_SHARD_VALUE_COUNT = "max_shard_value_count";
+    private static final String SHARD_MAX_VALUE_COUNT = "shard_max_value_count";
     private static final String BUILD_TIME = "build_time";
     private long memorySize;
     private long evictions;
@@ -41,7 +41,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
     private GlobalOrdinalsStats globalOrdinalsStats;
 
     public FieldDataStats() {
-        this.globalOrdinalsStats = new GlobalOrdinalsStats(0, new HashMap<>());
+        this.globalOrdinalsStats = EMPTY;
     }
 
     public FieldDataStats(StreamInput in) throws IOException {
@@ -49,15 +49,18 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         evictions = in.readVLong();
         fields = in.readOptionalWriteable(FieldMemoryStats::new);
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
-            globalOrdinalsStats = new GlobalOrdinalsStats(
-                in.readVLong(),
-                in.readMap(
-                    StreamInput::readString,
-                    in1 -> new GlobalOrdinalsStats.GlobalOrdinalFieldStats(in1.readVLong(), in1.readVLong())
-                )
+            long buildTimeMillis = in.readVLong();
+            Map<String, GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldGlobalOrdinalsStats = in.readMap(
+                StreamInput::readString,
+                in1 -> new GlobalOrdinalsStats.GlobalOrdinalFieldStats(in1.readVLong(), in1.readVLong())
             );
+            if (buildTimeMillis == 0 && fieldGlobalOrdinalsStats.isEmpty()) {
+                globalOrdinalsStats = EMPTY;
+            } else {
+                globalOrdinalsStats = new GlobalOrdinalsStats(buildTimeMillis, fieldGlobalOrdinalsStats);
+            }
         } else {
-            globalOrdinalsStats = new GlobalOrdinalsStats(0, new HashMap<>());
+            globalOrdinalsStats = EMPTY;
         }
     }
 
@@ -81,9 +84,10 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
                 fields.add(stats.fields);
             }
         }
-        if (globalOrdinalsStats != null && stats.globalOrdinalsStats != null) {
+
+        if (globalOrdinalsStats != EMPTY) {
             this.globalOrdinalsStats.add(stats.globalOrdinalsStats);
-        } else if (stats.globalOrdinalsStats != null) {
+        } else if (stats.globalOrdinalsStats != EMPTY) {
             this.globalOrdinalsStats = stats.globalOrdinalsStats;
         }
     }
@@ -131,7 +135,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         if (fields != null) {
             fields.toXContent(builder, FIELDS, MEMORY_SIZE_IN_BYTES, MEMORY_SIZE);
         }
-        if (globalOrdinalsStats != null) {
+        if (globalOrdinalsStats != EMPTY) {
             builder.startObject(GLOBAL_ORDINALS);
             builder.humanReadableField(BUILD_TIME + "_in_millis", BUILD_TIME, new TimeValue(globalOrdinalsStats.buildTimeMillis));
             if (globalOrdinalsStats.fieldGlobalOrdinalsStats.isEmpty() == false) {
@@ -139,7 +143,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
                 for (var entry : globalOrdinalsStats.fieldGlobalOrdinalsStats.entrySet()) {
                     builder.startObject(entry.getKey());
                     builder.humanReadableField(BUILD_TIME + "_in_millis", BUILD_TIME, new TimeValue(entry.getValue().totalBuildingTime));
-                    builder.field(MAX_SHARD_VALUE_COUNT, entry.getValue().valueCount);
+                    builder.field(SHARD_MAX_VALUE_COUNT, entry.getValue().valueCount);
                     builder.endObject();
                 }
                 builder.endObject();

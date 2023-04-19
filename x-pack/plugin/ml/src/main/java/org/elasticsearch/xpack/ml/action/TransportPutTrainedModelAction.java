@@ -313,7 +313,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                     return;
                 }
                 modelPackageConfigHolder.set(resolvedModelPackageConfig);
-                setTrainedModelConfigFieldsFromPackagedModel(trainedModelConfig, resolvedModelPackageConfig, xContentRegistry);
+                setTrainedModelConfigFieldsFromPackagedModel(trainedModelConfig, resolvedModelPackageConfig);
 
                 checkModelIdAgainstTags(trainedModelConfig.getModelId(), modelIdTagCheckListener);
             }, listener::onFailure));

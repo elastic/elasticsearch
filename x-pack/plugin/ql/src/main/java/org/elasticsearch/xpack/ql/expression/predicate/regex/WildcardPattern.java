@@ -16,37 +16,25 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 import java.util.Objects;
 
 /**
- * A SQL 'like' pattern.
- * Similar to basic regex, supporting '_' instead of '?' and '%' instead of '*'.
+ * Similar to basic regex, supporting '?' wildcard for single character (same as regex  ".")
+ * and '*' wildcard for multiple characters (same as regex ".*")
  * <p>
- * Allows escaping based on a regular char.
+ * Allows escaping based on a regular char
  *
- * To prevent conflicts with ES, the string and char must be validated to not contain '*'.
  */
-public class LikePattern extends AbstractStringPattern {
+public class WildcardPattern extends AbstractStringPattern {
 
-    private final String pattern;
-    private final char escape;
-
-    private final String regex;
     private final String wildcard;
-    private final String indexNameWildcard;
+    private final String regex;
 
-    public LikePattern(String pattern, char escape) {
-        this.pattern = pattern;
-        this.escape = escape;
+    public WildcardPattern(String pattern) {
+        this.wildcard = pattern;
         // early initialization to force string validation
-        this.regex = StringUtils.likeToJavaPattern(pattern, escape);
-        this.wildcard = StringUtils.likeToLuceneWildcard(pattern, escape);
-        this.indexNameWildcard = StringUtils.likeToIndexWildcard(pattern, escape);
+        this.regex = StringUtils.wildcardToJavaPattern(pattern, '\\');
     }
 
     public String pattern() {
-        return pattern;
-    }
-
-    public char escape() {
-        return escape;
+        return wildcard;
     }
 
     @Override
@@ -71,12 +59,12 @@ public class LikePattern extends AbstractStringPattern {
      * Returns the pattern in (IndexNameExpressionResolver) wildcard format.
      */
     public String asIndexNameWildcard() {
-        return indexNameWildcard;
+        return wildcard;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(pattern, escape);
+        return Objects.hash(wildcard);
     }
 
     @Override
@@ -89,7 +77,7 @@ public class LikePattern extends AbstractStringPattern {
             return false;
         }
 
-        LikePattern other = (LikePattern) obj;
-        return Objects.equals(pattern, other.pattern) && escape == other.escape;
+        WildcardPattern other = (WildcardPattern) obj;
+        return Objects.equals(wildcard, other.wildcard);
     }
 }

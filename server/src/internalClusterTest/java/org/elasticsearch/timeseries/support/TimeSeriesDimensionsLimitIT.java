@@ -51,7 +51,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
                     "routing_field",
                     randomAlphaOfLength(10),
                     dimensionFieldName,
-                    randomAlphaOfLength(1536),
+                    randomAlphaOfLength(1024),
                     "gauge",
                     randomIntBetween(10, 20),
                     "@timestamp",
@@ -77,15 +77,15 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         );
         long startTime = Instant.now().toEpochMilli();
         client().prepareIndex("test")
-            .setSource("field", randomAlphaOfLength(1536), "gauge", randomIntBetween(10, 20), "@timestamp", startTime)
+            .setSource("field", randomAlphaOfLength(1024), "gauge", randomIntBetween(10, 20), "@timestamp", startTime)
             .get();
         final Exception ex = expectThrows(
             DocumentParsingException.class,
             () -> client().prepareIndex("test")
-                .setSource("field", randomAlphaOfLength(1537), "gauge", randomIntBetween(10, 20), "@timestamp", startTime + 1)
+                .setSource("field", randomAlphaOfLength(1025), "gauge", randomIntBetween(10, 20), "@timestamp", startTime + 1)
                 .get()
         );
-        assertThat(ex.getCause().getMessage(), equalTo("Dimension fields must be less than [1536] bytes but was [1537]."));
+        assertThat(ex.getCause().getMessage(), equalTo("Dimension fields must be less than [1024] bytes but was [1025]."));
     }
 
     public void testTotalNumberOfDimensionFieldsLimit() {
@@ -109,7 +109,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         final List<String> dimensionFieldNames = new ArrayList<>();
         createTimeSeriesIndex(mapping -> {
             for (int i = 0; i < dimensionFieldLimit; i++) {
-                String dimensionFieldName = randomAlphaOfLength(10);
+                String dimensionFieldName = randomAlphaOfLength(512);
                 dimensionFieldNames.add(dimensionFieldName);
                 mapping.startObject(dimensionFieldName).field("type", "keyword").field("time_series_dimension", true).endObject();
             }
@@ -123,7 +123,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         source.put("gauge", randomIntBetween(10, 20));
         source.put("@timestamp", Instant.now().toEpochMilli());
         for (int i = 0; i < dimensionFieldLimit; i++) {
-            source.put(dimensionFieldNames.get(i), randomAlphaOfLength(1536));
+            source.put(dimensionFieldNames.get(i), randomAlphaOfLength(1024));
         }
         final IndexResponse indexResponse = client().prepareIndex("test").setSource(source).get();
         assertEquals(RestStatus.CREATED.getStatus(), indexResponse.status().getStatus());
@@ -134,7 +134,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         final List<String> dimensionFieldNames = new ArrayList<>();
         createTimeSeriesIndex(mapping -> {
             for (int i = 0; i < dimensionFieldLimit; i++) {
-                String dimensionFieldName = randomAlphaOfLength(10);
+                String dimensionFieldName = randomAlphaOfLength(512);
                 dimensionFieldNames.add(dimensionFieldName);
                 mapping.startObject(dimensionFieldName).field("type", "keyword").field("time_series_dimension", true).endObject();
             }
@@ -145,15 +145,14 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         );
 
         final Map<String, Object> source = new HashMap<>();
-        source.put("routing_field", randomAlphaOfLength(1536));
+        source.put("routing_field", randomAlphaOfLength(1024));
         source.put("gauge", randomIntBetween(10, 20));
         source.put("@timestamp", Instant.now().toEpochMilli());
         for (int i = 0; i < dimensionFieldLimit; i++) {
-            source.put(dimensionFieldNames.get(i), randomAlphaOfLength(1536));
+            source.put(dimensionFieldNames.get(i), randomAlphaOfLength(1024));
         }
         final Exception ex = expectThrows(DocumentParsingException.class, () -> client().prepareIndex("test").setSource(source).get());
-        // NOTE: the number of bytes of the tsid might change slightly, which is why we do not match strings exactly.
-        assertEquals("_tsid longer than [32766] bytes [34104].".substring(0, 30), ex.getCause().getMessage().substring(0, 30));
+        assertEquals("_tsid longer than [32766] bytes [33903].", ex.getCause().getMessage());
     }
 
     private void createTimeSeriesIndex(

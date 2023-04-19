@@ -67,7 +67,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
      * comfortable given that dimensions are typically going to be less than a
      * hundred bytes each, but we're being paranoid here.
      */
-    private static final int DIMENSION_VALUE_LIMIT = 1536;
+    private static final int DIMENSION_VALUE_LIMIT = 1024;
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {

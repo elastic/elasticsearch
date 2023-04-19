@@ -27,9 +27,9 @@ import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -683,7 +683,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             // TODO Are there situations where we need to abort an upload?
 
             Result result = null;
-            try (ChecksumIndexInput input = directory.openChecksumInput(name, IOContext.READONCE)) {
+            try (IndexInput input = directory.openInput(name, IOContext.READONCE)) {
                 final long length = input.length();
                 var before = threadPool.relativeTimeInMillis();
                 final InputStream inputStream = new InputStreamIndexInput(input, length);

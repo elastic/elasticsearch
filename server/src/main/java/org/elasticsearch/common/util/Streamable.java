@@ -10,17 +10,26 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.util.iterable.Iterables;
 
+import java.util.Collection;
 import java.util.stream.Stream;
 
+/**
+ * Interface that allows to iterate or stream collection of values with a known size
+ * without exposing making it possible to modify them.
+ */
 public interface Streamable<T> extends Iterable<T> {
 
     default Stream<T> stream() {
-        return Iterables.stream(this);
+        return Iterables.stream(this, size());
     }
 
     int size();
 
     default boolean isEmpty() {
         return size() == 0;
+    }
+
+    default Collection<T> copyToCollection() {
+        return stream().toList();
     }
 }

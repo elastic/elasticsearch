@@ -160,7 +160,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
 
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> parseDocument(docMapper, b -> b.field("a", "more_than_1536_bytes".repeat(52)).field("@timestamp", "2021-10-01"))
+            () -> parseDocument(docMapper, b -> b.field("a", "more_than_1024_bytes".repeat(52)).field("@timestamp", "2021-10-01"))
         );
         assertThat(e.getCause().getMessage(), equalTo("Dimension fields must be less than [1024] bytes but was [1040]."));
     }

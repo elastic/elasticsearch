@@ -16,6 +16,7 @@ import org.apache.lucene.search.ScoreMode;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * This class wraps a Lucene Collector and times the execution of:
@@ -50,6 +51,10 @@ public class InternalProfileCollector implements Collector {
         this.collector = new ProfileCollector(collector);
         this.reason = reason;
         this.collectorName = deriveCollectorName(collector);
+        Objects.requireNonNull(children, "children collectors cannot be null");
+        for (InternalProfileCollector child : children) {
+            Objects.requireNonNull(child, "child collector cannot be null");
+        }
         this.children = children;
     }
 

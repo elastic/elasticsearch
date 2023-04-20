@@ -60,7 +60,6 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(LowercaseProcessor.TYPE, new LowercaseProcessor.Factory()),
             entry(NetworkDirectionProcessor.TYPE, new NetworkDirectionProcessor.Factory(parameters.scriptService)),
             entry(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService)),
-            entry(RedactProcessor.TYPE, new RedactProcessor.Factory(parameters.matcherWatchdog)),
             entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory()),
             entry(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.scriptService)),
             entry(RenameProcessor.TYPE, new RenameProcessor.Factory(parameters.scriptService)),

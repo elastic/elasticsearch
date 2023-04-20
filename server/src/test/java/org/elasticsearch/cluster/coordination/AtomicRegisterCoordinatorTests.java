@@ -28,10 +28,13 @@ import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -50,26 +53,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
     @Override
     @AwaitsFix(bugUrl = "ES-5645")
-    public void testLeaderDisconnectionWithoutDisconnectEventDetectedQuickly() {
-        // In this test the leader still has access to the register, therefore it is still considered as a leader.
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testMasterStatsOnFailedUpdate() {
-        // In this test the leader still has access to the register, therefore it is still considered as a leader, and it can perform
-        // updates.
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
     public void testUnhealthyLeaderIsReplaced() {
-        // In this test the leader still has access to the register, therefore it is still considered as a leader.
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testUnresponsiveLeaderDetectedEventually() {
         // In this test the leader still has access to the register, therefore it is still considered as a leader.
     }
 
@@ -93,43 +77,8 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
     @Override
     @AwaitsFix(bugUrl = "ES-5645")
-    public void testAppliesNoMasterBlockWritesByDefault() {
-        // If the disconnected node is the leader it will continue to have connectivity
-        // into the register and therefore the no master block won't be applied
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testAppliesNoMasterBlockWritesIfConfigured() {
-        // If the disconnected node is the leader it will continue to have connectivity
-        // into the register and therefore the no master block won't be applied
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testAppliesNoMasterBlockAllIfConfigured() {
-        // If the disconnected node is the leader it will continue to have connectivity
-        // into the register and therefore the no master block won't be applied
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testAppliesNoMasterBlockMetadataWritesIfConfigured() {
-        // If the disconnected node is the leader it will continue to have connectivity
-        // into the register and therefore the no master block won't be applied
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
     public void testClusterCannotFormWithFailingJoinValidation() {
         // A single node can form a cluster in this case
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testReportsConnectBackProblemsDuringJoining() {
-        // If the partitioned node is the leader, it still has access
-        // to the store, therefore the test fail
     }
 
     @Override
@@ -165,34 +114,30 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
     @Override
     protected CoordinatorStrategy getCoordinatorStrategy() {
-        var atomicRegister = new AtomicRegister();
-        var sharedStore = new SharedStore();
-        return new AtomicRegisterCoordinatorStrategy(atomicRegister, sharedStore);
+        return new AtomicRegisterCoordinatorStrategy();
     }
 
     class AtomicRegisterCoordinatorStrategy implements CoordinatorStrategy {
-        private final AtomicRegister atomicRegister;
-        private final SharedStore sharedStore;
-
-        AtomicRegisterCoordinatorStrategy(AtomicRegister atomicRegister, SharedStore sharedStore) {
-            this.atomicRegister = atomicRegister;
-            this.sharedStore = sharedStore;
-        }
+        private final AtomicLong currentTermRef = new AtomicLong();
+        private final AtomicReference<Heartbeat> heartBeatRef = new AtomicReference<>();
+        private final SharedStore sharedStore = new SharedStore();
 
         @Override
         public CoordinationServices getCoordinationServices(
             ThreadPool threadPool,
             Settings settings,
             ClusterSettings clusterSettings,
-            CoordinationState.PersistedState persistedState
+            CoordinationState.PersistedState persistedState,
+            BooleanSupplier isDisruptedSupplier
         ) {
             final TimeValue heartbeatFrequency = HEARTBEAT_FREQUENCY.get(settings);
-            var atomicHeartbeat = new StoreHeartbeatService(
-                sharedStore,
+            final var atomicRegister = new AtomicRegister(currentTermRef, isDisruptedSupplier);
+            final var atomicHeartbeat = new StoreHeartbeatService(
+                new SharedHeartbeatStore(heartBeatRef, isDisruptedSupplier),
                 threadPool,
                 heartbeatFrequency,
                 TimeValue.timeValueMillis(heartbeatFrequency.millis() * MAX_MISSED_HEARTBEATS.get(settings)),
-                listener -> listener.onResponse(OptionalLong.of(atomicRegister.readCurrentTerm()))
+                listener -> ActionListener.completeWith(listener, () -> OptionalLong.of(atomicRegister.readCurrentTerm()))
             );
             var reconfigurator = new SingleNodeReconfigurator(settings, clusterSettings);
             var electionStrategy = new AtomicRegisterElectionStrategy(atomicRegister);
@@ -324,30 +269,29 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         @Override
         public void beforeCommit(long term, long version, ActionListener<Void> listener) {
             // TODO: add a test to ensure that this gets called
-            final var currentTerm = register.readCurrentTerm();
-            if (currentTerm == term) {
-                listener.onResponse(null);
-            } else {
-                assert term < currentTerm : term + " vs " + currentTerm;
-                listener.onFailure(
-                    new CoordinationStateRejectedException(
+            ActionListener.completeWith(listener, () -> {
+                final var currentTerm = register.readCurrentTerm();
+                if (currentTerm == term) {
+                    return null;
+                } else {
+                    assert term < currentTerm : term + " vs " + currentTerm;
+                    throw new CoordinationStateRejectedException(
                         Strings.format(
                             "could not commit cluster state version %d in term %d, current term is now %d",
                             version,
                             term,
                             currentTerm
                         )
-                    )
-                );
-            }
+                    );
+                }
+            });
         }
     }
 
     record PersistentClusterState(long term, long version, Metadata state) {}
 
-    private static class SharedStore implements HeartbeatStore {
+    private static class SharedStore {
         private final Map<Long, PersistentClusterState> clusterStateByTerm = new HashMap<>();
-        private Heartbeat heartbeat;
 
         private void writeClusterState(ClusterState clusterState) {
             clusterStateByTerm.put(
@@ -367,32 +311,57 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 return null;
             });
         }
+    }
+
+    private static class SharedHeartbeatStore implements HeartbeatStore {
+
+        private final AtomicReference<Heartbeat> hearbeatRef;
+        private final BooleanSupplier isDisruptedSupplier;
+
+        SharedHeartbeatStore(AtomicReference<Heartbeat> hearbeatRef, BooleanSupplier isDisruptedSupplier) {
+            this.hearbeatRef = hearbeatRef;
+            this.isDisruptedSupplier = isDisruptedSupplier;
+        }
 
         @Override
         public void writeHeartbeat(Heartbeat newHeartbeat, ActionListener<Void> listener) {
-            this.heartbeat = newHeartbeat;
+            if (isDisruptedSupplier.getAsBoolean()) {
+                listener.onFailure(new IOException("simulating disrupted access to shared store"));
+            }
+            hearbeatRef.set(newHeartbeat);
             listener.onResponse(null);
         }
 
         @Override
         public void readLatestHeartbeat(ActionListener<Heartbeat> listener) {
-            listener.onResponse(heartbeat);
+            if (isDisruptedSupplier.getAsBoolean()) {
+                listener.onFailure(new IOException("simulating disrupted access to shared store"));
+            }
+            listener.onResponse(hearbeatRef.get());
         }
     }
 
     private static class AtomicRegister {
-        private long currentTerm;
+        private final AtomicLong currentTermRef;
+        private final BooleanSupplier isDisruptedSupplier;
 
-        long readCurrentTerm() {
-            return currentTerm;
+        AtomicRegister(AtomicLong currentTermRef, BooleanSupplier isDisruptedSupplier) {
+            this.currentTermRef = currentTermRef;
+            this.isDisruptedSupplier = isDisruptedSupplier;
         }
 
-        long compareAndExchange(long expected, long updated) {
-            final var witness = currentTerm;
-            if (currentTerm == expected) {
-                currentTerm = updated;
+        long readCurrentTerm() throws IOException {
+            if (isDisruptedSupplier.getAsBoolean()) {
+                throw new IOException("simulating disrupted access to shared store");
             }
-            return witness;
+            return currentTermRef.get();
+        }
+
+        long compareAndExchange(long expected, long updated) throws IOException {
+            if (isDisruptedSupplier.getAsBoolean()) {
+                throw new IOException("simulating disrupted access to shared store");
+            }
+            return currentTermRef.compareAndExchange(expected, updated);
         }
     }
 

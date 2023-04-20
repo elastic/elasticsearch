@@ -107,8 +107,9 @@ setup:
 ---
 "Add data lifecycle":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/95141"
+      version: " - 8.7.99"
+      reason: "Data lifecycle in index templates was added after 8.7"
+      features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -140,8 +141,9 @@ setup:
 ---
 "Get data lifecycle with default rollover":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/95141"
+      version: " - 8.7.99"
+      reason: "Data lifecycle in index templates was added after 8.7"
+      features: allowed_warnings
 
   - do:
       allowed_warnings:

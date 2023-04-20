@@ -1086,7 +1086,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     threadPool,
                     settings,
                     clusterSettings,
-                    persistedState
+                    persistedState,
+                    () -> disconnectedNodes.contains(localNode.getId()) || blackholedNodes.contains(localNode.getId())
                 );
                 coordinator = new Coordinator(
                     "test_node",
@@ -1480,7 +1481,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ThreadPool threadPool,
             Settings settings,
             ClusterSettings clusterSettings,
-            CoordinationState.PersistedState persistedState
+            CoordinationState.PersistedState persistedState,
+            BooleanSupplier isDisruptedSupplier
         );
 
         CoordinationState.PersistedState createFreshPersistedState(
@@ -1529,7 +1531,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ThreadPool threadPool,
             Settings settings,
             ClusterSettings clusterSettings,
-            CoordinationState.PersistedState persistedState
+            CoordinationState.PersistedState persistedState,
+            BooleanSupplier isDisruptedSupplier
         ) {
             return new CoordinationServices() {
                 @Override

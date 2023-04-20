@@ -149,7 +149,6 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
          * builds a new map that invalidates the old map but maintains the current. This should be called in afterRefresh()
          */
         Maps invalidateOldMap() {
-            // TODO: do these two need be synchronized?
             archiver.afterRefresh(old);
             return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
         }
@@ -286,6 +285,13 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             return value;
         }
 
+        // TODO: do we need to handle the case where between two flushes we have:
+        // - a delete moves id to tombstone
+        // - a index with the same if puts the id in the current map
+        // - a refresh moves the id to the archive
+        // In this case, the delete from the tombstone is returned as the result which is incorrect.
+        // Do we need to compare the two values seq no returned by tombstone and archive or
+        // should we detect that earlier and flush to purge both tombstone and archive?
         value = tombstones.get(uid);
         if (value != null) {
             return value;

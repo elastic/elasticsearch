@@ -1,4 +1,5 @@
-import org.elasticsearch.gradle.internal.toolchain.JavaToolchainOracleJdkResolver
+import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
 
 pluginManagement {
   repositories {
@@ -29,8 +30,11 @@ dependencyResolutionManagement {
 toolchainManagement {
   jvm {
     javaRepositories {
-      repository('oracleOpendJdk') {
-        resolverClass = JavaToolchainOracleJdkResolver
+      repository('bundledOracleOpendJdk') {
+        resolverClass = OracleOpenJdkToolchainResolver
+      }
+      repository('archivedOracleJdks') {
+        resolverClass = ArchivedOracleJdkToolchainResolver
       }
     }
   }

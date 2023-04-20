@@ -136,7 +136,6 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
     private final SetOnce<SharedBlobCacheService<FileCacheKey>> sharedBlobCacheService = new SetOnce<>();
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
-    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     private final boolean sharedCachedSettingExplicitlySet;
@@ -198,7 +197,6 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     ) {
         // use the settings that include additional settings.
         Settings settings = environment.settings();
-        this.clusterService.set(clusterService);
         var commitService = setAndGet(this.commitService, new StatelessCommitService());
         var objectStoreService = setAndGet(
             this.objectStoreService,
@@ -381,7 +379,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                     config.getIndexCommitListener(),
                     config.isPromotableToPrimary()
                 );
-                return new IndexEngine(newConfig, translogReplicator.get(), clusterService.get().localNode().getEphemeralId());
+                return new IndexEngine(newConfig, translogReplicator.get());
             } else {
                 return new SearchEngine(config);
             }

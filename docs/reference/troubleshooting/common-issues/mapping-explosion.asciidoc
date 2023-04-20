@@ -61,7 +61,7 @@ yet. For example, this could apply to sub-mappings like { `host.name` ,
 <<runtime-search-request,Runtime Fields>>.
 
 * Using the <<object,object data type. This is helpful when you're 
-interested in storing but not searching a goup of fields. This is commonly 
+interested in storing but not searching a group of fields. This is commonly 
 used for unknown upstream scenarios which may induce however may fields. 
 For example, this is recommended when sub-mappings start showing new, 
 unexpected fields like { `o365.a01`, `o365.a02`, `o365.b01`, `o365.c99`}. 
@@ -95,8 +95,10 @@ you can process the <<indices-get-mapping,Get Mapping>> `mapping.json`
 output
 [source]
 ----
-$ cat mapping.json | jq -c 'to_entries[]| .key as $index| [.value.mappings| to_entries[]| {(.key):([.value|..|.type?|select(.!=null)]|length)}]| map(to_entries)| flatten| from_entries| ([to_entries[].value]|add)| {index: $index, field_count: .}'
+$ cat mapping.json | jq -c 'to_entries[]| .key as $index| [.value.mappings| to_entries[]|select(.key=="properties") | {(.key):([.value|..|.type?|select(.!=null)]|length)}]| map(to_entries)| flatten| from_entries| ([to_entries[].value]|add)| {index: $index, field_count: .}'
 ----
+You can use <<indices-disk-usage,Analyze index disk usage>> to find 
+fields which are never or rarely populated as easy wins.
 
 [discrete]
 [[complex]]

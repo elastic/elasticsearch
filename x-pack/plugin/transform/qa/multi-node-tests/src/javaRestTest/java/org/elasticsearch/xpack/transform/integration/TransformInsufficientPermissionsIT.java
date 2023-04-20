@@ -421,9 +421,8 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
-        String queryValidationIssue = "org.elasticsearch.ElasticsearchStatusException: Source indices have been deleted or closed.";
-        // transform is red with two issues
-        assertBusy(() -> assertRed(transformId, authIssue, queryValidationIssue), 10, TimeUnit.SECONDS);
+        // transform is red with one issue
+        assertBusy(() -> assertRed(transformId, authIssue), 10, TimeUnit.SECONDS);
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());
@@ -464,9 +463,8 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
-        String queryValidationIssue = "org.elasticsearch.ElasticsearchStatusException: Source indices have been deleted or closed.";
-        // transform is red with two issues
-        assertBusy(() -> assertRed(transformId, authIssue, queryValidationIssue), 10, TimeUnit.SECONDS);
+        // transform is red with one issue
+        assertBusy(() -> assertRed(transformId, authIssue), 10, TimeUnit.SECONDS);
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());

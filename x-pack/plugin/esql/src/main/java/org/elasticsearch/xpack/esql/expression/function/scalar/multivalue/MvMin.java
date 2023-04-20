@@ -7,16 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntArrayVector;
-import org.elasticsearch.compute.data.IntBlock;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -30,20 +29,28 @@ public class MvMin extends AbstractMultivalueFunction {
 
     @Override
     protected Object foldMultivalued(List<?> l) {
-        DataType type = field().dataType();
-        if (type == DataTypes.INTEGER) {
-            return l.stream().mapToInt(o -> (int) o).min().getAsInt();
-        }
-        throw new UnsupportedOperationException();
+        return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
+            case BOOLEAN -> l.stream().mapToInt(o -> (boolean) o ? 1 : 0).min().getAsInt() == 1;
+            case BYTES_REF -> l.stream().map(o -> (BytesRef) o).min(Comparator.naturalOrder()).get();
+            case DOUBLE -> l.stream().mapToDouble(o -> (double) o).min().getAsDouble();
+            case INT -> l.stream().mapToInt(o -> (int) o).min().getAsInt();
+            case LONG -> l.stream().mapToLong(o -> (long) o).min().getAsLong();
+            case NULL -> null;
+            default -> throw new UnsupportedOperationException("unsupported type [" + field().dataType() + "]");
+        };
     }
 
     @Override
     protected Supplier<EvalOperator.ExpressionEvaluator> evaluator(Supplier<EvalOperator.ExpressionEvaluator> fieldEval) {
-        DataType type = field().dataType();
-        if (type == DataTypes.INTEGER) {
-            return () -> new IntEvaluator(fieldEval.get());
-        }
-        throw new UnsupportedOperationException();
+        return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
+            case BOOLEAN -> () -> new MvMinBooleanEvaluator(fieldEval.get());
+            case BYTES_REF -> () -> new MvMinBytesRefEvaluator(fieldEval.get());
+            case DOUBLE -> () -> new MvMinDoubleEvaluator(fieldEval.get());
+            case INT -> () -> new MvMinIntEvaluator(fieldEval.get());
+            case LONG -> () -> new MvMinLongEvaluator(fieldEval.get());
+            case NULL -> () -> EvalOperator.CONSTANT_NULL;
+            default -> throw new UnsupportedOperationException("unsupported type [" + field().dataType() + "]");
+        };
     }
 
     @Override
@@ -56,59 +63,32 @@ public class MvMin extends AbstractMultivalueFunction {
         return NodeInfo.create(this, MvMin::new, field());
     }
 
-    private static class IntEvaluator extends AbstractEvaluator {
-        private IntEvaluator(EvalOperator.ExpressionEvaluator field) {
-            super(field);
-        }
+    @MvEvaluator(extraName = "Boolean")
+    static boolean process(boolean current, boolean v) {
+        return current && v;
+    }
 
-        @Override
-        protected String name() {
-            return "MvMin";
+    @MvEvaluator(extraName = "BytesRef")
+    static void process(BytesRef current, BytesRef v) {
+        if (v.compareTo(current) < 0) {
+            current.bytes = v.bytes;
+            current.offset = v.offset;
+            current.length = v.length;
         }
+    }
 
-        @Override
-        protected Block evalWithNulls(Block fieldVal) {
-            IntBlock v = (IntBlock) fieldVal;
-            int positionCount = v.getPositionCount();
-            IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount);
-            for (int p = 0; p < positionCount; p++) {
-                if (v.isNull(p)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int valueCount = v.getValueCount(p);
-                if (v.isNull(p)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int first = v.getFirstValueIndex(p);
-                int value = v.getInt(first);
-                int end = first + valueCount;
-                for (int i = first + 1; i < end; i++) {
-                    value = Math.min(value, v.getInt(i));
-                }
-                builder.appendInt(value);
-            }
-            return builder.build();
-        }
+    @MvEvaluator(extraName = "Double")
+    static double process(double current, double v) {
+        return Math.min(current, v);
+    }
 
-        @Override
-        protected Block evalWithoutNulls(Block fieldVal) {
-            IntBlock v = (IntBlock) fieldVal;
-            int positionCount = v.getPositionCount();
-            int[] values = new int[positionCount];
-            for (int p = 0; p < positionCount; p++) {
-                int first = v.getFirstValueIndex(p);
-                int value = v.getInt(first);
-                int valueCount = v.getValueCount(p);
-                int end = first + valueCount;
-                for (int i = first + 1; i < end; i++) {
-                    value = Math.min(value, v.getInt(i));
-                }
-                values[p] = value;
-            }
-            return new IntArrayVector(values, positionCount).asBlock();
-        }
+    @MvEvaluator(extraName = "Int")
+    static int process(int current, int v) {
+        return Math.min(current, v);
+    }
 
+    @MvEvaluator(extraName = "Long")
+    static long process(long current, long v) {
+        return Math.min(current, v);
     }
 }

@@ -72,17 +72,9 @@ public final class BlockUtils {
             } else if (object instanceof Boolean booleanVal) {
                 blocks[i] = BooleanBlock.newConstantBlockWith(booleanVal, blockSize);
             } else if (object instanceof List<?> listVal) {
-                assert blockSize == 1;
-                if (listVal.get(0) instanceof Integer) {
-                    IntBlock.Builder builder = IntBlock.newBlockBuilder(listVal.size());
-                    builder.beginPositionEntry();
-                    for (Object o : listVal) {
-                        builder.appendInt((Integer) o);
-                    }
-                    blocks[i] = builder.endPositionEntry().build();
-                } else {
-                    throw new UnsupportedOperationException("can't make a block out of [" + object + "/" + object.getClass() + "]");
-                }
+                BuilderWrapper wrapper = wrapperFor(listVal.get(0).getClass(), 1);
+                wrapper.append.accept(listVal);
+                blocks[i] = wrapper.builder.build();
             } else if (object == null) {
                 blocks[i] = constantNullBlock(blockSize);
             } else {

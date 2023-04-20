@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.gen;
 
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.MvEvaluator;
 
 import java.util.List;
 import java.util.Set;
@@ -36,7 +37,7 @@ public class EvaluatorProcessor implements Processor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        return Set.of(Evaluator.class.getName());
+        return Set.of(Evaluator.class.getName(), MvEvaluator.class.getName());
     }
 
     @Override
@@ -64,13 +65,25 @@ public class EvaluatorProcessor implements Processor {
         for (TypeElement ann : set) {
             for (Element evaluatorMethod : roundEnvironment.getElementsAnnotatedWith(ann)) {
                 Evaluator evaluatorAnn = evaluatorMethod.getAnnotation(Evaluator.class);
-                AggregatorProcessor.write(
-                    evaluatorMethod,
-                    "evaluator",
-                    new EvaluatorImplementer(env.getElementUtils(), (ExecutableElement) evaluatorMethod, evaluatorAnn.extraName())
-                        .sourceFile(),
-                    env
-                );
+                if (evaluatorAnn != null) {
+                    AggregatorProcessor.write(
+                        evaluatorMethod,
+                        "evaluator",
+                        new EvaluatorImplementer(env.getElementUtils(), (ExecutableElement) evaluatorMethod, evaluatorAnn.extraName())
+                            .sourceFile(),
+                        env
+                    );
+                }
+                MvEvaluator mvEvaluatorAnn = evaluatorMethod.getAnnotation(MvEvaluator.class);
+                if (mvEvaluatorAnn != null) {
+                    AggregatorProcessor.write(
+                        evaluatorMethod,
+                        "evaluator",
+                        new MvEvaluatorImplementer(env.getElementUtils(), (ExecutableElement) evaluatorMethod, mvEvaluatorAnn.extraName())
+                            .sourceFile(),
+                        env
+                    );
+                }
             }
         }
         return true;

@@ -56,4 +56,6 @@ public class EvalOperator extends AbstractPageMappingOperator {
     public interface ExpressionEvaluator {
         Block eval(Page page);
     }
+
+    public static final ExpressionEvaluator CONSTANT_NULL = page -> Block.constantNullBlock(page.getPositionCount());
 }

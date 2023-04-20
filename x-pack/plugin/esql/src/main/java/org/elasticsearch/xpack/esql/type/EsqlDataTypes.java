@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.type;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -104,7 +105,7 @@ public final class EsqlDataTypes {
         if (value instanceof Float) {
             return FLOAT;
         }
-        if (value instanceof String || value instanceof Character) {
+        if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
             return KEYWORD;
         }
 

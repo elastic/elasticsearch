@@ -61,6 +61,10 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         return EsqlDataTypes.types().stream().filter(DataType::isNumeric).toArray(DataType[]::new);
     }
 
+    protected final DataType[] representable() {
+        return EsqlDataTypes.types().stream().filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
+    }
+
     protected record ArgumentSpec(boolean optional, Set<DataType> validTypes) {}
 
     public final void testSimpleResolveTypeValid() {
@@ -140,6 +144,9 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         }
         if (withoutNull.equals(Arrays.asList(numerics()))) {
             return "numeric";
+        }
+        if (validTypes.equals(Set.copyOf(Arrays.asList(representable())))) {
+            return "representable";
         }
         throw new IllegalArgumentException("can't guess expected type for " + validTypes);
     }

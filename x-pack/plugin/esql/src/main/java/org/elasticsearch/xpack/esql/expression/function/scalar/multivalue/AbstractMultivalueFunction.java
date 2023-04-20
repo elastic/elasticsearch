@@ -13,11 +13,14 @@ import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.planner.Mappable;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
  * Base class for functions that reduce multivalued fields into single valued fields.
@@ -39,7 +42,11 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
 
     @Override
     protected final TypeResolution resolveType() {
-        return field().typeResolved();
+        if (childrenResolved() == false) {
+            return new TypeResolution("Unresolved children");
+        }
+
+        return isType(field(), EsqlDataTypes::isRepresentable, sourceText(), null, "representable");
     }
 
     @Override
@@ -62,7 +69,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
         return evaluator(toEvaluator.apply(field()));
     }
 
-    protected abstract static class AbstractEvaluator implements EvalOperator.ExpressionEvaluator {
+    public abstract static class AbstractEvaluator implements EvalOperator.ExpressionEvaluator {
         private final EvalOperator.ExpressionEvaluator field;
 
         protected AbstractEvaluator(EvalOperator.ExpressionEvaluator field) {
@@ -71,9 +78,19 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
 
         protected abstract String name();
 
-        protected abstract Block evalWithNulls(Block fieldVal);
+        /**
+         * Called when evaluating a {@link Block} that contains null values.
+         */
+        protected abstract Block evalNullable(Block fieldVal);
 
-        protected abstract Block evalWithoutNulls(Block fieldVal);
+        /**
+         * Called when evaluating a {@link Block} that does not contain null values.
+         * It's useful to specialize this from {@link #evalNullable} because it knows
+         * that it's producing an "array vector" because it only ever emits single
+         * valued fields and no null values. Building an array vector directly is
+         * generally faster than building it via a {@link Block.Builder}.
+         */
+        protected abstract Vector evalNotNullable(Block fieldVal);
 
         @Override
         public final Block eval(Page page) {
@@ -84,9 +101,9 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
                 return fieldVal;
             }
             if (fieldVal.mayHaveNulls()) {
-                return evalWithNulls(fieldVal);
+                return evalNullable(fieldVal);
             }
-            return evalWithoutNulls(fieldVal);
+            return evalNotNullable(fieldVal).asBlock();
         }
 
         @Override

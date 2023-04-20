@@ -24,6 +24,7 @@ public class Types {
     static final ClassName VECTOR = ClassName.get(DATA_PACKAGE, "Vector");
 
     static final ClassName BIG_ARRAYS = ClassName.get("org.elasticsearch.common.util", "BigArrays");
+    static final ClassName BYTES_REF_ARRAY = ClassName.get("org.elasticsearch.common.util", "BytesRefArray");
 
     static final ClassName BOOLEAN_BLOCK = ClassName.get(DATA_PACKAGE, "BooleanBlock");
     static final ClassName BYTES_REF_BLOCK = ClassName.get(DATA_PACKAGE, "BytesRefBlock");
@@ -42,9 +43,20 @@ public class Types {
     static final ClassName LONG_VECTOR = ClassName.get(DATA_PACKAGE, "LongVector");
     static final ClassName DOUBLE_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleVector");
 
+    static final ClassName BOOLEAN_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "BooleanArrayVector");
+    static final ClassName BYTES_REF_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "BytesRefArrayVector");
+    static final ClassName INT_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "IntArrayVector");
+    static final ClassName LONG_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "LongArrayVector");
+    static final ClassName DOUBLE_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleArrayVector");
+
     static final ClassName AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunction");
     static final ClassName GROUPING_AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "GroupingAggregatorFunction");
     static final ClassName EXPRESSION_EVALUATOR = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator");
+    static final ClassName ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR = ClassName.get(
+        "org.elasticsearch.xpack.esql.expression.function.scalar.multivalue",
+        "AbstractMultivalueFunction",
+        "AbstractEvaluator"
+    );
 
     static final ClassName EXPRESSION = ClassName.get("org.elasticsearch.xpack.ql.expression", "Expression");
 
@@ -84,6 +96,25 @@ public class Types {
         }
         if (elementType.equals(TypeName.DOUBLE)) {
             return DOUBLE_VECTOR;
+        }
+        throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
+    }
+
+    static ClassName arrayVectorType(TypeName elementType) {
+        if (elementType.equals(TypeName.BOOLEAN)) {
+            return BOOLEAN_ARRAY_VECTOR;
+        }
+        if (elementType.equals(BYTES_REF)) {
+            return BYTES_REF_ARRAY_VECTOR;
+        }
+        if (elementType.equals(TypeName.INT)) {
+            return INT_ARRAY_VECTOR;
+        }
+        if (elementType.equals(TypeName.LONG)) {
+            return LONG_ARRAY_VECTOR;
+        }
+        if (elementType.equals(TypeName.DOUBLE)) {
+            return DOUBLE_ARRAY_VECTOR;
         }
         throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
     }

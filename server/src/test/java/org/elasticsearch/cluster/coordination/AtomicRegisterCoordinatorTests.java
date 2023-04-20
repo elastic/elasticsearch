@@ -47,25 +47,6 @@ import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatSer
 public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     @Override
     @AwaitsFix(bugUrl = "ES-5645")
-    public void testLeaderDisconnectionWithDisconnectEventDetectedQuickly() {
-        // In this test the leader still has access to the register, therefore it is still considered as a leader.
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testLeaderDisconnectionWithoutDisconnectEventDetectedQuickly() {
-        // In this test the leader still has access to the register, therefore it is still considered as a leader.
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testMasterStatsOnFailedUpdate() {
-        // In this test the leader still has access to the register, therefore it is still considered as a leader, and it can perform
-        // updates.
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
     public void testUnhealthyLeaderIsReplaced() {
         // In this test the leader still has access to the register, therefore it is still considered as a leader.
     }

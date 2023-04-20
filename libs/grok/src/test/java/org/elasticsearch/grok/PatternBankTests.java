@@ -22,6 +22,7 @@ public class PatternBankTests extends ESTestCase {
         var patternBank = new PatternBank(bank);
         assertNotSame(patternBank.bank(), bank);
         assertEquals(patternBank.bank(), bank);
+        expectThrows(UnsupportedOperationException.class, () -> { patternBank.bank().put("some", "thing"); });
     }
 
     public void testBankCannotBeNull() {
@@ -96,5 +97,25 @@ public class PatternBankTests extends ESTestCase {
             () -> PatternBank.forbidCircularReferences(Map.of("ANOTHER", "%{INT}", "INT", "%{INT}"))
         );
         assertEquals("circular reference in pattern [INT][%{INT}]", e.getMessage());
+    }
+
+    public void testInvalidPatternReferences() {
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PatternBank.forbidCircularReferences(Map.of("NAME", "%{NON_EXISTENT}"))
+        );
+        assertEquals("pattern [NAME] is referencing a non-existent pattern [NON_EXISTENT]", e.getMessage());
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PatternBank.forbidCircularReferences(Map.of("NAME", "%{NON_EXISTENT:id}"))
+        );
+        assertEquals("pattern [NAME] is referencing a non-existent pattern [NON_EXISTENT]", e.getMessage());
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PatternBank.forbidCircularReferences(Map.of("VALID", "valid", "NAME", "%{VALID"))
+        );
+        assertEquals("pattern [%{VALID] has an invalid syntax", e.getMessage());
     }
 }

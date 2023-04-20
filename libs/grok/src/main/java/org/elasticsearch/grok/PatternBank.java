@@ -115,11 +115,18 @@ public class PatternBank {
             } else if (bracketIndex != -1 && columnIndex != -1) {
                 end = Math.min(bracketIndex, columnIndex);
             } else {
-                throw new IllegalArgumentException("pattern [" + pattern + "] has circular references to other pattern definitions");
+                throw new IllegalArgumentException("pattern [" + pattern + "] has an invalid syntax");
             }
             String otherPatternName = pattern.substring(begin, end);
             path.add(otherPatternName);
-            innerForbidCircularReferences(bank, patternName, path, bank.get(otherPatternName));
+            String otherPattern = bank.get(otherPatternName);
+            if (otherPattern == null) {
+                throw new IllegalArgumentException(
+                    "pattern [" + patternName + "] is referencing a non-existent pattern [" + otherPatternName + "]"
+                );
+            }
+
+            innerForbidCircularReferences(bank, patternName, path, otherPattern);
         }
     }
 

@@ -21,7 +21,6 @@ import org.elasticsearch.search.profile.query.InternalProfileCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;

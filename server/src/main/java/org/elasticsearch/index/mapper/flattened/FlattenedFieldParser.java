@@ -166,9 +166,13 @@ class FlattenedFieldParser {
             fields.add(new SortedSetDocValuesField(rootFieldName, bytesValue));
             fields.add(new SortedSetDocValuesField(keyedFieldName, bytesKeyedValue));
 
-            String keyedFieldName = FlattenedFieldParser.extractKey(bytesKeyedValue).utf8ToString();
-            BytesRef keyedFieldValue = FlattenedFieldParser.extractValue(bytesKeyedValue);
+            if (fieldType.isDimension() == false) {
+                return;
+            }
+
+            final String keyedFieldName = FlattenedFieldParser.extractKey(bytesKeyedValue).utf8ToString();
             if (fieldType.isDimension() && fieldType.dimensions().contains(keyedFieldName)) {
+                final BytesRef keyedFieldValue = FlattenedFieldParser.extractValue(bytesKeyedValue);
                 context.getDimensions().addString(rootFieldName + "." + keyedFieldName, keyedFieldValue);
             }
         }

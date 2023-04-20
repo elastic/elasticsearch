@@ -134,9 +134,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
 
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
-
     private final SetOnce<SharedBlobCacheService<FileCacheKey>> sharedBlobCacheService = new SetOnce<>();
-
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
@@ -200,31 +198,33 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     ) {
         // use the settings that include additional settings.
         Settings settings = environment.settings();
-        commitService.set(new StatelessCommitService());
-        var objectStoreService = new ObjectStoreService(
-            settings,
-            repositoriesServiceSupplier,
-            threadPool,
-            clusterService,
-            commitService.get(),
-            client
-        );
-        this.objectStoreService.set(objectStoreService);
-        var sharedBlobCache = new SharedBlobCacheService<FileCacheKey>(nodeEnvironment, settings, threadPool);
-        this.sharedBlobCacheService.set(sharedBlobCache);
-        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, settings, objectStoreService);
-        this.translogReplicator.set(translogReplicator);
         this.clusterService.set(clusterService);
-        var statelessElectionStrategy = new StatelessElectionStrategy(objectStoreService::getTermLeaseBlobContainer, threadPool);
-        this.electionStrategy.set(statelessElectionStrategy);
-        var storeHeartbeatService = StoreHeartbeatService.create(
-            new StatelessHeartbeatStore(objectStoreService::getLeaderHeartbeatContainer, threadPool),
-            threadPool,
-            environment.settings(),
-            statelessElectionStrategy::getCurrentLeaseTerm
+        var commitService = setAndGet(this.commitService, new StatelessCommitService());
+        var objectStoreService = setAndGet(
+            this.objectStoreService,
+            new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService, commitService, client)
         );
-        this.storeHeartbeatService.set(storeHeartbeatService);
+        var sharedBlobCache = setAndGet(this.sharedBlobCacheService, new SharedBlobCacheService<>(nodeEnvironment, settings, threadPool));
+        var translogReplicator = setAndGet(this.translogReplicator, new TranslogReplicator(threadPool, settings, objectStoreService));
+        var statelessElectionStrategy = setAndGet(
+            this.electionStrategy,
+            new StatelessElectionStrategy(objectStoreService::getTermLeaseBlobContainer, threadPool)
+        );
+        setAndGet(
+            this.storeHeartbeatService,
+            StoreHeartbeatService.create(
+                new StatelessHeartbeatStore(objectStoreService::getLeaderHeartbeatContainer, threadPool),
+                threadPool,
+                environment.settings(),
+                statelessElectionStrategy::getCurrentLeaseTerm
+            )
+        );
         return List.of(objectStoreService, translogReplicator, sharedBlobCache);
+    }
+
+    private static <T> T setAndGet(SetOnce<T> ref, T service) {
+        ref.set(service);
+        return service;
     }
 
     @Override

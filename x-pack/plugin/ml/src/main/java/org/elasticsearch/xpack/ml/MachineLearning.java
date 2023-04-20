@@ -1276,7 +1276,6 @@ public class MachineLearning extends Plugin
         List<RestHandler> restHandlers = new ArrayList<>();
         restHandlers.add(new RestMlInfoAction());
         restHandlers.add(new RestMlMemoryAction());
-        restHandlers.add(new RestDeleteExpiredDataAction());
         restHandlers.add(new RestSetUpgradeModeAction());
         if (machineLearningExtension.get().isAnomalyDetectionEnabled()) {
             restHandlers.add(new RestGetJobsAction());
@@ -1325,6 +1324,7 @@ public class MachineLearning extends Plugin
             restHandlers.add(new RestPostCalendarEventAction());
             restHandlers.add(new RestUpgradeJobModelSnapshotAction());
             restHandlers.add(new RestGetJobModelSnapshotsUpgradeStatsAction());
+            restHandlers.add(new RestDeleteExpiredDataAction());
             restHandlers.add(new RestCatJobsAction());
             restHandlers.add(new RestCatDatafeedsAction());
         }
@@ -1373,7 +1373,6 @@ public class MachineLearning extends Plugin
         }
         actionHandlers.add(new ActionHandler<>(MlInfoAction.INSTANCE, TransportMlInfoAction.class));
         actionHandlers.add(new ActionHandler<>(MlMemoryAction.INSTANCE, TransportMlMemoryAction.class));
-        actionHandlers.add(new ActionHandler<>(DeleteExpiredDataAction.INSTANCE, TransportDeleteExpiredDataAction.class));
         actionHandlers.add(new ActionHandler<>(SetUpgradeModeAction.INSTANCE, TransportSetUpgradeModeAction.class));
         actionHandlers.add(new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetResetModeAction.class));
         if (machineLearningExtension.get().isAnomalyDetectionEnabled()) {
@@ -1433,6 +1432,7 @@ public class MachineLearning extends Plugin
                 new ActionHandler<>(GetJobModelSnapshotsUpgradeStatsAction.INSTANCE, TransportGetJobModelSnapshotsUpgradeStatsAction.class)
             );
             actionHandlers.add(new ActionHandler<>(GetDatafeedRunningStateAction.INSTANCE, TransportGetDatafeedRunningStateAction.class));
+            actionHandlers.add(new ActionHandler<>(DeleteExpiredDataAction.INSTANCE, TransportDeleteExpiredDataAction.class));
         }
         if (machineLearningExtension.get().isDataFrameAnalyticsEnabled() || machineLearningExtension.get().isNlpEnabled()) {
             actionHandlers.add(new ActionHandler<>(GetTrainedModelsAction.INSTANCE, TransportGetTrainedModelsAction.class));

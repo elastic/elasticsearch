@@ -52,12 +52,12 @@ public class AggregationPhase {
             }
             Collector collector = context.getProfilers() == null
                 ? BucketCollector.NO_OP_COLLECTOR
-                : new InternalProfileCollector(BucketCollector.NO_OP_COLLECTOR, CollectorResult.REASON_AGGREGATION, List.of());
+                : new InternalProfileCollector(BucketCollector.NO_OP_COLLECTOR, CollectorResult.REASON_AGGREGATION);
             context.registerAggsCollector(collector);
         } else {
             Collector collector = context.getProfilers() == null
                 ? bucketCollector.asCollector()
-                : new InternalProfileCollector(bucketCollector.asCollector(), CollectorResult.REASON_AGGREGATION, List.of());
+                : new InternalProfileCollector(bucketCollector.asCollector(), CollectorResult.REASON_AGGREGATION);
             context.registerAggsCollector(collector);
         }
     }

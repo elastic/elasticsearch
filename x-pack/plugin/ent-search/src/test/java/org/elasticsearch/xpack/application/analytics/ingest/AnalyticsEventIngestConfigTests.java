@@ -98,8 +98,6 @@ public class AnalyticsEventIngestConfigTests extends ESTestCase {
     public void testCustomMaxBytesInFlight() {
         double value = randomIntBetween(1, 100);
         AnalyticsEventIngestConfig config = createCustomBulkProcessorConfig("max_bytes_in_flight", value + "%");
-        System.out.println(value / 100);
-        System.out.println(heapSize());
         assertThat(config.maxBytesInFlight(), equalTo(ByteSizeValue.ofBytes((long) (value / 100 * heapSize()))));
     }
 

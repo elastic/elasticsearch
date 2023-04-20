@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.redact;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.grok.MatcherWatchdog;
+import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -19,11 +22,18 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.when;
 
 public class RedactProcessorFactoryTests extends ESTestCase {
 
+    private static XPackLicenseState mockLicenseState() {
+        MockLicenseState licenseState = TestUtils.newMockLicenceState();
+        when(licenseState.isAllowed(RedactProcessor.REDACT_PROCESSOR_FEATURE)).thenReturn(true);
+        return licenseState;
+    }
+
     public void testPatternNotSet() {
-        RedactProcessor.Factory factory = new RedactProcessor.Factory(MatcherWatchdog.noop());
+        RedactProcessor.Factory factory = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop());
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -33,7 +43,7 @@ public class RedactProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCreateWithCustomPatterns() throws Exception {
-        RedactProcessor.Factory factory = new RedactProcessor.Factory(MatcherWatchdog.noop());
+        RedactProcessor.Factory factory = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop());
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -45,7 +55,7 @@ public class RedactProcessorFactoryTests extends ESTestCase {
     }
 
     public void testConfigKeysRemoved() throws Exception {
-        RedactProcessor.Factory factory = new RedactProcessor.Factory(MatcherWatchdog.noop());
+        RedactProcessor.Factory factory = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop());
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");

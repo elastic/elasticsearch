@@ -18,6 +18,10 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.license.XPackLicenseState;
 import org.joni.Matcher;
 import org.joni.Option;
 import org.joni.Region;
@@ -37,6 +41,12 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
  */
 public class RedactProcessor extends AbstractProcessor {
 
+    public static final LicensedFeature.Momentary REDACT_PROCESSOR_FEATURE = LicensedFeature.momentary(
+        null,
+        "redact_processor",
+        License.OperationMode.PLATINUM
+    );
+
     public static final String TYPE = "redact";
 
     private static final Logger logger = LogManager.getLogger(RedactProcessor.class);
@@ -47,8 +57,12 @@ public class RedactProcessor extends AbstractProcessor {
     private final String redactField;
     private final List<Grok> groks;
     private final boolean ignoreMissing;
+
     private final String redactedStartToken;
     private final String redactedEndToken;
+
+    private final XPackLicenseState licenseState;
+    private final boolean skipIfUnlicensed;
 
     RedactProcessor(
         String tag,
@@ -59,7 +73,9 @@ public class RedactProcessor extends AbstractProcessor {
         boolean ignoreMissing,
         String redactedStartToken,
         String redactedEndToken,
-        MatcherWatchdog matcherWatchdog
+        MatcherWatchdog matcherWatchdog,
+        XPackLicenseState licenseState,
+        boolean skipIfUnlicensed
     ) {
         super(tag, description);
         this.redactField = redactField;
@@ -75,10 +91,21 @@ public class RedactProcessor extends AbstractProcessor {
         if (matchPatterns.isEmpty() == false) {
             new Grok(patternBank, matchPatterns.get(0), matcherWatchdog, logger::warn).match("___nomatch___");
         }
+        this.licenseState = licenseState;
+        this.skipIfUnlicensed = skipIfUnlicensed;
     }
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) {
+        // runtime license check, this runs for every document processed
+        if (REDACT_PROCESSOR_FEATURE.check(licenseState) == false) {
+            if (skipIfUnlicensed) {
+                return ingestDocument;
+            } else {
+                throw LicenseUtils.newComplianceException(REDACT_PROCESSOR_FEATURE.getName());
+            }
+        }
+
         // Call with ignoreMissing = true so getFieldValue does not throw
         final String fieldValue = ingestDocument.getFieldValue(redactField, String.class, true);
 
@@ -325,9 +352,11 @@ public class RedactProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
+        private final XPackLicenseState licenseState;
         private final MatcherWatchdog matcherWatchdog;
 
-        public Factory(MatcherWatchdog matcherWatchdog) {
+        public Factory(XPackLicenseState licenseState, MatcherWatchdog matcherWatchdog) {
+            this.licenseState = licenseState;
             this.matcherWatchdog = matcherWatchdog;
         }
 
@@ -341,6 +370,7 @@ public class RedactProcessor extends AbstractProcessor {
             String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             List<String> matchPatterns = ConfigurationUtils.readList(TYPE, processorTag, config, "patterns");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", true);
+            boolean skipIfUnlicensed = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "skip_if_unlicensed", true);
 
             String redactStart = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "prefix", DEFAULT_REDACTED_START);
             String redactEnd = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "suffix", DEFAULT_REDACTED_END);
@@ -360,7 +390,9 @@ public class RedactProcessor extends AbstractProcessor {
                     ignoreMissing,
                     redactStart,
                     redactEnd,
-                    matcherWatchdog
+                    matcherWatchdog,
+                    licenseState,
+                    skipIfUnlicensed
                 );
             } catch (Exception e) {
                 throw newConfigurationException(

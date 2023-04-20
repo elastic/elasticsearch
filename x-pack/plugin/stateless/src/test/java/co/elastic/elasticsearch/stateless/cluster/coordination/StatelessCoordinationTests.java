@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.OptionalLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -75,17 +77,67 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
             ThreadPool threadPool,
             Settings settings,
             ClusterSettings clusterSettings,
-            CoordinationState.PersistedState persistedState
+            CoordinationState.PersistedState persistedState,
+            BooleanSupplier isDisruptedSupplier
         ) {
-            final var statelessElectionStrategy = new StatelessElectionStrategy(() -> termLeaseContainer, threadPool) {
+            final var statelessElectionStrategy = new StatelessElectionStrategy(() -> new FilterBlobContainer(termLeaseContainer) {
+                @Override
+                protected BlobContainer wrapChild(BlobContainer child) {
+                    throw new AssertionError("should not obtain child");
+                }
+
+                @Override
+                public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+                    if (isDisruptedSupplier.getAsBoolean()) {
+                        listener.onFailure(new IOException("simulating disrupted access to shared store"));
+                    } else {
+                        super.compareAndExchangeRegister(key, expected, updated, listener);
+                    }
+                }
+
+                @Override
+                public void compareAndSetRegister(String key, long expected, long updated, ActionListener<Boolean> listener) {
+                    if (isDisruptedSupplier.getAsBoolean()) {
+                        listener.onFailure(new IOException("simulating disrupted access to shared store"));
+                    } else {
+                        super.compareAndSetRegister(key, expected, updated, listener);
+                    }
+                }
+
+                @Override
+                public void getRegister(String key, ActionListener<OptionalLong> listener) {
+                    if (isDisruptedSupplier.getAsBoolean()) {
+                        listener.onFailure(new IOException("simulating disrupted access to shared store"));
+                    } else {
+                        super.getRegister(key, listener);
+                    }
+                }
+            }, threadPool) {
                 @Override
                 protected String getExecutorName() {
                     return ThreadPool.Names.SAME;
                 }
             };
             final var heartbeatFrequency = HEARTBEAT_FREQUENCY.get(settings);
-            final var storeHeartbeatService = new StoreHeartbeatService(
-                heartBeatStore,
+            final var storeHeartbeatService = new StoreHeartbeatService(new HeartbeatStore() {
+                @Override
+                public void writeHeartbeat(Heartbeat newHeartbeat, ActionListener<Void> listener) {
+                    if (isDisruptedSupplier.getAsBoolean()) {
+                        listener.onFailure(new IOException("simulating disrupted access to shared store"));
+                    } else {
+                        heartBeatStore.writeHeartbeat(newHeartbeat, listener);
+                    }
+                }
+
+                @Override
+                public void readLatestHeartbeat(ActionListener<Heartbeat> listener) {
+                    if (isDisruptedSupplier.getAsBoolean()) {
+                        listener.onFailure(new IOException("simulating disrupted access to shared store"));
+                    } else {
+                        heartBeatStore.readLatestHeartbeat(listener);
+                    }
+                }
+            },
                 threadPool,
                 heartbeatFrequency,
                 TimeValue.timeValueMillis(heartbeatFrequency.millis() * MAX_MISSED_HEARTBEATS.get(settings)),

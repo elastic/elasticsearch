@@ -109,6 +109,8 @@ public final class IndexPrivilege extends Privilege {
         ValidateQueryAction.NAME + "*",
         GetSettingsAction.NAME,
         ExplainLifecycleAction.NAME,
+        "indices:admin/data_lifecycle/get",
+        "indices:admin/dlm/explain",
         GetDataStreamAction.NAME,
         ResolveIndexAction.NAME,
         FieldCapabilitiesAction.NAME + "*",
@@ -124,6 +126,7 @@ public final class IndexPrivilege extends Privilege {
     );
     private static final Automaton MANAGE_LEADER_INDEX_AUTOMATON = patterns(ForgetFollowerAction.NAME + "*");
     private static final Automaton MANAGE_ILM_AUTOMATON = patterns("indices:admin/ilm/*");
+    private static final Automaton MANAGE_DLM_AUTOMATON = patterns("indices:admin/dlm/*", "indices:admin/data_lifecycle/*");
     private static final Automaton MAINTENANCE_AUTOMATON = patterns(
         "indices:admin/refresh*",
         "indices:admin/flush*",
@@ -149,6 +152,7 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege MANAGE_FOLLOW_INDEX = new IndexPrivilege("manage_follow_index", MANAGE_FOLLOW_INDEX_AUTOMATON);
     public static final IndexPrivilege MANAGE_LEADER_INDEX = new IndexPrivilege("manage_leader_index", MANAGE_LEADER_INDEX_AUTOMATON);
     public static final IndexPrivilege MANAGE_ILM = new IndexPrivilege("manage_ilm", MANAGE_ILM_AUTOMATON);
+    public static final IndexPrivilege MANAGE_DLM = new IndexPrivilege("manage_dlm", MANAGE_DLM_AUTOMATON);
     public static final IndexPrivilege MAINTENANCE = new IndexPrivilege("maintenance", MAINTENANCE_AUTOMATON);
     public static final IndexPrivilege AUTO_CONFIGURE = new IndexPrivilege("auto_configure", AUTO_CONFIGURE_AUTOMATON);
 
@@ -171,6 +175,7 @@ public final class IndexPrivilege extends Privilege {
             entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
             entry("manage_leader_index", MANAGE_LEADER_INDEX),
             entry("manage_ilm", MANAGE_ILM),
+            entry("manage_dlm", MANAGE_DLM),
             entry("maintenance", MAINTENANCE),
             entry("auto_configure", AUTO_CONFIGURE)
         )

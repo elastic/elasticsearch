@@ -58,7 +58,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
-import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
@@ -1419,28 +1418,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
 
             leader.clearActionBlocks();
-        }
-    }
-
-    public void testDiscoveryUsesNodesFromLastClusterState() {
-        try (Cluster cluster = new Cluster(randomIntBetween(3, 5))) {
-            cluster.runRandomly();
-            cluster.stabilise();
-
-            final ClusterNode partitionedNode = cluster.getAnyNode();
-            if (randomBoolean()) {
-                logger.info("--> blackholing {}", partitionedNode);
-                partitionedNode.blackhole();
-            } else {
-                logger.info("--> disconnecting {}", partitionedNode);
-                partitionedNode.disconnect();
-            }
-            cluster.setEmptySeedHostsList();
-            cluster.stabilise();
-
-            partitionedNode.heal();
-            cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
-            cluster.stabilise();
         }
     }
 

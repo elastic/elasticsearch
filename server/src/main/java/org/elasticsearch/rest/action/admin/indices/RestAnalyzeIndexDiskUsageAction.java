@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 @ServerlessScope(Scope.PUBLIC)
 public class RestAnalyzeIndexDiskUsageAction extends BaseRestHandler {
 

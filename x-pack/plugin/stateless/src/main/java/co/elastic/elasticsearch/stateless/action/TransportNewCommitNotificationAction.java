@@ -78,12 +78,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
                 throw new EngineException(shard.shardId(), "Engine not started.");
             }
             if (engineOrNull instanceof SearchEngine searchEngine) {
-                searchEngine.onCommitNotification(
-                    request.getTerm(),
-                    request.getGeneration(),
-                    request.getFiles(),
-                    listener.map(ignored -> ActionResponse.Empty.INSTANCE)
-                );
+                searchEngine.onCommitNotification(request.getCompoundCommit(), listener.map(ignored -> ActionResponse.Empty.INSTANCE));
             } else {
                 assert false : "expecting SearchEngine but got " + engineOrNull;
                 throw new ElasticsearchException("Engine not type SearchEngine.");

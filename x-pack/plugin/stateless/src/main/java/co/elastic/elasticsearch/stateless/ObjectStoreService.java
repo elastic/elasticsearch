@@ -26,11 +26,9 @@ import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.Client;
@@ -38,7 +36,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -58,7 +55,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -66,11 +62,9 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -100,8 +94,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         "stateless.object_store.base_path",
         Setting.Property.NodeScope
     );
-
-    private static final String MISSING_CHECKSUM = "_na_";
 
     public enum ObjectStoreType {
         FS("location") {
@@ -344,7 +336,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
     }
 
-    public static Map<String, StoreFileMetadata> findSearchShardFiles(BlobContainer blobContainer) throws IOException {
+    public static StatelessCompoundCommit findSearchShardFiles(BlobContainer blobContainer) throws IOException {
         // TODO ES-5310 must block the primary from deleting anything while we sort out at which commit to start
         // TODO ES-5869 Tracks the work to attempt previous primary terms if the current term lacks a commit
         final var allBlobs = Map.copyOf(blobContainer.listBlobs());
@@ -355,33 +347,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             .mapToLong(Long::parseLong)
             .max();
         if (maxGeneration.isEmpty()) {
-            return Map.of();
+            return null;
         }
         String commitFileName = StatelessCompoundCommit.NAME + maxGeneration.getAsLong();
-        StatelessCompoundCommit compoundCommit;
         try (StreamInput streamInput = new InputStreamStreamInput(blobContainer.readBlob(commitFileName))) {
-            compoundCommit = StatelessCompoundCommit.read(commitFileName, streamInput);
+            return StatelessCompoundCommit.readFromStore(streamInput);
         }
-        try (var directory = new SegmentInfoCachingDirectory(blobContainer, compoundCommit)) {
-            // SegmentInfos#readLatestCommit lists segments_N files, picks the latest, then loads it and all the .si files it mentions:
-            final var segmentInfos = SegmentInfos.readLatestCommit(directory);
-            // TODO ES-5310 can now notify the primary which commit we're going to be using, allowing cleanup of other commits
-
-            final Collection<String> commitFiles = segmentInfos.files(true);
-            final var blobs = new HashMap<String, StoreFileMetadata>();
-            for (String commitFile : commitFiles) {
-                final BlobMetadata blob = allBlobs.get(commitFile);
-                if (blob == null) {
-                    throw new FileNotFoundException(commitFile + " not found");
-                }
-                blobs.put(commitFile, toStoreFileMetadata(blob));
-            }
-            return blobs;
-        }
-    }
-
-    private static StoreFileMetadata toStoreFileMetadata(BlobMetadata metadata) {
-        return new StoreFileMetadata(metadata.name(), metadata.length(), MISSING_CHECKSUM, Version.CURRENT.toString());
     }
 
     /**
@@ -493,7 +464,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 final AtomicLong successCount = new AtomicLong();
                 final AtomicLong successSize = new AtomicLong();
                 final ActionListener<StatelessCompoundCommit> releaseCommitListener = ActionListener.runBefore(
-                    ActionListener.wrap(ignored -> {
+                    ActionListener.wrap(compoundCommit -> {
+                        assert compoundCommit != null;
                         final long end = threadPool.relativeTimeInNanos();
                         logger.debug(
                             () -> format(
@@ -508,9 +480,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
                         NewCommitNotificationRequest request = new NewCommitNotificationRequest(
                             clusterService.state().routingTable().shardRoutingTable(shardId),
-                            reference.getPrimaryTerm(),
-                            generation,
-                            reference.getCommitFiles()
+                            compoundCommit
                         );
                         client.execute(TransportNewCommitNotificationAction.TYPE, request);
                     }, e -> logger.error(() -> format("%s failed to upload files of commit [%s] to object store", shardId, generation), e)),
@@ -523,63 +493,36 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     successSize.addAndGet(r.length());
                 };
 
-                // TODO: Once we have modified the consumer side (search directory and recovery), only upload the stateless commit file.
-                // This step and listener can be removed.
-                final ActionListener<StatelessCompoundCommit> statelessCommitFileListener = ActionListener.wrap(
-                    releaseCommitListener.delegateFailure((l, v) ->
-                    // Note that the segments_N is uploaded last after all other files of the commit have been successfully uploaded,
-                    // and only if none of the other files failed to upload, so that a process listing the content of the bucket in the
-                    // object store will be able to access a consistent set of commit files (assuming read after write consistency).
+                final ActionListener<Void> allCommitFilesListener = ActionListener.wrap(releaseCommitListener.delegateFailure((l, v) -> {
+                    // Note that the stateless commit file is uploaded last after all other files of the commit have been successfully
+                    // uploaded, and only if none of the other files failed to upload, so that a process listing the content of the
+                    // bucket
+                    // in the object store will be able to access a consistent set of commit files (assuming read after write
+                    // consistency).
+                    String commitFileName = StatelessCompoundCommit.NAME + generation;
+                    StatelessCompoundCommit.Writer commitWriter = commitService.returnPendingCompoundCommit(
+                        shardId,
+                        generation,
+                        reference.getPrimaryTerm(),
+                        reference.getCommitFiles().values()
+                    );
+
                     uploadTaskRunner.enqueueTask(
-                        new FileUploadTask(
+                        new CommitFileUploadTask(
                             shardId,
-                            reference.getPrimaryTerm(),
                             generation,
                             timeInNanos,
-                            reference.getSegmentsFileName(),
+                            commitFileName,
                             reference.getDirectory(),
+                            commitWriter,
                             blobContainer,
-                            true,
                             l.map(r -> {
-                                addResult.accept(r);
-                                return null;
+                                addResult.accept(r.v2());
+                                return r.v1();
                             })
                         )
-                    ))
-                );
-
-                final ActionListener<Void> allCommitFilesListener = ActionListener.wrap(
-                    statelessCommitFileListener.delegateFailure((l, v) -> {
-                        // Note that the stateless commit file is uploaded last after all other files of the commit have been successfully
-                        // uploaded, and only if none of the other files failed to upload, so that a process listing the content of the
-                        // bucket
-                        // in the object store will be able to access a consistent set of commit files (assuming read after write
-                        // consistency).
-                        String commitFileName = StatelessCompoundCommit.NAME + generation;
-                        StatelessCompoundCommit.Writer commitWriter = commitService.returnPendingCompoundCommit(
-                            shardId,
-                            generation,
-                            reference.getPrimaryTerm(),
-                            reference.getCommitFiles().values()
-                        );
-
-                        uploadTaskRunner.enqueueTask(
-                            new CommitFileUploadTask(
-                                shardId,
-                                generation,
-                                timeInNanos,
-                                commitFileName,
-                                reference.getDirectory(),
-                                commitWriter,
-                                blobContainer,
-                                l.map(r -> {
-                                    addResult.accept(r.v2());
-                                    return r.v1();
-                                })
-                            )
-                        );
-                    })
-                );
+                    );
+                }));
 
                 final ActionListener<Void> additionalFilesListener = ActionListener.wrap(allCommitFilesListener.delegateFailure((l, v) -> {
                     List<String> missingFiles = commitService.resolveMissingFiles(shardId, reference.getCommitFiles().keySet());

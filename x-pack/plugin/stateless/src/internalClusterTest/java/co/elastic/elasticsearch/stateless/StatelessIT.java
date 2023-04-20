@@ -439,14 +439,14 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
             // can take some time for files to be uploaded to the object store
             assertBusy(() -> {
-                var localFiles = segmentInfos.files(true);
+                var localFiles = segmentInfos.files(false);
                 var remoteFiles = blobContainer.listBlobs().keySet();
                 assertThat(
                     "Expected that all local files " + localFiles + " exist in remote " + remoteFiles,
                     remoteFiles,
                     hasItems(localFiles.toArray(String[]::new))
                 );
-                for (String file : segmentInfos.files(true)) {
+                for (String file : segmentInfos.files(false)) {
                     assertThat("" + file, blobContainer.blobExists(file), is(true));
                     try (
                         IndexInput input = store.directory().openInput(file, IOContext.READONCE);
@@ -480,8 +480,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             assertBusy(() -> {
                 String commitFile = StatelessCompoundCommit.NAME + segmentInfos.getGeneration();
                 assertThat("" + commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
-                StatelessCompoundCommit commit = StatelessCompoundCommit.read(
-                    commitFile,
+                StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
                     new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile))
                 );
                 var localFiles = segmentInfos.files(true);
@@ -532,8 +531,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
             String commitFile = StatelessCompoundCommit.NAME + segmentInfos.getGeneration();
             assertBusy(() -> assertThat("" + commitFile, blobContainerForCommit.blobExists(commitFile), is(true)));
-            StatelessCompoundCommit commit = StatelessCompoundCommit.read(
-                commitFile,
+            StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
                 new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile))
             );
 

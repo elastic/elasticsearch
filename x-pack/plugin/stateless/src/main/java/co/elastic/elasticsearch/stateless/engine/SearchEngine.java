@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.lucene.index.DirectoryReader;
@@ -45,7 +46,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
-import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -79,7 +79,7 @@ import java.util.function.Function;
 public class SearchEngine extends Engine {
 
     private final Map<Long, ListenableActionFuture<Long>> segmentGenerationListeners = ConcurrentCollections.newConcurrentMap();
-    private final LinkedBlockingQueue<CommitNotification> commitNotifications = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<StatelessCompoundCommit> commitNotifications = new LinkedBlockingQueue<>();
     private final AtomicInteger pendingCommitNotifications = new AtomicInteger();
     private final ReferenceManager<ElasticsearchDirectoryReader> readerManager;
     private final SearchDirectory directory;
@@ -124,15 +124,9 @@ public class SearchEngine extends Engine {
         return pendingCommitNotifications.get();
     }
 
-    public void onCommitNotification(
-        final long primaryTerm,
-        final long generation,
-        final Map<String, StoreFileMetadata> commit,
-        ActionListener<Void> listener
-    ) {
-        if (addOrExecuteSegmentGenerationListener(generation, listener.map(g -> null))) {
-            commitNotifications.add(new CommitNotification(primaryTerm, generation, commit));
-
+    public void onCommitNotification(StatelessCompoundCommit commit, ActionListener<Void> listener) {
+        if (addOrExecuteSegmentGenerationListener(commit.generation(), listener.map(g -> null))) {
+            commitNotifications.add(commit);
             if (pendingCommitNotifications.incrementAndGet() == 1) {
                 processCommitNotifications();
             }
@@ -151,19 +145,19 @@ public class SearchEngine extends Engine {
                 assert batchSize > 0 : batchSize;
 
                 final SegmentInfos current = segmentInfos;
-                CommitNotification latestCommit = null;
+                StatelessCompoundCommit latestCommit = null;
                 for (int i = batchSize; i > 0; i--) {
-                    CommitNotification commit = commitNotifications.poll();
+                    StatelessCompoundCommit commit = commitNotifications.poll();
                     assert commit != null;
                     if (commit.generation() < current.getGeneration()) { // TODO also compare primary terms
                         logger.trace(
                             "notification for commit generation [{}] is older than current generation [{}], ignoring",
-                            commit.generation,
+                            commit.generation(),
                             current.getGeneration()
                         );
                         continue;
                     }
-                    if (latestCommit == null || commit.isAfter(latestCommit)) {
+                    if (latestCommit == null || commit.generation() > latestCommit.generation()) {
                         latestCommit = commit;
                     }
                 }
@@ -180,18 +174,18 @@ public class SearchEngine extends Engine {
 
                 store.incRef();
                 try {
-                    final CommitNotification notification = latestCommit;
+                    final StatelessCompoundCommit notification = latestCommit;
                     logger.trace(() -> "updating directory with commit " + notification);
-                    directory.updateCommit(notification.commit);
+                    directory.updateCommit(notification);
 
                     readerManager.maybeRefreshBlocking();
                     var reader = readerManager.acquire();
                     try {
-                        assert reader.getIndexCommit().getGeneration() == notification.generation
+                        assert reader.getIndexCommit().getGeneration() == notification.generation()
                             : "Directory reader commit generation ["
                                 + reader.getIndexCommit().getGeneration()
                                 + "] does not match expected generation ["
-                                + notification.generation
+                                + notification.generation()
                                 + ']';
 
                         final SegmentInfos next = Lucene.readSegmentInfos(reader.getIndexCommit());
@@ -635,15 +629,4 @@ public class SearchEngine extends Engine {
         return new UnsupportedOperationException("Search engine does not support this operation");
     }
 
-    record CommitNotification(long primaryTerm, long generation, Map<String, StoreFileMetadata> commit) {
-
-        @Override
-        public String toString() {
-            return "[" + primaryTerm + "][" + generation + ']' + commit;
-        }
-
-        public boolean isAfter(CommitNotification other) {
-            return generation > other.generation; // TODO we should also compare the primary terms to ignore old values
-        }
-    }
 }

@@ -41,13 +41,32 @@ import java.util.stream.Collectors;
  * Represents a Lucene commit point with additional information required to manage this commit in the object store as well as locally. Such
  * objects are uploaded to the object store as binary blobs.
  */
-public record StatelessCompoundCommit(ShardId shardId, long generation, long primaryTerm, Map<String, BlobLocation> commitFiles) {
+public record StatelessCompoundCommit(ShardId shardId, long generation, long primaryTerm, Map<String, BlobLocation> commitFiles)
+    implements
+        Writeable {
 
     public static final String NAME = "stateless_commit_";
 
     @Override
     public String toString() {
         return "stateless_commit " + shardId + '[' + primaryTerm + "][" + generation + ']';
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        shardId.writeTo(out);
+        out.writeVLong(generation);
+        out.writeVLong(primaryTerm);
+        out.writeMap(commitFiles, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+    }
+
+    public static StatelessCompoundCommit readFromTransport(StreamInput in) throws IOException {
+        return new StatelessCompoundCommit(
+            new ShardId(in),
+            in.readVLong(),
+            in.readVLong(),
+            in.readImmutableMap(StreamInput::readString, BlobLocation::new)
+        );
     }
 
     public static class Writer {
@@ -141,7 +160,7 @@ public record StatelessCompoundCommit(ShardId shardId, long generation, long pri
     private static final int VERSION_WITH_COMMIT_FILES = 0;
     private static final int CURRENT_VERSION = VERSION_WITH_COMMIT_FILES;
 
-    public static StatelessCompoundCommit read(String commitFileName, StreamInput input) throws IOException {
+    public static StatelessCompoundCommit readFromStore(StreamInput input) throws IOException {
         try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(input, SHARD_COMMIT_CODEC)) {
             int version = CodecUtil.checkHeader(
                 new InputStreamDataInput(in),
@@ -172,6 +191,7 @@ public record StatelessCompoundCommit(ShardId shardId, long generation, long pri
                 );
             }
 
+            String commitFileName = NAME + generation;
             Map<String, BlobLocation> commitFiles = combineCommitFiles(
                 commitFileName,
                 primaryTerm,

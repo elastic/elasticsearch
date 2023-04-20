@@ -9,6 +9,8 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
+import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
@@ -74,6 +76,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
@@ -353,9 +356,21 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                         IndexShardRoutingTable.builder(shardId)
                             .addShard(newShardRouting(shardId, "_node", true, ShardRoutingState.STARTED))
                             .build(),
-                        primaryTerm,
-                        indexCommitRef.getIndexCommit().getGeneration(),
-                        store.getMetadata(indexCommitRef.getIndexCommit()).fileMetadataMap()
+                        new StatelessCompoundCommit(
+                            shardId,
+                            indexCommitRef.getIndexCommit().getGeneration(),
+                            primaryTerm,
+                            store.getMetadata(indexCommitRef.getIndexCommit())
+                                .fileMetadataMap()
+                                .entrySet()
+                                .stream()
+                                .collect(
+                                    Collectors.toMap(
+                                        Map.Entry::getKey,
+                                        entry -> new BlobLocation(primaryTerm, entry.getKey(), 0, entry.getValue().length())
+                                    )
+                                )
+                        )
                     )
                 );
             } catch (Exception e) {
@@ -388,9 +403,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         final List<NewCommitNotificationRequest> notifications = new ArrayList<>();
         final int count = ((CapturingIndexCommitListener) indexCommitListener).notifications.drainTo(notifications);
         Collections.shuffle(notifications, random());
-        notifications.forEach(
-            notif -> searchEngine.onCommitNotification(notif.getTerm(), notif.getGeneration(), notif.getFiles(), ActionListener.noop())
-        );
+        notifications.forEach(notif -> searchEngine.onCommitNotification(notif.getCompoundCommit(), ActionListener.noop()));
         return count;
     }
 

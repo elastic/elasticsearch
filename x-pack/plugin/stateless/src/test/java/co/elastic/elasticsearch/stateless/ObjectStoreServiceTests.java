@@ -307,7 +307,10 @@ public class ObjectStoreServiceTests extends ESTestCase {
             final var dir = SearchDirectory.unwrapDirectory(testHarness.searchStore.directory());
             final var blobContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, 1);
             dir.setBlobContainer(() -> blobContainer);
-            dir.updateCommit(ObjectStoreService.findSearchShardFiles(blobContainer));
+            StatelessCompoundCommit commit = ObjectStoreService.findSearchShardFiles(blobContainer);
+            if (commit != null) {
+                dir.updateCommit(commit);
+            }
 
             if (commitCount > 0) {
                 assertEquals(permittedFiles, Set.of(dir.listAll()));

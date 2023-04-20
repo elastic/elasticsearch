@@ -144,7 +144,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final RecvByteBufAllocator recvByteBufAllocator;
     private final TLSConfig tlsConfig;
     private final AcceptChannelHandler.AcceptPredicate acceptChannelPredicate;
-    private final HttpHeadersValidator headerValidator;
+    private final HttpHeadersUtils.Validator headerValidator;
     private final int readTimeoutMillis;
 
     private final int maxCompositeBufferComponents;
@@ -163,7 +163,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         Tracer tracer,
         TLSConfig tlsConfig,
         @Nullable AcceptChannelHandler.AcceptPredicate acceptChannelPredicate,
-        @Nullable HttpHeadersValidator headersValidator
+        @Nullable HttpHeadersUtils.Validator headersValidator
     ) {
         super(
             settings,
@@ -338,20 +338,20 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final HttpHandlingSettings handlingSettings;
         private final TLSConfig tlsConfig;
         private final BiPredicate<String, InetSocketAddress> acceptChannelPredicate;
-        private final HttpHeadersValidator headerValidator;
+        private final HttpHeadersUtils.Validator headersValidator;
 
         protected HttpChannelHandler(
             final Netty4HttpServerTransport transport,
             final HttpHandlingSettings handlingSettings,
             final TLSConfig tlsConfig,
             @Nullable final BiPredicate<String, InetSocketAddress> acceptChannelPredicate,
-            @Nullable final HttpHeadersValidator headerValidator
+            @Nullable final HttpHeadersUtils.Validator headersValidator
         ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.tlsConfig = tlsConfig;
             this.acceptChannelPredicate = acceptChannelPredicate;
-            this.headerValidator = headerValidator;
+            this.headersValidator = headersValidator;
         }
 
         @Override
@@ -375,7 +375,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             }
             final HttpRequestDecoder decoder;
-            if (headerValidator != null) {
+            if (headersValidator != null) {
                 decoder = new HttpRequestDecoder(
                     handlingSettings.maxInitialLineLength(),
                     handlingSettings.maxHeaderSize(),
@@ -383,12 +383,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 ) {
                     @Override
                     protected HttpMessage createMessage(String[] initialLine) throws Exception {
-                        return HttpHeadersValidator.wrapAsValidatableMessage(super.createMessage(initialLine));
+                        return HttpHeadersUtils.wrapAsValidatableMessage(super.createMessage(initialLine));
                     }
 
                     @Override
                     protected HttpMessage createInvalidMessage() {
-                        return HttpHeadersValidator.wrapAsValidatableMessage(super.createInvalidMessage());
+                        return HttpHeadersUtils.wrapAsValidatableMessage(super.createInvalidMessage());
                     }
                 };
             } else {
@@ -400,10 +400,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             }
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder); // parses the HTTP bytes request into HTTP message pieces
-            if (headerValidator != null) {
+            if (headersValidator != null) {
                 // runs a validation function on the first HTTP message piece which contains all the headers
                 // if validation passes, the pieces of that particular request are forwarded, otherwise they are discarded
-                ch.pipeline().addLast("header_validator", headerValidator.getValidatorInboundHandler());
+                ch.pipeline().addLast("header_validator", HttpHeadersUtils.getValidatorInboundHandler(headersValidator));
             }
             // combines the HTTP message pieces into a single full HTTP request (with headers and body)
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.maxContentLength());

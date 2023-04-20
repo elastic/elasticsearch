@@ -55,9 +55,9 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.netty4.HttpHeadersValidator;
-import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationResult;
-import org.elasticsearch.http.netty4.HttpHeadersValidator.Validator;
+import org.elasticsearch.http.netty4.HttpHeadersUtils;
+import org.elasticsearch.http.netty4.HttpHeadersUtils.ValidatableHttpHeaders.ValidationResult;
+import org.elasticsearch.http.netty4.HttpHeadersUtils.Validator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -1696,7 +1696,7 @@ public class Security extends Plugin
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
-                new HttpHeadersValidator(authenticateMessage)
+                authenticateMessage
             );
         });
         return httpTransports;
@@ -1714,7 +1714,7 @@ public class Security extends Plugin
         Tracer tracer,
         TLSConfig tlsConfig,
         @Nullable AcceptChannelHandler.AcceptPredicate acceptPredicate,
-        HttpHeadersValidator headersValidator
+        HttpHeadersUtils.Validator headersValidator
     ) {
         return new Netty4HttpServerTransport(
             settings,
@@ -1731,7 +1731,7 @@ public class Security extends Plugin
         ) {
             @Override
             protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                ValidationResult validationResult = HttpHeadersValidator.extractValidationResult(restRequest.getHttpRequest());
+                ValidationResult validationResult = HttpHeadersUtils.extractValidationResult(restRequest.getHttpRequest());
                 if (validationResult != null) {
                     validationResult.assertValid();
                 } else {

@@ -26,7 +26,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.NullDispatcher;
-import org.elasticsearch.http.netty4.HttpHeadersValidator;
+import org.elasticsearch.http.netty4.HttpHeadersUtils;
 import org.elasticsearch.http.netty4.Netty4HttpResponse;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -304,7 +304,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             // this tests a request that CAN be validated, but that, somehow, has not been
             writeFuture = testThreadPool.generic().submit(() -> {
                 ch.writeInbound(
-                    HttpHeadersValidator.wrapAsValidatableMessage(new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/unvalidated_request"))
+                    HttpHeadersUtils.wrapAsValidatableMessage(new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/unvalidated_request"))
                 );
                 ch.writeInbound(new DefaultLastHttpContent());
                 ch.flushInbound();
@@ -318,10 +318,10 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             // this tests the case where validation passed and the request is to be dispatched, BUT that the validation context
             // cannot be instated before dispatching the request
             writeFuture = testThreadPool.generic().submit(() -> {
-                HttpMessage validatableHttpRequest = HttpHeadersValidator.wrapAsValidatableMessage(
+                HttpMessage validatableHttpRequest = HttpHeadersUtils.wrapAsValidatableMessage(
                     new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/unvalidated_request")
                 );
-                ((HttpHeadersValidator.ValidatableHttpHeaders) validatableHttpRequest.headers()).markAsSuccessfullyValidated(() -> {
+                ((HttpHeadersUtils.ValidatableHttpHeaders) validatableHttpRequest.headers()).markAsSuccessfullyValidated(() -> {
                     throw new ElasticsearchException("Boom");
                 });
                 ch.writeInbound(validatableHttpRequest);

@@ -9,18 +9,17 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.netty4.HttpHeadersValidator;
+import org.elasticsearch.http.netty4.HttpHeadersUtils;
 import org.elasticsearch.test.ESTestCase;
 
 public class AbstractHttpServerTransportTestCase extends ESTestCase {
 
     /**
-     * Trivial {@link HttpHeadersValidator} implementation, to be used in tests, that successfully validates
+     * Trivial {@link HttpHeadersUtils} implementation, to be used in tests, that successfully validates
      * any and all HTTP request headers.
      */
-    public static final HttpHeadersValidator VALIDATE_EVERYTHING_VALIDATOR = new HttpHeadersValidator(
-        (httpPreRequest, channel, listener) -> listener.onResponse(() -> {})
-    );
+    public static final HttpHeadersUtils.Validator VALIDATE_EVERYTHING_VALIDATOR = (httpPreRequest, channel, listener) -> listener
+        .onResponse(() -> {});
 
     protected static ClusterSettings randomClusterSettings() {
         return new ClusterSettings(

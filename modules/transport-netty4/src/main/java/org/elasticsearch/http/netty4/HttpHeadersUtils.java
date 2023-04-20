@@ -20,7 +20,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpPreRequest;
-import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationResult;
+import org.elasticsearch.http.netty4.HttpHeadersUtils.ValidatableHttpHeaders.ValidationResult;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.List;
@@ -34,10 +34,7 @@ import static org.elasticsearch.http.netty4.Netty4HttpRequest.translateRequestMe
  * Provides utilities used to hook into the netty pipeline and run a validation check on each HTTP request's headers.
  * See also {@link Netty4HttpHeaderValidator}.
  */
-public final class HttpHeadersValidator {
-
-    @FunctionalInterface
-    public interface Validator extends TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationResult>> {}
+public final class HttpHeadersUtils {
 
     /**
      * An async HTTP headers validator function that receives as arguments part of the incoming HTTP request
@@ -45,18 +42,18 @@ public final class HttpHeadersValidator {
      * being received over, and must then call the {@code ActionListener#onResponse} method on the listener parameter
      * in case the validation is to be considered successful, or otherwise call {@code ActionListener#onFailure}.
      */
-    private final Validator validator;
+    @FunctionalInterface
+    public interface Validator extends TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationResult>> {}
 
-    public HttpHeadersValidator(Validator validator) {
-        this.validator = validator;
-    }
+    // utility class
+    private HttpHeadersUtils() {}
 
     /**
-     * Supplies a netty {@code ChannelInboundHandler} that runs the {@link #validator} on the HTTP request headers.
-     * The HTTP headers of the to be validated {@link HttpRequest} must be wrapped by the special {@link ValidatableHttpHeaders},
+     * Supplies a netty {@code ChannelInboundHandler} that runs the provided {@param validator} on the HTTP request headers.
+     * The HTTP headers of the to-be-validated {@link HttpRequest} must be wrapped by the special {@link ValidatableHttpHeaders},
      * see {@link #wrapAsValidatableMessage(HttpMessage)}.
      */
-    public Netty4HttpHeaderValidator getValidatorInboundHandler() {
+    public static Netty4HttpHeaderValidator getValidatorInboundHandler(Validator validator) {
         return new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
             if (httpRequest.headers() instanceof ValidatableHttpHeaders validatableHttpHeaders) {
                 // make sure validation only runs on properly wrapped "validatable" headers implementation
@@ -75,7 +72,7 @@ public final class HttpHeadersValidator {
     /**
      * Given a {@link DefaultHttpRequest} argument, this returns a new {@link DefaultHttpRequest} instance that's identical to the
      * passed-in one, but the headers of the latter are "validatable", in the sense that the channel handlers returned by
-     * {@link #getValidatorInboundHandler()} can use to convey the validation result.
+     * {@link #getValidatorInboundHandler(Validator)} can use to convey the validation result.
      */
     public static HttpMessage wrapAsValidatableMessage(HttpMessage newlyDecodedMessage) {
         assert newlyDecodedMessage instanceof HttpRequest;

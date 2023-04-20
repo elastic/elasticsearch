@@ -80,6 +80,31 @@ setup:
   - match: { aggregations.ts.buckets.0.doc_count: 1 }
 
 ---
+
+"Basic test profiled":
+  - skip:
+      version: " - 8.7.99"
+      reason: Time series profiling enabled in 8.8
+
+  - do:
+      search:
+        index: tsdb
+        body:
+          profile: true
+          query:
+            range:
+              "@timestamp":
+                gte: "2021-01-01T00:10:00Z"
+          size: 0
+          aggs:
+            ts:
+              time_series:
+                keyed: false
+
+  - match: { profile.shards.0.aggregations.0.type: /TimeSeriesAggregator/ }
+  - match: { profile.shards.0.aggregations.0.description: ts }
+
+---
 "Size test":
   - skip:
       version: " - 8.6.99"

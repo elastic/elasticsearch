@@ -158,6 +158,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 settings,
                 client,
                 transformConfigManager,
+                auditor,
                 config,
                 update,
                 configAndVersion.v2(),

@@ -141,6 +141,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .privileges("read", "read_cross_cluster")
                             .build(),
                         RoleDescriptor.IndicesPrivileges.builder()
+                            .indices("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/")
+                            .privileges("read", "read_cross_cluster")
+                            .build(),
+                        RoleDescriptor.IndicesPrivileges.builder()
                             .indices("metricbeat-*")
                             .privileges("read", "read_cross_cluster")
                             .build() },
@@ -157,6 +161,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     TcpTransport.isUntrustedRemoteClusterEnabled()
                         ? new RoleDescriptor.RemoteIndicesPrivileges[] {
                             getRemoteIndicesReadPrivileges(".monitoring-*"),
+                            getRemoteIndicesReadPrivileges("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/"),
                             getRemoteIndicesReadPrivileges("metricbeat-*") }
                         : null
                 )
@@ -805,7 +810,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ".logs-endpoint.diagnostic.collection-*",
                         ".logs-endpoint.actions-*",
                         ".logs-osquery_manager.actions-*",
-                        ".logs-osquery_manager.action.responses-*"
+                        ".logs-osquery_manager.action.responses-*",
+                        "profiling-*"
                     )
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
                     .build(),
@@ -857,6 +863,32 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ".metrics-endpoint.metadata_united_default*"
                     )
                     .privileges("create_index", "delete_index", "read", "index", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
+                    .build(),
+                // For destination indices of the Threat Intel (ti_*) packages that ships a transform for supporting IOC expiration
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-ti_*_latest.*")
+                    .privileges(
+                        // Require "create_index", "delete_index", "read", "index", "delete", IndicesAliasesAction.NAME, and
+                        // UpdateSettingsAction.NAME for transform
+                        "create_index",
+                        "delete_index",
+                        "read",
+                        "index",
+                        "delete",
+                        IndicesAliasesAction.NAME,
+                        UpdateSettingsAction.NAME
+                    )
+                    .build(),
+                // For source indices of the Threat Intel (ti_*) packages that ships a transform for supporting IOC expiration
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-ti_*.*-*")
+                    .privileges(
+                        // Require "delete_index" to perform ILM policy actions
+                        DeleteIndexAction.NAME,
+                        // Require "read" and "view_index_metadata" for transform
+                        "read",
+                        "view_index_metadata"
+                    )
                     .build(),
                 // For src/dest indices of the example transform package
                 RoleDescriptor.IndicesPrivileges.builder()

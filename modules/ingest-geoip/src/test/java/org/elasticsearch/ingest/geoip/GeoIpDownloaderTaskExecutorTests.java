@@ -25,27 +25,28 @@ import static org.mockito.Mockito.when;
 
 public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
     public void testHasAtLeastOneGeoipProcessor() {
-        Map<String, PipelineConfiguration> configs = new HashMap<>();
-        IngestMetadata ingestMetadata = new IngestMetadata(configs);
+        final IngestMetadata[] ingestMetadata = new IngestMetadata[1];
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
-        when(metadata.custom(IngestMetadata.TYPE)).thenReturn(ingestMetadata);
+        when(metadata.custom(IngestMetadata.TYPE)).thenAnswer(invocationOnmock -> ingestMetadata[0]);
         when(clusterState.getMetadata()).thenReturn(metadata);
         List<String> expectHitsInputs = getPipelinesWithGeoIpProcessors();
         List<String> expectMissesInputs = getPipelinesWithoutGeoIpProcessors();
         {
             // Test that hasAtLeastOneGeoipProcessor returns true for any pipeline with a geoip processor:
             for (String pipeline : expectHitsInputs) {
-                configs.clear();
-                configs.put("_id1", new PipelineConfiguration("_id1", new BytesArray(pipeline), XContentType.JSON));
+                ingestMetadata[0] = new IngestMetadata(
+                    Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipeline), XContentType.JSON))
+                );
                 assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
             }
         }
         {
             // Test that hasAtLeastOneGeoipProcessor returns false for any pipeline without a geoip processor:
             for (String pipeline : expectMissesInputs) {
-                configs.clear();
-                configs.put("_id1", new PipelineConfiguration("_id1", new BytesArray(pipeline), XContentType.JSON));
+                ingestMetadata[0] = new IngestMetadata(
+                    Map.of("_id1", new PipelineConfiguration("_id1", new BytesArray(pipeline), XContentType.JSON))
+                );
                 assertFalse(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
             }
         }
@@ -54,7 +55,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
              * Now test that hasAtLeastOneGeoipProcessor returns true for a mix of pipelines, some which have geoip processors and some
              * which do not:
              */
-            configs.clear();
+            Map<String, PipelineConfiguration> configs = new HashMap<>();
             for (String pipeline : expectHitsInputs) {
                 String id = randomAlphaOfLength(20);
                 configs.put(id, new PipelineConfiguration(id, new BytesArray(pipeline), XContentType.JSON));
@@ -63,6 +64,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
                 String id = randomAlphaOfLength(20);
                 configs.put(id, new PipelineConfiguration(id, new BytesArray(pipeline), XContentType.JSON));
             }
+            ingestMetadata[0] = new IngestMetadata(configs);
             assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(clusterState));
         }
     }

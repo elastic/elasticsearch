@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Model;
+import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Deployment;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 import org.ojalgo.optimisation.ExpressionsBasedModel;
 import org.ojalgo.optimisation.Optimisation;
@@ -64,47 +64,48 @@ class LinearProgrammingPlanSolver {
     private final Random random = new Random(RANDOMIZATION_SEED);
 
     private final List<Node> nodes;
-    private final List<Model> models;
+    private final List<AssignmentPlan.Deployment> deployments;
     private final Map<Node, Double> normalizedMemoryPerNode;
     private final Map<Node, Integer> coresPerNode;
-    private final Map<Model, Double> normalizedMemoryPerModel;
+    private final Map<AssignmentPlan.Deployment, Double> normalizedMemoryPerModel;
 
     private final int maxNodeCores;
     private final long maxModelMemoryBytes;
 
-    LinearProgrammingPlanSolver(List<Node> nodes, List<Model> models) {
+    LinearProgrammingPlanSolver(List<Node> nodes, List<AssignmentPlan.Deployment> deployments) {
         this.nodes = nodes;
         maxNodeCores = this.nodes.stream().map(Node::cores).max(Integer::compareTo).orElse(0);
 
         long maxNodeMemory = nodes.stream().map(Node::availableMemoryBytes).max(Long::compareTo).orElse(0L);
-        this.models = models.stream()
+        this.deployments = deployments.stream()
             // Filter out models that are not already assigned and do not fit on any node
             .filter(m -> m.currentAllocationsByNodeId().isEmpty() == false || m.memoryBytes() <= maxNodeMemory)
             // Also filter out models whose threads per allocation are more than the max node cores
             .filter(m -> m.threadsPerAllocation() <= maxNodeCores)
             .toList();
 
-        maxModelMemoryBytes = this.models.stream().map(Model::memoryBytes).max(Long::compareTo).orElse(1L);
+        maxModelMemoryBytes = this.deployments.stream().map(AssignmentPlan.Deployment::memoryBytes).max(Long::compareTo).orElse(1L);
         normalizedMemoryPerNode = this.nodes.stream()
             .collect(Collectors.toMap(Function.identity(), n -> n.availableMemoryBytes() / (double) maxModelMemoryBytes));
         coresPerNode = this.nodes.stream().collect(Collectors.toMap(Function.identity(), Node::cores));
-        normalizedMemoryPerModel = this.models.stream()
+        normalizedMemoryPerModel = this.deployments.stream()
             .collect(Collectors.toMap(Function.identity(), m -> m.memoryBytes() / (double) maxModelMemoryBytes));
     }
 
     AssignmentPlan solvePlan(boolean useBinPackingOnly) {
-        if (models.isEmpty() || maxNodeCores == 0) {
-            return AssignmentPlan.builder(nodes, models).build();
+        if (deployments.isEmpty() || maxNodeCores == 0) {
+            return AssignmentPlan.builder(nodes, deployments).build();
         }
 
-        Tuple<Map<Tuple<Model, Node>, Double>, AssignmentPlan> weightsAndBinPackingPlan = calculateWeightsAndBinPackingPlan();
+        Tuple<Map<Tuple<AssignmentPlan.Deployment, Node>, Double>, AssignmentPlan> weightsAndBinPackingPlan =
+            calculateWeightsAndBinPackingPlan();
 
         if (useBinPackingOnly) {
             return weightsAndBinPackingPlan.v2();
         }
 
-        Map<Tuple<Model, Node>, Double> allocationValues = new HashMap<>();
-        Map<Tuple<Model, Node>, Double> assignmentValues = new HashMap<>();
+        Map<Tuple<AssignmentPlan.Deployment, Node>, Double> allocationValues = new HashMap<>();
+        Map<Tuple<AssignmentPlan.Deployment, Node>, Double> assignmentValues = new HashMap<>();
         if (solveLinearProgram(weightsAndBinPackingPlan.v1(), allocationValues, assignmentValues) == false) {
             return weightsAndBinPackingPlan.v2();
         }
@@ -113,7 +114,7 @@ class LinearProgrammingPlanSolver {
             random,
             RANDOMIZED_ROUNDING_ROUNDS,
             nodes,
-            models
+            deployments
         );
         AssignmentPlan assignmentPlan = randomizedRounding.computePlan(allocationValues, assignmentValues);
         AssignmentPlan binPackingPlan = weightsAndBinPackingPlan.v2();
@@ -127,21 +128,27 @@ class LinearProgrammingPlanSolver {
         return assignmentPlan;
     }
 
-    private double weightForAllocationVar(Model m, Node n, Map<Tuple<Model, Node>, Double> weights) {
+    private double weightForAllocationVar(
+        AssignmentPlan.Deployment m,
+        Node n,
+        Map<Tuple<AssignmentPlan.Deployment, Node>, Double> weights
+    ) {
         return (1 + weights.get(Tuple.tuple(m, n)) - (m.memoryBytes() > n.availableMemoryBytes() ? 10 : 0)) - L1 * normalizedMemoryPerModel
             .get(m) / maxNodeCores;
     }
 
-    private Tuple<Map<Tuple<Model, Node>, Double>, AssignmentPlan> calculateWeightsAndBinPackingPlan() {
+    private Tuple<Map<Tuple<Deployment, Node>, Double>, AssignmentPlan> calculateWeightsAndBinPackingPlan() {
         logger.debug(() -> "Calculating weights and bin packing plan");
 
         double w = INITIAL_W;
-        double dw = w / nodes.size() / models.size();
+        double dw = w / nodes.size() / deployments.size();
 
-        Map<Tuple<Model, Node>, Double> weights = new HashMap<>();
-        AssignmentPlan.Builder assignmentPlan = AssignmentPlan.builder(nodes, models);
+        Map<Tuple<Deployment, Node>, Double> weights = new HashMap<>();
+        AssignmentPlan.Builder assignmentPlan = AssignmentPlan.builder(nodes, deployments);
 
-        for (Model m : models.stream().sorted(Comparator.comparingDouble(this::descendingSizeAnyFitsModelOrder)).toList()) {
+        for (AssignmentPlan.Deployment m : deployments.stream()
+            .sorted(Comparator.comparingDouble(this::descendingSizeAnyFitsModelOrder))
+            .toList()) {
             double lastW;
             do {
                 lastW = w;
@@ -164,7 +171,7 @@ class LinearProgrammingPlanSolver {
         }
 
         final double finalW = w;
-        for (Model m : models) {
+        for (Deployment m : deployments) {
             for (Node n : nodes) {
                 weights.computeIfAbsent(Tuple.tuple(m, n), key -> random.nextDouble(minWeight(m, n, finalW), maxWeight(m, n, finalW)));
             }
@@ -177,11 +184,11 @@ class LinearProgrammingPlanSolver {
         return Tuple.tuple(weights, binPackingPlan);
     }
 
-    private double descendingSizeAnyFitsModelOrder(Model m) {
+    private double descendingSizeAnyFitsModelOrder(AssignmentPlan.Deployment m) {
         return (m.currentAllocationsByNodeId().isEmpty() ? 1 : 2) * -normalizedMemoryPerModel.get(m) * m.threadsPerAllocation();
     }
 
-    private double descendingSizeAnyFitsNodeOrder(Node n, Model m, AssignmentPlan.Builder assignmentPlan) {
+    private double descendingSizeAnyFitsNodeOrder(Node n, AssignmentPlan.Deployment m, AssignmentPlan.Builder assignmentPlan) {
         return (m.currentAllocationsByNodeId().containsKey(n.id()) ? 0 : 1) + (assignmentPlan.getRemainingCores(n) >= assignmentPlan
             .getRemainingThreads(m) ? 0 : 1) + (0.01 * distance(assignmentPlan.getRemainingCores(n), assignmentPlan.getRemainingThreads(m)))
             - (0.01 * normalizedMemoryPerNode.get(n));
@@ -193,18 +200,18 @@ class LinearProgrammingPlanSolver {
         return distance == Integer.MIN_VALUE ? Integer.MAX_VALUE : Math.abs(distance);
     }
 
-    private double minWeight(Model m, Node n, double w) {
+    private double minWeight(Deployment m, Node n, double w) {
         return m.currentAllocationsByNodeId().containsKey(n.id()) ? w / 2 : 0;
     }
 
-    private double maxWeight(Model m, Node n, double w) {
+    private double maxWeight(Deployment m, Node n, double w) {
         return m.currentAllocationsByNodeId().containsKey(n.id()) ? w : w / 2;
     }
 
     private boolean solveLinearProgram(
-        Map<Tuple<Model, Node>, Double> weights,
-        Map<Tuple<Model, Node>, Double> allocationValues,
-        Map<Tuple<Model, Node>, Double> assignmentValues
+        Map<Tuple<AssignmentPlan.Deployment, Node>, Double> weights,
+        Map<Tuple<Deployment, Node>, Double> allocationValues,
+        Map<Tuple<AssignmentPlan.Deployment, Node>, Double> assignmentValues
     ) {
         if (memoryComplexity() > MEMORY_COMPLEXITY_LIMIT) {
             logger.debug(() -> "Problem size to big to solve with linear programming; falling back to bin packing solution");
@@ -262,9 +269,9 @@ class LinearProgrammingPlanSolver {
         }
         ExpressionsBasedModel model = new ExpressionsBasedModel(options);
 
-        Map<Tuple<Model, Node>, Variable> allocationVars = new HashMap<>();
+        Map<Tuple<Deployment, Node>, Variable> allocationVars = new HashMap<>();
 
-        for (Model m : models) {
+        for (AssignmentPlan.Deployment m : deployments) {
             for (Node n : nodes) {
                 Variable allocationVar = model.addVariable("allocations_of_model_" + m.id() + "_on_node_" + n.id())
                     .integer(false) // We relax the program to non-integer as the integer solver is much slower and can often lead to
@@ -275,7 +282,7 @@ class LinearProgrammingPlanSolver {
             }
         }
 
-        for (Model m : models) {
+        for (Deployment m : deployments) {
             // Each model should not get more allocations than is required.
             // Also, if the model has previous assignments, it should get at least as many allocations as it did before.
             model.addExpression("allocations_of_model_" + m.id() + "_not_more_than_required")
@@ -284,7 +291,7 @@ class LinearProgrammingPlanSolver {
                 .setLinearFactorsSimple(varsForModel(m, allocationVars));
         }
 
-        double[] threadsPerAllocationPerModel = models.stream().mapToDouble(m -> m.threadsPerAllocation()).toArray();
+        double[] threadsPerAllocationPerModel = deployments.stream().mapToDouble(m -> m.threadsPerAllocation()).toArray();
         for (Node n : nodes) {
             // Allocations should not use more cores than the node has.
             // We multiply the allocation variables with the threads per allocation for each model to find the total number of cores used.
@@ -298,7 +305,7 @@ class LinearProgrammingPlanSolver {
             // This is the m_i * a_i_j * t_i / N_j constraint.
             List<Variable> allocations = new ArrayList<>();
             List<Double> modelMemories = new ArrayList<>();
-            models.stream().filter(m -> m.currentAllocationsByNodeId().containsKey(n.id()) == false).forEach(m -> {
+            deployments.stream().filter(m -> m.currentAllocationsByNodeId().containsKey(n.id()) == false).forEach(m -> {
                 allocations.add(allocationVars.get(Tuple.tuple(m, n)));
                 modelMemories.add(normalizedMemoryPerModel.get(m) * m.threadsPerAllocation() / (double) coresPerNode.get(n));
             });
@@ -314,9 +321,9 @@ class LinearProgrammingPlanSolver {
             return false;
         }
 
-        for (Model m : models) {
+        for (AssignmentPlan.Deployment m : deployments) {
             for (Node n : nodes) {
-                Tuple<Model, Node> assignment = Tuple.tuple(m, n);
+                Tuple<AssignmentPlan.Deployment, Node> assignment = Tuple.tuple(m, n);
                 allocationValues.put(assignment, allocationVars.get(assignment).getValue().doubleValue());
                 assignmentValues.put(
                     assignment,
@@ -337,23 +344,26 @@ class LinearProgrammingPlanSolver {
     private int memoryComplexity() {
         // Looking at the internals of ojalgo, to solve the problem a 2D double array is created with
         // dimensions of approximately (n + m) * n * m, where n is the number of nodes and m the number of models.
-        return (nodes.size() + models.size()) * nodes.size() * models.size();
+        return (nodes.size() + deployments.size()) * nodes.size() * deployments.size();
     }
 
-    private List<Variable> varsForModel(Model m, Map<Tuple<Model, Node>, Variable> vars) {
+    private List<Variable> varsForModel(AssignmentPlan.Deployment m, Map<Tuple<Deployment, Node>, Variable> vars) {
         return nodes.stream().map(n -> vars.get(Tuple.tuple(m, n))).toList();
     }
 
-    private List<Variable> varsForNode(Node n, Map<Tuple<Model, Node>, Variable> vars) {
-        return models.stream().map(m -> vars.get(Tuple.tuple(m, n))).toList();
+    private List<Variable> varsForNode(Node n, Map<Tuple<AssignmentPlan.Deployment, Node>, Variable> vars) {
+        return deployments.stream().map(m -> vars.get(Tuple.tuple(m, n))).toList();
     }
 
-    private String prettyPrintSolverResult(Map<Tuple<Model, Node>, Double> assignmentValues, Map<Tuple<Model, Node>, Double> threadValues) {
+    private String prettyPrintSolverResult(
+        Map<Tuple<AssignmentPlan.Deployment, Node>, Double> assignmentValues,
+        Map<Tuple<AssignmentPlan.Deployment, Node>, Double> threadValues
+    ) {
         StringBuilder msg = new StringBuilder();
         for (int i = 0; i < nodes.size(); i++) {
             Node n = nodes.get(i);
             msg.append(n + " ->");
-            for (Model m : models) {
+            for (Deployment m : deployments) {
                 if (threadValues.get(Tuple.tuple(m, n)) > 0) {
                     msg.append(" ");
                     msg.append(m.id());

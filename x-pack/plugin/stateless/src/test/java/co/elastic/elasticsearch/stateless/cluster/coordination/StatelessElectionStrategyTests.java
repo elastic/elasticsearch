@@ -21,12 +21,20 @@ import org.elasticsearch.cluster.coordination.StartJoinRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.OptionalLong;
@@ -34,13 +42,18 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessElectionStrategyTests extends ESTestCase {
     public void testTermIsClaimedOnNewElections() throws Exception {
@@ -195,6 +208,73 @@ public class StatelessElectionStrategyTests extends ESTestCase {
         }
     }
 
+    public void testBeforeCommitRetriesCurrentTermReads() throws Exception {
+        var registerValueRef = new AtomicReference<OptionalLong>();
+        var capturingThreadPool = new CapturingThreadPool(getTestName());
+        try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(super.wrapBlobContainer(path, innerContainer)) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void getRegister(String key, ActionListener<OptionalLong> listener) {
+                        listener.onResponse(registerValueRef.get());
+                    }
+                };
+            }
+        }) {
+            var electionStrategy = new StatelessElectionStrategy(
+                fakeStatelessNode.objectStoreService::getTermLeaseBlobContainer,
+                capturingThreadPool
+            );
+            registerValueRef.set(OptionalLong.empty());
+
+            PlainActionFuture<Void> beforeCommitListener = PlainActionFuture.newFuture();
+            electionStrategy.beforeCommit(1, 1, beforeCommitListener);
+
+            final var failAllReads = randomBoolean();
+
+            var nextTask = capturingThreadPool.tasks.poll();
+            assertThat(nextTask, is(notNullValue()));
+            assertThat(nextTask.v1(), is(equalTo(TimeValue.ZERO)));
+            nextTask.v2().run();
+            assertThat(beforeCommitListener.isDone(), is(false));
+
+            for (int retry = 0; retry < StatelessElectionStrategy.MAX_READ_CURRENT_LEASE_TERM_RETRIES; retry++) {
+                var retryTask = capturingThreadPool.tasks.poll();
+                assertThat(retryTask, is(notNullValue()));
+                assertThat(retryTask.v1(), is(equalTo(StatelessElectionStrategy.READ_CURRENT_LEASE_TERM_RETRY_DELAY)));
+
+                assertThat(beforeCommitListener.isDone(), is(false));
+
+                if (retry == StatelessElectionStrategy.MAX_READ_CURRENT_LEASE_TERM_RETRIES - 1 && failAllReads == false) {
+                    registerValueRef.set(OptionalLong.of(1));
+                }
+
+                retryTask.v2().run();
+
+                // The register read is dispatched into SNAPSHOT_META thread pool
+                var readRegisterTask = capturingThreadPool.tasks.poll();
+                assertThat(readRegisterTask, is(notNullValue()));
+                assertThat(readRegisterTask.v1(), is(equalTo(TimeValue.ZERO)));
+                readRegisterTask.v2().run();
+            }
+
+            assertThat(capturingThreadPool.tasks.poll(), is(nullValue()));
+            if (failAllReads) {
+                expectThrows(Exception.class, beforeCommitListener::get);
+            } else {
+                beforeCommitListener.get();
+            }
+        } finally {
+            ThreadPool.terminate(capturingThreadPool, 5, TimeUnit.SECONDS);
+        }
+    }
+
     public void testTermsAreAssignedOncePerNode() throws Exception {
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
             var electionStrategy = new StatelessElectionStrategy(
@@ -315,5 +395,29 @@ public class StatelessElectionStrategyTests extends ESTestCase {
 
     private Join getJoin(DiscoveryNode sourceNode, DiscoveryNode targetNode) {
         return new Join(sourceNode, targetNode, 1, 0, 0);
+    }
+
+    class CapturingThreadPool extends TestThreadPool {
+        final Deque<Tuple<TimeValue, Runnable>> tasks = new ArrayDeque<>();
+
+        CapturingThreadPool(String name) {
+            super(name);
+        }
+
+        @Override
+        public ScheduledCancellable schedule(Runnable task, TimeValue delay, String executor) {
+            tasks.add(new Tuple<>(delay, task));
+            return null;
+        }
+
+        @Override
+        public ExecutorService executor(String name) {
+            return new StoppableExecutorServiceWrapper(super.executor(name)) {
+                @Override
+                public void execute(Runnable command) {
+                    tasks.add(new Tuple<>(TimeValue.ZERO, command));
+                }
+            };
+        }
     }
 }

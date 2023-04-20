@@ -102,8 +102,7 @@ parameter:
 * <<number,`long`>>
 * <<number,`unsigned_long`>>
 
-For a flattened field, instead, you mark a set of fields as dimensions using an array
-of strings `time_series_dimensions`. For details see <<flattened-params,`flattened`>>.
+For a flattened field, use the `time_series_dimensions` parameter to configure an array of fields as dimensions. For details refer to <<flattened-params,`flattened`>>.
 
 [[dimension-limits]]
 .Dimension limits

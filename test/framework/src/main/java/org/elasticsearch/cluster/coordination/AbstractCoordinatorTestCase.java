@@ -1090,6 +1090,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     () -> disconnectedNodes.contains(localNode.getId())
                         || blackholedNodes.contains(localNode.getId())
                         || nodeHealthService.getHealth().getStatus() != HEALTHY
+                        || (disruptStorage && rarely())
                 );
                 coordinator = new Coordinator(
                     "test_node",

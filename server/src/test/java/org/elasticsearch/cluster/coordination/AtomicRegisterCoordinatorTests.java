@@ -45,16 +45,29 @@ import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatSer
 
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
+
     @Override
-    @AwaitsFix(bugUrl = "ES-5645")
     public void testLeaderDisconnectionWithDisconnectEventDetectedQuickly() {
-        // In this test the leader still has access to the register, therefore it is still considered as a leader.
+        // must allow a little extra time for the heartbeat to expire before the election can happen
+        testLeaderDisconnectionWithDisconnectEventDetectedQuickly(
+            Settings.builder()
+                .put(MAX_MISSED_HEARTBEATS.getKey(), 1)
+                .put(HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+                .build(),
+            TimeValue.timeValueSeconds(1)
+        );
     }
 
     @Override
-    @AwaitsFix(bugUrl = "ES-5645")
+    @TestLogging(
+        reason = "testing ClusterFormationFailureHelper logging",
+        value = "org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper:WARN"
+    )
     public void testLogsWarningPeriodicallyIfClusterNotFormed() {
-        // All nodes have access to the register, therefore it's possible to form a single-node cluster
+        testLogsWarningPeriodicallyIfClusterNotFormed(
+            "master not discovered or elected yet, an election requires a node with id [",
+            nodeId -> "*have discovered possible quorum *" + nodeId + "*discovery will continue*"
+        );
     }
 
     @Override

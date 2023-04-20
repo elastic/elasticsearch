@@ -62,6 +62,7 @@ abstract class AbstractToolchainResolverSpec extends Specification {
     JavaToolchainRequest request(JavaLanguageVersion languageVersion = null,
                                  JvmVendorSpec vendorSpec = anyVendor(),
                                  BuildPlatform platform = platform()) {
+
         JavaToolchainSpec toolchainSpec = Mock()
         Property<JavaLanguageVersion> languageVersionProperty = Mock()
         _ * toolchainSpec.getLanguageVersion() >> languageVersionProperty

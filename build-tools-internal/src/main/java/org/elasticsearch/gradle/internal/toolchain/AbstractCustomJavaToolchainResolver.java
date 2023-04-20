@@ -15,16 +15,20 @@ import org.gradle.platform.OperatingSystem;
 
 abstract class AbstractCustomJavaToolchainResolver implements JavaToolchainResolver {
 
-    protected String toOsString(OperatingSystem operatingSystem) {
+    static String toOsString(OperatingSystem operatingSystem) {
+        return toOsString(operatingSystem, null);
+    }
+
+    static String toOsString(OperatingSystem operatingSystem, JvmVendorSpec v) {
         return switch (operatingSystem) {
-            case MAC_OS -> "macos";
+            case MAC_OS -> (v == null || v.equals(JvmVendorSpec.ADOPTIUM) == false) ? "macos" : "mac";
             case LINUX -> "linux";
             case WINDOWS -> "windows";
             default -> throw new UnsupportedOperationException("Operating system " + operatingSystem);
         };
     }
 
-    protected String toArchString(Architecture architecture) {
+    static String toArchString(Architecture architecture) {
         return switch (architecture) {
             case X86_64 -> "x64";
             case AARCH64 -> "aarch64";

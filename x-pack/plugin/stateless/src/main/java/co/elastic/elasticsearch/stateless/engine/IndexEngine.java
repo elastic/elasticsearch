@@ -34,7 +34,6 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
@@ -46,7 +45,6 @@ import java.util.function.LongSupplier;
  */
 public class IndexEngine extends InternalEngine {
 
-    public static final String NODE_EPHEMERAL_ID = "node_ephemeral_id";
     public static final Setting<TimeValue> INDEX_FLUSH_INTERVAL_SETTING = Setting.timeSetting(
         "index.translog.flush_interval",
         new TimeValue(5, TimeUnit.SECONDS),
@@ -61,9 +59,8 @@ public class IndexEngine extends InternalEngine {
     private volatile TimeValue indexFlushInterval;
     private volatile Scheduler.ScheduledCancellable cancellableFlushTask;
     private final ReleasableLock flushLock = new ReleasableLock(new ReentrantLock());
-    private final String localNodeEphemeralId;
 
-    public IndexEngine(EngineConfig engineConfig, TranslogReplicator translogReplicator, String localNodeEphemeralId) {
+    public IndexEngine(EngineConfig engineConfig, TranslogReplicator translogReplicator) {
         super(engineConfig);
         assert engineConfig.isPromotableToPrimary();
         this.translogReplicator = translogReplicator;
@@ -71,7 +68,6 @@ public class IndexEngine extends InternalEngine {
         this.lastFlushNanos = new AtomicLong(relativeTimeInNanosSupplier.getAsLong());
         this.indexFlushInterval = INDEX_FLUSH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
         cancellableFlushTask = scheduleFlushTask();
-        this.localNodeEphemeralId = localNodeEphemeralId;
     }
 
     @Override
@@ -199,11 +195,5 @@ public class IndexEngine extends InternalEngine {
     public void close() throws IOException {
         cancellableFlushTask.cancel();
         super.close();
-    }
-
-    @Override
-    protected Map<String, String> getCommitExtraUserData() {
-        // TODO: once we move ephemeral node ID to our files, remove this function from here and from InternalEngine.
-        return Map.of(NODE_EPHEMERAL_ID, localNodeEphemeralId);
     }
 }

@@ -46,7 +46,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.LongStream;
 
-import static co.elastic.elasticsearch.stateless.engine.IndexEngine.NODE_EPHEMERAL_ID;
 import static java.util.stream.Collectors.toCollection;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -82,15 +81,6 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
                     Engine.IndexCommitRef indexCommitRef,
                     Set<String> additionalFiles
                 ) {
-                    // TODO: once we move ephemeral node ID to our files, it should be asserted on all commits (including empty ones).
-                    // As explained in tests below, a shard with a single empty commit has a generation 2 after creation.
-                    if (indexCommitRef.getIndexCommit().getGeneration() > 2) {
-                        try {
-                            assertTrue(indexCommitRef.getIndexCommit().getUserData().containsKey(NODE_EPHEMERAL_ID));
-                        } catch (IOException e) {
-                            throw new AssertionError("Failed to read user data of new commit", e);
-                        }
-                    }
                     synchronized (mutex) {
                         Map<Long, Engine.IndexCommitRef> commits = retainedCommits.computeIfAbsent(shardId, s -> new HashMap<>());
                         var previous = commits.put(indexCommitRef.getIndexCommit().getGeneration(), indexCommitRef);

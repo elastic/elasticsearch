@@ -178,11 +178,7 @@ public class DfsPhase {
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(knnSearch.get(i).k(), Integer.MAX_VALUE);
             Collector collector = topScoreDocCollector;
             if (context.getProfilers() != null) {
-                InternalProfileCollector ipc = new InternalProfileCollector(
-                    topScoreDocCollector,
-                    CollectorResult.REASON_SEARCH_TOP_HITS,
-                    List.of()
-                );
+                InternalProfileCollector ipc = new InternalProfileCollector(topScoreDocCollector, CollectorResult.REASON_SEARCH_TOP_HITS);
                 QueryProfiler knnProfiler = context.getProfilers().getDfsProfiler().addQueryProfiler(ipc);
                 collector = ipc;
                 // Set the current searcher profiler to gather query profiling information for gathering top K docs

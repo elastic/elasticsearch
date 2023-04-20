@@ -62,7 +62,6 @@ public class RedactProcessor extends AbstractProcessor {
         MatcherWatchdog matcherWatchdog
     ) {
         super(tag, description);
-        logger.info("matcherWatchdog [{}]", matcherWatchdog);
         this.redactField = redactField;
         this.redactedStartToken = redactedStartToken;
         this.redactedEndToken = redactedEndToken;

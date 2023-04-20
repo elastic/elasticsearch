@@ -51,7 +51,6 @@ public final class GrokProcessor extends AbstractProcessor {
         MatcherWatchdog matcherWatchdog
     ) {
         super(tag, description);
-        logger.info("matcherWatchdog [{}]", matcherWatchdog);
         this.matchField = matchField;
         this.matchPatterns = matchPatterns;
         this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog, logger::debug);

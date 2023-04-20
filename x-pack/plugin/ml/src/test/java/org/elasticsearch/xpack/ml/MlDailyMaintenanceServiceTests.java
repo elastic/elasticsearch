@@ -250,7 +250,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             } else {
                 return TimeValue.timeValueHours(1);
             }
-        });
+        }, true, true, true);
     }
 
     private static ClusterState createClusterState(boolean isUpgradeMode) {

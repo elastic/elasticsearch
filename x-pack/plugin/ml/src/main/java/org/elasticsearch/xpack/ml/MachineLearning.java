@@ -1179,6 +1179,17 @@ public class MachineLearning extends Plugin
             new MlAutoscalingDeciderService(memoryTracker, settings, nodeAvailabilityZoneMapper, clusterService)
         );
 
+        MlInitializationService mlInitializationService = new MlInitializationService(
+            settings,
+            threadPool,
+            clusterService,
+            client,
+            mlAssignmentNotifier,
+            machineLearningExtension.get().isAnomalyDetectionEnabled(),
+            machineLearningExtension.get().isDataFrameAnalyticsEnabled(),
+            machineLearningExtension.get().isNlpEnabled()
+        );
+
         return List.of(
             mlLifeCycleService,
             new MlControllerHolder(mlController),
@@ -1189,7 +1200,7 @@ public class MachineLearning extends Plugin
             jobManager,
             jobManagerHolder,
             autodetectProcessManager,
-            new MlInitializationService(settings, threadPool, clusterService, client, mlAssignmentNotifier),
+            mlInitializationService,
             jobDataCountsPersister,
             datafeedRunner,
             datafeedManager,

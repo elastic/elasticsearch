@@ -56,7 +56,6 @@ import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.HttpHeadersUtils;
-import org.elasticsearch.http.netty4.HttpHeadersUtils.ValidatableHttpHeaders.ValidationResult;
 import org.elasticsearch.http.netty4.HttpHeadersUtils.Validator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -1731,9 +1730,11 @@ public class Security extends Plugin
         ) {
             @Override
             protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                ValidationResult validationResult = HttpHeadersUtils.extractValidationResult(restRequest.getHttpRequest());
-                if (validationResult != null) {
-                    validationResult.assertValid();
+                ThreadContext.StoredContext validationThreadContext = HttpHeadersUtils.extractValidationContext(
+                    restRequest.getHttpRequest()
+                );
+                if (validationThreadContext != null) {
+                    validationThreadContext.restore();
                 } else {
                     throw new ElasticsearchSecurityException("Request is not validated");
                 }

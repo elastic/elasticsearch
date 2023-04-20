@@ -18,9 +18,9 @@ import io.netty.handler.codec.http.HttpRequest;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpPreRequest;
-import org.elasticsearch.http.netty4.HttpHeadersUtils.ValidatableHttpHeaders.ValidationResult;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.List;
@@ -43,7 +43,7 @@ public final class HttpHeadersUtils {
      * in case the validation is to be considered successful, or otherwise call {@code ActionListener#onFailure}.
      */
     @FunctionalInterface
-    public interface Validator extends TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationResult>> {}
+    public interface Validator extends TriConsumer<HttpPreRequest, Channel, ActionListener<ThreadContext.StoredContext>> {}
 
     // utility class
     private HttpHeadersUtils() {}
@@ -81,7 +81,7 @@ public final class HttpHeadersUtils {
         return new DefaultHttpRequest(httpRequest.protocolVersion(), httpRequest.method(), httpRequest.uri(), validatableHttpHeaders);
     }
 
-    public static ValidationResult extractValidationResult(org.elasticsearch.http.HttpRequest request) {
+    public static ThreadContext.StoredContext extractValidationContext(org.elasticsearch.http.HttpRequest request) {
         ValidatableHttpHeaders authenticatedHeaders = unwrapValidatableHeaders(request);
         return authenticatedHeaders != null ? authenticatedHeaders.validationResultContextSetOnce.get() : null;
     }
@@ -97,30 +97,25 @@ public final class HttpHeadersUtils {
     }
 
     /**
-     * {@link HttpHeaders} implementation that carries along the {@link ValidationResult} iff
+     * {@link HttpHeaders} implementation that carries along the {@link ThreadContext.StoredContext} iff
      * the HTTP headers have been validated successfully.
      */
     public static final class ValidatableHttpHeaders extends DefaultHttpHeaders {
 
-        @FunctionalInterface
-        public interface ValidationResult {
-            void assertValid();
-        }
-
-        public final SetOnce<ValidationResult> validationResultContextSetOnce;
+        public final SetOnce<ThreadContext.StoredContext> validationResultContextSetOnce;
 
         public ValidatableHttpHeaders(HttpHeaders httpHeaders) {
             this(httpHeaders, new SetOnce<>());
         }
 
-        private ValidatableHttpHeaders(HttpHeaders httpHeaders, SetOnce<ValidationResult> validationResultContextSetOnce) {
+        private ValidatableHttpHeaders(HttpHeaders httpHeaders, SetOnce<ThreadContext.StoredContext> validationResultContextSetOnce) {
             // the constructor implements the same logic as HttpHeaders#copy
             super();
             set(httpHeaders);
             this.validationResultContextSetOnce = validationResultContextSetOnce;
         }
 
-        private ValidatableHttpHeaders(HttpHeaders httpHeaders, ValidationResult validationResult) {
+        private ValidatableHttpHeaders(HttpHeaders httpHeaders, ThreadContext.StoredContext validationResult) {
             this(httpHeaders);
             if (validationResult != null) {
                 markAsSuccessfullyValidated(validationResult);
@@ -129,10 +124,10 @@ public final class HttpHeadersUtils {
 
         /**
          * Must be called at most once in order to mark the http headers as successfully validated.
-         * The intent of the {@link ValidationResult} parameter is to associate some details about the validation
-         * that can be later retrieved when dispatching the request.
+         * The intent of the {@link ThreadContext.StoredContext} parameter is to associate the resulting
+         * thread context post validation, that can be later restored when dispatching the request.
          */
-        public void markAsSuccessfullyValidated(ValidationResult validationResult) {
+        public void markAsSuccessfullyValidated(ThreadContext.StoredContext validationResult) {
             this.validationResultContextSetOnce.set(Objects.requireNonNull(validationResult));
         }
 

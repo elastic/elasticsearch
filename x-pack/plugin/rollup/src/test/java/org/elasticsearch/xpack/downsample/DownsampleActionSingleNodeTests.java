@@ -458,7 +458,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertRollupIndex(sourceIndex, rollupIndex, config);
     }
 
-    public void testCannotRollupIndexWithNoMetrics() {
+    public void testRollupIndexWithNoMetrics() throws IOException {
         // Create a source index that contains no metric fields in its mapping
         String sourceIndex = "no-metrics-idx-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         client().admin()
@@ -486,8 +486,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         prepareSourceIndex(sourceIndex);
-        Exception exception = expectThrows(ActionRequestValidationException.class, () -> rollup(sourceIndex, rollupIndex, config));
-        assertThat(exception.getMessage(), containsString("does not contain any metric fields"));
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(sourceIndex, rollupIndex, config);
     }
 
     public void testCannotRollupWriteableIndex() {

@@ -114,7 +114,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         },
             mapping -> mapping.startObject("gauge").field("type", "integer").field("time_series_metric", "gauge").endObject(),
             () -> List.of("routing_field"),
-            0 // NOTE: using default field limit
+            null // NOTE: using default field limit
         ));
 
         assertThat(ex.getMessage(), equalTo("Limit of total dimension fields [" + dimensionFieldLimit + "] has been exceeded"));

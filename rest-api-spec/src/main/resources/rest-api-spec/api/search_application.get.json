@@ -4,7 +4,7 @@
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-search-application.html",
       "description": "Returns the details about a search application."
     },
-    "stability": "beta",
+    "stability": "experimental",
     "visibility": "public",
     "headers": {
       "accept": [

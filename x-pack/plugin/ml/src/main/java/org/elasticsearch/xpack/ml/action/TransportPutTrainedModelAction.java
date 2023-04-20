@@ -313,33 +313,13 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                     return;
                 }
                 modelPackageConfigHolder.set(resolvedModelPackageConfig);
-                setTrainedModelConfigFieldsFromPackagedModel(trainedModelConfig, resolvedModelPackageConfig);
+                setTrainedModelConfigFieldsFromPackagedModel(trainedModelConfig, resolvedModelPackageConfig, xContentRegistry);
 
                 checkModelIdAgainstTags(trainedModelConfig.getModelId(), modelIdTagCheckListener);
             }, listener::onFailure));
         } else {
             checkModelIdAgainstTags(config.getModelId(), modelIdTagCheckListener);
         }
-    }
-
-    private void setTrainedModelConfigFieldsFromPackagedModel(
-        TrainedModelConfig.Builder trainedModelConfig,
-        ModelPackageConfig resolvedModelPackageConfig
-    ) throws IOException {
-        trainedModelConfig.setDescription(resolvedModelPackageConfig.getDescription());
-        trainedModelConfig.setModelType(TrainedModelType.fromString(resolvedModelPackageConfig.getModelType()));
-        trainedModelConfig.setMetadata(resolvedModelPackageConfig.getMetadata());
-        trainedModelConfig.setInferenceConfig(
-            parseInferenceConfigFromModelPackage(
-                resolvedModelPackageConfig.getInferenceConfigSource(),
-                xContentRegistry,
-                LoggingDeprecationHandler.INSTANCE
-            )
-        );
-        trainedModelConfig.setTags(resolvedModelPackageConfig.getTags());
-        trainedModelConfig.setModelPackageConfig(
-            new ModelPackageConfig.Builder(resolvedModelPackageConfig).resetPackageOnlyFields().build()
-        );
     }
 
     private void triggerModelFetchIfNecessary(
@@ -433,6 +413,29 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
         }
+    }
+
+    static void setTrainedModelConfigFieldsFromPackagedModel(
+        TrainedModelConfig.Builder trainedModelConfig,
+        ModelPackageConfig resolvedModelPackageConfig,
+        NamedXContentRegistry xContentRegistry
+    ) throws IOException {
+        trainedModelConfig.setDescription(resolvedModelPackageConfig.getDescription());
+        trainedModelConfig.setModelType(TrainedModelType.fromString(resolvedModelPackageConfig.getModelType()));
+        trainedModelConfig.setMetadata(resolvedModelPackageConfig.getMetadata());
+        trainedModelConfig.setInferenceConfig(
+            parseInferenceConfigFromModelPackage(
+                resolvedModelPackageConfig.getInferenceConfigSource(),
+                xContentRegistry,
+                LoggingDeprecationHandler.INSTANCE
+            )
+        );
+        trainedModelConfig.setTags(resolvedModelPackageConfig.getTags());
+        trainedModelConfig.setModelPackageConfig(
+            new ModelPackageConfig.Builder(resolvedModelPackageConfig).resetPackageOnlyFields().build()
+        );
+
+        trainedModelConfig.setLocation(trainedModelConfig.getModelType().getDefaultLocation(trainedModelConfig.getModelId()));
     }
 
     static InferenceConfig parseInferenceConfigFromModelPackage(

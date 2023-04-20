@@ -13,7 +13,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,21 +26,21 @@ public class GrokBuiltinPatterns {
     /**
      * Patterns built in to the grok library.
      */
-    private static Map<String, String> LEGACY_PATTERNS;
-    private static Map<String, String> ECS_V1_PATTERNS;
+    private static PatternBank LEGACY_PATTERNS;
+    private static PatternBank ECS_V1_PATTERNS;
 
-    public static synchronized Map<String, String> legacyPatterns() {
+    public static synchronized PatternBank legacyPatterns() {
         return get(false);
     }
 
-    public static synchronized Map<String, String> ecsV1Patterns() {
+    public static synchronized PatternBank ecsV1Patterns() {
         return get(true);
     }
 
     /**
      * Load built-in patterns.
      */
-    public static synchronized Map<String, String> get(boolean ecsCompatibility) {
+    public static synchronized PatternBank get(boolean ecsCompatibility) {
         if (ecsCompatibility) {
             if (ECS_V1_PATTERNS == null) {
                 ECS_V1_PATTERNS = loadEcsPatterns();
@@ -55,7 +54,7 @@ public class GrokBuiltinPatterns {
         }
     }
 
-    public static Map<String, String> get(String ecsCompatibility) {
+    public static PatternBank get(String ecsCompatibility) {
         if (isValidEcsCompatibilityMode(ecsCompatibility)) {
             return get(ECS_COMPATIBILITY_V1.equals(ecsCompatibility));
         } else {
@@ -67,7 +66,7 @@ public class GrokBuiltinPatterns {
         return ECS_COMPATIBILITY_MODES.contains(ecsCompatibility);
     }
 
-    private static Map<String, String> loadLegacyPatterns() {
+    private static PatternBank loadLegacyPatterns() {
         var patternNames = List.of(
             "aws",
             "bacula",
@@ -94,7 +93,7 @@ public class GrokBuiltinPatterns {
         return loadPatternsFromDirectory(patternNames, "/patterns/legacy/");
     }
 
-    private static Map<String, String> loadEcsPatterns() {
+    private static PatternBank loadEcsPatterns() {
         var patternNames = List.of(
             "aws",
             "bacula",
@@ -122,7 +121,7 @@ public class GrokBuiltinPatterns {
         return loadPatternsFromDirectory(patternNames, "/patterns/ecs-v1/");
     }
 
-    private static Map<String, String> loadPatternsFromDirectory(List<String> patternNames, String directory) {
+    private static PatternBank loadPatternsFromDirectory(List<String> patternNames, String directory) {
         Map<String, String> builtinPatterns = new LinkedHashMap<>();
         for (String pattern : patternNames) {
             try {
@@ -133,7 +132,7 @@ public class GrokBuiltinPatterns {
                 throw new RuntimeException("failed to load built-in patterns", e);
             }
         }
-        return Collections.unmodifiableMap(builtinPatterns);
+        return new PatternBank(builtinPatterns);
     }
 
     private static void loadPatternsFromFile(Map<String, String> patternBank, InputStream inputStream) throws IOException {

@@ -15,6 +15,7 @@ import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.GrokCaptureExtracter;
 import org.elasticsearch.grok.MatcherWatchdog;
+import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -26,7 +27,6 @@ import org.joni.Region;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -55,7 +55,7 @@ public class RedactProcessor extends AbstractProcessor {
     RedactProcessor(
         String tag,
         String description,
-        Map<String, String> patternBank,
+        PatternBank patternBank,
         List<String> matchPatterns,
         String redactField,
         boolean ignoreMissing,
@@ -351,16 +351,12 @@ public class RedactProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, "patterns", "List of patterns must not be empty");
             }
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "pattern_definitions");
-            Map<String, String> patternBank = new HashMap<>(GrokBuiltinPatterns.ecsV1Patterns());
-            if (customPatternBank != null) {
-                patternBank.putAll(customPatternBank);
-            }
 
             try {
                 return new RedactProcessor(
                     processorTag,
                     description,
-                    patternBank,
+                    GrokBuiltinPatterns.ecsV1Patterns().extendWith(customPatternBank),
                     matchPatterns,
                     matchField,
                     ignoreMissing,

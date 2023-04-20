@@ -227,8 +227,9 @@
 ---
 "Simulate index template with lifecycle and include defaults":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/95141"
+      version: " - 8.7.99"
+      reason: "Lifecycle is only available in 8.8+"
+      features: ["default_shards"]
 
   - do:
       indices.put_index_template:

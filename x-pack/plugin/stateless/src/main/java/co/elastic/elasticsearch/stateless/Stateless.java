@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElection
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
@@ -301,16 +302,21 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                             basePath.add(String.valueOf(indexShard.getOperationPrimaryTerm()))
                         );
                         searchDirectory.setBlobContainer(containerSupplier);
-                        final Map<String, StoreFileMetadata> commit = ObjectStoreService.findSearchShardFiles(containerSupplier.get());
+                        final StatelessCompoundCommit commit = ObjectStoreService.findSearchShardFiles(containerSupplier.get());
+
                         logger.debug(() -> {
-                            var segments = commit.keySet().stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findFirst();
+                            var segments = commit == null
+                                ? Optional.empty()
+                                : commit.commitFiles().keySet().stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findFirst();
                             if (segments.isPresent()) {
                                 return format("[%s] bootstrapping shard from object store using commit [%s]", shardId, segments.get());
                             } else {
                                 return format("[%s] bootstrapping shard from object store using empty commit", shardId);
                             }
                         });
-                        searchDirectory.updateCommit(commit);
+                        if (commit != null) {
+                            searchDirectory.updateCommit(commit);
+                        }
                         if (indexShard.routingEntry().role().isSearchable() == false) {
                             // TODO assert we only do EmptyStoreRecoverySource / ExistingStoreRecoverySource recovery here
                             if (indexShard.recoveryState().getRecoverySource() != RecoverySource.EmptyStoreRecoverySource.INSTANCE) {

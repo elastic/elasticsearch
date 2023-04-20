@@ -17,85 +17,48 @@
 
 package co.elastic.elasticsearch.stateless.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+
 import org.elasticsearch.action.support.broadcast.unpromotable.BroadcastUnpromotableRequest;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
-import java.util.Map;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
-    private final long term;
-    private final long generation;
-    private final Map<String, StoreFileMetadata> commitFiles;
+    private final StatelessCompoundCommit compoundCommit;
 
-    public NewCommitNotificationRequest(
-        final IndexShardRoutingTable indexShardRoutingTable,
-        final long term,
-        final long generation,
-        final Map<String, StoreFileMetadata> commitFiles
-    ) {
+    public NewCommitNotificationRequest(final IndexShardRoutingTable indexShardRoutingTable, final StatelessCompoundCommit compoundCommit) {
         super(indexShardRoutingTable);
-        this.term = term;
-        this.generation = generation;
-        this.commitFiles = commitFiles;
+        this.compoundCommit = compoundCommit;
     }
 
     public NewCommitNotificationRequest(final StreamInput in) throws IOException {
         super(in);
-        term = in.readVLong();
-        generation = in.readVLong();
-        commitFiles = in.readImmutableMap(StreamInput::readString, StoreFileMetadata::new);
+        compoundCommit = StatelessCompoundCommit.readFromTransport(in);
     }
 
     public long getTerm() {
-        return term;
+        return compoundCommit.primaryTerm();
     }
 
     public long getGeneration() {
-        return generation;
+        return compoundCommit.generation();
     }
 
-    public Map<String, StoreFileMetadata> getFiles() {
-        return commitFiles;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = super.validate();
-        if (term < 0) {
-            validationException = addValidationError("term is negative", validationException);
-        }
-        if (generation < 0) {
-            validationException = addValidationError("generation is negative", validationException);
-        }
-        return validationException;
+    public StatelessCompoundCommit getCompoundCommit() {
+        return compoundCommit;
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVLong(term);
-        out.writeVLong(generation);
-        out.writeMap(commitFiles, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        compoundCommit.writeTo(out);
     }
 
     @Override
     public String toString() {
-        return "NotifyRequest{"
-            + "shardId="
-            + shardId()
-            + ", term="
-            + term
-            + ", generation="
-            + generation
-            + ", commitFiles="
-            + commitFiles
-            + '}';
+        return "NotifyRequest{" + compoundCommit + '}';
     }
 }

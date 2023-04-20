@@ -78,7 +78,7 @@ public class StatelessCompoundCommitTests extends AbstractWireTestCase<Stateless
 
             writer.write(output, mock(Directory.class));
             try (StreamInput in = output.bytes().streamInput()) {
-                return StatelessCompoundCommit.read("stateless_commit_1", in);
+                return StatelessCompoundCommit.readFromStore(in);
             }
         }
     }
@@ -102,7 +102,7 @@ public class StatelessCompoundCommitTests extends AbstractWireTestCase<Stateless
             bytes[i] = (byte) ~bytes[i];
 
             try (StreamInput in = new ByteArrayStreamInput(bytes)) {
-                expectThrows(IOException.class, () -> StatelessCompoundCommit.read("stateless_commit_1", in));
+                expectThrows(IOException.class, () -> StatelessCompoundCommit.readFromStore(in));
             }
         }
     }

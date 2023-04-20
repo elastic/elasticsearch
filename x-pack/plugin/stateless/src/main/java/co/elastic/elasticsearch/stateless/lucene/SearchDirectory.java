@@ -17,6 +17,9 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.ByteBuffersDirectory;
@@ -37,7 +40,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ImmutableDirectoryException;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -94,7 +96,7 @@ public class SearchDirectory extends BaseDirectory {
 
     private final AtomicReference<Thread> updatingCommitThread = Assertions.ENABLED ? new AtomicReference<>() : null;// only used in asserts
 
-    private volatile Map<String, Long> currentMetadata = Map.of();
+    private volatile Map<String, BlobLocation> currentMetadata = Map.of();
 
     public SearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
         super(new SingleInstanceLockFactory());
@@ -115,13 +117,13 @@ public class SearchDirectory extends BaseDirectory {
      *
      * @param newCommit map of file name to store metadata
      */
-    public void updateCommit(Map<String, StoreFileMetadata> newCommit) {
+    public void updateCommit(StatelessCompoundCommit newCommit) {
         assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
         try {
             // TODO: we only accumulate files as we see new commits, we need to start cleaning this map once we add deletes
-            final Map<String, Long> updated = new HashMap<>(currentMetadata);
-            newCommit.forEach((name, storeMetadata) -> updated.put(name, storeMetadata.length()));
+            final Map<String, BlobLocation> updated = new HashMap<>(currentMetadata);
+            updated.putAll(newCommit.commitFiles());
             currentMetadata = Map.copyOf(updated);
         } finally {
             assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
@@ -168,11 +170,11 @@ public class SearchDirectory extends BaseDirectory {
         if (current.isEmpty()) {
             return EMPTY_COMMIT_DIRECTORY.fileLength(name);
         }
-        Long length = current.get(name);
-        if (length == null) {
+        BlobLocation location = current.get(name);
+        if (location == null) {
             throw new FileNotFoundException(name);
         }
-        return length;
+        return location.length();
     }
 
     @Override
@@ -214,20 +216,20 @@ public class SearchDirectory extends BaseDirectory {
         if (current.isEmpty()) {
             return EMPTY_COMMIT_DIRECTORY.openInput(name, context);
         }
-        final Long len = current.get(name);
-        if (len == null && EMPTY_SEGMENTS_FILE_NAME.equals(name)) {
+        final BlobLocation location = current.get(name);
+        if (location == null && EMPTY_SEGMENTS_FILE_NAME.equals(name)) {
             throw new FileNotFoundException("The file [" + EMPTY_SEGMENTS_FILE_NAME + "] was not found.");
         }
         // TODO: This assertion will not make sense once we start pruning files from the commit map
-        assert len != null : "unknown file [" + name + "] accessed";
+        assert location != null : "unknown file [" + name + "] accessed";
         return new SearchIndexInput(
             name,
-            cacheService.getCacheFile(new FileCacheKey(shardId, name), len),
+            cacheService.getCacheFile(new FileCacheKey(shardId, location.blobName()), location.offset() + location.length()),
             context,
             blobContainer.get().get(),
             cacheService,
-            len,
-            0
+            location.length(),
+            location.offset()
         );
     }
 

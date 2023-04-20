@@ -423,6 +423,7 @@ setup:
       ml.start_trained_model_deployment:
         model_id: test_model
         deployment_id: test_model_for_search
+        priority: low
         wait_for: started
   - match: {assignment.assignment_state: started}
   - match: {assignment.task_parameters.model_id: test_model}
@@ -443,6 +444,7 @@ setup:
       ml.start_trained_model_deployment:
         model_id: test_model
         deployment_id: test_model_for_ingest
+        priority: low
         wait_for: started
   - match: {assignment.assignment_state: started}
   - match: {assignment.task_parameters.model_id: test_model}

@@ -36,7 +36,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -347,14 +346,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 onFailure.accept(e);
             });
         } else {
-            listener.onFailure(getNoSeedNodeLeftException(Set.of()));
+            listener.onFailure(new NoSeedNodeLeftException("no seed node left for cluster: [" + clusterAlias + "]"));
         }
-    }
-
-    private NoSeedNodeLeftException getNoSeedNodeLeftException(Collection<Exception> suppressedExceptions) {
-        final var e = new NoSeedNodeLeftException("no seed node left for cluster: [" + clusterAlias + "]");
-        suppressedExceptions.forEach(e::addSuppressed);
-        return e;
     }
 
     private ConnectionManager.ConnectionValidator getConnectionValidator(DiscoveryNode node) {

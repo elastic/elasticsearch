@@ -1679,7 +1679,7 @@ public class Security extends Plugin
                         // The captured authenticated context is going to be instated only while executing the associated request handler.
                         ThreadContext.StoredContext authenticatedStoredContext = threadContext.newStoredContext();
                         // step 6: Pass the lambda that restores the *authenticated* context as an argument to the listener.
-                        contextPreservingListener.onResponse(authenticatedStoredContext::restore);
+                        contextPreservingListener.onResponse(authenticatedStoredContext);
                     }, contextPreservingListener::onFailure));
                 }
                 // the thread context here is identical to how the `try` block found it

@@ -175,7 +175,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         final CheckedConsumer<XContentBuilder, IOException> dimensions,
         final CheckedConsumer<XContentBuilder, IOException> metrics,
         final Supplier<List<String>> routingPaths,
-        int dimensionsFieldLimit
+        final Integer dimensionsFieldLimit
     ) throws IOException {
         XContentBuilder mapping = JsonXContent.contentBuilder();
         mapping.startObject().startObject("properties");
@@ -190,7 +190,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
 
-        if (dimensionsFieldLimit > 0) {
+        if (dimensionsFieldLimit != null) {
             settings.put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), dimensionsFieldLimit);
         }
 

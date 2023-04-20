@@ -438,22 +438,6 @@ public final class IngestDocument {
      * existing (or newly created) list.
      * @param fieldPathTemplate Resolves to the path with dot-notation within the document
      * @param valueSource The value source that will produce the value or values to append to the existing ones
-     * @throws IllegalArgumentException if the path is null, empty or invalid.
-     */
-    public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
-        appendFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel));
-    }
-
-    /**
-     * Appends the provided value to the provided path in the document.
-     * Any non existing path element will be created.
-     * If the path identifies a list, the value will be appended to the existing list.
-     * If the path identifies a scalar, the scalar will be converted to a list and
-     * the provided value will be added to the newly created list.
-     * Supports multiple values too provided in forms of list, in that case all the values will be appended to the
-     * existing (or newly created) list.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
-     * @param valueSource The value source that will produce the value or values to append to the existing ones
      * @param allowDuplicates When false, any values that already exist in the field will not be added
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
@@ -476,7 +460,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(String path, Object value) {
-        setFieldValue(path, value, false);
+        setFieldValue(path, value, false, true);
     }
 
     /**
@@ -489,7 +473,7 @@ public final class IngestDocument {
      * item identified by the provided path.
      */
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel), false);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel));
     }
 
     /**
@@ -514,7 +498,7 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value, false);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value);
     }
 
     /**
@@ -539,11 +523,7 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value, false);
-    }
-
-    private void setFieldValue(String path, Object value, boolean append) {
-        setFieldValue(path, value, append, true);
+        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value);
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
@@ -969,11 +949,11 @@ public final class IngestDocument {
             String newPath;
             if (path.startsWith(INGEST_KEY_PREFIX)) {
                 initialContext = ingestMetadata;
-                newPath = path.substring(INGEST_KEY_PREFIX.length(), path.length());
+                newPath = path.substring(INGEST_KEY_PREFIX.length());
             } else {
                 initialContext = ctxMap;
                 if (path.startsWith(SOURCE_PREFIX)) {
-                    newPath = path.substring(SOURCE_PREFIX.length(), path.length());
+                    newPath = path.substring(SOURCE_PREFIX.length());
                 } else {
                     newPath = path;
                 }

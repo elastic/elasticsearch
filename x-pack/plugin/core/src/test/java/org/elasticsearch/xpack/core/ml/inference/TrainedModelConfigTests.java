@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringC
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
@@ -82,7 +83,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                 FillMaskConfigTests.createRandom(),
                 TextEmbeddingConfigTests.createRandom(),
                 QuestionAnsweringConfigTests.createRandom(),
-                TextSimilarityConfigTests.createRandom() }
+                TextSimilarityConfigTests.createRandom(),
+                TextExpansionConfigTests.createRandom() }
             : new InferenceConfig[] {
                 ClassificationConfigTests.randomClassificationConfig(),
                 RegressionConfigTests.randomRegressionConfig() };

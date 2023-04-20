@@ -28,19 +28,24 @@ public class CIDRUtils {
         }
 
         for (String cidrAddress : cidrAddresses) {
-            if (cidrAddress == null) continue;
-            byte[] lower, upper;
-            if (cidrAddress.contains("/")) {
-                final Tuple<byte[], byte[]> range = getLowerUpper(InetAddresses.parseCidr(cidrAddress));
-                lower = range.v1();
-                upper = range.v2();
-            } else {
-                lower = InetAddresses.forString(cidrAddress).getAddress();
-                upper = lower;
+            if (cidrAddress != null && isInRange(addr, cidrAddress)) {
+                return true;
             }
-            if (isBetween(addr, lower, upper)) return true;
         }
         return false;
+    }
+
+    public static boolean isInRange(byte[] addr, String cidrAddress) {
+        byte[] lower, upper;
+        if (cidrAddress.contains("/")) {
+            final Tuple<byte[], byte[]> range = getLowerUpper(InetAddresses.parseCidr(cidrAddress));
+            lower = range.v1();
+            upper = range.v2();
+        } else {
+            lower = InetAddresses.forString(cidrAddress).getAddress();
+            upper = lower;
+        }
+        return isBetween(addr, lower, upper);
     }
 
     private static Tuple<byte[], byte[]> getLowerUpper(Tuple<InetAddress, Integer> cidr) {

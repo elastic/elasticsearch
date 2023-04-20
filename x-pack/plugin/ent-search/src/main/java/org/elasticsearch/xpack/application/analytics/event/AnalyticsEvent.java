@@ -20,12 +20,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
-import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_DATASET;
+import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_TYPE;
 
 /**
  * This class represents Analytics events object meant to be emitted to the event queue.
@@ -181,8 +183,8 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
 
             builder.startObject(DATA_STREAM_FIELD.getPreferredName());
             {
-                builder.field(DATA_STREAM_TYPE_FIELD.getPreferredName(), AnalyticsTemplateRegistry.EVENT_DATA_STREAM_TYPE);
-                builder.field(DATA_STREAM_DATASET_FIELD.getPreferredName(), AnalyticsTemplateRegistry.EVENT_DATA_STREAM_DATASET);
+                builder.field(DATA_STREAM_TYPE_FIELD.getPreferredName(), EVENT_DATA_STREAM_TYPE);
+                builder.field(DATA_STREAM_DATASET_FIELD.getPreferredName(), EVENT_DATA_STREAM_DATASET);
                 builder.field(DATA_STREAM_NAMESPACE_FIELD.getPreferredName(), eventCollectionName());
 
             }

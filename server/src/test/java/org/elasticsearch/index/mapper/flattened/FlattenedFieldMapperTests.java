@@ -11,8 +11,12 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -62,6 +66,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index_options", b -> b.field("index_options", "freqs"));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
         checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
+        checker.registerConflictCheck("time_series_dimensions", b -> b.field("time_series_dimensions", List.of("one", "two")));
 
         checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
         checker.registerUpdateCheck(b -> b.field("ignore_above", 256), m -> assertEquals(256, ((FlattenedFieldMapper) m).ignoreAbove()));
@@ -117,6 +122,80 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         // Check that there is no 'field names' field.
         List<IndexableField> fieldNamesFields = parsedDoc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
         assertEquals(0, fieldNamesFields.size());
+    }
+
+    public void testNotDimension() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        FlattenedFieldMapper.RootFlattenedFieldType ft = (FlattenedFieldMapper.RootFlattenedFieldType) mapperService.fieldType("field");
+        assertFalse(ft.isDimension());
+    }
+
+    public void testDimension() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3"));
+        }));
+
+        FlattenedFieldMapper.RootFlattenedFieldType ft = (FlattenedFieldMapper.RootFlattenedFieldType) mapperService.fieldType("field");
+        assertTrue(ft.isDimension());
+    }
+
+    public void testDimensionAndIgnoreAbove() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3")).field("ignore_above", 5);
+        })));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Field [ignore_above] cannot be set in conjunction with field [time_series_dimensions]")
+        );
+    }
+
+    public void testDimensionIndexedAndDocvalues() {
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3")).field("index", false).field("doc_values", false);
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimensions] requires that [index] and [doc_values] are true")
+            );
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3")).field("index", true).field("doc_values", false);
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimensions] requires that [index] and [doc_values] are true")
+            );
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3")).field("index", false).field("doc_values", true);
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Field [time_series_dimensions] requires that [index] and [doc_values] are true")
+            );
+        }
+    }
+
+    public void testDimensionMultiValuedField() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3"));
+        });
+        DocumentMapper mapper = randomBoolean() ? createDocumentMapper(mapping) : createTimeSeriesModeDocumentMapper(mapping);
+
+        Exception e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field.key1", "value1", "value2")))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Dimension field [field.key1] cannot be a multi-valued field"));
     }
 
     public void testDisableIndex() throws Exception {
@@ -332,6 +411,87 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             }
             b.endObject();
         })));
+    }
+
+    public void testAllDimensionsInRoutingPath() throws IOException {
+        MapperService mapper = createMapperService(
+            fieldMapping(b -> b.field("type", "flattened").field("time_series_dimensions", List.of("key1", "subfield.key2")))
+        );
+        IndexSettings settings = createIndexSettings(
+            Version.CURRENT,
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("field.key1", "field.subfield.key2"))
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+                .build()
+        );
+        mapper.documentMapper().validate(settings, false);  // Doesn't throw
+    }
+
+    public void testSomeDimensionsInRoutingPath() throws IOException {
+        MapperService mapper = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "flattened").field("time_series_dimensions", List.of("key1", "subfield.key2", "key3", "subfield.key4"))
+            )
+        );
+        IndexSettings settings = createIndexSettings(
+            Version.CURRENT,
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("field.key1", "field.subfield.key2"))
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+                .build()
+        );
+        mapper.documentMapper().validate(settings, false);  // Doesn't throw
+    }
+
+    public void testMissingDimensionInRoutingPath() throws IOException {
+        MapperService mapper = createMapperService(
+            fieldMapping(b -> b.field("type", "flattened").field("time_series_dimensions", List.of("key1", "subfield.key2")))
+        );
+        IndexSettings settings = createIndexSettings(
+            Version.CURRENT,
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("field.key1", "field.subfield.key2", "field.key3"))
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+                .build()
+        );
+        Exception ex = expectThrows(IllegalArgumentException.class, () -> mapper.documentMapper().validate(settings, false));
+        assertEquals(
+            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                + "without the [script] parameter. [field.key3] was [flattened].",
+            ex.getMessage()
+        );
+    }
+
+    public void testRoutingPathWithKeywordsAndFlattenedFields() throws IOException {
+        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("flattened_field")
+                .field("type", "flattened")
+                .field("time_series_dimensions", List.of("key1", "key2"))
+                .endObject();
+            b.startObject("keyword_field");
+            {
+                b.field("type", "keyword");
+                b.field("time_series_dimension", "true");
+            }
+            b.endObject();
+        }));
+        IndexSettings settings = createIndexSettings(
+            Version.CURRENT,
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("flattened_field.key1", "keyword_field"))
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+                .build()
+        );
+        documentMapper.validate(settings, false);
     }
 
     public void testEagerGlobalOrdinals() throws IOException {

@@ -492,8 +492,10 @@ setup:
 ---
 "Composite aggregation with lossy format":
   - skip:
-      version: " - 7.13.99"
-      reason:  After key parse checking added in 7.14
+      # version: " - 7.13.99"
+      # reason:  After key parse checking added in 7.14
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/95386"
 
   - do:
       catch: /created output it couldn't parse/

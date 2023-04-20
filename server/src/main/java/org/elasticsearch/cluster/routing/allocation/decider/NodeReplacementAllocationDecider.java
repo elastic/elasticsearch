@@ -185,8 +185,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         }
         final SingleNodeShutdownMetadata shutdown = allocation.metadata().nodeShutdowns().get(sourceNodeId);
         return shutdown != null
-            && (shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE)
-                || shutdown.getType().equals(SingleNodeShutdownMetadata.Type.SIGTERM))
+            && shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE)
             && shutdown.getNodeId().equals(sourceNodeId)
             && shutdown.getTargetNodeName().equals(targetNodeName);
     }
@@ -199,9 +198,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             return false;
         }
         final SingleNodeShutdownMetadata shutdown = allocation.metadata().nodeShutdowns().get(nodeId);
-        return shutdown != null
-            && (shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE)
-                || shutdown.getType().equals(SingleNodeShutdownMetadata.Type.SIGTERM));
+        return shutdown != null && shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE);
     }
 
     /**

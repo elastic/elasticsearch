@@ -409,9 +409,7 @@ public class DesiredBalanceReconciler {
         }
 
         final var shutdown = allocation.metadata().nodeShutdowns().get(shardRouting.currentNodeId());
-        final var shardsOnReplacedNode = shutdown != null
-            && (shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE)
-                || shutdown.getType().equals(SingleNodeShutdownMetadata.Type.SIGTERM));
+        final var shardsOnReplacedNode = shutdown != null && shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE);
         if (shardsOnReplacedNode) {
             return findRelocationTarget(shardRouting, desiredNodeIds, this::decideCanForceAllocateForVacate);
         }

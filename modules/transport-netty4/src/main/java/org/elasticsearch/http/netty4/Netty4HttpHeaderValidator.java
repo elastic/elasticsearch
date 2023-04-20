@@ -32,11 +32,6 @@ import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.WAIT
 
 public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
-    public static final TriConsumer<HttpRequest, Channel, ActionListener<Void>> NOOP_VALIDATOR = ((
-        httpRequest,
-        channel,
-        listener) -> listener.onResponse(null));
-
     private final TriConsumer<HttpRequest, Channel, ActionListener<Void>> validator;
     private ArrayDeque<HttpObject> pending = new ArrayDeque<>(4);
     private State state = WAITING_TO_START;

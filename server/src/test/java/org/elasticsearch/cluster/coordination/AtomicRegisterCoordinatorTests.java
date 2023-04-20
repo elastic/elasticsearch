@@ -75,7 +75,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         // The leader still has access to the register, therefore it acknowledges the state update
     }
 
-
     @Override
     @AwaitsFix(bugUrl = "ES-5645")
     public void testClusterCannotFormWithFailingJoinValidation() {

@@ -27,6 +27,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.logging;
     requires org.elasticsearch.plugin;
     requires org.elasticsearch.plugin.analysis;
+    requires org.elasticsearch.grok;
 
     requires com.sun.jna;
     requires hppc;

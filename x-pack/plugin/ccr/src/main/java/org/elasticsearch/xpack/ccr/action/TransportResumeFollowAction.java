@@ -515,7 +515,8 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         DataTier.TIER_PREFERENCE_SETTING,
         IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
         IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
-        IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING
+        IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
+        IndexSettings.PREFER_ILM_SETTING
     );
 
     public static Settings filter(Settings originalSettings) {

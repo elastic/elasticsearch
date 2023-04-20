@@ -45,10 +45,17 @@ import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatSer
 
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
+
     @Override
-    @AwaitsFix(bugUrl = "ES-5645")
     public void testLeaderDisconnectionWithDisconnectEventDetectedQuickly() {
-        // In this test the leader still has access to the register, therefore it is still considered as a leader.
+        // must allow a little extra time for the heartbeat to expire before the election can happen
+        testLeaderDisconnectionWithDisconnectEventDetectedQuickly(
+            Settings.builder()
+                .put(MAX_MISSED_HEARTBEATS.getKey(), 1)
+                .put(HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+                .build(),
+            TimeValue.timeValueSeconds(1)
+        );
     }
 
     @Override

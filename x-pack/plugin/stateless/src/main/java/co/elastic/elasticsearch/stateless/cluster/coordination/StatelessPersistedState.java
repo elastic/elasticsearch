@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -38,6 +39,8 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.gateway.ClusterStateUpdaters;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -52,6 +55,7 @@ import java.util.function.LongFunction;
 
 class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
     private static final int DOWNLOAD_BUFFER_SIZE = 8192;
+    private final Logger logger = LogManager.getLogger(StatelessPersistedState.class);
     private final LongFunction<BlobContainer> blobContainerSupplier;
     private final PersistedClusterStateService persistedClusterStateService;
     private final ThrottledTaskRunner throttledTaskRunner;
@@ -109,8 +113,14 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         throws IOException {
         final var luceneFilesToDownload = segmentInfos.files(true);
 
-        final var downloadDirectory = createDirectoryForDownload(term);
-        listener = ActionListener.runBefore(listener, () -> IOUtils.closeWhileHandlingException(downloadDirectory));
+        final var downloadDirectory = new AutoCleanDirectory(clusterStateReadStagingPath);
+        listener = ActionListener.runBefore(listener, () -> {
+            try {
+                downloadDirectory.close();
+            } catch (IOException | RuntimeException e) {
+                logger.warn("Unable to clean temporary cluster state files from [" + clusterStateReadStagingPath + "]", e);
+            }
+        });
 
         ActionListener<Void> allFilesDownloadedListener = listener.map(unused -> {
             try (DirectoryReader directoryReader = DirectoryReader.open(downloadDirectory)) {
@@ -135,11 +145,6 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
                 }));
             }
         }
-    }
-
-    private AutoCleanDirectory createDirectoryForDownload(long term) throws IOException {
-        final var directoryToDownload = clusterStateReadStagingPath.resolve(Long.toString(term));
-        return new AutoCleanDirectory(directoryToDownload);
     }
 
     private void downloadFile(String fileName, Directory directory, BlobContainer blobContainer) throws IOException {
@@ -343,21 +348,21 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
     }
 
     private static class AutoCleanDirectory extends FilterDirectory {
-        private final Path directory;
+        private final Path stagingDirectory;
 
-        private AutoCleanDirectory(Path directory) throws IOException {
-            super(new NIOFSDirectory(directory));
-            this.directory = directory;
+        private AutoCleanDirectory(Path stagingDirectory) throws IOException {
+            super(new NIOFSDirectory(stagingDirectory.resolve(UUIDs.randomBase64UUID())));
+            this.stagingDirectory = stagingDirectory;
         }
 
         @Override
         public void close() throws IOException {
             super.close();
-            IOUtils.rm(directory);
+            IOUtils.rm(stagingDirectory);
         }
 
         public Path getPath() {
-            return directory;
+            return stagingDirectory;
         }
     }
 }

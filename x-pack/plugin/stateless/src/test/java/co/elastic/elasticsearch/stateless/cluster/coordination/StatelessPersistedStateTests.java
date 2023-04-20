@@ -12,6 +12,7 @@ import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -32,6 +33,8 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -40,13 +43,16 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
@@ -58,6 +64,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // We check that the repository is empty after each test
 public class StatelessPersistedStateTests extends ESTestCase {
+
     public void testClusterStateIsWrittenIntoTheStore() throws Exception {
         try (var ctx = createTestContext()) {
             var localNode = ctx.getLocalNode();
@@ -266,6 +273,46 @@ public class StatelessPersistedStateTests extends ESTestCase {
         }
     }
 
+    public void testTmpFilesCleanupDoNotPreventReadingClusterStateBack() throws Exception {
+        final var disruptDeletesFileSystemProvider = new DisruptDeletesFileSystemProvider(PathUtils.getDefaultFileSystem());
+        PathUtilsForTesting.installMock(disruptDeletesFileSystemProvider.getFileSystem(null));
+        try (var ctx = createTestContext()) {
+            var localNode = ctx.getLocalNode();
+            var persistedState = ctx.persistedState();
+
+            long term = 1;
+            persistedState.setCurrentTerm(term);
+
+            persistedState.setLastAcceptedState(createClusterStateWithLocalNodeAsMaster(term, 1, localNode));
+
+            Set<String> indexNames = new HashSet<>();
+            int writes = randomIntBetween(5, 10);
+            for (int i = 0; i < writes; i++) {
+                var newIndex = addRandomIndex(persistedState);
+                indexNames.add(newIndex);
+            }
+
+            int deletes = randomIntBetween(0, writes);
+            for (int i = deletes; i > 0; i--) {
+                var indexToDelete = removeRandomIndex(persistedState);
+                indexNames.remove(indexToDelete);
+            }
+
+            disruptDeletesFileSystemProvider.enableDeletionFailures();
+            for (int i = 0; i < 2; i++) {
+                var persistedClusterState = getPersistedStateForTerm(persistedState, term);
+                assertThat(persistedClusterState.term(), is(equalTo(term)));
+                assertThat(persistedClusterState.metadata().getIndices().keySet().containsAll(indexNames), is(true));
+            }
+
+            disruptDeletesFileSystemProvider.disableDeletionFailures();
+            // The final read should clean up any leftovers from the previous reads
+            getPersistedStateForTerm(persistedState, term);
+        } finally {
+            PathUtilsForTesting.teardown();
+        }
+    }
+
     public void testGetLatestStoredStateReturnsNullWhenAppliedStateIsFresh() throws Exception {
         try (var ctx = createTestContext()) {
             var localNode = ctx.getLocalNode();
@@ -453,4 +500,30 @@ public class StatelessPersistedStateTests extends ESTestCase {
             return statelessNode.node;
         }
     }
+
+    static class DisruptDeletesFileSystemProvider extends FilterFileSystemProvider {
+        final AtomicBoolean injectFailures = new AtomicBoolean();
+
+        DisruptDeletesFileSystemProvider(FileSystem inner) {
+            super("disruptdeletes://", inner);
+        }
+
+        @Override
+        public void delete(Path path) throws IOException {
+            if (injectFailures.get()) {
+                throw new IOException("Unable to delete " + path);
+            } else {
+                super.delete(path);
+            }
+        }
+
+        void enableDeletionFailures() {
+            injectFailures.set(true);
+        }
+
+        void disableDeletionFailures() {
+            injectFailures.set(false);
+        }
+    }
+
 }

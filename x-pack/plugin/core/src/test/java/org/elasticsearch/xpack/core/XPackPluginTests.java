@@ -6,14 +6,9 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
@@ -33,14 +28,12 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
@@ -89,47 +82,6 @@ public class XPackPluginTests extends ESTestCase {
     public void testXPackInstalledAttrExists() throws Exception {
         XPackPlugin xpackPlugin = createXPackPlugin(Settings.builder().put("path.home", createTempDir()).build());
         assertEquals("true", xpackPlugin.additionalSettings().get("node.attr." + XPackPlugin.XPACK_INSTALLED_NODE_ATTR));
-    }
-
-    public void testNodesNotReadyForXPackCustomMetadata() {
-        boolean compatible;
-        boolean nodesCompatible = true;
-        DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder();
-
-        for (int i = 0; i < randomInt(3); i++) {
-            final Map<String, String> attributes;
-            if (randomBoolean()) {
-                attributes = Collections.singletonMap(XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "true");
-            } else {
-                nodesCompatible = false;
-                attributes = Collections.emptyMap();
-            }
-
-            discoveryNodes.add(
-                new DiscoveryNode("node_" + i, buildNewFakeTransportAddress(), attributes, Collections.emptySet(), Version.CURRENT)
-            );
-        }
-        ClusterState.Builder clusterStateBuilder = ClusterState.builder(ClusterName.DEFAULT);
-
-        if (randomBoolean()) {
-            clusterStateBuilder.putCustom(TokenMetadata.TYPE, new TokenMetadata(Collections.emptyList(), new byte[0]));
-            compatible = true;
-        } else {
-            compatible = nodesCompatible;
-        }
-
-        ClusterState clusterState = clusterStateBuilder.nodes(discoveryNodes.build()).build();
-
-        assertEquals(XPackPlugin.nodesNotReadyForXPackCustomMetadata(clusterState).isEmpty(), nodesCompatible);
-        assertEquals(XPackPlugin.isReadyForXPackCustomMetadata(clusterState), compatible);
-
-        if (compatible == false) {
-            IllegalStateException e = expectThrows(
-                IllegalStateException.class,
-                () -> XPackPlugin.checkReadyForXPackCustomMetadata(clusterState)
-            );
-            assertThat(e.getMessage(), containsString("The following nodes are not ready yet for enabling x-pack custom metadata:"));
-        }
     }
 
     public void testLoadExtensions() throws Exception {

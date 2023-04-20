@@ -216,10 +216,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             return null;
         }
         return Optional.ofNullable(allocation.metadata().nodeShutdowns().get(nodeIdBeingReplaced))
-            .filter(
-                shutdown -> shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE)
-                    || shutdown.getType().equals(SingleNodeShutdownMetadata.Type.SIGTERM)
-            )
+            .filter(shutdown -> shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE))
             .map(SingleNodeShutdownMetadata::getTargetNodeName)
             .orElse(null);
     }

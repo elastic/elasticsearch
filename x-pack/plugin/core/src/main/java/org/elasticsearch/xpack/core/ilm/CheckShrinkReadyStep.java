@@ -77,8 +77,8 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
             .map(shutdownMetadataMap -> shutdownMetadataMap.get(idShardsShouldBeOn))
             .map(
                 singleNodeShutdown -> singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REMOVE
-                    || singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE
                     || singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.SIGTERM
+                    || singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE
             )
             .orElse(false);
 

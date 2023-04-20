@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.stateless.AtomicRegisterPreVoteCollector;
+import org.elasticsearch.cluster.coordination.stateless.DisruptibleHeartbeatStore;
 import org.elasticsearch.cluster.coordination.stateless.Heartbeat;
 import org.elasticsearch.cluster.coordination.stateless.HeartbeatStore;
 import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator;
@@ -145,8 +146,12 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         ) {
             final TimeValue heartbeatFrequency = HEARTBEAT_FREQUENCY.get(settings);
             final var atomicRegister = new AtomicRegister(currentTermRef, isDisruptedSupplier);
-            final var atomicHeartbeat = new StoreHeartbeatService(
-                new SharedHeartbeatStore(heartBeatRef, isDisruptedSupplier),
+            final var atomicHeartbeat = new StoreHeartbeatService(new DisruptibleHeartbeatStore(new SharedHeartbeatStore(heartBeatRef)) {
+                @Override
+                protected boolean isDisrupted() {
+                    return isDisruptedSupplier.getAsBoolean();
+                }
+            },
                 threadPool,
                 heartbeatFrequency,
                 TimeValue.timeValueMillis(heartbeatFrequency.millis() * MAX_MISSED_HEARTBEATS.get(settings)),
@@ -329,27 +334,19 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     private static class SharedHeartbeatStore implements HeartbeatStore {
 
         private final AtomicReference<Heartbeat> hearbeatRef;
-        private final BooleanSupplier isDisruptedSupplier;
 
-        SharedHeartbeatStore(AtomicReference<Heartbeat> hearbeatRef, BooleanSupplier isDisruptedSupplier) {
+        SharedHeartbeatStore(AtomicReference<Heartbeat> hearbeatRef) {
             this.hearbeatRef = hearbeatRef;
-            this.isDisruptedSupplier = isDisruptedSupplier;
         }
 
         @Override
         public void writeHeartbeat(Heartbeat newHeartbeat, ActionListener<Void> listener) {
-            if (isDisruptedSupplier.getAsBoolean()) {
-                listener.onFailure(new IOException("simulating disrupted access to shared store"));
-            }
             hearbeatRef.set(newHeartbeat);
             listener.onResponse(null);
         }
 
         @Override
         public void readLatestHeartbeat(ActionListener<Heartbeat> listener) {
-            if (isDisruptedSupplier.getAsBoolean()) {
-                listener.onFailure(new IOException("simulating disrupted access to shared store"));
-            }
             listener.onResponse(hearbeatRef.get());
         }
     }
@@ -363,15 +360,19 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             this.isDisruptedSupplier = isDisruptedSupplier;
         }
 
+        private boolean isDisrupted() {
+            return isDisruptedSupplier.getAsBoolean();
+        }
+
         long readCurrentTerm() throws IOException {
-            if (isDisruptedSupplier.getAsBoolean()) {
+            if (isDisrupted()) {
                 throw new IOException("simulating disrupted access to shared store");
             }
             return currentTermRef.get();
         }
 
         long compareAndExchange(long expected, long updated) throws IOException {
-            if (isDisruptedSupplier.getAsBoolean()) {
+            if (isDisrupted()) {
                 throw new IOException("simulating disrupted access to shared store");
             }
             return currentTermRef.compareAndExchange(expected, updated);

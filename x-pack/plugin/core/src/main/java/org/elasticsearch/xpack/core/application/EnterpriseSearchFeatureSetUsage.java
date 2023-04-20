@@ -23,7 +23,6 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
     public static final String SEARCH_APPLICATIONS = "search_applications";
     private final Map<String, Object> searchApplicationsStats;
 
-
     public EnterpriseSearchFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> searchApplicationsStats) {
         super(XPackField.ENTERPRISE_SEARCH, available, enabled);
         this.searchApplicationsStats = Objects.requireNonNull(searchApplicationsStats);
@@ -49,6 +48,19 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
         builder.field(SEARCH_APPLICATIONS, searchApplicationsStats);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        EnterpriseSearchFeatureSetUsage that = (EnterpriseSearchFeatureSetUsage) o;
+        return Objects.equals(searchApplicationsStats, that.searchApplicationsStats);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(searchApplicationsStats);
     }
 
     public Map<String, Object> getSearchApplicationsStats() {

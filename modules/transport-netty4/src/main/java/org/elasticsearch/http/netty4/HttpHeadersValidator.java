@@ -36,15 +36,18 @@ import static org.elasticsearch.http.netty4.Netty4HttpRequest.translateRequestMe
  */
 public final class HttpHeadersValidator {
 
+    @FunctionalInterface
+    public interface Validator extends TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationResult>> {}
+
     /**
      * An async HTTP headers validator function that receives as arguments part of the incoming HTTP request
      * (except the body contents, see {@link HttpPreRequest}), as well as the netty channel that the request is
      * being received over, and must then call the {@code ActionListener#onResponse} method on the listener parameter
      * in case the validation is to be considered successful, or otherwise call {@code ActionListener#onFailure}.
      */
-    private final TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationResult>> validator;
+    private final Validator validator;
 
-    public HttpHeadersValidator(TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationResult>> validator) {
+    public HttpHeadersValidator(Validator validator) {
         this.validator = validator;
     }
 

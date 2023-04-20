@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
@@ -58,6 +57,7 @@ import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.HttpHeadersValidator;
 import org.elasticsearch.http.netty4.HttpHeadersValidator.ValidatableHttpHeaders.ValidationResult;
+import org.elasticsearch.http.netty4.HttpHeadersValidator.Validator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -1649,10 +1649,7 @@ public class Security extends Plugin
             }
             final AuthenticationService authenticationService = this.authcService.get();
             final ThreadContext threadContext = this.threadContext.get();
-            final TriConsumer<HttpPreRequest, Channel, ActionListener<ValidationResult>> authenticateMessage = (
-                httpRequest,
-                channel,
-                listener) -> {
+            final Validator authenticateMessage = (httpRequest, channel, listener) -> {
                 // step 1: Wrap the passed-in listener such that the changes wrt to authentication are not visible to `listener#onResponse`.
                 // Authentication will change the thread-context, but we don't want such a context be visible to whatever code is going to
                 // run under the `listener#onResponse` call stack.

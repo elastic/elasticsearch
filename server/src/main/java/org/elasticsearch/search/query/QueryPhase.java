@@ -176,19 +176,16 @@ public class QueryPhase {
                 );
             }
             if (searchContext.getAggsCollector() != null) {
-                // plug in additional collectors, like aggregations
-                List<Collector> subCollectors = new ArrayList<>();
-                subCollectors.add(collector);
-                subCollectors.add(searchContext.getAggsCollector());
                 if (searchContext.getProfilers() == null) {
-                    collector = MultiCollector.wrap(subCollectors);
+                    collector = MultiCollector.wrap(collector, searchContext.getAggsCollector());
                 } else {
                     List<InternalProfileCollector> profileCollectors = List.of(
                         (InternalProfileCollector) collector,
                         (InternalProfileCollector) searchContext.getAggsCollector()
                     );
                     // in this case we pass both collectors as children profile collectors
-                    collector = new InternalProfileCollector(MultiCollector.wrap(subCollectors), REASON_SEARCH_MULTI, profileCollectors);
+                    collector = new InternalProfileCollector(MultiCollector.wrap(collector, searchContext.getAggsCollector()),
+                        REASON_SEARCH_MULTI, profileCollectors);
                 }
             }
             if (searchContext.minimumScore() != null) {

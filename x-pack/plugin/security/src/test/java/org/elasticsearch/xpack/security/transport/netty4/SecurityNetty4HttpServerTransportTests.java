@@ -321,7 +321,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 HttpMessage validatableHttpRequest = HttpHeadersUtils.wrapAsValidatableMessage(
                     new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/unvalidated_request")
                 );
-                ((HttpHeadersUtils.ValidatableHttpHeaders) validatableHttpRequest.headers()).markAsSuccessfullyValidated(() -> {
+                ((HttpHeadersUtils.HttpHeadersWithValidationContext) validatableHttpRequest.headers()).markAsSuccessfullyValidated(() -> {
                     throw new ElasticsearchException("Boom");
                 });
                 ch.writeInbound(validatableHttpRequest);

@@ -14,7 +14,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.netty4.HttpHeadersUtils.ValidatableHttpHeaders;
+import org.elasticsearch.http.netty4.HttpHeadersUtils.HttpHeadersWithValidationContext;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
@@ -34,7 +34,7 @@ public final class HttpHeadersUtilsTests extends ESTestCase {
         final DefaultHttpRequest validatableHttpRequest = (DefaultHttpRequest) HttpHeadersUtils.wrapAsValidatableMessage(httpRequest);
         boolean validated = randomBoolean();
         if (validated) {
-            ((ValidatableHttpHeaders) validatableHttpRequest.headers()).markAsSuccessfullyValidated(dummyValidationContext);
+            ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).markAsSuccessfullyValidated(dummyValidationContext);
         }
         if (randomBoolean()) {
             validatableHttpRequest.headers().remove("header1");
@@ -47,11 +47,14 @@ public final class HttpHeadersUtilsTests extends ESTestCase {
         }
         if (validated) {
             assertThat(
-                ((ValidatableHttpHeaders) validatableHttpRequest.headers()).validationResultContextSetOnce.get(),
+                ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).validationResultContextSetOnce.get(),
                 is(dummyValidationContext)
             );
         } else {
-            assertThat(((ValidatableHttpHeaders) validatableHttpRequest.headers()).validationResultContextSetOnce.get(), nullValue());
+            assertThat(
+                ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).validationResultContextSetOnce.get(),
+                nullValue()
+            );
         }
     }
 
@@ -64,13 +67,16 @@ public final class HttpHeadersUtilsTests extends ESTestCase {
         final DefaultHttpRequest validatableHttpRequest = (DefaultHttpRequest) HttpHeadersUtils.wrapAsValidatableMessage(httpRequest);
         boolean validated = randomBoolean();
         if (validated) {
-            ((ValidatableHttpHeaders) validatableHttpRequest.headers()).markAsSuccessfullyValidated(dummyValidationContext);
+            ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).markAsSuccessfullyValidated(dummyValidationContext);
         }
-        HttpHeaders httpHeadersCopy = ((ValidatableHttpHeaders) validatableHttpRequest.headers()).copy();
+        HttpHeaders httpHeadersCopy = ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).copy();
         if (validated) {
-            assertThat(((ValidatableHttpHeaders) httpHeadersCopy).validationResultContextSetOnce.get(), is(dummyValidationContext));
+            assertThat(
+                ((HttpHeadersWithValidationContext) httpHeadersCopy).validationResultContextSetOnce.get(),
+                is(dummyValidationContext)
+            );
         } else {
-            assertThat(((ValidatableHttpHeaders) httpHeadersCopy).validationResultContextSetOnce.get(), nullValue());
+            assertThat(((HttpHeadersWithValidationContext) httpHeadersCopy).validationResultContextSetOnce.get(), nullValue());
         }
     }
 }

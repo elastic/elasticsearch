@@ -50,15 +50,15 @@ public final class HttpHeadersUtils {
 
     /**
      * Supplies a netty {@code ChannelInboundHandler} that runs the provided {@param validator} on the HTTP request headers.
-     * The HTTP headers of the to-be-validated {@link HttpRequest} must be wrapped by the special {@link ValidatableHttpHeaders},
+     * The HTTP headers of the to-be-validated {@link HttpRequest} must be wrapped by the special {@link HttpHeadersWithValidationContext},
      * see {@link #wrapAsValidatableMessage(HttpMessage)}.
      */
     public static Netty4HttpHeaderValidator getValidatorInboundHandler(Validator validator) {
         return new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
-            if (httpRequest.headers() instanceof ValidatableHttpHeaders validatableHttpHeaders) {
+            if (httpRequest.headers() instanceof HttpHeadersWithValidationContext httpHeadersWithValidationContext) {
                 // make sure validation only runs on properly wrapped "validatable" headers implementation
                 validator.apply(asHttpPreRequest(httpRequest), channel, ActionListener.wrap(validationResult -> {
-                    validatableHttpHeaders.markAsSuccessfullyValidated(validationResult);
+                    httpHeadersWithValidationContext.markAsSuccessfullyValidated(validationResult);
                     // a successful validation needs to signal to the {@link Netty4HttpHeaderValidator} to resume
                     // forwarding the request beyond the headers part
                     listener.onResponse(null);
@@ -77,45 +77,55 @@ public final class HttpHeadersUtils {
     public static HttpMessage wrapAsValidatableMessage(HttpMessage newlyDecodedMessage) {
         assert newlyDecodedMessage instanceof HttpRequest;
         DefaultHttpRequest httpRequest = (DefaultHttpRequest) newlyDecodedMessage;
-        ValidatableHttpHeaders validatableHttpHeaders = new ValidatableHttpHeaders(newlyDecodedMessage.headers());
-        return new DefaultHttpRequest(httpRequest.protocolVersion(), httpRequest.method(), httpRequest.uri(), validatableHttpHeaders);
+        HttpHeadersWithValidationContext httpHeadersWithValidationContext = new HttpHeadersWithValidationContext(
+            newlyDecodedMessage.headers()
+        );
+        return new DefaultHttpRequest(
+            httpRequest.protocolVersion(),
+            httpRequest.method(),
+            httpRequest.uri(),
+            httpHeadersWithValidationContext
+        );
     }
 
     public static ThreadContext.StoredContext extractValidationContext(org.elasticsearch.http.HttpRequest request) {
-        ValidatableHttpHeaders authenticatedHeaders = unwrapValidatableHeaders(request);
+        HttpHeadersWithValidationContext authenticatedHeaders = unwrapValidatableHeaders(request);
         return authenticatedHeaders != null ? authenticatedHeaders.validationResultContextSetOnce.get() : null;
     }
 
-    private static ValidatableHttpHeaders unwrapValidatableHeaders(org.elasticsearch.http.HttpRequest request) {
+    private static HttpHeadersWithValidationContext unwrapValidatableHeaders(org.elasticsearch.http.HttpRequest request) {
         if (request instanceof Netty4HttpRequest == false) {
             return null;
         }
-        if (((Netty4HttpRequest) request).getNettyRequest().headers() instanceof ValidatableHttpHeaders == false) {
+        if (((Netty4HttpRequest) request).getNettyRequest().headers() instanceof HttpHeadersWithValidationContext == false) {
             return null;
         }
-        return (ValidatableHttpHeaders) (((Netty4HttpRequest) request).getNettyRequest().headers());
+        return (HttpHeadersWithValidationContext) (((Netty4HttpRequest) request).getNettyRequest().headers());
     }
 
     /**
      * {@link HttpHeaders} implementation that carries along the {@link ThreadContext.StoredContext} iff
      * the HTTP headers have been validated successfully.
      */
-    public static final class ValidatableHttpHeaders extends DefaultHttpHeaders {
+    public static final class HttpHeadersWithValidationContext extends DefaultHttpHeaders {
 
         public final SetOnce<ThreadContext.StoredContext> validationResultContextSetOnce;
 
-        public ValidatableHttpHeaders(HttpHeaders httpHeaders) {
+        public HttpHeadersWithValidationContext(HttpHeaders httpHeaders) {
             this(httpHeaders, new SetOnce<>());
         }
 
-        private ValidatableHttpHeaders(HttpHeaders httpHeaders, SetOnce<ThreadContext.StoredContext> validationResultContextSetOnce) {
+        private HttpHeadersWithValidationContext(
+            HttpHeaders httpHeaders,
+            SetOnce<ThreadContext.StoredContext> validationResultContextSetOnce
+        ) {
             // the constructor implements the same logic as HttpHeaders#copy
             super();
             set(httpHeaders);
             this.validationResultContextSetOnce = validationResultContextSetOnce;
         }
 
-        private ValidatableHttpHeaders(HttpHeaders httpHeaders, ThreadContext.StoredContext validationResult) {
+        private HttpHeadersWithValidationContext(HttpHeaders httpHeaders, ThreadContext.StoredContext validationResult) {
             this(httpHeaders);
             if (validationResult != null) {
                 markAsSuccessfullyValidated(validationResult);
@@ -134,7 +144,7 @@ public final class HttpHeadersUtils {
         @Override
         public HttpHeaders copy() {
             // copy the headers but also STILL CARRY the same validation result
-            return new ValidatableHttpHeaders(super.copy(), validationResultContextSetOnce.get());
+            return new HttpHeadersWithValidationContext(super.copy(), validationResultContextSetOnce.get());
         }
     }
 

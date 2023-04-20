@@ -86,7 +86,9 @@ GET /_search
 This will return all results in the time series, however a more typical query will use sub aggregations to reduce the
 date returned to something more relevant.
 
-[[search-aggregations-bucket-terms-aggregation-size]]
+//////////////////////////
+
+[[search-aggregations-time-series-aggregation-size]]
 ==== Size
 
 By default, `time series` aggregations return 10000 results. The "size" parameter can be used to limit the results
@@ -97,5 +99,3 @@ further. Alternatively, using sub aggregations can limit the amount of values re
 
 The `keyed` parameter determines if buckets are returned as a map with unique keys per bucket. By default with `keyed`
 set to false, buckets are returned as an array.
-
-//////////////////////////

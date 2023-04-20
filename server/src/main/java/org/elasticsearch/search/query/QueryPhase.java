@@ -47,8 +47,6 @@ import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;
@@ -142,15 +140,17 @@ public class QueryPhase {
             Collector collector = wrapWithProfilerCollectorIfNeeded(
                 searchContext.getProfilers(),
                 topDocsFactory.collector(),
-                topDocsFactory.profilerName,
-                null
+                topDocsFactory.profilerName
             );
 
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 // add terminate_after before the filter collectors
                 // it will only be applied on documents accepted by these filter collectors
-                EarlyTerminatingCollector earlyTerminatingCollector = new EarlyTerminatingCollector(EMPTY_COLLECTOR,
-                    searchContext.terminateAfter(), true);
+                EarlyTerminatingCollector earlyTerminatingCollector = new EarlyTerminatingCollector(
+                    EMPTY_COLLECTOR,
+                    searchContext.terminateAfter(),
+                    true
+                );
                 collector = wrapWithProfilerCollectorIfNeeded(
                     searchContext.getProfilers(),
                     MultiCollector.wrap(earlyTerminatingCollector, collector),
@@ -174,9 +174,13 @@ public class QueryPhase {
                 );
             }
             if (searchContext.getAggsCollector() != null) {
-                collector = wrapWithProfilerCollectorIfNeeded(searchContext.getProfilers(),
+                collector = wrapWithProfilerCollectorIfNeeded(
+                    searchContext.getProfilers(),
                     MultiCollector.wrap(collector, searchContext.getAggsCollector()),
-                    REASON_SEARCH_MULTI, collector, searchContext.getAggsCollector());
+                    REASON_SEARCH_MULTI,
+                    collector,
+                    searchContext.getAggsCollector()
+                );
             }
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well
@@ -239,11 +243,7 @@ public class QueryPhase {
         if (profilers == null) {
             return collector;
         }
-        return new InternalProfileCollector(
-            collector,
-            profilerName,
-            children
-        );
+        return new InternalProfileCollector(collector, profilerName, children);
     }
 
     private static void searchWithCollector(

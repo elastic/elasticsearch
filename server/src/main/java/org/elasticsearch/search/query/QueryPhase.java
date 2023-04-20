@@ -47,8 +47,7 @@ import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -150,12 +149,11 @@ public class QueryPhase {
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 // add terminate_after before the filter collectors
                 // it will only be applied on documents accepted by these filter collectors
-                List<Collector> subCollectors = new ArrayList<>();
-                subCollectors.add(new EarlyTerminatingCollector(EMPTY_COLLECTOR, searchContext.terminateAfter(), true));
-                subCollectors.add(collector);
+                EarlyTerminatingCollector earlyTerminatingCollector = new EarlyTerminatingCollector(EMPTY_COLLECTOR,
+                    searchContext.terminateAfter(), true);
                 collector = wrapWithProfilerCollectorIfNeeded(
                     searchContext.getProfilers(),
-                    MultiCollector.wrap(subCollectors),
+                    MultiCollector.wrap(earlyTerminatingCollector, collector),
                     REASON_SEARCH_TERMINATE_AFTER_COUNT,
                     collector
                 );
@@ -176,17 +174,9 @@ public class QueryPhase {
                 );
             }
             if (searchContext.getAggsCollector() != null) {
-                if (searchContext.getProfilers() == null) {
-                    collector = MultiCollector.wrap(collector, searchContext.getAggsCollector());
-                } else {
-                    List<InternalProfileCollector> profileCollectors = List.of(
-                        (InternalProfileCollector) collector,
-                        (InternalProfileCollector) searchContext.getAggsCollector()
-                    );
-                    // in this case we pass both collectors as children profile collectors
-                    collector = new InternalProfileCollector(MultiCollector.wrap(collector, searchContext.getAggsCollector()),
-                        REASON_SEARCH_MULTI, profileCollectors);
-                }
+                collector = wrapWithProfilerCollectorIfNeeded(searchContext.getProfilers(),
+                    MultiCollector.wrap(collector, searchContext.getAggsCollector()),
+                    REASON_SEARCH_MULTI, collector, searchContext.getAggsCollector());
             }
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well
@@ -244,7 +234,7 @@ public class QueryPhase {
         Profilers profilers,
         Collector collector,
         String profilerName,
-        Collector child
+        Collector... children
     ) {
         if (profilers == null) {
             return collector;
@@ -252,7 +242,7 @@ public class QueryPhase {
         return new InternalProfileCollector(
             collector,
             profilerName,
-            child != null ? Collections.singletonList((InternalProfileCollector) child) : Collections.emptyList()
+            children
         );
     }
 

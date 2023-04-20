@@ -112,7 +112,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             throw new IllegalArgumentException("shard allocation delay is only valid for RESTART-type shutdowns");
         }
         this.allocationDelay = allocationDelay;
-        if (targetNodeName != null && ((type == Type.REPLACE || type == Type.SIGTERM) == false)) {
+        if (targetNodeName != null && type != Type.REPLACE) {
             throw new IllegalArgumentException(
                 format(
                     "target node name is only valid for REPLACE type shutdowns, but was given type [%s] and target node name [%s]",
@@ -120,7 +120,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
                     targetNodeName
                 )
             );
-        } else if (Strings.hasText(targetNodeName) == false && (type == Type.REPLACE || type == Type.SIGTERM)) {
+        } else if (Strings.hasText(targetNodeName) == false && type == Type.REPLACE) {
             throw new IllegalArgumentException("target node name is required for REPLACE type shutdowns");
         }
         this.targetNodeName = targetNodeName;
@@ -381,7 +381,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         REMOVE,
         RESTART,
         REPLACE,
-        SIGTERM;
+        SIGTERM; // local version of REMOVE
 
         public static Type parse(String type) {
             if ("remove".equals(type.toLowerCase(Locale.ROOT))) {

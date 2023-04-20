@@ -148,8 +148,7 @@ public class RoutingAllocation {
     private static Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets(ClusterState clusterState) {
         Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets = new HashMap<>();
         for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().values()) {
-            if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE
-                || shutdown.getType() == SingleNodeShutdownMetadata.Type.SIGTERM) {
+            if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE) {
                 nodeReplacementTargets.put(shutdown.getTargetNodeName(), shutdown);
             }
         }

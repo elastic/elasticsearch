@@ -68,7 +68,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
         }
 
         return switch (thisNodeShutdownMetadata.getType()) {
-            case REPLACE, SIGTERM, REMOVE -> allocation.decision(
+            case REPLACE, REMOVE, SIGTERM -> allocation.decision(
                 Decision.NO,
                 NAME,
                 "node [%s] is preparing to be removed from the cluster",

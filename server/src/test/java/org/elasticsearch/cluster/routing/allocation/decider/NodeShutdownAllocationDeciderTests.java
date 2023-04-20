@@ -200,8 +200,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private ClusterState prepareState(ClusterState initialState, SingleNodeShutdownMetadata.Type shutdownType, String nodeId) {
-        final String targetNodeName = (shutdownType == SingleNodeShutdownMetadata.Type.REPLACE
-            || shutdownType == SingleNodeShutdownMetadata.Type.SIGTERM) ? randomAlphaOfLengthBetween(10, 20) : null;
+        final String targetNodeName = shutdownType == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         final SingleNodeShutdownMetadata nodeShutdownMetadata = SingleNodeShutdownMetadata.builder()
             .setNodeId(nodeId)
             .setType(shutdownType)

@@ -100,16 +100,10 @@ public class PatternBankTests extends ESTestCase {
     }
 
     public void testInvalidPatternReferences() {
-        var e = expectThrows(
-            IllegalArgumentException.class,
-            () -> PatternBank.forbidCircularReferences(Map.of("NAME", "%{NON_EXISTENT}"))
-        );
+        var e = expectThrows(IllegalArgumentException.class, () -> PatternBank.forbidCircularReferences(Map.of("NAME", "%{NON_EXISTENT}")));
         assertEquals("pattern [NAME] is referencing a non-existent pattern [NON_EXISTENT]", e.getMessage());
 
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> PatternBank.forbidCircularReferences(Map.of("NAME", "%{NON_EXISTENT:id}"))
-        );
+        e = expectThrows(IllegalArgumentException.class, () -> PatternBank.forbidCircularReferences(Map.of("NAME", "%{NON_EXISTENT:id}")));
         assertEquals("pattern [NAME] is referencing a non-existent pattern [NON_EXISTENT]", e.getMessage());
 
         e = expectThrows(

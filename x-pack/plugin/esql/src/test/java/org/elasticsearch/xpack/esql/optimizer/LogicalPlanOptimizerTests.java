@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -72,6 +73,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.ql.TestUtils.lessThanOf;
@@ -82,9 +84,12 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LogicalPlanOptimizerTests extends ESTestCase {
 
     private static final Literal ONE = L(1);
@@ -105,6 +110,30 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer();
         analyzer = new Analyzer(new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult), new Verifier());
+    }
+
+    public void testEmptyProjections() {
+        var plan = plan("""
+            from test
+            | project salary
+            | drop salary
+            """);
+
+        var relation = as(plan, LocalRelation.class);
+        assertThat(relation.output(), is(empty()));
+        assertThat(relation.supplier().get(), emptyArray());
+    }
+
+    public void testEmptyProjectionInStat() {
+        var plan = plan("""
+            from test
+            | stats c = count(salary)
+            | drop c
+            """);
+
+        var relation = as(plan, LocalRelation.class);
+        assertThat(relation.output(), is(empty()));
+        assertThat(relation.supplier().get(), emptyArray());
     }
 
     public void testCombineProjections() {
@@ -215,12 +244,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var minimum = randomIntBetween(10, 99);
         var limitWithMinimum = randomIntBetween(0, numberOfLimits - 1);
 
-        var plan = emptySource();
+        var fa = getFieldAttribute("a", INTEGER);
+        var relation = localSource(singletonList(fa), singletonList(1));
+        LogicalPlan plan = relation;
+
         for (int i = 0; i < numberOfLimits; i++) {
             var value = i == limitWithMinimum ? minimum : randomIntBetween(100, 1000);
             plan = new Limit(EMPTY, L(value), plan);
         }
-        assertEquals(new Limit(EMPTY, L(minimum), emptySource()), new LogicalPlanOptimizer().optimize(plan));
+        assertEquals(new Limit(EMPTY, L(minimum), relation), new LogicalPlanOptimizer().optimize(plan));
     }
 
     public void testCombineFilters() {

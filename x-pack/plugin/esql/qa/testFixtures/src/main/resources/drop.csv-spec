@@ -29,15 +29,28 @@ b:integer | x:integer
 ;
 
 dropAllColumns
-from employees | project height | drop height | eval x = 1 | limit 3;
+from employees | project height | drop height | eval x = 1;
+
 x:integer
-1
-1
-1
+;
+
+dropAllColumns_WithLimit
+from employees | project height | drop height | eval x = 1 | limit 3;
+
+x:integer
 ;
 
 dropAllColumns_WithCount
 from employees | project height | drop height | eval x = 1 | stats c=count(x);
+
 c:long
-100
+0
 ;
+
+dropAllColumns_WithStats
+from employees | project height | drop height | eval x = 1 | stats c=count(x), mi=min(x), s=sum(x);
+
+c:l|mi:i|s:l
+0  |null|null
+;
+

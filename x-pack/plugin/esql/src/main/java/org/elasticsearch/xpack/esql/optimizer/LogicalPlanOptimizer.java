@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -69,6 +72,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         var operators = new Batch<>(
             "Operator Optimization",
             new CombineProjections(),
+            new PruneEmptyPlans(),
+            new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),
             new FoldNull(),
             new ConstantFolding(),
@@ -276,8 +281,51 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    static class PruneEmptyPlans extends OptimizerRules.OptimizerRule<UnaryPlan> {
+
+        @Override
+        protected LogicalPlan rule(UnaryPlan plan) {
+            return plan.output().isEmpty() ? skipPlan(plan) : plan;
+        }
+    }
+
+    static class PropagateEmptyRelation extends OptimizerRules.OptimizerRule<UnaryPlan> {
+
+        @Override
+        protected LogicalPlan rule(UnaryPlan plan) {
+            LogicalPlan p = plan;
+            if (plan.child() instanceof LocalRelation local && local.supplier() == LocalSupplier.EMPTY) {
+                // only care about non-grouped aggs might return something (count)
+                if (plan instanceof Aggregate agg && agg.groupings().isEmpty()) {
+                    p = skipPlan(plan, aggsFromEmpty(agg.aggregates()));
+                } else {
+                    p = skipPlan(plan);
+                }
+            }
+            return p;
+        }
+
+        private static LocalSupplier aggsFromEmpty(List<? extends NamedExpression> aggs) {
+            var result = new ArrayList<Object>(aggs.size());
+            for (var agg : aggs) {
+                // there needs to be an alias
+                if (agg instanceof Alias a && a.child() instanceof AggregateFunction aggFunc) {
+                    result.add(aggFunc instanceof Count ? 0L : null);
+                } else {
+                    throw new EsqlIllegalArgumentException("Did not expect a non-aliased aggregation {}", agg);
+                }
+            }
+            var blocks = BlockUtils.fromListRow(result);
+            return LocalSupplier.of(blocks);
+        }
+    }
+
     private static LogicalPlan skipPlan(UnaryPlan plan) {
         return new LocalRelation(plan.source(), plan.output(), LocalSupplier.EMPTY);
+    }
+
+    private static LogicalPlan skipPlan(UnaryPlan plan, LocalSupplier supplier) {
+        return new LocalRelation(plan.source(), plan.output(), supplier);
     }
 
     protected static class PushDownAndCombineFilters extends OptimizerRules.OptimizerRule<Filter> {

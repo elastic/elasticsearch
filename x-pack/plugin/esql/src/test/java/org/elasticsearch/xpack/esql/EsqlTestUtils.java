@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.junit.Assert;
 
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -46,6 +49,10 @@ public final class EsqlTestUtils {
 
     public static LogicalPlan emptySource() {
         return new LocalRelation(Source.EMPTY, emptyList(), LocalSupplier.EMPTY);
+    }
+
+    public static LogicalPlan localSource(List<Attribute> fields, List<Object> row) {
+        return new LocalRelation(Source.EMPTY, fields, LocalSupplier.of(BlockUtils.fromListRow(row)));
     }
 
     public static <T> T as(Object node, Class<T> type) {

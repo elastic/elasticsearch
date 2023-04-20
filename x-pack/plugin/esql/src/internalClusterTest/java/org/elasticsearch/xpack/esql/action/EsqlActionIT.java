@@ -762,6 +762,21 @@ public class EsqlActionIT extends ESIntegTestCase {
         assertThat(results.values(), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
     }
 
+    public void testDropAllColumns() {
+        EsqlQueryResponse results = run("from test | project data | drop data | eval a = 1");
+        logger.info(results);
+        assertThat(results.columns(), hasSize(1));
+        assertThat(results.columns(), contains(new ColumnInfo("a", "integer")));
+        assertThat(results.values(), is(empty()));
+    }
+
+    public void testDropAllColumnsWithStats() {
+        EsqlQueryResponse results = run("from test | stats g = count(data) | drop g");
+        logger.info(results);
+        assertThat(results.columns(), is(empty()));
+        assertThat(results.values(), is(empty()));
+    }
+
     public void testIndexPatterns() throws Exception {
         String[] indexNames = { "test_index_patterns_1", "test_index_patterns_2", "test_index_patterns_3" };
         int i = 0;

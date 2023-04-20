@@ -8,18 +8,36 @@
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 
-import java.util.List;
+import java.util.Arrays;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
-
-public interface LocalSupplier extends Supplier<List<Block>> {
+public interface LocalSupplier extends Supplier<Block[]> {
 
     LocalSupplier EMPTY = new LocalSupplier() {
         @Override
-        public List<Block> get() {
-            return emptyList();
+        public Block[] get() {
+            return BlockUtils.NO_BLOCKS;
+        }
+
+        @Override
+        public String toString() {
+            return "EMPTY";
         }
     };
+
+    static LocalSupplier of(Block[] blocks) {
+        return new LocalSupplier() {
+            @Override
+            public Block[] get() {
+                return blocks;
+            }
+
+            @Override
+            public String toString() {
+                return Arrays.toString(blocks);
+            }
+        };
+    }
 }

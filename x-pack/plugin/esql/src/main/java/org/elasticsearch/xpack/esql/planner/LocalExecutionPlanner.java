@@ -72,7 +72,6 @@ import org.elasticsearch.xpack.ql.util.Holder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -419,8 +418,9 @@ public class LocalExecutionPlanner {
         for (Attribute attribute : output) {
             layout.appendChannel(attribute.id());
         }
-        LocalSourceOperator.ObjectSupplier supplier = Collections::emptyList;
-        return PhysicalOperation.fromSource(new LocalSourceFactory(() -> new LocalSourceOperator(supplier)), layout.build());
+        LocalSourceOperator.BlockSupplier supplier = () -> localSourceExec.supplier().get();
+        var operator = new LocalSourceOperator(supplier);
+        return PhysicalOperation.fromSource(new LocalSourceFactory(() -> operator), layout.build());
     }
 
     private PhysicalOperation planShow(ShowExec showExec) {

@@ -31,6 +31,11 @@ timing out in the browser Dev Tools' Network tab.
 Javascript compile in the browser Dev Tools' Performance tab. This may 
 potentially escalate to temporary browser page unresponsiveness.
 
+* Kibana's <<https://www.elastic.co/guide/en/kibana/current/alerting-getting-started.html,Alerting>> or <<https://www.elastic.co/guide/en/security/current/detection-engine-overview.html,Security Rules>> 
+may error `The content length (X) is bigger than the maximum allowed 
+string (Y)` where `X` is attempted payload and `Y` is Kibana's 
+<<https://www.elastic.co/guide/en/kibana/current/settings.html#server-maxPayload,`server-maxPayload`>>. 
+
 * Long Elasticsearch start-up durations. See <<https://github.com/elastic/elasticsearch/issues/83203,this discussion>>.
 
 [discrete]

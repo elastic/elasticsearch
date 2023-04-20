@@ -1,0 +1,244 @@
+[[hotspotting]]
+=== Hot Spotting
+++++
+<titleabbrev>Hot Spotting</titleabbrev>
+++++
+:keywords: hot-spotting, hotspot, hot-spot, hot spot, hotspots, hotspotting
+
+[discrete]
+[[detect]]
+==== Detect
+
+Computer <<https://en.wikipedia.org/wiki/Hot_spot_(computer_programming),hot spotting>> 
+may occur in {es} when resource utilizations are unevenly distributed across 
+<<modules-node,Nodes>>. Temporary spikes are not usually considered problematic, but 
+ongoing significantly unique utilization may lead to cluster bottlenecks 
+and should be reviewed. 
+
+Hot spotting most commonly surfaces as significantly elevated 
+resource utilization (of `disk.percent`, `heap.percent`, or `cpu`) among a 
+subset of nodes as reported via via <<cat-nodes,CAT Nodes>>. Individual spikes aren't 
+necessarily problematic, but if utlization repeatedly spikes or consistently remains 
+high over time (e.g. `>30s`) then that resource may be experiencing problematic 
+hot spotting. 
+
+For example, let's show case two separate plausible issues. Pretend this 
+same output pulled twice across five minutes:
+
+[source,console]
+----
+> GET _cat/nodes?v&s=master,name&h=name,master,node.role,heap.percent,disk.used_percent,cpu
+
+name   master node.role heap.percent disk.used_percent cpu
+node_1 *      hirstm              24                20  95
+node_2 -      hirstm              23                18  18
+node_3 -      hirstmv             25                90  10
+----
+
+Here we see two significantly unique utlizations: where the master node is at 
+`cpu: 95` and a hot node is at `disk.used_percent: 90%`. This would indicate 
+hot spotting was occuring on these two nodes, and not necessarily from the same
+root cause. 
+
+[discrete]
+[[causes]]
+==== Causes
+
+Historically, clusters experience hot spotting mainly as an effect of hardware, 
+shard distributions, and/or task load. We'll review these sequentially in order 
+of their potentially impacting scope.
+
+[discrete]
+[[causes-hardware]]
+===== Hardware
+
+Here are some common improper hardware setups which may contribute to hot 
+spotting:
+
+* resources are allocated non-uniformly. For example, if one hot node is 
+given half the cpu of its peers. {es} expects all nodes on a 
+<<data-tiers,Data Tier>> to share the same hardware profiles or 
+specifications.
+
+* resources are consumed by another service on the host, including other 
+{es} nodes. See our <<setup,dedicated host>> recommendation.
+
+* resources experience different network or disk throughputs. For example, if one 
+node's I/O is lower than its peers. See 
+<<tune-for-indexing-speed,Use faster hardware>> for more information.
+
+* resources have >31GB heap size. See <<advanced-configuration,Set the JVM heap size>> 
+for more information.
+
+* problematic resources uniquely report <<setup-configuration-memory,memory swapping>>. 
+
+[discrete]
+[[causes-shards]]
+===== Shard Distributions
+
+{es} indices sit on top of <<https://en.wikipedia.org/wiki/Shard_(database_architecture),database shards>> 
+which can sometimes poorly distribute. {es} accounts for this by <<modules-cluster,balancing shard counts>> 
+across data nodes. As <<https://www.elastic.co/blog/whats-new-elasticsearch-kibana-cloud-8-6-0,introduced in v8.6>>, 
+{es} also default enables <<modules-cluster,desired balancing>> to also account for ingest load; 
+though there's always <<https://github.com/elastic/elasticsearch/issues/17213,room for improvement>>. 
+Nodes may still experience hot spotting either due to heavy-write indices or by the 
+overall shards it's hosting.
+
+[discrete]
+[[causes-shards-nodes]]
+====== Node Level
+
+We can check for shard balancing via <<cat-allocation,CAT Allocation>>, though starting 
+in v8.6's <<modules-cluster,desired balancing>> these may no longer fully expect to 
+balance. Kindly note, both methods may temporarily show problematic imbalance during 
+<<cluster-fault-detection,cluster stability issues>>.
+
+For example, let's show case two separate plausible issues:
+
+[source,console]
+----
+> GET _cat/allocation?v&s=node&h=node,shards,disk.percent,disk.indices,disk.used
+
+node   shards disk.percent disk.indices disk.used
+node_1    446           19      154.8gb   173.1gb
+node_2     31           52       44.6gb   372.7gb
+node_3    445           43      271.5gb   289.4gb
+----
+
+Here we see two significantly unique situations. The first is a node 
+recently restarted so has much lower shards than all other nodes, 
+which also relates to `disk.indices` being much smaller than `disk.used` 
+while shards are recovering as seen via <<cat-recovery,CAT Recovery>>. The 
+second is one node with par shards shows much higher `disk.percent`. This 
+occurs when either shards are not evenly sized, see 
+<<size-your-shards,Aim for shard sizes between 10GB and 50GB>>, or 
+when there's a lot of empty indices.
+
+Cluster rebalancing based on desired balance does much of the heavy lifting 
+of keeping nodes from hot spotting. It can be limited by either nodes hitting 
+<<modules-cluster.html#disk-based-shard-allocation,watermarks>>, 
+see also <<disk-usage-exceeded,fixing disk watermark>>, or by a 
+heavy-write index's total shards being much lower than the written-to nodes. 
+
+You can confirm hot spotted nodes via <<cluster-nodes-stats,Node Stats>>, 
+potentially polling twice over time to only checking for the stats differences 
+between them rather than polling once giving you stats for the node's 
+full <<cluster-nodes-usage,Node Uptime>>. For example, to check all nodes 
+indexing stats:
+
+[source,console]
+----
+> GET _nodes/stats?human&filter_path=nodes.*.name,nodes.*.indices.indexing
+----
+
+[discrete]
+[[causes-shards-index]]
+====== Index Level
+
+Hot spotted nodes frequently surface via <<cat-thread-pool,CAT ThreadPools>> 
+`write` and `search` queue backups. For example:
+
+[source,console]
+----
+> GET _cat/thread_pool/write,search?v=true&s=n,nn&h=n,nn,q,a,r,c
+
+n      nn       q a r    c
+search node_1   3 1 0 1287
+search node_2   0 2 0 1159
+search node_3   0 1 0 1302
+write  node_1 100 3 0 4259
+write  node_2   0 4 0  980
+write  node_3   1 5 0 8714
+----
+
+Here we see two significantly unique situations. Firstly, a node has a severly 
+backed up write queue compared to other nodes. Secondly, a node shows historically 
+completed writes that are double any other node. These are both probably due 
+to either poorly distributed heavy-write indices or are a synergestic point 
+where multiple heavy-write indices overlap. Since primary and replica writes 
+are majorly the same amount of cluster work, we usually recommend setting 
+<<allocation-total-shards#total-shards-per-node,`index.routing.allocation.total_shards_per_node`>> 
+to force index spreading after lining up index shard counts to total nodes. 
+
+If problematic indices is non-obvious, you can introspect further via 
+<<indices-stats,Index Stats>> by running:
+
+[source,console]
+----
+> GET _stats?level=shards&human&expand_wildcards=all&filter_path=indices.*.total.indexing.index_total
+----
+
+For more advanced analysis, going further you can poll for shard-level stats, 
+which lets you compare joint index-level and node-level stats. This analysis 
+wouldn't account for node restarts and/or shards rerouting, but serves as 
+overview:
+
+[source,console]
+----
+> GET _stats/indexing,search?level=shards&human&expand_wildcards=all
+----
+
+If you're inclined to use the <<https://stedolan.github.io/jq,third-party tool JQ>>, 
+you can process the output saved as `indices_stats.json`:
+
+[source,bash]
+----
+$ cat indices_stats.json | jq -rc ['.indices|to_entries[]|.key as $i|.value.shards|to_entries[]|.key as $s|.value[]|{node:.routing.node[:4], index:$i, shard:$s, primary:.routing.primary, size:.store.size, total_indexing:.indexing.index_total, time_indexing:.indexing.index_time_in_millis, total_query:.search.query_total, time_query:.search.query_time_in_millis } | .+{ avg_indexing: (if .total_indexing>0 then (.time_indexing/.total_indexing|round) else 0 end), avg_search: (if .total_search>0 then (.time_search/.total_search|round) else 0 end) }'] > shard_stats.json
+
+# show top written-to shard simplified stats which contain their index and node references
+$ cat shard_stats.json | jq -rc 'sort_by(-.avg_indexing)[]' | head
+----
+
+[discrete]
+[[causes-tasks]]
+===== Task Loads
+
+Shard distributions will most-likely surface as task load as seen 
+above in the <<cat-thread-pool,CAT ThreadPools>> example. It is 
+possible, outside this, for tasks to hot spot a node either due to 
+individual qualitative expensiveness or overall quantitative traffic loads. 
+
+For example, if <<cat-thread-pool,CAT ThreadPools>> reported a high 
+queue on the `warmer` <<modules-threadpool,Thread Pool>>, you would 
+look-up the effected node's <<,cluster-nodes-hot-threads,Hot Threads>>. 
+Let's say it reported `warmer` threads at `100% cpu` related to 
+`GlobalOrdinalsBuilder`. This would let you know to inspect  
+<<eager-global-ordinals,Field Data's Global Ordinals>>. 
+
+Alternatively, let's say <<cat-nodes,CAT Nodes>> shows hot spotted master 
+and <<cat-thread-pool,CAT ThreadPools>> shows general queuing across nodes. 
+This would suggest the master node is experiencing overwhelm. To resolve 
+this, we first ensure our <<high-availability-cluster-small-clusters,hardware high availability>> 
+setup and then look to ephemeral causes. In this example, 
+<<cluster-nodes-hot-threads,Node Hot Threads>> reports multiple threads in 
+`other` which indicates they're waiting on or blocked by either garbage collection 
+or I/O.
+
+For either of these example situations, a good way to confirm the problematic tasks 
+is to look at longest running non-continuous (designated `[c]`) tasks via 
+<<cat-tasks,CAT Node Tasks>>. This can be supplemented checking longest 
+running cluster sync tasks via <<cat-pending-tasks,CAT Cluster Tasks>>. Using  
+a third example, this could surface:
+
+[source,console]
+----
+> GET _cat/tasks?v&s=time:desc&h=type,action,running_time,node,cancellable
+type   action                running_time  node    cancellable
+direct indices:data/read/eql 10m           node_1  true
+...
+----
+
+Here we see a problematic <<eql-search-api,EQL Search>>. We can gain 
+further insight on it via <<tasks,GET Tasks>> which task's `description` 
+ends up reporting as it targeting:
+
+[source,console]
+----
+indices[winlogbeat-*,logs-window*], sequence by winlog.computer_name with maxspan=1m\n\n[authentication where host.os.type == "windows" and event.action:"logged-in" and\n event.outcome == "success" and process.name == "svchost.exe" ] by winlog.event_data.TargetLogonId
+----
+
+This would let us know indices to check (`winlogbeat-*,logs-window*`) as well 
+as the <<eql-search-api,EQL Search>> request body, so most likely this is 
+<<https://www.elastic.co/guide/en/security/current/es-overview.html,SIEM related>>. 
+We could combine this with <<enable-audit-logging,Audit Logging>> as needed to 
+trace the request source.

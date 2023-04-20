@@ -117,9 +117,16 @@ limit but each contain unique fields from one another.
 This synergistic situation most easily surfaces by adding a <<https://www.elastic.co/guide/en/kibana/current/data-views.html,Data View>> 
 and checking its "Fields" tab for its total fields count. This statistic 
 does tells you overall fields and not only where <<mapping-index,`index:true`>>, 
-but serves as a good baseline. If your issue only surfaces via a <<https://www.elastic.co/guide/en/kibana/current/data-views.html,Data View>>, 
+but serves as a good baseline. 
+
+If your issue only surfaces via a <<https://www.elastic.co/guide/en/kibana/current/data-views.html,Data View>>, 
 you may consider this menu's "Field Filter" if you're not using 
-<<mapping-types.html,multi-fields>>.
+<<mapping-types.html,multi-fields>>. Alternatively, you may consider a 
+more targetting index pattern or using a negative pattern to filter-out 
+problematic indices. For example if `logs-*` has too high field count 
+because of problematic backing indices `logs-lotsOfFields-*` then you 
+could update to either `logs-*,-logs-lotsOfFields-*` or 
+`logs-iMeantThisAnyway-*`.
 
 
 [discrete]

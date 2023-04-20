@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -173,7 +172,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 {
                     AbstractScriptFieldType<?> fieldType = build("error", Collections.emptyMap(), OnScriptError.CONTINUE);
                     SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
@@ -194,7 +193,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 AbstractScriptFieldType<?> fieldType = build("error", Collections.emptyMap(), OnScriptError.FAIL);
                 SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
                 Query query = new ExistsQueryBuilder("test").rewrite(searchExecutionContext).toQuery(searchExecutionContext);
@@ -450,14 +449,5 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             return deterministicSource ? (T) GeoPointFieldScript.PARSE_FROM_SOURCE : (T) GeoPointFieldScriptTests.DUMMY;
         }
         throw new IllegalArgumentException("Unsupported context: " + context);
-    }
-
-    /**
-     * We need to make sure we don't randomize the useThreads parameter for subtests of this abstract test case
-     * because scripted fields use {@link SearchLookup#getSource(LeafReaderContext, int)} which isn't thread-safe.
-     * Also Elasticsearch doesn't support concurrent searches so far, so we don't need to test it.
-     */
-    protected IndexSearcher newUnthreadedSearcher(IndexReader reader) {
-        return newSearcher(reader, true, true, false);
     }
 }

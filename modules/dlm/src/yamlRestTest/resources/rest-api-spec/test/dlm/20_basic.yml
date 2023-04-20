@@ -43,7 +43,7 @@ setup:
 
   - do:
       indices.get_data_lifecycle:
-        name: "*"
+        name: "data-stream-with-lifecycle"
   - length: { data_streams: 1}
   - match: { data_streams.0.name: data-stream-with-lifecycle }
   - match: { data_streams.0.lifecycle.data_retention: '10d' }
@@ -91,8 +91,10 @@ setup:
 
   - do:
       indices.get_data_lifecycle:
-        name: "*"
-  - length: { data_streams: 2 }
+        name: "simple-data-stream1"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.lifecycle.data_retention: '30d' }
 
   - do:
       indices.delete_data_lifecycle:
@@ -101,7 +103,7 @@ setup:
 
   - do:
       indices.get_data_lifecycle:
-        name: "*"
+        name: "simple-data-stream1"
   - length: { data_streams: 1 }
-  - match: { data_streams.0.name: data-stream-with-lifecycle }
-  - match: { data_streams.0.lifecycle.data_retention: '10d' }
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - is_false: data_streams.0.lifecycle

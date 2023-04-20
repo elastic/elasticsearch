@@ -86,7 +86,7 @@ public class RetentionLeaseActions {
                 try (Releasable ignore = releasable) {
                     doRetentionLeaseAction(indexShard, request, delegatedListener);
                 }
-            }), ThreadPool.Names.SAME, request);
+            }), ThreadPool.Names.SAME);
         }
 
         @Override

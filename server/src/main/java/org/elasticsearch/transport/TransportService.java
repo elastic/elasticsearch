@@ -465,7 +465,11 @@ public class TransportService extends AbstractLifecycleComponent
      * @param connectionProfile the connection profile to use when connecting to this node
      * @param listener the action listener to notify
      */
-    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Releasable> listener) {
+    public void connectToNode(
+        final DiscoveryNode node,
+        @Nullable ConnectionProfile connectionProfile,
+        ActionListener<Releasable> listener
+    ) {
         if (isLocalNode(node)) {
             listener.onResponse(null);
             return;

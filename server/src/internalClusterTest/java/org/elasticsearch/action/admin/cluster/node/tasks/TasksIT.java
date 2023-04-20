@@ -530,6 +530,7 @@ public class TasksIT extends ESIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95325")
     public void testTasksUnblocking() throws Exception {
         // Start blocking test task
         TestTaskPlugin.NodesRequest request = new TestTaskPlugin.NodesRequest("test");

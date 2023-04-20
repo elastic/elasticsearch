@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -59,7 +60,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
-import org.elasticsearch.xpack.ml.inference.persistence.ChunkedTrainedModelRestorer;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -148,12 +148,24 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             return;
         }
 
-        if (TrainedModelAssignmentMetadata.fromState(state).allAssignments().size() >= MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS) {
+        var assignments = TrainedModelAssignmentMetadata.fromState(state);
+        if (assignments.allAssignments().size() >= MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Could not start model deployment because existing deployments reached the limit of [{}]",
                     RestStatus.TOO_MANY_REQUESTS,
                     MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS
+                )
+            );
+            return;
+        }
+
+        if (assignments.getDeploymentAssignment(request.getDeploymentId()) != null) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Could not start model deployment because an existing deployment with the same id [{}] exist",
+                    RestStatus.BAD_REQUEST,
+                    request.getDeploymentId()
                 )
             );
             return;
@@ -177,6 +189,27 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 listener.onFailure(e);
             }
         );
+
+        ActionListener<Tuple<String, Long>> modelSizeListener = ActionListener.wrap(modelIdAndSizeInBytes -> {
+            TaskParams taskParams = new TaskParams(
+                modelIdAndSizeInBytes.v1(),
+                request.getDeploymentId(),
+                modelIdAndSizeInBytes.v2(),
+                request.getNumberOfAllocations(),
+                request.getThreadsPerAllocation(),
+                request.getQueueCapacity(),
+                Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelIdAndSizeInBytes.v2())),
+                request.getPriority()
+            );
+            PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            memoryTracker.refresh(
+                persistentTasks,
+                ActionListener.wrap(
+                    aVoid -> trainedModelAssignmentService.createNewModelAssignment(taskParams, waitForDeploymentToStart),
+                    listener::onFailure
+                )
+            );
+        }, listener::onFailure);
 
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
             if (getModelResponse.getResources().results().size() > 1) {
@@ -206,57 +239,41 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 listener.onFailure(ExceptionsHelper.serverError("model [{}] does not have location", trainedModelConfig.getModelId()));
                 return;
             }
-            validateModelDefinition(
-                trainedModelConfig,
-                ActionListener.wrap(validate -> getModelBytes(trainedModelConfig, ActionListener.wrap(modelBytes -> {
-                    TaskParams taskParams = new TaskParams(
-                        trainedModelConfig.getModelId(),
-                        request.getDeploymentId(),
-                        modelBytes,
-                        request.getNumberOfAllocations(),
-                        request.getThreadsPerAllocation(),
-                        request.getQueueCapacity(),
-                        Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelBytes)),
-                        request.getPriority()
-                    );
-                    PersistentTasksCustomMetadata persistentTasks = clusterService.state()
-                        .getMetadata()
-                        .custom(PersistentTasksCustomMetadata.TYPE);
-                    memoryTracker.refresh(
-                        persistentTasks,
-                        ActionListener.wrap(
-                            aVoid -> trainedModelAssignmentService.createNewModelAssignment(taskParams, waitForDeploymentToStart),
-                            listener::onFailure
-                        )
-                    );
-                }, listener::onFailure)), listener::onFailure)
-            );
+
+            // If the model id isn't the same id as the deployment id
+            // check there isn't another model with deployment id
+            if (request.getModelId().equals(request.getDeploymentId()) == false) {
+                GetTrainedModelsAction.Request getModelWithDeploymentId = new GetTrainedModelsAction.Request(request.getDeploymentId());
+                client.execute(
+                    GetTrainedModelsAction.INSTANCE,
+                    getModelWithDeploymentId,
+                    ActionListener.wrap(
+                        response -> listener.onFailure(
+                            ExceptionsHelper.badRequestException(
+                                "Deployment id [{}] is the same as an another model which is not the model being deployed. "
+                                    + "Deployment id can be the same as the model being deployed but cannot match a different model",
+                                request.getDeploymentId(),
+                                request.getModelId()
+                            )
+                        ),
+                        error -> {
+                            if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                                // no name clash, continue with the deployment
+                                validateModelDefinition(trainedModelConfig, modelSizeListener);
+                            } else {
+                                listener.onFailure(error);
+                            }
+                        }
+                    )
+                );
+            } else {
+                validateModelDefinition(trainedModelConfig, modelSizeListener);
+            }
 
         }, listener::onFailure);
 
         GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(request.getModelId());
         client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
-    }
-
-    private void getModelBytes(TrainedModelConfig trainedModelConfig, ActionListener<Long> listener) {
-        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(
-            trainedModelConfig.getModelId(),
-            client,
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
-            xContentRegistry
-        );
-        restorer.setSearchIndex(trainedModelConfig.getLocation().getResourceName());
-        restorer.setSearchSize(1);
-        restorer.restoreModelDefinition(doc -> {
-            // The in-memory size of the model was found to be approximately equal
-            // to the size of the model on disk in experiments for BERT models. However,
-            // this might not always be the case.
-            // TODO Improve heuristic for in-memory model size.
-            listener.onResponse(doc.getTotalDefinitionLength());
-
-            // Return false to stop the restorer as we only need the first doc
-            return false;
-        }, success -> { /* nothing to do */ }, listener::onFailure);
     }
 
     private void waitForDeploymentState(
@@ -309,7 +326,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
 
     }
 
-    private void validateModelDefinition(TrainedModelConfig config, ActionListener<Void> listener) {
+    private void validateModelDefinition(TrainedModelConfig config, ActionListener<Tuple<String, Long>> listener) {
         if (config.getLocation() instanceof IndexLocation == false) {
             listener.onResponse(null);
             return;
@@ -400,7 +417,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     );
                     return;
                 }
-                listener.onResponse(null);
+                listener.onResponse(new Tuple<>(modelId, summedLengths));
             }, e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     Exception ex = new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId));

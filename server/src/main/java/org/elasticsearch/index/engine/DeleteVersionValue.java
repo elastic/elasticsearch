@@ -18,7 +18,7 @@ public final class DeleteVersionValue extends VersionValue {
 
     final long time;
 
-    DeleteVersionValue(long version, long seqNo, long term, long time) {
+    public DeleteVersionValue(long version, long seqNo, long term, long time) {
         super(version, seqNo, term);
         this.time = time;
     }

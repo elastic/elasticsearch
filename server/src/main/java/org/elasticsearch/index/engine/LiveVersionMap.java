@@ -32,7 +32,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         this(LiveVersionMapArchiver.NOOP_ARCHIVER);
     }
 
-    LiveVersionMap(LiveVersionMapArchiver archiver) {
+    public LiveVersionMap(LiveVersionMapArchiver archiver) {
         this.archiver = archiver;
     }
 
@@ -268,7 +268,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     /**
      * Returns the live version (add or delete) for this uid.
      */
-    VersionValue getUnderLock(final BytesRef uid) {
+    public VersionValue getUnderLock(final BytesRef uid) {
         return getUnderLock(uid, maps);
     }
 
@@ -285,13 +285,6 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             return value;
         }
 
-        // TODO: do we need to handle the case where between two flushes we have:
-        // - a delete moves id to tombstone
-        // - a index with the same if puts the id in the current map
-        // - a refresh moves the id to the archive
-        // In this case, the delete from the tombstone is returned as the result which is incorrect.
-        // Do we need to compare the two values seq no returned by tombstone and archive or
-        // should we detect that earlier and flush to purge both tombstone and archive?
         value = tombstones.get(uid);
         if (value != null) {
             return value;
@@ -338,7 +331,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         }
     }
 
-    void putIndexUnderLock(BytesRef uid, IndexVersionValue version) {
+    public void putIndexUnderLock(BytesRef uid, IndexVersionValue version) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         maps.put(uid, version);
@@ -352,7 +345,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         return true;
     }
 
-    void putDeleteUnderLock(BytesRef uid, DeleteVersionValue version) {
+    public void putDeleteUnderLock(BytesRef uid, DeleteVersionValue version) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         putTombstone(uid, version);
@@ -401,7 +394,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     /**
      * Try to prune tombstones whose timestamp is less than maxTimestampToPrune and seqno at most the maxSeqNoToPrune.
      */
-    void pruneTombstones(long maxTimestampToPrune, long maxSeqNoToPrune) {
+    public void pruneTombstones(long maxTimestampToPrune, long maxSeqNoToPrune) {
         for (Map.Entry<BytesRef, DeleteVersionValue> entry : tombstones.entrySet()) {
             // we do check before we actually lock the key - this way we don't need to acquire the lock for tombstones that are not
             // prune-able. If the tombstone changes concurrently we will re-read and step out below since if we can't collect it now w
@@ -478,7 +471,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
      * map are broken. We assert on this lock to be hold when calling these methods.
      * @see KeyedLock
      */
-    Releasable acquireLock(BytesRef uid) {
+    public Releasable acquireLock(BytesRef uid) {
         return keyedLock.acquire(uid);
     }
 

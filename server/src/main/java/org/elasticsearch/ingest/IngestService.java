@@ -84,7 +84,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
-import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -115,14 +114,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
 
-    private static MatcherWatchdog createGrokThreadWatchdog(
-        Settings settings,
-        LongSupplier relativeTimeSupplier,
-        BiConsumer<Long, Runnable> scheduler
-    ) {
+    private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
+        return (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC);
+    }
+
+    public static MatcherWatchdog createGrokThreadWatchdog(Environment env, ThreadPool threadPool) {
+        final Settings settings = env.settings();
+        final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler = createScheduler(threadPool);
         long intervalMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
         long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
-        return MatcherWatchdog.newInstance(intervalMillis, maxExecutionTimeMillis, relativeTimeSupplier, scheduler);
+        return MatcherWatchdog.newInstance(intervalMillis, maxExecutionTimeMillis, threadPool::relativeTimeInMillis, scheduler::apply);
     }
 
     /**
@@ -175,17 +176,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ScriptService scriptService,
         AnalysisRegistry analysisRegistry,
         List<IngestPlugin> ingestPlugins,
-        Client client
+        Client client,
+        MatcherWatchdog matcherWatchdog
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
-
-        final LongSupplier relativeTimeSupplier = threadPool::relativeTimeInMillis;
-        final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler = (delay, command) -> threadPool.schedule(
-            command,
-            TimeValue.timeValueMillis(delay),
-            ThreadPool.Names.GENERIC
-        );
         this.processorFactories = processorFactories(
             ingestPlugins,
             new Processor.Parameters(
@@ -193,15 +188,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 scriptService,
                 analysisRegistry,
                 threadPool.getThreadContext(),
-                relativeTimeSupplier,
-                scheduler,
+                threadPool::relativeTimeInMillis,
+                createScheduler(threadPool),
                 this,
                 client,
                 threadPool.generic()::execute,
-                createGrokThreadWatchdog(env.settings(), relativeTimeSupplier, scheduler::apply)
+                matcherWatchdog
             )
         );
-
         this.threadPool = threadPool;
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
     }

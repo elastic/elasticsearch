@@ -65,9 +65,15 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
-    @AwaitsFix(bugUrl = "ES-5645")
+    @TestLogging(
+        reason = "testing ClusterFormationFailureHelper logging",
+        value = "org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper:WARN"
+    )
     public void testLogsWarningPeriodicallyIfClusterNotFormed() {
-        // All nodes have access to the register, therefore it's possible to form a single-node cluster
+        testLogsWarningPeriodicallyIfClusterNotFormed(
+            "master not discovered or elected yet, an election requires a node with id [",
+            nodeId -> "*have discovered possible quorum *" + nodeId + "*discovery will continue*"
+        );
     }
 
     @Override

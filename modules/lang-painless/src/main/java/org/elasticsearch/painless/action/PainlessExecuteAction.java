@@ -722,6 +722,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             }
         }
     }
+
     @ServerlessScope(Scope.PUBLIC)
     public static class RestAction extends BaseRestHandler {
 

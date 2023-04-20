@@ -58,7 +58,7 @@ public final class HttpHeadersUtils {
             if (httpRequest.headers() instanceof HttpHeadersWithValidationContext httpHeadersWithValidationContext) {
                 // make sure validation only runs on properly wrapped "validatable" headers implementation
                 validator.apply(asHttpPreRequest(httpRequest), channel, ActionListener.wrap(validationResult -> {
-                    httpHeadersWithValidationContext.markAsSuccessfullyValidated(validationResult);
+                    httpHeadersWithValidationContext.addValidationContext(validationResult);
                     // a successful validation needs to signal to the {@link Netty4HttpHeaderValidator} to resume
                     // forwarding the request beyond the headers part
                     listener.onResponse(null);
@@ -128,7 +128,7 @@ public final class HttpHeadersUtils {
         private HttpHeadersWithValidationContext(HttpHeaders httpHeaders, ThreadContext.StoredContext validationResult) {
             this(httpHeaders);
             if (validationResult != null) {
-                markAsSuccessfullyValidated(validationResult);
+                addValidationContext(validationResult);
             }
         }
 
@@ -137,7 +137,7 @@ public final class HttpHeadersUtils {
          * The intent of the {@link ThreadContext.StoredContext} parameter is to associate the resulting
          * thread context post validation, that can be later restored when dispatching the request.
          */
-        public void markAsSuccessfullyValidated(ThreadContext.StoredContext validationResult) {
+        public void addValidationContext(ThreadContext.StoredContext validationResult) {
             this.validationResultContextSetOnce.set(Objects.requireNonNull(validationResult));
         }
 

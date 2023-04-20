@@ -34,7 +34,7 @@ public final class HttpHeadersUtilsTests extends ESTestCase {
         final DefaultHttpRequest validatableHttpRequest = (DefaultHttpRequest) HttpHeadersUtils.wrapAsValidatableMessage(httpRequest);
         boolean validated = randomBoolean();
         if (validated) {
-            ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).markAsSuccessfullyValidated(dummyValidationContext);
+            ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).addValidationContext(dummyValidationContext);
         }
         if (randomBoolean()) {
             validatableHttpRequest.headers().remove("header1");
@@ -67,7 +67,7 @@ public final class HttpHeadersUtilsTests extends ESTestCase {
         final DefaultHttpRequest validatableHttpRequest = (DefaultHttpRequest) HttpHeadersUtils.wrapAsValidatableMessage(httpRequest);
         boolean validated = randomBoolean();
         if (validated) {
-            ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).markAsSuccessfullyValidated(dummyValidationContext);
+            ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).addValidationContext(dummyValidationContext);
         }
         HttpHeaders httpHeadersCopy = ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).copy();
         if (validated) {

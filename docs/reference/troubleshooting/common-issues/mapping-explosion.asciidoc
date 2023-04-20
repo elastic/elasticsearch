@@ -81,7 +81,9 @@ To confirm the field totals of an index to check for mapping explosion:
 
 * Check Elasticsearch cluster logs for errors `Limit of total fields 
 [X] in index [Y] has been exceeded` where `X` is the value of 
-`index.mapping.total_fields.limit` and `Y` is your index.
+`index.mapping.total_fields.limit` and `Y` is your index. The correlated 
+ingesting source log error would be `Limit of total fields [X] has been 
+exceeded while adding new fields [Z]` where `Z` is attempted new fields.
 
 * For top-level fields, poll <<search-field-caps,Field Capacilities>> 
 for `fields=*`.

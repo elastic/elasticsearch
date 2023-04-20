@@ -119,7 +119,7 @@ public class StatefulPreVoteCollectorTests extends ESTestCase {
         preVoteCollector = new StatefulPreVoteCollector(transportService, () -> {
             assert electionOccurred == false;
             electionOccurred = true;
-        }, l -> {}, ElectionStrategy.DEFAULT_INSTANCE, () -> healthStatus);
+        }, l -> {}, ElectionStrategy.DEFAULT_INSTANCE, () -> healthStatus, LeaderHeartbeatService.NO_OP);
         preVoteCollector.update(getLocalPreVoteResponse(), null);
     }
 

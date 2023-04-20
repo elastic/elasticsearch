@@ -13,6 +13,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequestBuilder;
@@ -33,6 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest endpoint to add one or more {@link ApplicationPrivilege} objects to the security index
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
 
     public RestPutPrivilegesAction(Settings settings, XPackLicenseState licenseState) {

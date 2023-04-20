@@ -1312,17 +1312,7 @@ public final class InternalTestCluster extends TestCluster {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
                 for (IndexService indexService : indexServices) {
                     for (IndexShard indexShard : indexService) {
-                        List<String> operations = indexShard.getActiveOperations();
-                        if (operations.size() > 0) {
-                            throw new AssertionError(
-                                "shard "
-                                    + indexShard.shardId()
-                                    + " on node ["
-                                    + nodeAndClient.name
-                                    + "] has pending operations:\n --> "
-                                    + String.join("\n --> ", operations)
-                            );
-                        }
+                        assertEquals(0, indexShard.getActiveOperationsCount());
                     }
                 }
             }

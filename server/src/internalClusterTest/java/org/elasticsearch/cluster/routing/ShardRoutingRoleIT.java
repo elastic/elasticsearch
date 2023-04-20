@@ -387,6 +387,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "ES-4677")
     public void testRelocation() {
         var routingTableWatcher = new RoutingTableWatcher();
 

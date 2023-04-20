@@ -21,10 +21,13 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
@@ -42,11 +45,14 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VER
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
+public class RoutingNodesTests extends ESAllocationTestCase {
     private final Logger logger = LogManager.getLogger(IndexBalanceTests.class);
 
     public void testBalanceAllNodesStarted() {
@@ -429,6 +435,97 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
             }
         }
         assertTrue(shardsByNode.values().stream().allMatch(Set::isEmpty));
+    }
+
+    public void testMoveShardWithDefaultRole() {
+
+        var inSync = randomList(2, 2, UUIDs::randomBase64UUID);
+        var indexMetadata = IndexMetadata.builder("index")
+            .settings(
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            )
+            .putInSyncAllocationIds(0, Set.copyOf(inSync))
+            .build();
+
+        var shardId = new ShardId(indexMetadata.getIndex(), 0);
+
+        var indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
+            .addShard(TestShardRouting.newShardRouting(shardId, "node-1", null, true, STARTED, ShardRouting.Role.DEFAULT))
+            .addShard(TestShardRouting.newShardRouting(shardId, "node-2", null, false, STARTED, ShardRouting.Role.DEFAULT))
+            .build();
+
+        var node1 = newNode("node-1");
+        var node2 = newNode("node-2");
+        var node3 = newNode("node-3");
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3).build())
+            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+            .build();
+
+        var routingNodes = clusterState.getRoutingNodes().mutableCopy();
+
+        routingNodes.relocateOrReinitializeShard(
+            routingNodes.node("node-1").getByShardId(shardId),
+            "node-3",
+            0L,
+            new RoutingChangesObserver() {
+            }
+        );
+
+        assertThat(routingNodes.node("node-1").getByShardId(shardId).state(), equalTo(RELOCATING));
+        assertThat(routingNodes.node("node-2").getByShardId(shardId).state(), equalTo(STARTED));
+        assertThat(routingNodes.node("node-3").getByShardId(shardId).state(), equalTo(INITIALIZING));
+    }
+
+    public void testMoveShardWithPromotableOnlyRole() {
+
+        var inSync = randomList(2, 2, UUIDs::randomBase64UUID);
+        var indexMetadata = IndexMetadata.builder("index")
+            .settings(
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            )
+            .putInSyncAllocationIds(0, Set.copyOf(inSync))
+            .build();
+
+        var shardId = new ShardId(indexMetadata.getIndex(), 0);
+
+        var indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
+            .addShard(TestShardRouting.newShardRouting(shardId, "node-1", null, true, STARTED, ShardRouting.Role.INDEX_ONLY))
+            .addShard(TestShardRouting.newShardRouting(shardId, "node-2", null, false, STARTED, ShardRouting.Role.SEARCH_ONLY))
+            .build();
+
+        var node1 = newNode("node-1");
+        var node2 = newNode("node-2");
+        var node3 = newNode("node-3");
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3).build())
+            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+            .build();
+
+        var routingNodes = clusterState.getRoutingNodes().mutableCopy();
+
+        routingNodes.relocateOrReinitializeShard(
+            routingNodes.node("node-1").getByShardId(shardId),
+            "node-3",
+            0L,
+            new RoutingChangesObserver() {
+            }
+        );
+
+        assertThat(routingNodes.node("node-1").getByShardId(shardId), nullValue());
+        assertThat(routingNodes.node("node-2").getByShardId(shardId), nullValue());
+        assertThat(routingNodes.node("node-3").getByShardId(shardId).state(), equalTo(INITIALIZING));
+        assertThat(routingNodes.unassigned().ignored(), hasSize(1));
     }
 
     private boolean assertShardStats(RoutingNodes routingNodes) {

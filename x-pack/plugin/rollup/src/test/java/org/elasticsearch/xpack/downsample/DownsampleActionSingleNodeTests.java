@@ -458,7 +458,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertRollupIndex(sourceIndex, rollupIndex, config);
     }
 
-    public void testCanRollupIndexWithNoMetrics() throws IOException {
+    public void testRollupIndexWithNoMetrics() throws IOException {
         // Create a source index that contains no metric fields in its mapping
         String sourceIndex = "no-metrics-idx-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         client().admin()

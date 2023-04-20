@@ -44,13 +44,6 @@ import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatSer
 public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     @Override
     @AwaitsFix(bugUrl = "ES-5645")
-    public void testUnhealthyNodesGetsRemoved() {
-        // This test checks that the voting configuration shrinks after a node is removed from the cluster
-        // TODO: rewrite this test without taking into account the final voting configuration
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
     public void testLeaderDisconnectionWithDisconnectEventDetectedQuickly() {
         // In this test the leader still has access to the register, therefore it is still considered as a leader.
     }
@@ -145,6 +138,12 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         // The cluster2 leader is considered dead since we only run the nodes in cluster 1
         // therefore the node coming from cluster 2 ends up taking over the old master in cluster 2
         // TODO: add more checks to avoid forming a mixed cluster between register based and traditional clusters
+    }
+
+    @Override
+    public void testUnhealthyNodesGetsRemoved() {
+        // the test still applies with an atomic register, except for the assertions about the voting configuration
+        testUnhealthyNodesGetsRemoved(false);
     }
 
     @Override

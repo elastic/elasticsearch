@@ -39,7 +39,7 @@ public interface Block extends NamedWriteable {
      */
     Vector asVector();
 
-    /** {@return The total number of values in this block.} */
+    /** {@return The total number of values in this block not counting nulls.} */
     int getTotalValueCount();
 
     /** {@return The number of positions in this block.} */

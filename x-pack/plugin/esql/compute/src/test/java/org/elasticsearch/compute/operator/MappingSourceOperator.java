@@ -30,7 +30,11 @@ public abstract class MappingSourceOperator extends SourceOperator {
 
     @Override
     public Page getOutput() {
-        return map(delegate.getOutput());
+        Page p = delegate.getOutput();
+        if (p == null) {
+            return p;
+        }
+        return map(p);
     }
 
     @Override

@@ -162,18 +162,22 @@ public abstract class OperatorTestCase extends ESTestCase {
 
     private void assertSimple(BigArrays bigArrays, int size) {
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(size));
-        List<Page> results = new ArrayList<>();
+        List<Page> results = drive(simple(bigArrays.withCircuitBreaking()).get(), input.iterator());
+        assertSimpleOutput(input, results);
+    }
 
+    protected final List<Page> drive(Operator operator, Iterator<Page> input) {
+        List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
-                new CannedSourceOperator(input.iterator()),
-                List.of(simple(bigArrays.withCircuitBreaking()).get()),
+                new CannedSourceOperator(input),
+                List.of(operator),
                 new PageConsumerOperator(page -> results.add(page)),
                 () -> {}
             )
         ) {
             d.run();
         }
-        assertSimpleOutput(input, results);
+        return results;
     }
 }

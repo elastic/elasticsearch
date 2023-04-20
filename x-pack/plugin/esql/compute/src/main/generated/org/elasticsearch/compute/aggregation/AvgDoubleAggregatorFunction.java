@@ -58,13 +58,17 @@ public final class AvgDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawBlock(DoubleBlock block) {
-    for (int p = 0; p < block.getTotalValueCount(); p++) {
-      if (block.isNull(p) == false) {
-        int i = block.getFirstValueIndex(p);
+    for (int p = 0; p < block.getPositionCount(); p++) {
+      if (block.isNull(p)) {
+        continue;
+      }
+      int start = block.getFirstValueIndex(p);
+      int end = start + block.getValueCount(p);
+      for (int i = start; i < end; i++) {
         AvgDoubleAggregator.combine(state, block.getDouble(i));
       }
     }
-    AvgDoubleAggregator.combineValueCount(state, block.validPositionCount());
+    AvgDoubleAggregator.combineValueCount(state, block.getTotalValueCount());
   }
 
   @Override

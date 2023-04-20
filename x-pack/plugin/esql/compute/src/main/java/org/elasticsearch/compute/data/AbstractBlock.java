@@ -45,15 +45,14 @@ abstract class AbstractBlock implements Block {
     @Override
     public int getTotalValueCount() {
         if (firstValueIndexes == null) {
-            return positionCount;
-        } else {
-            return getFirstValueIndex(positionCount - 1) + getValueCount(positionCount - 1);  // TODO: verify this
+            return positionCount - nullValuesCount();
         }
+        return firstValueIndexes[positionCount] - nullValuesCount();
     }
 
     @Override
     public final int getPositionCount() {
-        return positionCount; // TODO remove? firstValueIndexes.length - 1;
+        return positionCount;
     }
 
     /** Gets the index of the first value for the given position. */
@@ -89,6 +88,7 @@ abstract class AbstractBlock implements Block {
 
     @Override
     public int validPositionCount() {
+        // TODO this is almost always incorrect to use. remove it?
         return positionCount - nullValuesCount();
     }
 }

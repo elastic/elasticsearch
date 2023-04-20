@@ -48,6 +48,7 @@ public class BlockMultiValuedTests extends ESTestCase {
         var b = BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, 0, 10);
 
         assertThat(b.block().getPositionCount(), equalTo(positionCount));
+        assertThat(b.block().getTotalValueCount(), equalTo(b.valueCount()));
         for (int r = 0; r < positionCount; r++) {
             if (b.values().get(r) == null) {
                 assertThat(b.block().getValueCount(r), equalTo(0));
@@ -89,7 +90,16 @@ public class BlockMultiValuedTests extends ESTestCase {
         }
         Block filtered = b.block().filter(positions);
 
-        assertThat(b.block().getPositionCount(), equalTo(positionCount));
+        assertThat(filtered.getPositionCount(), equalTo(positions.length));
+
+        int expectedValueCount = 0;
+        for (int p : positions) {
+            List<Object> values = b.values().get(p);
+            if (values != null) {
+                expectedValueCount += values.size();
+            }
+        }
+        assertThat(filtered.getTotalValueCount(), equalTo(expectedValueCount));
         for (int r = 0; r < positions.length; r++) {
             if (b.values().get(positions[r]) == null) {
                 assertThat(filtered.getValueCount(r), equalTo(0));

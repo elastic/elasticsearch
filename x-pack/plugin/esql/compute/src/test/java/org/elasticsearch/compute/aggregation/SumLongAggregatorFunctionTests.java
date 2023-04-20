@@ -19,7 +19,6 @@ import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
 import java.util.List;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -43,11 +42,7 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
     @Override
     protected void assertSimpleOutput(List<Block> input, Block result) {
-        long sum = input.stream()
-            .flatMapToLong(
-                b -> IntStream.range(0, b.getTotalValueCount()).filter(p -> false == b.isNull(p)).mapToLong(p -> ((LongBlock) b).getLong(p))
-            )
-            .sum();
+        long sum = input.stream().flatMapToLong(b -> allLongs(b)).sum();
         assertThat(((LongBlock) result).getLong(0), equalTo(sum));
     }
 

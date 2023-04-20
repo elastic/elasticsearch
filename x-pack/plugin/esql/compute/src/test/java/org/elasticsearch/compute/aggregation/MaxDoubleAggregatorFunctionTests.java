@@ -14,7 +14,6 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -37,14 +36,7 @@ public class MaxDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
 
     @Override
     public void assertSimpleOutput(List<Block> input, Block result) {
-        double max = input.stream()
-            .flatMapToDouble(
-                b -> IntStream.range(0, b.getTotalValueCount())
-                    .filter(p -> false == b.isNull(p))
-                    .mapToDouble(p -> ((DoubleBlock) b).getDouble(p))
-            )
-            .max()
-            .getAsDouble();
+        double max = input.stream().flatMapToDouble(b -> allDoubles(b)).max().getAsDouble();
         assertThat(((DoubleBlock) result).getDouble(0), equalTo(max));
     }
 }

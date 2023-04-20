@@ -7,9 +7,15 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
@@ -18,9 +24,14 @@ import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -33,7 +44,6 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     protected abstract void assertSimpleOutput(List<Block> input, Block result);
 
     // TODO tests for no input
-    // TODO tests for multi-valued
 
     @Override
     protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
@@ -86,5 +96,52 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
             d.run();
         }
         assertSimpleOutput(input, results);
+    }
+
+    public final void testMultivalued() {
+        int end = between(1_000, 100_000);
+        List<Page> input = CannedSourceOperator.collectPages(new PositionMergingSourceOperator(simpleInput(end)));
+        assertSimpleOutput(input, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(), input.iterator()));
+    }
+
+    public final void testMultivaluedWithNulls() {
+        int end = between(1_000, 100_000);
+        List<Page> input = CannedSourceOperator.collectPages(
+            new NullInsertingSourceOperator(new PositionMergingSourceOperator(simpleInput(end)))
+        );
+        assertSimpleOutput(input, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(), input.iterator()));
+    }
+
+    protected static IntStream allValueOffsets(Block input) {
+        return IntStream.range(0, input.getPositionCount()).flatMap(p -> {
+            int start = input.getFirstValueIndex(p);
+            int end = start + input.getValueCount(p);
+            return IntStream.range(start, end);
+        });
+    }
+
+    protected static Stream<BytesRef> allBytesRefs(Block input) {
+        BytesRefBlock b = (BytesRefBlock) input;
+        return allValueOffsets(b).mapToObj(i -> b.getBytesRef(i, new BytesRef()));
+    }
+
+    protected static Stream<Boolean> allBooleans(Block input) {
+        BooleanBlock b = (BooleanBlock) input;
+        return allValueOffsets(b).mapToObj(i -> b.getBoolean(i));
+    }
+
+    protected static DoubleStream allDoubles(Block input) {
+        DoubleBlock b = (DoubleBlock) input;
+        return allValueOffsets(b).mapToDouble(i -> b.getDouble(i));
+    }
+
+    protected static IntStream allInts(Block input) {
+        IntBlock b = (IntBlock) input;
+        return allValueOffsets(b).map(i -> b.getInt(i));
+    }
+
+    protected static LongStream allLongs(Block input) {
+        LongBlock b = (LongBlock) input;
+        return allValueOffsets(b).mapToLong(i -> b.getLong(i));
     }
 }

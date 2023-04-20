@@ -56,9 +56,13 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawBlock(IntBlock block) {
-    for (int p = 0; p < block.getTotalValueCount(); p++) {
-      if (block.isNull(p) == false) {
-        int i = block.getFirstValueIndex(p);
+    for (int p = 0; p < block.getPositionCount(); p++) {
+      if (block.isNull(p)) {
+        continue;
+      }
+      int start = block.getFirstValueIndex(p);
+      int end = start + block.getValueCount(p);
+      for (int i = start; i < end; i++) {
         state.intValue(MinIntAggregator.combine(state.intValue(), block.getInt(i)));
       }
     }

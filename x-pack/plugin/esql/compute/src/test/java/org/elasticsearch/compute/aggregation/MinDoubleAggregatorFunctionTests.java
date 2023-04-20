@@ -14,7 +14,6 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -37,14 +36,7 @@ public class MinDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
 
     @Override
     protected void assertSimpleOutput(List<Block> input, Block result) {
-        double min = input.stream()
-            .flatMapToDouble(
-                b -> IntStream.range(0, b.getTotalValueCount())
-                    .filter(p -> false == b.isNull(p))
-                    .mapToDouble(p -> ((DoubleBlock) b).getDouble(p))
-            )
-            .min()
-            .getAsDouble();
+        double min = input.stream().flatMapToDouble(b -> allDoubles(b)).min().getAsDouble();
         assertThat(((DoubleBlock) result).getDouble(0), equalTo(min));
     }
 }

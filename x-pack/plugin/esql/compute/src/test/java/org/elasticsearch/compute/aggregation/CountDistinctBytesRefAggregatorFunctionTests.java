@@ -9,13 +9,11 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.BytesRefBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
 import java.util.List;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -41,20 +39,12 @@ public class CountDistinctBytesRefAggregatorFunctionTests extends AggregatorFunc
 
     @Override
     protected void assertSimpleOutput(List<Block> input, Block result) {
-        long expected = input.stream()
-            .flatMap(
-                b -> IntStream.range(0, b.getTotalValueCount())
-                    .filter(p -> false == b.isNull(p))
-                    .mapToObj(p -> ((BytesRefBlock) b).getBytesRef(p, new BytesRef()))
-            )
-            .distinct()
-            .count();
+        long expected = input.stream().flatMap(b -> allBytesRefs(b)).distinct().count();
 
         long count = ((LongBlock) result).getLong(0);
         // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
         // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
         // For a number of values close to 10k and precision_threshold=1000, precision should be less than 10%
-        double precision = (double) count / (double) expected;
-        assertThat(precision, closeTo(1.0, .1));
+        assertThat((double) count, closeTo(expected, expected * 0.1));
     }
 }

@@ -225,16 +225,20 @@ public class AggregatorImplementer {
     private MethodSpec addRawBlock() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawBlock");
         builder.addModifiers(Modifier.PRIVATE).addParameter(valueBlockType(init, combine), "block");
-        builder.beginControlFlow("for (int p = 0; p < block.getTotalValueCount(); p++)");
+        builder.beginControlFlow("for (int p = 0; p < block.getPositionCount(); p++)");
         {
-            builder.beginControlFlow("if (block.isNull(p) == false)");
-            builder.addStatement("int i = block.getFirstValueIndex(p)");
+            builder.beginControlFlow("if (block.isNull(p))");
+            builder.addStatement("continue");
+            builder.endControlFlow();
+            builder.addStatement("int start = block.getFirstValueIndex(p)");
+            builder.addStatement("int end = start + block.getValueCount(p)");
+            builder.beginControlFlow("for (int i = start; i < end; i++)");
             combineRawInput(builder, "block");
             builder.endControlFlow();
         }
         builder.endControlFlow();
         if (combineValueCount != null) {
-            builder.addStatement("$T.combineValueCount(state, block.validPositionCount())", declarationType);
+            builder.addStatement("$T.combineValueCount(state, block.getTotalValueCount())", declarationType);
         }
         return builder.build();
     }

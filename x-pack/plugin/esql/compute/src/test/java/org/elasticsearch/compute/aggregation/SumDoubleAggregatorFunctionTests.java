@@ -19,7 +19,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.DoubleStream;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -43,13 +42,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
 
     @Override
     protected void assertSimpleOutput(List<Block> input, Block result) {
-        double sum = input.stream()
-            .flatMapToDouble(
-                b -> IntStream.range(0, b.getTotalValueCount())
-                    .filter(p -> false == b.isNull(p))
-                    .mapToDouble(p -> ((DoubleBlock) b).getDouble(p))
-            )
-            .sum();
+        double sum = input.stream().flatMapToDouble(b -> allDoubles(b)).sum();
         assertThat(((DoubleBlock) result).getDouble(0), closeTo(sum, .0001));
     }
 

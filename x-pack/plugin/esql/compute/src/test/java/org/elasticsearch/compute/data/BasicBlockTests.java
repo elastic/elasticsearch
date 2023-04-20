@@ -10,9 +10,6 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -136,9 +133,9 @@ public class BasicBlockTests extends ESTestCase {
                 block = new IntArrayVector(IntStream.range(0, positionCount).toArray(), positionCount).asBlock();
             }
 
-            assertThat(positionCount, is(block.getPositionCount()));
-            assertThat(0, is(block.getInt(0)));
-            assertThat(positionCount - 1, is(block.getInt(positionCount - 1)));
+            assertThat(block.getPositionCount(), equalTo(positionCount));
+            assertThat(block.getInt(0), equalTo(0));
+            assertThat(block.getInt(positionCount - 1), equalTo(positionCount - 1));
             int pos = block.getInt(randomPosition(positionCount));
             assertThat(pos, is(block.getInt(pos)));
             assertSingleValueDenseBlock(block);
@@ -509,11 +506,13 @@ public class BasicBlockTests extends ESTestCase {
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
         var blockBuilder = IntBlock.newBlockBuilder(builderEstimateSize);
 
+        int actualValueCount = 0;
         int[] values = new int[positionCount];
         for (int i = 0; i < positionCount; i++) {
             if (randomBoolean()) {
                 values[i] = randomInt();
                 blockBuilder.appendInt(values[i]);
+                actualValueCount++;
             } else {
                 blockBuilder.appendNull();
             }
@@ -521,7 +520,7 @@ public class BasicBlockTests extends ESTestCase {
         IntBlock block = blockBuilder.build();
 
         assertThat(block.getPositionCount(), is(positionCount));
-        assertThat(block.getTotalValueCount(), is(positionCount));
+        assertThat(block.getTotalValueCount(), is(actualValueCount));
         int nullCount = 0;
         for (int i = 0; i < positionCount; i++) {
             if (block.isNull(i)) {
@@ -540,11 +539,13 @@ public class BasicBlockTests extends ESTestCase {
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
         var blockBuilder = LongBlock.newBlockBuilder(builderEstimateSize);
 
+        int actualValueCount = 0;
         long[] values = new long[positionCount];
         for (int i = 0; i < positionCount; i++) {
             if (randomBoolean()) {
                 values[i] = randomLong();
                 blockBuilder.appendLong(values[i]);
+                actualValueCount++;
             } else {
                 blockBuilder.appendNull();
             }
@@ -552,12 +553,11 @@ public class BasicBlockTests extends ESTestCase {
         LongBlock block = blockBuilder.build();
 
         assertThat(block.getPositionCount(), is(positionCount));
-        assertThat(block.getTotalValueCount(), is(positionCount));
+        assertThat(block.getTotalValueCount(), is(actualValueCount));
         int nullCount = 0;
         for (int i = 0; i < positionCount; i++) {
             if (block.isNull(i)) {
                 nullCount++;
-                // assertThat(block.getInt(i), is(0)); // Q: do we wanna allow access to the default value
             } else {
                 assertThat(block.getLong(i), is(values[i]));
             }
@@ -571,11 +571,13 @@ public class BasicBlockTests extends ESTestCase {
         final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
         var blockBuilder = DoubleBlock.newBlockBuilder(builderEstimateSize);
 
+        int actualValueCount = 0;
         double[] values = new double[positionCount];
         for (int i = 0; i < positionCount; i++) {
             if (randomBoolean()) {
                 values[i] = randomDouble();
                 blockBuilder.appendDouble(values[i]);
+                actualValueCount++;
             } else {
                 blockBuilder.appendNull();
             }
@@ -583,7 +585,7 @@ public class BasicBlockTests extends ESTestCase {
         DoubleBlock block = blockBuilder.build();
 
         assertThat(block.getPositionCount(), is(positionCount));
-        assertThat(block.getTotalValueCount(), is(positionCount));
+        assertThat(block.getTotalValueCount(), is(actualValueCount));
         int nullCount = 0;
         for (int i = 0; i < positionCount; i++) {
             if (block.isNull(i)) {
@@ -602,10 +604,12 @@ public class BasicBlockTests extends ESTestCase {
         var blockBuilder = BooleanBlock.newBlockBuilder(builderEstimateSize);
 
         boolean[] values = new boolean[positionCount];
+        int actualValueCount = 0;
         for (int i = 0; i < positionCount; i++) {
             if (randomBoolean()) {
                 values[i] = randomBoolean();
                 blockBuilder.appendBoolean(values[i]);
+                actualValueCount++;
             } else {
                 blockBuilder.appendNull();
             }
@@ -613,7 +617,7 @@ public class BasicBlockTests extends ESTestCase {
         BooleanBlock block = blockBuilder.build();
 
         assertThat(block.getPositionCount(), is(positionCount));
-        assertThat(block.getTotalValueCount(), is(positionCount));
+        assertThat(block.getTotalValueCount(), is(actualValueCount));
         int nullCount = 0;
         for (int i = 0; i < positionCount; i++) {
             if (block.isNull(i)) {
@@ -713,7 +717,11 @@ public class BasicBlockTests extends ESTestCase {
         return result;
     }
 
-    public record RandomBlock(List<List<Object>> values, Block block) {}
+    public record RandomBlock(List<List<Object>> values, Block block) {
+        int valueCount() {
+            return values.stream().mapToInt(l -> l == null ? 0 : l.size()).sum();
+        }
+    }
 
     public static RandomBlock randomBlock(
         ElementType elementType,
@@ -813,7 +821,9 @@ public class BasicBlockTests extends ESTestCase {
         });
         var block = blockProducer.build(blockBuilder);
 
-        assertThat(positionCount, is(block.getPositionCount()));
+        assertThat(block.getPositionCount(), equalTo(positionCount));
+        assertThat(block.validPositionCount(), equalTo(positionCount - 1));
+        assertThat(block.getTotalValueCount(), equalTo(positionCount - 1));
         asserter.accept(randomNonNullPosition, block);
         assertTrue(block.isNull(randomNullPosition));
         assertFalse(block.isNull(randomNonNullPosition));
@@ -822,9 +832,4 @@ public class BasicBlockTests extends ESTestCase {
     static int randomPosition(int positionCount) {
         return positionCount == 1 ? 0 : randomIntBetween(0, positionCount - 1);
     }
-
-    static final Class<UnsupportedOperationException> UOE = UnsupportedOperationException.class;
-
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
-
 }

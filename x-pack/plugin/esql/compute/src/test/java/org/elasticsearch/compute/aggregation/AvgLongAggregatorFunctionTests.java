@@ -9,14 +9,12 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
 import java.util.List;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -40,12 +38,8 @@ public class AvgLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
     @Override
     public void assertSimpleOutput(List<Block> input, Block result) {
-        long sum = input.stream()
-            .flatMapToLong(
-                b -> IntStream.range(0, b.getTotalValueCount()).filter(p -> false == b.isNull(p)).mapToLong(p -> ((LongBlock) b).getLong(p))
-            )
-            .sum();
-        long count = input.stream().flatMapToInt(b -> IntStream.range(0, b.getPositionCount()).filter(p -> false == b.isNull(p))).count();
+        long sum = input.stream().flatMapToLong(b -> allLongs(b)).sum();
+        long count = input.stream().flatMapToLong(b -> allLongs(b)).count();
         assertThat(((DoubleBlock) result).getDouble(0), equalTo(((double) sum) / count));
     }
 

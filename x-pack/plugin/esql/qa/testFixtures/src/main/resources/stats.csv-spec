@@ -61,6 +61,30 @@ h:double
 ;
 
 
+maxOfManyLongs
+from employees | stats l = max(salary_change.long);
+
+l:long
+14
+;
+
+
+maxOfManyInts
+from employees | stats l = max(salary_change.int);
+
+l:integer
+14
+;
+
+
+maxOfManyDoubles
+from employees | stats l = max(salary_change);
+
+l:double
+14.74
+;
+
+
 avgOfLong
 from employees | stats l = avg(languages.long);
 

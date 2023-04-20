@@ -34,7 +34,7 @@ public class CountAggregatorFunction implements AggregatorFunction {
         assert channel >= 0;
         Block block = page.getBlock(channel);
         LongState state = this.state;
-        state.longValue(state.longValue() + block.validPositionCount()); // ignore null values
+        state.longValue(state.longValue() + block.getTotalValueCount());
     }
 
     @Override

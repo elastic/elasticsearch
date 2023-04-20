@@ -35,12 +35,7 @@ public class MinIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
     @Override
     public void assertSimpleOutput(List<Block> input, Block result) {
-        int max = input.stream()
-            .flatMapToInt(
-                b -> IntStream.range(0, b.getTotalValueCount()).filter(p -> false == b.isNull(p)).map(p -> ((IntBlock) b).getInt(p))
-            )
-            .min()
-            .getAsInt();
+        int max = input.stream().flatMapToInt(b -> allInts(b)).min().getAsInt();
         assertThat(((IntBlock) result).getInt(0), equalTo(max));
     }
 }

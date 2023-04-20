@@ -13,7 +13,6 @@ import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 
 import java.util.List;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -37,12 +36,7 @@ public class MaxLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
     @Override
     public void assertSimpleOutput(List<Block> input, Block result) {
-        long max = input.stream()
-            .flatMapToLong(
-                b -> IntStream.range(0, b.getTotalValueCount()).filter(p -> false == b.isNull(p)).mapToLong(p -> ((LongBlock) b).getLong(p))
-            )
-            .max()
-            .getAsLong();
+        long max = input.stream().flatMapToLong(b -> allLongs(b)).max().getAsLong();
         assertThat(((LongBlock) result).getLong(0), equalTo(max));
     }
 }

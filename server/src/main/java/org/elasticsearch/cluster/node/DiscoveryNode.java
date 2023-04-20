@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -140,6 +141,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     private static final StringLiteralDeduplicator nodeStringDeduplicator = new StringLiteralDeduplicator();
 
+    public record VersionInformation(Version nodeVersion, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {}
+
     private final String nodeName;
     private final String nodeId;
     private final String ephemeralId;
@@ -147,7 +150,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private final String hostAddress;
     private final TransportAddress address;
     private final Map<String, String> attributes;
-    private final Version version;
+    private final VersionInformation version;
     private final SortedSet<DiscoveryNodeRole> roles;
     private final Set<String> roleNames;
     private final String externalId;
@@ -292,6 +295,52 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         Version version,
         String externalId
     ) {
+        this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, expandNodeVersion(version), externalId);
+    }
+
+    private static VersionInformation expandNodeVersion(Version version) {
+        if (version == null) return null;
+        if (version.after(Version.V_8_8_0)) throw new IllegalArgumentException(
+            "IndexVersion can only be calculated from Version for <=8.8.0"
+        );
+        return new VersionInformation(
+            version,
+            IndexVersion.fromId(version.minimumIndexCompatibilityVersion().id),
+            IndexVersion.fromId(version.id)
+        );
+    }
+
+    /**
+     * Creates a new {@link DiscoveryNode}.
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     *
+     * @param nodeName         the nodes name
+     * @param nodeId           the nodes unique persistent id
+     * @param ephemeralId      the nodes unique ephemeral id
+     * @param hostAddress      the nodes host address
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param version          node version information
+     * @param externalId       the external id used to identify this node by external systems
+     */
+    public DiscoveryNode(
+        String nodeName,
+        String nodeId,
+        String ephemeralId,
+        String hostName,
+        String hostAddress,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        VersionInformation version,
+        String externalId
+    ) {
         if (nodeName != null) {
             this.nodeName = nodeStringDeduplicator.deduplicate(nodeName);
         } else {
@@ -303,11 +352,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         assert Strings.hasText(hostAddress);
         this.hostAddress = nodeStringDeduplicator.deduplicate(hostAddress);
         this.address = address;
-        if (version == null) {
-            this.version = Version.CURRENT;
-        } else {
-            this.version = version;
-        }
+        this.version = Objects.requireNonNullElse(
+            version,
+            new VersionInformation(Version.CURRENT, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT)
+        );
         this.attributes = Map.copyOf(attributes);
         assert DiscoveryNodeRole.roleNames().stream().noneMatch(attributes::containsKey)
             : "Node roles must not be provided as attributes but saw attributes " + attributes;
@@ -341,6 +389,18 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     /** extract node roles from the given settings */
     public static Set<DiscoveryNodeRole> getRolesFromSettings(final Settings settings) {
         return Set.copyOf(NODE_ROLES_SETTING.get(settings));
+    }
+
+    private static VersionInformation inferVersionInformation(Version version) {
+        if (version.onOrBefore(Version.V_8_8_0)) {
+            return new VersionInformation(
+                version,
+                IndexVersion.fromId(version.minimumIndexCompatibilityVersion().id),
+                IndexVersion.fromId(version.id)
+            );
+        } else {
+            return new VersionInformation(version, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.CURRENT);
+        }
     }
 
     private static final Writeable.Reader<String> readStringLiteral = s -> nodeStringDeduplicator.deduplicate(s.readString());
@@ -379,7 +439,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
         this.roles = Collections.unmodifiableSortedSet(roles);
-        this.version = Version.readVersion(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            version = new VersionInformation(Version.readVersion(in), IndexVersion.readVersion(in), IndexVersion.readVersion(in));
+        } else {
+            version = inferVersionInformation(Version.readVersion(in));
+        }
         if (in.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
             this.externalId = readStringLiteral.read(in);
         } else {
@@ -412,7 +476,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             o.writeString(role.roleNameAbbreviation());
             o.writeBoolean(role.canContainData());
         });
-        Version.writeVersion(version, out);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            Version.writeVersion(version.nodeVersion, out);
+            IndexVersion.writeVersion(version.minIndexVersion, out);
+            IndexVersion.writeVersion(version.maxIndexVersion, out);
+        } else {
+            Version.writeVersion(version.nodeVersion(), out);
+        }
         if (out.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
             out.writeString(externalId);
         }
@@ -514,7 +584,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     public Version getVersion() {
-        return this.version;
+        return this.version.nodeVersion();
+    }
+
+    public IndexVersion getMinIndexVersion() {
+        return version.minIndexVersion;
+    }
+
+    public IndexVersion getMaxIndexVersion() {
+        return version.maxIndexVersion;
     }
 
     public String getHostName() {
@@ -573,7 +651,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(stringBuilder::append);
             stringBuilder.append('}');
         }
-        stringBuilder.append('{').append(version).append('}');
+        stringBuilder.append('{').append(version.nodeVersion).append('}');
+        stringBuilder.append('{').append(version.minIndexVersion).append('-').append(version.maxIndexVersion).append('}');
     }
 
     public String descriptionWithoutAttributes() {
@@ -595,7 +674,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             builder.value(role.roleName());
         }
         builder.endArray();
-        builder.field("version", version);
+        builder.field("version", version.nodeVersion);
+        builder.field("minIndexVersion", version.minIndexVersion);
+        builder.field("maxIndexVersion", version.maxIndexVersion);
         builder.endObject();
         return builder;
     }

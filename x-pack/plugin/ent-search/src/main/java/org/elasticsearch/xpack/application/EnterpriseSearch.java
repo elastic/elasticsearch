@@ -202,8 +202,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             AnalyticsEventIngestConfig.MAX_NUMBER_OF_EVENTS_PER_BULK_SETTING,
             AnalyticsEventIngestConfig.FLUSH_DELAY_SETTING,
             AnalyticsEventIngestConfig.MAX_NUMBER_OF_RETRIES_SETTING,
-            AnalyticsEventIngestConfig.MAX_BYTES_IN_FLIGHT_SETTING,
-            AnalyticsEventIngestConfig.COOL_DOWN_DELAY_SETTING
+            AnalyticsEventIngestConfig.MAX_BYTES_IN_FLIGHT_SETTING
         );
     }
 }

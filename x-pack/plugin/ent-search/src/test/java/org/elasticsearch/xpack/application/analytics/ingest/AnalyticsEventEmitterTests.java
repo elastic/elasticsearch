@@ -15,7 +15,6 @@ import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -96,21 +95,13 @@ public class AnalyticsEventEmitterTests extends ESTestCase {
         // Mocking the client used in the test.
         Client clientMock = mock(Client.class);
 
-        // Mocking the config
-        AnalyticsEventIngestConfig configMock = mock(AnalyticsEventIngestConfig.class);
-
         // Mocking the bulk processor used in the test.
         BulkProcessorFactory bulkProcessorFactoryMock = mock(BulkProcessorFactory.class);
         BulkProcessor2 bulkProcessorMock = mock(BulkProcessor2.class);
         doReturn(bulkProcessorMock).when(bulkProcessorFactoryMock).create(clientMock);
 
         // Instantiating the tested event emitter.
-        AnalyticsEventEmitter analyticsEventEmitter = new AnalyticsEventEmitter(
-            clientMock,
-            bulkProcessorFactoryMock,
-            eventFactoryMock,
-            configMock
-        );
+        AnalyticsEventEmitter analyticsEventEmitter = new AnalyticsEventEmitter(clientMock, bulkProcessorFactoryMock, eventFactoryMock);
 
         // Emit the event.
         analyticsEventEmitter.emitEvent(request, listener);
@@ -143,10 +134,6 @@ public class AnalyticsEventEmitterTests extends ESTestCase {
         Client clientMock = mock(Client.class);
         doReturn(mock(ThreadPool.class)).when(clientMock).threadPool();
 
-        // Mocking the config
-        AnalyticsEventIngestConfig configMock = mock(AnalyticsEventIngestConfig.class);
-        doReturn(TimeValue.timeValueSeconds(1)).when(configMock).coolDownDelay();
-
         // Mocking the bulk processor used in the test.
         BulkProcessorFactory bulkProcessorFactoryMock = mock(BulkProcessorFactory.class);
         BulkProcessor2 bulkProcessorMock = mock(BulkProcessor2.class);
@@ -156,12 +143,7 @@ public class AnalyticsEventEmitterTests extends ESTestCase {
         doThrow(EsRejectedExecutionException.class).when(bulkProcessorMock).add(any(IndexRequest.class));
 
         // Instantiating the tested event emitter.
-        AnalyticsEventEmitter analyticsEventEmitter = new AnalyticsEventEmitter(
-            clientMock,
-            bulkProcessorFactoryMock,
-            eventFactoryMock,
-            configMock
-        );
+        AnalyticsEventEmitter analyticsEventEmitter = new AnalyticsEventEmitter(clientMock, bulkProcessorFactoryMock, eventFactoryMock);
 
         // Emit the event.
         analyticsEventEmitter.emitEvent(request, listener);
@@ -187,12 +169,7 @@ public class AnalyticsEventEmitterTests extends ESTestCase {
         doReturn(bulkProcessor).when(bulkProcessorFactory).create(client);
 
         // Instantiating the tested event emitter.
-        AnalyticsEventEmitter eventEmitter = new AnalyticsEventEmitter(
-            client,
-            bulkProcessorFactory,
-            mock(AnalyticsEventFactory.class),
-            mock(AnalyticsEventIngestConfig.class)
-        );
+        AnalyticsEventEmitter eventEmitter = new AnalyticsEventEmitter(client, bulkProcessorFactory, mock(AnalyticsEventFactory.class));
 
         // Closing the event emitter.
         eventEmitter.close();
@@ -216,12 +193,7 @@ public class AnalyticsEventEmitterTests extends ESTestCase {
         doReturn(bulkProcessorMock).when(bulkProcessorFactoryMock).create(clientMock);
 
         // Instantiating the tested event emitter.
-        AnalyticsEventEmitter analyticsEventEmitter = new AnalyticsEventEmitter(
-            clientMock,
-            bulkProcessorFactoryMock,
-            eventFactoryMock,
-            mock(AnalyticsEventIngestConfig.class)
-        );
+        AnalyticsEventEmitter analyticsEventEmitter = new AnalyticsEventEmitter(clientMock, bulkProcessorFactoryMock, eventFactoryMock);
 
         analyticsEventEmitter.emitEvent(request, listener);
 

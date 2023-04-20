@@ -25,7 +25,6 @@ public class AnalyticsEventIngestConfigTests extends ESTestCase {
         assertThat(config.maxNumberOfEventsPerBulk(), equalTo(500));
         assertThat(config.maxNumberOfRetries(), equalTo(1));
         assertThat(config.maxBytesInFlight(), equalTo(ByteSizeValue.ofBytes((long) (0.05 * heapSize()))));
-        assertThat(config.coolDownDelay(), equalTo(TimeValue.timeValueSeconds(10)));
     }
 
     public void testCustomFlushDelay() {
@@ -99,12 +98,6 @@ public class AnalyticsEventIngestConfigTests extends ESTestCase {
         double value = randomIntBetween(1, 100);
         AnalyticsEventIngestConfig config = createCustomBulkProcessorConfig("max_bytes_in_flight", value + "%");
         assertThat(config.maxBytesInFlight(), equalTo(ByteSizeValue.ofBytes((long) (value / 100 * heapSize()))));
-    }
-
-    public void testCustomCoolDownDelay() {
-        String value = randomTimeValue(1, 60, "s");
-        AnalyticsEventIngestConfig config = createCustomConfig("cool_down_delay", value);
-        assertThat(config.coolDownDelay(), equalTo(TimeValue.parseTimeValue(value, "cool_down_delay")));
     }
 
     private AnalyticsEventIngestConfig createCustomBulkProcessorConfig(String key, String value) {

@@ -75,7 +75,6 @@ public class BulkProcessorFactoryTests extends ESTestCase {
         AnalyticsEventIngestConfig config = mock(AnalyticsEventIngestConfig.class);
         doReturn(maxBulkActions).when(config).maxNumberOfEventsPerBulk();
         doReturn(ByteSizeValue.ofMb(10)).when(config).maxBytesInFlight();
-        doReturn(TimeValue.timeValueSeconds(1)).when(config).coolDownDelay();
 
         Client client = mock(Client.class);
         InOrder inOrder = Mockito.inOrder(client);
@@ -110,7 +109,6 @@ public class BulkProcessorFactoryTests extends ESTestCase {
         doReturn(1).when(config).maxNumberOfEventsPerBulk();
         doReturn(numberOfRetries).when(config).maxNumberOfRetries();
         doReturn(ByteSizeValue.ofMb(10)).when(config).maxBytesInFlight();
-        doReturn(TimeValue.timeValueSeconds(1)).when(config).coolDownDelay();
 
         Client client = mock(Client.class);
         doAnswer(i -> {

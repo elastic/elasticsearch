@@ -17,12 +17,9 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -46,25 +43,17 @@ public class AnalyticsEventEmitter extends AbstractLifecycleComponent {
 
     private final AnalyticsEventFactory eventFactory;
 
-    private final TimeValue coolDownDelay;
-
     private final AtomicBoolean dropEvent = new AtomicBoolean(false);
 
     @Inject
-    public AnalyticsEventEmitter(Client client, BulkProcessorFactory bulkProcessorFactory, AnalyticsEventIngestConfig config) {
-        this(client, bulkProcessorFactory, AnalyticsEventFactory.INSTANCE, config);
+    public AnalyticsEventEmitter(Client client, BulkProcessorFactory bulkProcessorFactory) {
+        this(client, bulkProcessorFactory, AnalyticsEventFactory.INSTANCE);
     }
 
-    AnalyticsEventEmitter(
-        Client client,
-        BulkProcessorFactory bulkProcessorFactory,
-        AnalyticsEventFactory eventFactory,
-        AnalyticsEventIngestConfig config
-    ) {
+    AnalyticsEventEmitter(Client client, BulkProcessorFactory bulkProcessorFactory, AnalyticsEventFactory eventFactory) {
         this.client = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
         this.bulkProcessor = bulkProcessorFactory.create(client);
         this.eventFactory = eventFactory;
-        this.coolDownDelay = config.coolDownDelay();
     }
 
     /**
@@ -78,15 +67,14 @@ public class AnalyticsEventEmitter extends AbstractLifecycleComponent {
         final ActionListener<PostAnalyticsEventAction.Response> listener
     ) {
         try {
-            if (dropEvent.get()) {
-                onEventDrop(listener);
-                return;
-            }
-
             AnalyticsEvent event = eventFactory.fromRequest(request);
             IndexRequest eventIndexRequest = createIndexRequest(event);
 
             bulkProcessor.add(eventIndexRequest);
+
+            if (dropEvent.compareAndSet(true, false)) {
+                logger.warn("Bulk processor has been flushed. Accepting new events again.");
+            }
 
             if (request.isDebug()) {
                 listener.onResponse(new PostAnalyticsEventAction.DebugResponse(true, event));
@@ -96,21 +84,14 @@ public class AnalyticsEventEmitter extends AbstractLifecycleComponent {
         } catch (IOException e) {
             listener.onFailure(new ElasticsearchException("Unable to parse the event.", e));
         } catch (EsRejectedExecutionException e) {
-            onEventDrop(listener);
-        }
-    }
+            listener.onFailure(
+                new ElasticsearchStatusException("Unable to add the event: too many requests.", RestStatus.TOO_MANY_REQUESTS)
+            );
 
-    private void onEventDrop(final ActionListener<PostAnalyticsEventAction.Response> listener) {
-        listener.onFailure(new ElasticsearchStatusException("Unable to add the event: too many requests.", RestStatus.TOO_MANY_REQUESTS));
-        if (dropEvent.compareAndSet(false, true)) {
-            logger.warn(Strings.format("Bulk processor is full. Start dropping events for %s.", coolDownDelay.getStringRep()));
-            client.threadPool().schedule(this::onCoolDownExpired, coolDownDelay, ThreadPool.Names.SAME);
+            if (dropEvent.compareAndSet(false, true)) {
+                logger.warn("Bulk processor is full. Start dropping events.");
+            }
         }
-    }
-
-    private void onCoolDownExpired() {
-        dropEvent.set(false);
-        logger.warn(Strings.format("Trying to accept events again.", coolDownDelay.getStringRep()));
     }
 
     private IndexRequest createIndexRequest(AnalyticsEvent event) throws IOException {

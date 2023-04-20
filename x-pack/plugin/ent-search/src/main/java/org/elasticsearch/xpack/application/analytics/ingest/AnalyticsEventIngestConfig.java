@@ -64,13 +64,6 @@ public class AnalyticsEventIngestConfig {
         Setting.Property.NodeScope
     );
 
-    private static final TimeValue DEFAULT_COOL_DOWN_DELAY = TimeValue.timeValueSeconds(10);
-    public static final Setting<TimeValue> COOL_DOWN_DELAY_SETTING = Setting.timeSetting(
-        Strings.format("%s.%s", SETTING_ROOT_PATH, "cool_down_delay"),
-        DEFAULT_COOL_DOWN_DELAY,
-        Setting.Property.NodeScope
-    );
-
     private final TimeValue flushDelay;
 
     private final int maxNumberOfRetries;
@@ -79,15 +72,12 @@ public class AnalyticsEventIngestConfig {
 
     private final ByteSizeValue maxBytesInFlight;
 
-    private final TimeValue coolDownDelay;
-
     @Inject
     public AnalyticsEventIngestConfig(Settings settings) {
         this.flushDelay = FLUSH_DELAY_SETTING.get(settings);
         this.maxNumberOfRetries = MAX_NUMBER_OF_RETRIES_SETTING.get(settings);
         this.maxNumberOfEventsPerBulk = MAX_NUMBER_OF_EVENTS_PER_BULK_SETTING.get(settings);
         this.maxBytesInFlight = MAX_BYTES_IN_FLIGHT_SETTING.get(settings);
-        this.coolDownDelay = COOL_DOWN_DELAY_SETTING.get(settings);
     }
 
     public TimeValue flushDelay() {
@@ -104,9 +94,5 @@ public class AnalyticsEventIngestConfig {
 
     public ByteSizeValue maxBytesInFlight() {
         return maxBytesInFlight;
-    }
-
-    public TimeValue coolDownDelay() {
-        return coolDownDelay;
     }
 }

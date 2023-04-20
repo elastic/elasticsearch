@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.StartJoinRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
@@ -27,6 +28,8 @@ import java.util.function.Supplier;
 public class StatelessElectionStrategy extends ElectionStrategy {
     public static final String NAME = "stateless_election_strategy";
     private static final String LEASE_BLOB = "lease";
+    static final TimeValue READ_CURRENT_LEASE_TERM_RETRY_DELAY = TimeValue.timeValueMillis(200);
+    static final int MAX_READ_CURRENT_LEASE_TERM_RETRIES = 4;
     private final Supplier<BlobContainer> blobContainerSupplier;
     private final ThreadPool threadPool;
 
@@ -100,16 +103,25 @@ public class StatelessElectionStrategy extends ElectionStrategy {
 
     @Override
     public void beforeCommit(long term, long version, ActionListener<Void> listener) {
-        getCurrentLeaseTerm(listener.map(currentTerm -> {
-            if (currentTerm.isEmpty()) {
-                throw new IllegalStateException("Unexpected empty claimed term");
+        doBeforeCommit(term, version, 0, listener);
+    }
+
+    private void doBeforeCommit(long term, long version, int retryCount, ActionListener<Void> listener) {
+        getCurrentLeaseTerm(listener.delegateFailure((delegate, currentTerm) -> {
+            if (currentTerm.isEmpty() && retryCount < MAX_READ_CURRENT_LEASE_TERM_RETRIES) {
+                threadPool.schedule(
+                    () -> doBeforeCommit(term, version, retryCount + 1, delegate),
+                    READ_CURRENT_LEASE_TERM_RETRY_DELAY,
+                    ThreadPool.Names.SAME
+                );
+                return;
             }
 
             if (currentTerm.getAsLong() == term) {
-                return null;
+                delegate.onResponse(null);
             } else {
                 assert term < currentTerm.getAsLong() : term + " vs " + currentTerm;
-                throw new CoordinationStateRejectedException("Term " + term + " already claimed by another node");
+                delegate.onFailure(new CoordinationStateRejectedException("Term " + term + " already claimed by another node"));
             }
         }));
     }

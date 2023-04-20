@@ -538,7 +538,7 @@ public class InternalEngine extends Engine {
         final int opsRecovered;
         final long localCheckpoint = getProcessedLocalCheckpoint();
         if (localCheckpoint < recoverUpToSeqNo) {
-            try (Translog.Snapshot snapshot = translog.newSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
+            try (Translog.Snapshot snapshot = newTranslogSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
                 opsRecovered = translogRecoveryRunner.run(this, snapshot);
             } catch (Exception e) {
                 throw new EngineException(shardId, "failed to recover from translog", e);
@@ -559,6 +559,10 @@ public class InternalEngine extends Engine {
         );
         flush(false, true);
         translog.trimUnreferencedReaders();
+    }
+
+    protected Translog.Snapshot newTranslogSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
+        return translog.newSnapshot(fromSeqNo, toSeqNo);
     }
 
     private Translog openTranslog(
@@ -2667,20 +2671,6 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Defines extra user data to be stored in a commit file.
-     *
-     * Note that:
-     * <ul>
-     *  <li>Any conflicting keys used internally by the engine or the store will prevail.</li>
-     *  <li>The extra user data will not be present in an empty commit.</li>
-     *  <li>This function is temporary and may be removed in the future.</li>
-     * </ul>
-     */
-    protected Map<String, String> getCommitExtraUserData() {
-        return Map.of();
-    }
-
-    /**
      * Commits the specified index writer.
      *
      * @param writer   the index writer to commit
@@ -2700,9 +2690,7 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> extraCommitUserData = getCommitExtraUserData();
-                final Map<String, String> commitData = Maps.newMapWithExpectedSize(8 + extraCommitUserData.size());
-                commitData.putAll(extraCommitUserData);
+                final Map<String, String> commitData = Maps.newMapWithExpectedSize(8);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));

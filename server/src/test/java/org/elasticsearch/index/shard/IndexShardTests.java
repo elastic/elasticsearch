@@ -327,7 +327,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard indexShard = newStartedShard();
         closeShards(indexShard);
         assertThat(indexShard.getActiveOperationsCount(), equalTo(0));
-        expectThrows(IndexShardClosedException.class, () -> indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.WRITE, ""));
+        expectThrows(IndexShardClosedException.class, () -> indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.WRITE));
         expectThrows(
             IndexShardClosedException.class,
             () -> indexShard.acquireAllPrimaryOperationsPermits(null, TimeValue.timeValueSeconds(30L))
@@ -339,8 +339,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 UNASSIGNED_SEQ_NO,
                 randomNonNegativeLong(),
                 null,
-                ThreadPool.Names.WRITE,
-                ""
+                ThreadPool.Names.WRITE
             )
         );
         expectThrows(
@@ -362,8 +361,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.runUnderPrimaryPermit(
                 () -> assertThat(indexShard.getActiveOperationsCount(), equalTo(1)),
                 e -> fail(e.toString()),
-                ThreadPool.Names.SAME,
-                "test"
+                ThreadPool.Names.SAME
             );
             assertThat(indexShard.getActiveOperationsCount(), equalTo(0));
         } finally {
@@ -379,7 +377,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 assertThat(e, instanceOf(RuntimeException.class));
                 assertThat(e.getMessage(), equalTo("failure"));
                 invoked.set(true);
-            }, ThreadPool.Names.SAME, "test");
+            }, ThreadPool.Names.SAME);
             assertTrue(invoked.get());
         } finally {
             closeShards(indexShard);
@@ -405,7 +403,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     : executorOnDelay.toLowerCase(Locale.ROOT);
                 assertThat(Thread.currentThread().getName(), containsString(expectedThreadPoolName));
                 latch.countDown();
-            }, e -> fail(e.toString()), executorOnDelay, "test");
+            }, e -> fail(e.toString()), executorOnDelay);
             permit.close();
             latch.await();
             // we could race and assert on the count before the permit is returned
@@ -424,8 +422,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexShard.getPendingPrimaryTerm() + randomIntBetween(1, 100),
                 UNASSIGNED_SEQ_NO,
                 randomNonNegativeLong(),
-                PlainActionFuture.newFuture(),
-                ""
+                PlainActionFuture.newFuture()
             )
         );
         closeShards(indexShard);
@@ -469,8 +466,7 @@ public class IndexShardTests extends IndexShardTestCase {
                             throw new RuntimeException(e);
                         }
                     },
-                    ThreadPool.Names.WRITE,
-                    id
+                    ThreadPool.Names.WRITE
                 );
             });
             thread.start();
@@ -514,7 +510,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     public void onFailure(Exception e) {
                         throw new RuntimeException(e);
                     }
-                }, ThreadPool.Names.WRITE, id);
+                }, ThreadPool.Names.WRITE);
             });
             thread.start();
             delayedThreads.add(thread);
@@ -560,7 +556,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 if (indexShard.routingEntry().primary()) {
                     assertThat(indexShard.getPendingPrimaryTerm(), equalTo(promotedTerm));
                     final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
-                    indexShard.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, "bla");
+                    indexShard.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME);
                     try (Releasable ignored = permitAcquiredFuture.actionGet()) {
                         assertThat(indexShard.getReplicationGroup(), notNullValue());
                     }
@@ -620,7 +616,7 @@ public class IndexShardTests extends IndexShardTestCase {
             public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
-        }, ThreadPool.Names.GENERIC, "");
+        }, ThreadPool.Names.GENERIC);
 
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo((long) maxSeqNo));
@@ -668,7 +664,7 @@ public class IndexShardTests extends IndexShardTestCase {
             public void onFailure(Exception e) {
                 throw new RuntimeException(e);
             }
-        }, ThreadPool.Names.GENERIC, "");
+        }, ThreadPool.Names.GENERIC);
 
         latch.await();
         assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration, equalTo(currentTranslogGeneration + 1));
@@ -751,7 +747,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertThat(e, instanceOf(ShardNotInPrimaryModeException.class));
                     assertThat(e, hasToString(containsString("shard is not in primary mode")));
                 }
-            }, ThreadPool.Names.SAME, "test");
+            }, ThreadPool.Names.SAME);
 
             final CountDownLatch latch = new CountDownLatch(1);
             indexShard.acquireAllPrimaryOperationsPermits(new ActionListener<>() {
@@ -789,8 +785,7 @@ public class IndexShardTests extends IndexShardTestCase {
                                 fail();
                             }
                         },
-                        ThreadPool.Names.WRITE,
-                        ""
+                        ThreadPool.Names.WRITE
                     )
                 ).getMessage(),
                 containsString("in primary mode cannot be a replication target")
@@ -844,7 +839,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     throw new RuntimeException(e);
                 }
                 if (singlePermit) {
-                    indexShard.acquirePrimaryOperationPermit(future, ThreadPool.Names.WRITE, "");
+                    indexShard.acquirePrimaryOperationPermit(future, ThreadPool.Names.WRITE);
                 } else {
                     indexShard.acquireAllPrimaryOperationsPermits(future, TimeValue.timeValueHours(1L));
                 }
@@ -901,7 +896,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     private Releasable acquirePrimaryOperationPermitBlockingly(IndexShard indexShard) throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
-        indexShard.acquirePrimaryOperationPermit(fut, ThreadPool.Names.WRITE, "");
+        indexShard.acquirePrimaryOperationPermit(fut, ThreadPool.Names.WRITE);
         return fut.get();
     }
 
@@ -913,8 +908,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.getLastKnownGlobalCheckpoint(),
             randomNonNegativeLong(),
             fut,
-            ThreadPool.Names.WRITE,
-            ""
+            ThreadPool.Names.WRITE
         );
         return fut.get();
     }
@@ -968,7 +962,7 @@ public class IndexShardTests extends IndexShardTestCase {
         if (shardRouting.primary() == false && Assertions.ENABLED) {
             AssertionError e = expectThrows(
                 AssertionError.class,
-                () -> indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.WRITE, "")
+                () -> indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.WRITE)
             );
             assertThat(e, hasToString(containsString("acquirePrimaryOperationPermit should only be called on primary shard")));
 
@@ -1060,8 +1054,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         newPrimaryTerm,
                         newGlobalCheckPoint,
                         randomNonNegativeLong(),
-                        listener,
-                        ""
+                        listener
                     );
                 } catch (Exception e) {
                     listener.onFailure(e);
@@ -1140,8 +1133,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 oldPrimaryTerm,
                 indexShard.getLastKnownGlobalCheckpoint(),
                 randomNonNegativeLong(),
-                onLockAcquired,
-                ""
+                onLockAcquired
             );
             latch.await();
             assertFalse(onResponse.get());
@@ -1166,8 +1158,7 @@ public class IndexShardTests extends IndexShardTestCase {
             replica.getOperationPrimaryTerm(),
             replica.getLastKnownGlobalCheckpoint(),
             newMaxSeqNoOfUpdates,
-            fut,
-            ""
+            fut
         );
         try (Releasable ignored = fut.actionGet()) {
             assertThat(replica.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(currentMaxSeqNoOfUpdates, newMaxSeqNoOfUpdates)));
@@ -1320,8 +1311,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 public void onFailure(Exception e) {
 
                 }
-            },
-            ""
+            }
         );
 
         latch.await();
@@ -1382,8 +1372,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 public void onFailure(final Exception e) {
 
                 }
-            },
-            ""
+            }
         );
 
         latch.await();
@@ -1441,8 +1430,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         latch.countDown();
                     }
                 },
-                ThreadPool.Names.WRITE,
-                ""
+                ThreadPool.Names.WRITE
             );
         };
 
@@ -1947,7 +1935,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 });
             }
 
-            shard.acquirePrimaryOperationPermit(onLockAcquired, ThreadPool.Names.WRITE, "i_" + i);
+            shard.acquirePrimaryOperationPermit(onLockAcquired, ThreadPool.Names.WRITE);
         }
 
         for (final Runnable assertion : assertions) {
@@ -4425,7 +4413,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     /**
-     * Randomizes the usage of {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)} and
+     * Randomizes the usage of {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, String)} and
      * {@link IndexShard#acquireAllReplicaOperationsPermits(long, long, long, ActionListener, TimeValue)} in order to acquire a permit.
      */
     private void randomReplicaOperationPermitAcquisition(
@@ -4433,12 +4421,11 @@ public class IndexShardTests extends IndexShardTestCase {
         final long opPrimaryTerm,
         final long globalCheckpoint,
         final long maxSeqNoOfUpdatesOrDeletes,
-        final ActionListener<Releasable> listener,
-        final String info
+        final ActionListener<Releasable> listener
     ) {
         if (randomBoolean()) {
             final String executor = ThreadPool.Names.WRITE;
-            indexShard.acquireReplicaOperationPermit(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener, executor, info);
+            indexShard.acquireReplicaOperationPermit(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener, executor);
         } else {
             final TimeValue timeout = TimeValue.timeValueSeconds(30L);
             indexShard.acquireAllReplicaOperationsPermits(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener, timeout);

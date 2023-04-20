@@ -381,7 +381,7 @@ watermark threshold>>.
     The `invocations_since_last_success` key will report a map where the unhealthy policy
     name is the key and it's corresponding number of failed invocations is the value.
 
-[[health-api-response-details-shards-usage]]
+[[health-api-response-details-shards-capacity]]
 ===== shards_capacity
 `data`::
 (map) A view with information about the current capacity of shards for data nodes that do not belong to the frozen tier.

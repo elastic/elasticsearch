@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -71,7 +70,7 @@ public class Grok extends RegexExtract {
 
     public static Parser pattern(Source source, String pattern) {
         try {
-            Map<String, String> builtinPatterns = GrokBuiltinPatterns.get(true);
+            var builtinPatterns = GrokBuiltinPatterns.get(true);
             org.elasticsearch.grok.Grok grok = new org.elasticsearch.grok.Grok(builtinPatterns, pattern, logger::warn);
             return new Parser(pattern, grok);
         } catch (IllegalArgumentException e) {

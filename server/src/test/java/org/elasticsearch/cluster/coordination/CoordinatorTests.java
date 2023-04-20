@@ -123,6 +123,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testUnhealthyNodesGetsRemoved() {
+        testUnhealthyNodesGetsRemoved(true);
+    }
+
+    protected void testUnhealthyNodesGetsRemoved(boolean verifyVotingConfiguration) {
         AtomicReference<StatusInfo> healthStatusInfo = new AtomicReference<>(new StatusInfo(HEALTHY, "healthy-info"));
         try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();
@@ -148,7 +152,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     + 2 * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY
             );
 
-            {
+            if (verifyVotingConfiguration) {
                 assertThat(leader.coordinator.getMode(), is(Mode.LEADER));
                 final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
                 assertThat(
@@ -190,7 +194,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     // then wait for the followup reconfiguration
                     + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
             );
-            {
+
+            if (verifyVotingConfiguration) {
                 final ClusterNode newLeader = cluster.getAnyLeader();
                 final VotingConfiguration lastCommittedConfiguration = newLeader.getLastAppliedClusterState()
                     .getLastCommittedConfiguration();

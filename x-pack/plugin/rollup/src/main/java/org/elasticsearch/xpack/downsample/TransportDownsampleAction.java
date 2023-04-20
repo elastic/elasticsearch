@@ -258,9 +258,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             if (dimensionFields.isEmpty()) {
                 validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
             }
-            if (metricFields.isEmpty()) {
-                validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any metric fields");
-            }
 
             if (validationException.validationErrors().isEmpty() == false) {
                 listener.onFailure(validationException);

@@ -17,9 +17,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInputTests;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigTests;
@@ -65,6 +70,35 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         );
 
         assertEquals(inferenceConfig, parsedInferenceConfig);
+    }
+
+    public void testSetTrainedModelConfigFieldsFromPackagedModel() throws IOException {
+        ModelPackageConfig packageConfig = ModelPackageConfigTests.randomModulePackageConfig();
+
+        TrainedModelConfig.Builder trainedModelConfigBuilder = new TrainedModelConfig.Builder().setModelId(
+            "." + packageConfig.getPackagedModelId()
+        ).setInput(TrainedModelInputTests.createRandomInput());
+
+        TransportPutTrainedModelAction.setTrainedModelConfigFieldsFromPackagedModel(
+            trainedModelConfigBuilder,
+            packageConfig,
+            xContentRegistry()
+        );
+
+        TrainedModelConfig trainedModelConfig = trainedModelConfigBuilder.build();
+
+        assertEquals(packageConfig.getModelType(), trainedModelConfig.getModelType().toString());
+        assertEquals(packageConfig.getDescription(), trainedModelConfig.getDescription());
+        assertEquals(packageConfig.getMetadata(), trainedModelConfig.getMetadata());
+        assertEquals(packageConfig.getTags(), trainedModelConfig.getTags());
+
+        // fully tested in {@link #testParseInferenceConfigFromModelPackage}
+        assertNotNull(trainedModelConfig.getInferenceConfig());
+
+        assertEquals(
+            TrainedModelType.fromString(packageConfig.getModelType()).getDefaultLocation(trainedModelConfig.getModelId()),
+            trainedModelConfig.getLocation()
+        );
     }
 
     @Override

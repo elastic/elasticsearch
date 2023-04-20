@@ -134,6 +134,10 @@ public class RedactProcessor extends AbstractProcessor {
         return groks;
     }
 
+    boolean getSkipIfUnlicensed() {
+        return skipIfUnlicensed;
+    }
+
     // exposed for testing
     static String matchRedact(String fieldValue, List<Grok> groks) {
         return matchRedact(fieldValue, groks, DEFAULT_REDACTED_START, DEFAULT_REDACTED_END);

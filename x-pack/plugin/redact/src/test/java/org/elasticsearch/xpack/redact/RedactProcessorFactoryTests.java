@@ -32,6 +32,12 @@ public class RedactProcessorFactoryTests extends ESTestCase {
         return licenseState;
     }
 
+    private static XPackLicenseState mockNotAllowedLicenseState() {
+        MockLicenseState licenseState = TestUtils.newMockLicenceState();
+        when(licenseState.isAllowed(RedactProcessor.REDACT_PROCESSOR_FEATURE)).thenReturn(false);
+        return licenseState;
+    }
+
     public void testPatternNotSet() {
         RedactProcessor.Factory factory = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop());
 
@@ -68,4 +74,33 @@ public class RedactProcessorFactoryTests extends ESTestCase {
         assertThat(config.entrySet(), hasSize(1));
         assertEquals("unused", config.get("extra"));
     }
+
+    public void testSkipIfUnlicensed() throws Exception {
+        {
+            Map<String, Object> config = new HashMap<>();
+            config.put("field", "_field");
+            config.put("patterns", List.of("%{MY_PATTERN:name}!"));
+            config.put("pattern_definitions", Map.of("MY_PATTERN", "foo"));
+
+            // the default value for skip_if_unlicensed is true, and so the license state doesn't matter
+            XPackLicenseState licenseState = randomBoolean() ? mockLicenseState() : mockNotAllowedLicenseState();
+            RedactProcessor.Factory factory = new RedactProcessor.Factory(licenseState, MatcherWatchdog.noop());
+            RedactProcessor processor = factory.create(null, null, null, config);
+            assertThat(processor.getSkipIfUnlicensed(), equalTo(true));
+        }
+
+        {
+            Map<String, Object> config = new HashMap<>();
+            config.put("field", "_field");
+            config.put("patterns", List.of("%{MY_PATTERN:name}!"));
+            config.put("pattern_definitions", Map.of("MY_PATTERN", "foo"));
+
+            // but it can be set to false if you wish, in which case the license check must pass
+            config.put("skip_if_unlicensed", false);
+            RedactProcessor.Factory factory = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop());
+            RedactProcessor processor = factory.create(null, null, null, config);
+            assertThat(processor.getSkipIfUnlicensed(), equalTo(false));
+        }
+    }
+
 }

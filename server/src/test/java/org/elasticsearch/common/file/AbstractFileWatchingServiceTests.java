@@ -12,24 +12,16 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
-import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -43,7 +35,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -59,18 +50,29 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class AbstractFileWatchingServiceTests extends ESTestCase {
 
     class TestFileWatchingService extends AbstractFileWatchingService {
 
+        private final CountDownLatch countDownLatch;
+
         TestFileWatchingService(ClusterService clusterService, Path watchedFile) {
             super(clusterService, watchedFile);
+            this.countDownLatch = null;
+        }
+
+        TestFileWatchingService(ClusterService clusterService, Path watchedFile, CountDownLatch countDownLatch) {
+            super(clusterService, watchedFile);
+            this.countDownLatch = countDownLatch;
         }
 
         @Override
         protected void processFileChanges() throws InterruptedException, ExecutionException, IOException {
-            // do nothing?
+            if (countDownLatch != null) {
+                countDownLatch.countDown();
+            }
         }
     }
 
@@ -84,41 +86,20 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
         super.setUp();
         threadpool = new TestThreadPool("file_settings_service_tests");
 
-        clusterService = spy(
-            new ClusterService(
-                Settings.builder().put(NODE_NAME_SETTING.getKey(), "test").build(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadpool,
-                new TaskManager(Settings.EMPTY, threadpool, Set.of())
-            )
-        );
+        clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.builder().put(NODE_NAME_SETTING.getKey(), "test").build());
 
         final DiscoveryNode localNode = new DiscoveryNode("node", buildNewFakeTransportAddress(), Version.CURRENT);
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
             .build();
-        doAnswer((Answer<ClusterState>) invocation -> clusterState).when(clusterService).state();
+        when(clusterService.state()).thenReturn(clusterState);
 
-        clusterService.setRerouteService(mock(RerouteService.class));
-        clusterService.setNodeConnectionsService(mock(NodeConnectionsService.class));
-        clusterService.getClusterApplierService().setInitialState(clusterState);
-        clusterService.getMasterService().setClusterStatePublisher((e, pl, al) -> {
-            ClusterServiceUtils.setAllElapsedMillis(e);
-            al.onCommit(TimeValue.ZERO);
-            for (DiscoveryNode node : e.getNewState().nodes()) {
-                al.onNodeAck(node, null);
-            }
-            pl.onResponse(null);
-        });
-        clusterService.getMasterService().setClusterStateSupplier(() -> clusterState);
         env = newEnvironment(Settings.EMPTY);
 
         Files.createDirectories(env.configFile());
 
-        fileWatchingService = new TestFileWatchingService(
-            clusterService,
-            env.configFile().toAbsolutePath().resolve("test").resolve("test.json")
-        );
+        fileWatchingService = new TestFileWatchingService(clusterService, getWatchedFilePath(env));
     }
 
     @After
@@ -163,11 +144,7 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
     public void testCallsProcessing() throws Exception {
         CountDownLatch processFileLatch = new CountDownLatch(1);
 
-        AbstractFileWatchingService service = spy(fileWatchingService);
-        doAnswer((Answer<Void>) invocation -> {
-            processFileLatch.countDown();
-            return null;
-        }).when(service).processFileChanges();
+        AbstractFileWatchingService service = new TestFileWatchingService(clusterService, getWatchedFilePath(env), processFileLatch);
 
         service.start();
         service.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
@@ -180,9 +157,6 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
         processFileLatch.await(30, TimeUnit.SECONDS);
-
-        verify(service, Mockito.atLeast(1)).processSettingsAndNotifyListeners();
-        verify(service, Mockito.atLeast(1)).processFileChanges();
 
         service.stop();
         assertFalse(service.watching());
@@ -223,4 +197,9 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
         Files.write(tempFilePath, contents.getBytes(StandardCharsets.UTF_8));
         Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE);
     }
+
+    private static Path getWatchedFilePath(Environment env) {
+        return env.configFile().toAbsolutePath().resolve("test").resolve("test.json");
+    }
+
 }

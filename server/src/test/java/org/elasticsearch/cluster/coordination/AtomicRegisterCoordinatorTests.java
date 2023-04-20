@@ -53,12 +53,6 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
     @Override
     @AwaitsFix(bugUrl = "ES-5645")
-    public void testUnhealthyLeaderIsReplaced() {
-        // In this test the leader still has access to the register, therefore it is still considered as a leader.
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
     public void testLogsWarningPeriodicallyIfClusterNotFormed() {
         // All nodes have access to the register, therefore it's possible to form a single-node cluster
     }

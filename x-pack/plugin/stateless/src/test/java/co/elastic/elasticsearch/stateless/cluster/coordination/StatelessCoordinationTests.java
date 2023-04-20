@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.stateless.AtomicRegisterPreVoteCollector;
+import org.elasticsearch.cluster.coordination.stateless.DisruptibleHeartbeatStore;
 import org.elasticsearch.cluster.coordination.stateless.Heartbeat;
 import org.elasticsearch.cluster.coordination.stateless.HeartbeatStore;
 import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator;
@@ -119,23 +120,10 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
                 }
             };
             final var heartbeatFrequency = HEARTBEAT_FREQUENCY.get(settings);
-            final var storeHeartbeatService = new StoreHeartbeatService(new HeartbeatStore() {
+            final var storeHeartbeatService = new StoreHeartbeatService(new DisruptibleHeartbeatStore(heartBeatStore) {
                 @Override
-                public void writeHeartbeat(Heartbeat newHeartbeat, ActionListener<Void> listener) {
-                    if (isDisruptedSupplier.getAsBoolean()) {
-                        listener.onFailure(new IOException("simulating disrupted access to shared store"));
-                    } else {
-                        heartBeatStore.writeHeartbeat(newHeartbeat, listener);
-                    }
-                }
-
-                @Override
-                public void readLatestHeartbeat(ActionListener<Heartbeat> listener) {
-                    if (isDisruptedSupplier.getAsBoolean()) {
-                        listener.onFailure(new IOException("simulating disrupted access to shared store"));
-                    } else {
-                        heartBeatStore.readLatestHeartbeat(listener);
-                    }
+                protected boolean isDisrupted() {
+                    return isDisruptedSupplier.getAsBoolean();
                 }
             },
                 threadPool,

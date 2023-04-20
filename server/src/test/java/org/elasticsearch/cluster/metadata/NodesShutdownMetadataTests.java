@@ -127,7 +127,7 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
             .setStartedAtMillis(randomNonNegativeLong());
         if (type.equals(SingleNodeShutdownMetadata.Type.RESTART) && randomBoolean()) {
             builder.setAllocationDelay(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
-        } else if (type.equals(SingleNodeShutdownMetadata.Type.REPLACE)) {
+        } else if (type.equals(SingleNodeShutdownMetadata.Type.REPLACE) || type.equals(SingleNodeShutdownMetadata.Type.SIGTERM)) {
             builder.setTargetNodeName(randomAlphaOfLengthBetween(5, 10));
         }
         return builder.setNodeSeen(randomBoolean()).build();

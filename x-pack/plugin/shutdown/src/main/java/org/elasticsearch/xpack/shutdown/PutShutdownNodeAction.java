@@ -155,7 +155,8 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
                 arve.addValidationError(ALLOCATION_DELAY_FIELD + " is only allowed for RESTART-type shutdown requests");
             }
 
-            if (targetNodeName != null && type != SingleNodeShutdownMetadata.Type.REPLACE) {
+            if (targetNodeName != null
+                && (type == SingleNodeShutdownMetadata.Type.REPLACE || type == SingleNodeShutdownMetadata.Type.SIGTERM) == false) {
                 arve.addValidationError(
                     format(
                         "target node name is only valid for REPLACE type shutdowns, but was given type [%s] and target node name [%s]",
@@ -163,9 +164,10 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
                         targetNodeName
                     )
                 );
-            } else if (targetNodeName == null && type == SingleNodeShutdownMetadata.Type.REPLACE) {
-                arve.addValidationError("target node name is required for REPLACE type shutdowns");
-            }
+            } else if (targetNodeName == null
+                && (type == SingleNodeShutdownMetadata.Type.REPLACE || type == SingleNodeShutdownMetadata.Type.SIGTERM)) {
+                    arve.addValidationError("target node name is required for REPLACE type shutdowns");
+                }
 
             if (arve.validationErrors().isEmpty() == false) {
                 return arve;

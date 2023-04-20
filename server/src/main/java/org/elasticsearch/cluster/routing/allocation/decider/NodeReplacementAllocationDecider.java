@@ -185,7 +185,8 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
         }
         final SingleNodeShutdownMetadata shutdown = allocation.metadata().nodeShutdowns().get(sourceNodeId);
         return shutdown != null
-            && shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE)
+            && (shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE)
+                || shutdown.getType().equals(SingleNodeShutdownMetadata.Type.SIGTERM))
             && shutdown.getNodeId().equals(sourceNodeId)
             && shutdown.getTargetNodeName().equals(targetNodeName);
     }
@@ -198,7 +199,9 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             return false;
         }
         final SingleNodeShutdownMetadata shutdown = allocation.metadata().nodeShutdowns().get(nodeId);
-        return shutdown != null && shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE);
+        return shutdown != null
+            && (shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE)
+                || shutdown.getType().equals(SingleNodeShutdownMetadata.Type.SIGTERM));
     }
 
     /**
@@ -216,7 +219,10 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
             return null;
         }
         return Optional.ofNullable(allocation.metadata().nodeShutdowns().get(nodeIdBeingReplaced))
-            .filter(shutdown -> shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE))
+            .filter(
+                shutdown -> shutdown.getType().equals(SingleNodeShutdownMetadata.Type.REPLACE)
+                    || shutdown.getType().equals(SingleNodeShutdownMetadata.Type.SIGTERM)
+            )
             .map(SingleNodeShutdownMetadata::getTargetNodeName)
             .orElse(null);
     }

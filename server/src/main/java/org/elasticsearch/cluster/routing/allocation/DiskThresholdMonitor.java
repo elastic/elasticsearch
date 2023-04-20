@@ -375,7 +375,10 @@ public class DiskThresholdMonitor {
                 .nodeShutdowns()
                 .values()
                 .stream()
-                .filter(meta -> meta.getType() == SingleNodeShutdownMetadata.Type.REPLACE)
+                .filter(
+                    meta -> (meta.getType() == SingleNodeShutdownMetadata.Type.REPLACE
+                        || meta.getType() == SingleNodeShutdownMetadata.Type.SIGTERM)
+                )
                 .flatMap(meta -> Stream.of(meta.getNodeId(), nodeNameToId.get(meta.getTargetNodeName())))
                 .filter(Objects::nonNull)  // The REPLACE target node might not still be in RoutingNodes
                 .collect(Collectors.toSet());

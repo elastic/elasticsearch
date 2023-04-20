@@ -112,7 +112,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             throw new IllegalArgumentException("shard allocation delay is only valid for RESTART-type shutdowns");
         }
         this.allocationDelay = allocationDelay;
-        if (targetNodeName != null && type != Type.REPLACE) {
+        if (targetNodeName != null && ((type == Type.REPLACE || type == Type.SIGTERM) == false)) {
             throw new IllegalArgumentException(
                 format(
                     "target node name is only valid for REPLACE type shutdowns, but was given type [%s] and target node name [%s]",
@@ -120,7 +120,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
                     targetNodeName
                 )
             );
-        } else if (Strings.hasText(targetNodeName) == false && type == Type.REPLACE) {
+        } else if (Strings.hasText(targetNodeName) == false && (type == Type.REPLACE || type == Type.SIGTERM)) {
             throw new IllegalArgumentException("target node name is required for REPLACE type shutdowns");
         }
         this.targetNodeName = targetNodeName;
@@ -380,7 +380,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     public enum Type {
         REMOVE,
         RESTART,
-        REPLACE;
+        REPLACE,
+        SIGTERM;
 
         public static Type parse(String type) {
             if ("remove".equals(type.toLowerCase(Locale.ROOT))) {
@@ -389,6 +390,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
                 return RESTART;
             } else if ("replace".equals(type.toLowerCase(Locale.ROOT))) {
                 return REPLACE;
+            } else if ("sigterm".equals(type.toLowerCase(Locale.ROOT))) {
+                return SIGTERM;
             } else {
                 throw new IllegalArgumentException("unknown shutdown type: " + type);
             }

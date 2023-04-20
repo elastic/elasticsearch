@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
@@ -30,7 +32,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeSt
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,6 +50,8 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
     public static final ParseField PIPELINE_COUNT = new ParseField("pipeline_count");
     public static final ParseField INFERENCE_STATS = new ParseField("inference_stats");
     public static final ParseField DEPLOYMENT_STATS = new ParseField("deployment_stats");
+
+    private static final Logger logger = LogManager.getLogger(GetTrainedModelsStatsAction.class);
 
     private GetTrainedModelsStatsAction() {
         super(NAME, GetTrainedModelsStatsAction.Response::new);
@@ -276,36 +279,91 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
              * @param assignmentStatsMap map of model_id to assignment stats
              * @return the builder with inference stats map updated and assignment stats map set
              */
-            public Builder setDeploymentStatsByModelId(Map<String, AssignmentStats> assignmentStatsMap) {
+            public Builder setDeploymentStatsByDeploymentId(Map<String, AssignmentStats> assignmentStatsMap) {
                 this.assignmentStatsMap = assignmentStatsMap;
+                return this;
+            }
+
+            public Response build(Map<String, Set<String>> modelToDeploymentIds) {
+                int numResponses = expandedIdsWithAliases.size();
+                // plus an extra response for every deployment after
+                // the first per model
+                for (var entry : modelToDeploymentIds.entrySet()) {
+                    assert expandedIdsWithAliases.containsKey(entry.getKey()); // model id
+                    assert entry.getValue().size() > 0; // must have a deployment
+                    numResponses += entry.getValue().size() - 1;
+                }
+
                 if (inferenceStatsMap == null) {
                     inferenceStatsMap = Maps.newHashMapWithExpectedSize(assignmentStatsMap.size());
                 }
                 assignmentStatsMap.forEach(
                     (modelId, assignmentStats) -> inferenceStatsMap.put(modelId, assignmentStats.getOverallInferenceStats())
                 );
-                return this;
-            }
 
-            public Response build() {
-                List<TrainedModelStats> trainedModelStats = new ArrayList<>(expandedIdsWithAliases.size());
-                expandedIdsWithAliases.keySet().forEach(id -> {
-                    TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.get(id);
-                    IngestStats ingestStats = ingestStatsMap.get(id);
-                    InferenceStats inferenceStats = inferenceStatsMap.get(id);
-                    AssignmentStats assignmentStats = assignmentStatsMap.get(id);
-                    trainedModelStats.add(
-                        new TrainedModelStats(
-                            id,
-                            modelSizeStats,
-                            ingestStats,
-                            ingestStats == null ? 0 : ingestStats.getPipelineStats().size(),
-                            inferenceStats,
-                            assignmentStats
-                        )
-                    );
+                List<TrainedModelStats> trainedModelStats = new ArrayList<>(numResponses);
+                expandedIdsWithAliases.keySet().forEach(modelId -> {
+                    if (modelToDeploymentIds.containsKey(modelId) == false) { // not deployed
+                        TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.get(modelId);
+                        IngestStats ingestStats = ingestStatsMap.get(modelId);
+                        InferenceStats inferenceStats = inferenceStatsMap.get(modelId);
+                        trainedModelStats.add(
+                            new TrainedModelStats(
+                                modelId,
+                                modelSizeStats,
+                                ingestStats,
+                                ingestStats == null ? 0 : ingestStats.getPipelineStats().size(),
+                                inferenceStats,
+                                null // no assignment stats for undeployed models
+                            )
+                        );
+                    } else {
+                        for (var deploymentId : modelToDeploymentIds.get(modelId)) {
+                            AssignmentStats assignmentStats = assignmentStatsMap.get(deploymentId);
+                            if (assignmentStats == null) {
+                                logger.info("no stats for deployment [{}]", deploymentId);
+                                continue;
+                            }
+                            logger.info("stats for deployment [{}]", deploymentId);
+                            InferenceStats inferenceStats = assignmentStats.getOverallInferenceStats();
+                            IngestStats ingestStats = ingestStatsMap.get(deploymentId);
+                            if (ingestStats == null) {
+                                // look up by model id
+                                ingestStats = ingestStatsMap.get(modelId);
+                            }
+                            TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.get(modelId);
+                            trainedModelStats.add(
+                                new TrainedModelStats(
+                                    modelId,
+                                    modelSizeStats,
+                                    ingestStats,
+                                    ingestStats == null ? 0 : ingestStats.getPipelineStats().size(),
+                                    inferenceStats,
+                                    assignmentStats
+                                )
+                            );
+                        }
+                    }
                 });
-                trainedModelStats.sort(Comparator.comparing(TrainedModelStats::getModelId));
+
+                // Sort first by model id then by deployment id
+                trainedModelStats.sort((modelStats1, modelStats2) -> {
+                    var comparison = modelStats1.getModelId().compareTo(modelStats2.getModelId());
+                    if (comparison == 0) {
+                        var deploymentId1 = modelStats1.getDeploymentStats() == null
+                            ? null
+                            : modelStats1.getDeploymentStats().getDeploymentId();
+                        var deploymentId2 = modelStats2.getDeploymentStats() == null
+                            ? null
+                            : modelStats1.getDeploymentStats().getDeploymentId();
+
+                        assert deploymentId1 != null && deploymentId2 != null
+                            : "2 results for model " + modelStats1.getModelId() + " both should have deployment stats";
+
+                        comparison = deploymentId1.compareTo(deploymentId2);
+                    }
+                    return comparison;
+                });
                 return new Response(new QueryPage<>(trainedModelStats, totalModelCount, RESULTS_FIELD));
             }
         }

@@ -190,6 +190,11 @@ public abstract class MappedFieldType {
         return false;
     }
 
+    /**
+     * @return a list of dimension fields. Expected to be used by fields that have
+     * nested fields or that, in some way, identify a collection of fields by means
+     * of a top level field (like flattened fields).
+     */
     public List<String> dimensions() {
         return Collections.emptyList();
     }

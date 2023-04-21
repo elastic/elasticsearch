@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.ClusterStateUpdaters;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -120,8 +122,63 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         }
     }
 
+    @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.cluster.coordination:WARN")
+    public void testWarnLoggingOnRegisterFailures() {
+        try (Cluster cluster = new Cluster(1)) {
+            final var coordinatorStrategy = (AtomicRegisterCoordinatorStrategy) cluster.getCoordinatorStrategy();
+            cluster.runRandomly();
+            cluster.stabilise();
+            final var clusterNode = cluster.getAnyLeader();
+
+            final var mockAppender = new MockLogAppender();
+            try (var ignored = mockAppender.capturing(Coordinator.class, Coordinator.CoordinatorPublication.class)) {
+
+                clusterNode.disconnect();
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "write heartbeat failure",
+                        Coordinator.class.getCanonicalName(),
+                        Level.WARN,
+                        "failed to write heartbeat for term [" + clusterNode.coordinator.getCurrentTerm() + "]"
+                    )
+                );
+                cluster.runFor(HEARTBEAT_FREQUENCY.get(Settings.EMPTY).millis(), "warnings");
+                mockAppender.assertAllExpectationsMatched();
+                clusterNode.heal();
+
+                coordinatorStrategy.disruptElections = true;
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "acquire term failure",
+                        Coordinator.class.getCanonicalName(),
+                        Level.WARN,
+                        "election attempt for [*] in term [" + (clusterNode.coordinator.getCurrentTerm() + 1) + "] failed"
+                    )
+                );
+                cluster.runFor(DEFAULT_ELECTION_DELAY, "warnings");
+                mockAppender.assertAllExpectationsMatched();
+                coordinatorStrategy.disruptElections = false;
+
+                coordinatorStrategy.disruptPublications = true;
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "verify term failure",
+                        Coordinator.CoordinatorPublication.class.getCanonicalName(),
+                        Level.WARN,
+                        "publication of cluster state version [*] in term [*] failed to commit after reaching quorum"
+                    )
+                );
+                cluster.runFor(DEFAULT_ELECTION_DELAY + DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "publication warnings");
+                mockAppender.assertAllExpectationsMatched();
+                coordinatorStrategy.disruptPublications = false;
+            }
+
+            cluster.stabilise();
+        }
+    }
+
     @Override
-    protected CoordinatorStrategy getCoordinatorStrategy() {
+    protected CoordinatorStrategy createCoordinatorStrategy() {
         return new AtomicRegisterCoordinatorStrategy();
     }
 
@@ -129,6 +186,8 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         private final AtomicLong currentTermRef = new AtomicLong();
         private final AtomicReference<Heartbeat> heartBeatRef = new AtomicReference<>();
         private final SharedStore sharedStore = new SharedStore();
+        private boolean disruptElections;
+        private boolean disruptPublications;
 
         @Override
         public CoordinationServices getCoordinationServices(
@@ -152,7 +211,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 listener -> ActionListener.completeWith(listener, () -> OptionalLong.of(atomicRegister.readCurrentTerm()))
             );
             var reconfigurator = new SingleNodeReconfigurator(settings, clusterSettings);
-            var electionStrategy = new AtomicRegisterElectionStrategy(atomicRegister);
+            var electionStrategy = new AtomicRegisterElectionStrategy(atomicRegister, () -> disruptElections, () -> disruptPublications);
             return new CoordinationServices() {
                 @Override
                 public ElectionStrategy getElectionStrategy() {
@@ -208,9 +267,17 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
     static class AtomicRegisterElectionStrategy extends ElectionStrategy {
         private final AtomicRegister register;
+        private final BooleanSupplier disruptElectionsSupplier;
+        private final BooleanSupplier disruptPublicationsSupplier;
 
-        AtomicRegisterElectionStrategy(AtomicRegister register) {
+        AtomicRegisterElectionStrategy(
+            AtomicRegister register,
+            BooleanSupplier disruptElectionsSupplier,
+            BooleanSupplier disruptPublicationsSupplier
+        ) {
             this.register = register;
+            this.disruptElectionsSupplier = disruptElectionsSupplier;
+            this.disruptPublicationsSupplier = disruptPublicationsSupplier;
         }
 
         @Override
@@ -258,6 +325,10 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         @Override
         public void onNewElection(DiscoveryNode localNode, long proposedTerm, ActionListener<StartJoinRequest> listener) {
             ActionListener.completeWith(listener, () -> {
+                if (disruptElectionsSupplier.getAsBoolean()) {
+                    throw new IOException("simulating failure to acquire term during election");
+                }
+
                 final var currentTerm = register.readCurrentTerm();
                 final var electionTerm = Math.max(proposedTerm, currentTerm + 1);
                 final var witness = register.compareAndExchange(currentTerm, electionTerm);
@@ -282,6 +353,10 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         public void beforeCommit(long term, long version, ActionListener<Void> listener) {
             // TODO: add a test to ensure that this gets called
             ActionListener.completeWith(listener, () -> {
+                if (disruptPublicationsSupplier.getAsBoolean()) {
+                    throw new IOException("simulating failure to verify term during publication");
+                }
+
                 final var currentTerm = register.readCurrentTerm();
                 if (currentTerm == term) {
                     return null;

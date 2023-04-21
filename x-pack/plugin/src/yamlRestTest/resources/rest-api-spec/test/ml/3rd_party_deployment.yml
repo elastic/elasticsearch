@@ -460,6 +460,14 @@ setup:
               { "input": "words" }
             ]
           }
+  - do:
+      ml.get_trained_models_stats:
+        model_id: test_model
+  - match: { count: 1 } # one model matched
+  - match: { trained_model_stats.0.model_id: test_model }
+  - match: { trained_model_stats.0.deployment_stats.deployment_id: test_model_for_ingest }
+  - match: { trained_model_stats.1.model_id: test_model }
+  - match: { trained_model_stats.1.deployment_stats.deployment_id: test_model_for_search }
 
   - do:
       ml.stop_trained_model_deployment:

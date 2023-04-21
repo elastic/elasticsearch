@@ -48,7 +48,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
+import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
 public class SearchDirectory extends BaseDirectory {
@@ -90,7 +90,7 @@ public class SearchDirectory extends BaseDirectory {
 
     private final SharedBlobCacheService<FileCacheKey> cacheService;
 
-    private final SetOnce<Supplier<BlobContainer>> blobContainer = new SetOnce<>();
+    private final SetOnce<LongFunction<BlobContainer>> blobContainer = new SetOnce<>();
 
     private final AtomicReference<String> corruptionMarker = new AtomicReference<>();
 
@@ -104,8 +104,23 @@ public class SearchDirectory extends BaseDirectory {
         this.shardId = shardId;
     }
 
-    public void setBlobContainer(Supplier<BlobContainer> blobContainer) {
+    public void setBlobContainer(LongFunction<BlobContainer> blobContainer) {
         this.blobContainer.set(blobContainer);
+    }
+
+    public boolean containsFile(String name) {
+        if (currentMetadata.isEmpty()) {
+            try {
+                for (String s : EMPTY_COMMIT_DIRECTORY.listAll()) {
+                    if (name.equals(s)) {
+                        return true;
+                    }
+                }
+            } catch (IOException e) {
+                throw new AssertionError("never throws");
+            }
+        }
+        return currentMetadata.containsKey(name);
     }
 
     public boolean isMarkedAsCorrupted() {
@@ -226,7 +241,7 @@ public class SearchDirectory extends BaseDirectory {
             name,
             cacheService.getCacheFile(new FileCacheKey(shardId, location.blobName()), location.offset() + location.length()),
             context,
-            blobContainer.get().get(),
+            blobContainer.get().apply(location.primaryTerm()),
             cacheService,
             location.length(),
             location.offset()
@@ -243,8 +258,8 @@ public class SearchDirectory extends BaseDirectory {
         throw unsupportedException();
     }
 
-    public BlobContainer getBlobContainer() {
-        return blobContainer.get().get();
+    public BlobContainer getBlobContainer(long primaryTerm) {
+        return blobContainer.get().apply(primaryTerm);
     }
 
     private static UnsupportedOperationException unsupportedException() {

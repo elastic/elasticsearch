@@ -487,7 +487,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     () -> IOUtils.close(reference, releasable)
                 );
 
-                final BlobContainer blobContainer = SearchDirectory.unwrapDirectory(reference.getDirectory()).getBlobContainer();
+                final BlobContainer blobContainer = SearchDirectory.unwrapDirectory(reference.getDirectory())
+                    .getBlobContainer(reference.getPrimaryTerm());
                 final Consumer<FileUploadTask.Result> addResult = r -> {
                     successCount.incrementAndGet();
                     successSize.addAndGet(r.length());

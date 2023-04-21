@@ -121,20 +121,17 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
     public void testRecoverIndexingShard() throws Exception {
 
         var indexingNode1 = startIndexNode();
+        startSearchNode();
 
         var indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            Settings.builder() //
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1) //
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) //
-                .build()
-        );
+        createIndex(indexName, 1, 1);
         ensureGreen(indexName);
 
-        int numDocs = randomIntBetween(1, 100);
-        indexDocs(indexName, numDocs);
+        int numDocsRound1 = randomIntBetween(1, 100);
+        indexDocs(indexName, numDocsRound1);
         refresh(indexName);
+
+        assertHitCount(client().prepareSearch(indexName).get(), numDocsRound1);
 
         if (randomBoolean()) {
             internalCluster().restartNode(indexingNode1);
@@ -144,6 +141,11 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         }
 
         ensureGreen(indexName);
+
+        int numDocsRound2 = randomIntBetween(1, 100);
+        indexDocs(indexName, numDocsRound2);
+        refresh(indexName);
+        assertHitCount(client().prepareSearch(indexName).get(), numDocsRound1 + numDocsRound2);
     }
 
     public void testRecoverSearchShard() throws IOException {

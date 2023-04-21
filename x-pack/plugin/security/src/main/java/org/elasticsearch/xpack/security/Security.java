@@ -1660,7 +1660,7 @@ public class Security extends Plugin
                 // anything after the try block (though, in practice, nothing interesting ought to happen after a code that called in
                 // a listener) . "Stashing" is a generic way to also guard against any pre-existent context, by setting
                 // a default/empty context (empty with some caveats that should not matter here), before entering the `try` block.
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
                     assert threadContext.isDefaultContext();
                     // step 3: Populate the thread context with credentials and any other HTTP request header values that the
                     // authentication process looks for while doing its duty.

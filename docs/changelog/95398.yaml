@@ -1,7 +1,7 @@
 pr: 95398
 summary: GA release of the JWT realm
 area: Authentication
-type: docs
+type: feature
 issues: []
 highlight:
   title: GA release of the JWT realm

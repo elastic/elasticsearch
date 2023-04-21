@@ -1,10 +1,12 @@
 ---
 "cluster health basic test":
   - skip:
-      version: all
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/90183"
-      # version: "- 8.3.99"
-      # reason: "health was only added in 8.2.0, and master_is_stable in 8.4.0"
+       version: "- 8.6.99"
+       reason: "the API path changed in 8.7"
+
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       health_report: { }

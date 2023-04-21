@@ -74,7 +74,7 @@ public class ParallelDetector {
                     ? "hw.perflevel0.physicalcpu"
                     : "hw.physicalcpu";
 
-                project.exec(spec -> {
+                project.getProviders().exec(spec -> {
                     spec.setExecutable("sysctl");
                     spec.args("-n", query);
                     spec.setStandardOutput(stdout);

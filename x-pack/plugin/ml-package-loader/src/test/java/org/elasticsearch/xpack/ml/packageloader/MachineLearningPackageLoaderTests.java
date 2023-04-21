@@ -38,7 +38,10 @@ public class MachineLearningPackageLoaderTests extends ESTestCase {
             () -> MachineLearningPackageLoader.validateModelRepository("elk/", PathUtils.get("/home/elk/elasticsearch"))
         );
 
-        assertEquals("xpack.ml.model_repository must contain a scheme, supported schemes are \"http\", \"https\", \"file\"", e.getMessage());
+        assertEquals(
+            "xpack.ml.model_repository must contain a scheme, supported schemes are \"http\", \"https\", \"file\"",
+            e.getMessage()
+        );
 
         e = expectThrows(
             IllegalArgumentException.class,

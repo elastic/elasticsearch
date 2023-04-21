@@ -86,7 +86,7 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
 
         if (Strings.isNullOrEmpty(baseUri.getScheme())) {
             throw new IllegalArgumentException(
-                "xpack.ml.model_repository must contain a scheme, possible schemes are \"http\", \"https\", \"file\""
+                "xpack.ml.model_repository must contain a scheme, supported schemes are \"http\", \"https\", \"file\""
             );
         }
 

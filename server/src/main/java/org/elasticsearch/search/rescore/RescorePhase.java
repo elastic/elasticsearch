@@ -21,6 +21,8 @@ import java.io.IOException;
  */
 public class RescorePhase {
 
+    private RescorePhase() {}
+
     public static void execute(SearchContext context) {
         if (context.size() == 0 || context.collapse() != null || context.rescore() == null || context.rescore().isEmpty()) {
             return;

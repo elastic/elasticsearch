@@ -53,8 +53,13 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
         String eventCollectionName();
 
         default AnalyticsCollection analyticsCollection() {
+            // TODO: remove. Only used in tests.
             return new AnalyticsCollection(eventCollectionName());
         }
+
+        // TODO: Add clientIp method
+        // TODO: Add headers method
+        // TODO: Move the interface to the package (renamed into AnalyticsContext)
     }
 
     /**

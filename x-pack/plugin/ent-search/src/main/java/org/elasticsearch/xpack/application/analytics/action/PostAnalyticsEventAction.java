@@ -53,11 +53,15 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         private final XContentType xContentType;
 
-        public Request(String eventCollectionName, String eventType, boolean debug, XContentType xContentType, BytesReference payload) {
+        // TODO: Remove: default value for time can be set into the builder
+        Request(String eventCollectionName, String eventType, boolean debug, XContentType xContentType, BytesReference payload) {
             this(eventCollectionName, eventType, debug, System.currentTimeMillis(), xContentType, payload);
         }
 
-        public Request(
+        // TODO:
+        // 1. Create a builder class
+        // 2. Add optional params for ip and headers
+        Request(
             String eventCollectionName,
             String eventType,
             boolean debug,

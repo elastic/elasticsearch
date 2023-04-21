@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -26,6 +25,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 
@@ -62,12 +62,12 @@ public class CrossClusterAccessAuthenticationService {
             return;
         }
 
-        if (getMinNodeVersion().before(RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+        if (getMinNodeVersion().before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             withRequestProcessingFailure(
                 authcContext,
                 new IllegalArgumentException(
                     "all nodes must have version ["
-                        + RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                        + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                         + "] or higher to support cross cluster requests through the dedicated remote cluster port"
                 ),
                 listener

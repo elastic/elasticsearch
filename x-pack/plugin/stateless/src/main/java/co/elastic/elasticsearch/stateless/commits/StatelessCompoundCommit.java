@@ -41,9 +41,13 @@ import java.util.stream.Collectors;
  * Represents a Lucene commit point with additional information required to manage this commit in the object store as well as locally. Such
  * objects are uploaded to the object store as binary blobs.
  */
-public record StatelessCompoundCommit(ShardId shardId, long generation, long primaryTerm, Map<String, BlobLocation> commitFiles)
-    implements
-        Writeable {
+public record StatelessCompoundCommit(
+    ShardId shardId,
+    long generation,
+    long primaryTerm,
+    String nodeEphemeralId,
+    Map<String, BlobLocation> commitFiles
+) implements Writeable {
 
     public static final String NAME = "stateless_commit_";
 
@@ -57,6 +61,7 @@ public record StatelessCompoundCommit(ShardId shardId, long generation, long pri
         shardId.writeTo(out);
         out.writeVLong(generation);
         out.writeVLong(primaryTerm);
+        out.writeString(nodeEphemeralId);
         out.writeMap(commitFiles, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
 
@@ -65,6 +70,7 @@ public record StatelessCompoundCommit(ShardId shardId, long generation, long pri
             new ShardId(in),
             in.readVLong(),
             in.readVLong(),
+            in.readString(),
             in.readImmutableMap(StreamInput::readString, BlobLocation::new)
         );
     }
@@ -74,6 +80,7 @@ public record StatelessCompoundCommit(ShardId shardId, long generation, long pri
         private final ShardId shardId;
         private final long generation;
         private final long primaryTerm;
+        private final String nodeEphemeralId;
 
         // Referenced blob files are files already stored in different blobs on the object store. We already
         // know the location, so we directly serialize the location. Internal files are files that
@@ -84,10 +91,11 @@ public record StatelessCompoundCommit(ShardId shardId, long generation, long pri
         private final Map<String, BlobLocation> referencedBlobFiles = new HashMap<>();
         private final List<InternalFile> internalFiles = new ArrayList<>();
 
-        public Writer(ShardId shardId, long generation, long primaryTerm) {
+        public Writer(ShardId shardId, long generation, long primaryTerm, String nodeEphemeralId) {
             this.shardId = shardId;
             this.generation = generation;
             this.primaryTerm = primaryTerm;
+            this.nodeEphemeralId = nodeEphemeralId;
         }
 
         public void addReferencedBlobFile(String name, BlobLocation location) {
@@ -126,6 +134,7 @@ public record StatelessCompoundCommit(ShardId shardId, long generation, long pri
             out.writeWriteable(shardId);
             out.writeVLong(generation);
             out.writeVLong(primaryTerm);
+            out.writeString(nodeEphemeralId);
             out.writeMap(referencedBlobFiles, StreamOutput::writeString, StreamOutput::writeWriteable);
             out.writeList(internalFiles);
             // Add 8 bytes for the header size field and 4 bytes for the checksum
@@ -152,7 +161,7 @@ public record StatelessCompoundCommit(ShardId shardId, long generation, long pri
                 referencedBlobFiles
             );
 
-            return new StatelessCompoundCommit(shardId, generation, primaryTerm, Collections.unmodifiableMap(commitFiles));
+            return new StatelessCompoundCommit(shardId, generation, primaryTerm, nodeEphemeralId, Collections.unmodifiableMap(commitFiles));
         }
     }
 
@@ -176,6 +185,7 @@ public record StatelessCompoundCommit(ShardId shardId, long generation, long pri
             ShardId shardId = new ShardId(in);
             long generation = in.readVLong();
             long primaryTerm = in.readVLong();
+            String nodeEphemeralId = in.readString();
             Map<String, BlobLocation> referencedBlobLocations = in.readMap(StreamInput::readString, BlobLocation::new);
             List<Writer.InternalFile> internalFiles = in.readList(Writer.InternalFile::new);
             long headerSize = in.readLong();
@@ -200,7 +210,7 @@ public record StatelessCompoundCommit(ShardId shardId, long generation, long pri
                 referencedBlobLocations
             );
 
-            return new StatelessCompoundCommit(shardId, generation, primaryTerm, Collections.unmodifiableMap(commitFiles));
+            return new StatelessCompoundCommit(shardId, generation, primaryTerm, nodeEphemeralId, Collections.unmodifiableMap(commitFiles));
         } catch (Exception e) {
             throw new IOException("Failed to read shard commit", e);
         }

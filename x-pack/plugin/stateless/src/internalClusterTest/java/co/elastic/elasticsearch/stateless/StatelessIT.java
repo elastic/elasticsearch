@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -63,6 +64,42 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class StatelessIT extends AbstractStatelessIntegTestCase {
+
+    public void testCompoundCommitHasNodeEphemeralId() throws Exception {
+        startMasterOnlyNode();
+
+        String indexNodeName = startIndexNodes(1).get(0);
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        ensureGreen(indexName);
+
+        indexDocuments(indexName);
+        // Force a flush if necessary to make sure we have at least one compound commit
+        flush(indexName);
+
+        assertObjectStoreConsistentWithIndexShards();
+
+        Index index = resolveIndex(indexName);
+        IndexShard indexShard = findShard(index, 0, DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
+        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeName);
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, indexNodeName);
+        var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
+        String commitFile = StatelessCompoundCommit.NAME + Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration();
+        assertThat("" + commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
+        StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
+            new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile))
+        );
+        assertThat(
+            "Expected that the compound commit has the ephemeral Id of the indexing node",
+            commit.nodeEphemeralId(),
+            equalTo(clusterService.localNode().getEphemeralId())
+        );
+    }
 
     public void testClusterCanFormWithStatelessEnabled() {
         startMasterOnlyNode();
@@ -129,7 +166,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
         // Check that the translog on the object store contains the correct sequence numbers and number of operations
         var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode.getName());
-        var reader = new TranslogReplicatorReader(indexObjectStoreService, shardId);
+        var reader = new TranslogReplicatorReader(indexObjectStoreService.getTranslogBlobContainer(), shardId);
         long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         long totalOps = 0;
         Translog.Operation next = reader.next();
@@ -164,6 +201,10 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             indexDocs(indexName, randomIntBetween(1, 100));
         }
 
+        assertReplicatedTranslogConsistentWithShards();
+    }
+
+    private static void assertReplicatedTranslogConsistentWithShards() throws Exception {
         final Map<Index, Integer> indices = resolveIndices();
         assertThat(indices.isEmpty(), is(false));
 
@@ -176,7 +217,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
                 // Check that the translog on the object store contains the correct sequence numbers and number of operations
                 var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode.getName());
-                var reader = new TranslogReplicatorReader(indexObjectStoreService, objShardId);
+                var reader = new TranslogReplicatorReader(indexObjectStoreService.getTranslogBlobContainer(), objShardId);
                 long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
                 long totalOps = 0;
                 Translog.Operation next = reader.next();

@@ -360,6 +360,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                             shardId,
                             indexCommitRef.getIndexCommit().getGeneration(),
                             primaryTerm,
+                            "fake_node_ephemeral_id",
                             store.getMetadata(indexCommitRef.getIndexCommit())
                                 .fileMetadataMap()
                                 .entrySet()

@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class StatelessCommitServiceTests extends ESTestCase {
 
-    private final StatelessCommitService commitService = new StatelessCommitService();
+    private final StatelessCommitService commitService = new StatelessCommitService(() -> "fake_node_ephemeral_id");
 
     public void testUploadFileOfUnregisteredShardThrowsExceptions() {
         ShardId shardId = new ShardId("index", "uuid", 0);

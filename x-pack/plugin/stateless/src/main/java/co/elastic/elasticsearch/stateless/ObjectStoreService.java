@@ -236,12 +236,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             );
     }
 
-    BlobContainer getTranslogBlobContainer(DiscoveryNode discoveryNode) {
-        final BlobStoreRepository objectStore = getObjectStore();
-        return objectStore.blobStore()
-            .blobContainer(objectStore.basePath().add("nodes").add(discoveryNode.getEphemeralId()).add("translog"));
-    }
-
     public BlobContainer getTermLeaseBlobContainer() {
         final BlobStoreRepository objectStore = getObjectStore();
         return objectStore.blobStore().blobContainer(objectStore.basePath().add("cluster_state"));
@@ -260,9 +254,17 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     /**
      * Gets the translog blob container of the local node
      */
-    public BlobContainer getLocalTranslogBlobContainer() {
+    public BlobContainer getTranslogBlobContainer() {
         final DiscoveryNode discoveryNode = clusterService.localNode();
-        return getTranslogBlobContainer(discoveryNode);
+        return getTranslogBlobContainer(discoveryNode.getEphemeralId());
+    }
+
+    /**
+     * Gets the translog blob container of a node
+     */
+    public BlobContainer getTranslogBlobContainer(String nodeEphemeralId) {
+        final BlobStoreRepository objectStore = getObjectStore();
+        return objectStore.blobStore().blobContainer(objectStore.basePath().add("nodes").add(nodeEphemeralId).add("translog"));
     }
 
     private static RepositoryMetadata getRepositoryMetadata(Settings settings) {
@@ -405,7 +407,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRun() throws Exception {
-            final BlobContainer blobContainer = getLocalTranslogBlobContainer();
+            final BlobContainer blobContainer = getTranslogBlobContainer();
 
             var before = threadPool.relativeTimeInMillis();
             blobContainer.writeBlob(fileName, reference, false);

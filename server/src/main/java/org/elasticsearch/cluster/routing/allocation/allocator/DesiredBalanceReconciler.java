@@ -220,8 +220,8 @@ public class DesiredBalanceReconciler {
                             final var decision = allocation.deciders().canAllocate(shard, routingNode, allocation);
                             switch (decision.type()) {
                                 case YES -> {
-                                    if (logger.isTraceEnabled()) {
-                                        logger.trace("Assigned shard [{}] to [{}]", shard, desiredNodeId);
+                                    if (logger.isDebugEnabled()) {
+                                        logger.debug("Assigning shard [{}] to [{}]", shard, desiredNodeId);
                                     }
                                     final long shardSize = DiskThresholdDecider.getExpectedShardSize(
                                         shard,
@@ -253,8 +253,8 @@ public class DesiredBalanceReconciler {
                     }
                 }
 
-                if (logger.isTraceEnabled()) {
-                    logger.trace("No eligible node found to assign shard [{}] amongst [{}]", shard, assignment);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("No eligible node found to assign shard [{}] amongst [{}]", shard, assignment);
                 }
 
                 final UnassignedInfo.AllocationStatus allocationStatus;
@@ -343,6 +343,10 @@ public class DesiredBalanceReconciler {
 
             final var moveTarget = findRelocationTarget(shardRouting, assignment.nodeIds());
             if (moveTarget != null) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Moving shard {} from {} to {}", shardRouting.shardId(), shardRouting.currentNodeId(), moveTarget.getId());
+                }
+
                 routingNodes.relocateOrReinitializeShard(
                     shardRouting,
                     moveTarget.getId(),
@@ -392,6 +396,15 @@ public class DesiredBalanceReconciler {
 
             final var rebalanceTarget = findRelocationTarget(shardRouting, assignment.nodeIds(), this::decideCanAllocate);
             if (rebalanceTarget != null) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "Rebalancing shard {} from {} to {}",
+                        shardRouting.shardId(),
+                        shardRouting.currentNodeId(),
+                        rebalanceTarget.getId()
+                    );
+                }
+
                 routingNodes.relocateOrReinitializeShard(
                     shardRouting,
                     rebalanceTarget.getId(),

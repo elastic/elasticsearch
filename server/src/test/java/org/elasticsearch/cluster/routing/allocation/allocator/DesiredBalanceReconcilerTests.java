@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -39,6 +40,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAllocationDecider;
@@ -63,6 +65,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -76,21 +79,22 @@ import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
-import static org.elasticsearch.cluster.ESAllocationTestCase.startInitializingShardsAndReroute;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class DesiredBalanceReconcilerTests extends ESTestCase {
+public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
     public void testNoChangesOnEmptyDesiredBalance() {
         final var clusterState = DesiredBalanceComputerTests.createInitialClusterState(3);
@@ -1055,6 +1059,88 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         assertThat(allocation.routingNodes().node("data-node-2").getByShardId(shardId), notNullValue());
     }
 
+    public void testRebalanceDoesNotCauseHotSpots() {
+
+        int numberOfNodes = randomIntBetween(10, 21);
+        int shardsPerNode = randomIntBetween(4, 17);
+
+        var indexMetadata = IndexMetadata.builder("index-1")
+            .settings(
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, shardsPerNode * numberOfNodes)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            )
+            .build();
+        final var index = indexMetadata.getIndex();
+
+        var discoveryNodeBuilder = DiscoveryNodes.builder().localNodeId("node-0").masterNodeId("node-0");
+        for (int n = 0; n < numberOfNodes; n++) {
+            discoveryNodeBuilder.add(newNode("node-" + n));
+        }
+
+        var assignments = new HashMap<ShardId, ShardAssignment>();
+        var indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+
+        for (int i = 0; i < shardsPerNode * numberOfNodes; i++) {
+            var shardId = new ShardId(index, i);
+
+            var desiredNode = i % numberOfNodes;
+            var currentNode = (desiredNode + numberOfNodes / 2) % numberOfNodes;
+
+            assignments.put(shardId, new ShardAssignment(Set.of("node-" + desiredNode), 1, 0, 0));
+            indexRoutingTableBuilder.addShard(newShardRouting(shardId, "node-" + currentNode, true, STARTED));
+        }
+
+        var balance = new DesiredBalance(1, assignments);
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodeBuilder)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder))
+            .build();
+
+        var clusterSettings = createBuiltInClusterSettings();
+        var deciders = new AllocationDecider[] {
+            new ConcurrentRebalanceAllocationDecider(clusterSettings),
+            new ThrottlingAllocationDecider(clusterSettings) };
+
+        while (true) {
+
+            var allocation = createRoutingAllocationFrom(clusterState, deciders);
+            reconcile(allocation, balance);
+
+            var initializing = shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING);
+            if (initializing.isEmpty()) {
+                break;
+            }
+            for (ShardRouting shardRouting : initializing) {
+                allocation.routingNodes().startShard(logger, shardRouting, allocation.changes(), 0L);
+            }
+
+            int minShards = Integer.MAX_VALUE;
+            int maxShards = 0;
+            for (RoutingNode routingNode : allocation.routingNodes()) {
+                minShards = Math.min(minShards, routingNode.size());
+                maxShards = Math.max(maxShards, routingNode.size());
+            }
+
+            if (maxShards - minShards > shardsPerNode) {
+                var message = "Rebalancing causes node hot spots." + //
+                    " Nodes: " + numberOfNodes + //
+                    " shards per node " + shardsPerNode + //
+                    " min shards per node " + minShards + //
+                    " max shards per node " + maxShards + //
+                    System.lineSeparator() + allocation.routingNodes().toString();
+                logger.error(message);
+                fail(message);
+            }
+
+            clusterState = ClusterState.builder(clusterState)
+                .routingTable(RoutingTable.of(allocation.routingTable().version(), allocation.routingNodes()))
+                .build();
+        }
+    }
+
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
         new DesiredBalanceReconciler(desiredBalance, routingAllocation, new NodeAllocationOrdering()).run();
     }
@@ -1071,9 +1157,9 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         );
     }
 
-    private static RoutingAllocation createRoutingAllocationFrom(ClusterState clusterState) {
+    private static RoutingAllocation createRoutingAllocationFrom(ClusterState clusterState, AllocationDecider... deciders) {
         return new RoutingAllocation(
-            new AllocationDeciders(List.of()),
+            new AllocationDeciders(List.of(deciders)),
             clusterState.mutableRoutingNodes(),
             clusterState,
             ClusterInfo.EMPTY,

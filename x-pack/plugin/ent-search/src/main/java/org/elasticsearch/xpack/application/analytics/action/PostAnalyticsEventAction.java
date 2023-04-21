@@ -169,7 +169,6 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         }
     }
 
-    // TODO: Add tests.
     public static class RequestBuilder {
 
         private String eventCollectionName;

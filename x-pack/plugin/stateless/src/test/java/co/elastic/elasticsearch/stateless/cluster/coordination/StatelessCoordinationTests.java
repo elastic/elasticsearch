@@ -48,7 +48,7 @@ import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatSer
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
     @Override
-    protected CoordinatorStrategy getCoordinatorStrategy() {
+    protected CoordinatorStrategy createCoordinatorStrategy() {
         final var inMemoryHeartBeatStore = new InMemoryHeartBeatStore();
         try {
             var statelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry());
@@ -60,6 +60,11 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public void testWarnLoggingOnRegisterFailures() {
+        // This test injects failures using some features specific to the AtomicRegisterCoordinatorStrategy so it doesn't make sense here
     }
 
     class StatelessCoordinatorStrategy implements CoordinatorStrategy {

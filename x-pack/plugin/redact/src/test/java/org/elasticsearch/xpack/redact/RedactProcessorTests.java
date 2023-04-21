@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.redact;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
@@ -248,12 +249,20 @@ public class RedactProcessorTests extends ESTestCase {
             assertEquals(ingestDoc, processed);
         }
         {
-            var config = new HashMap<String, Object>();
-            config.put("field", "to_redact");
-            config.put("patterns", List.of("foo"));
-            config.put("ignore_missing", false); // usually, this would throw, but we never execute this code because of the license check
-            config.put("skip_if_unlicensed", false); // set the value to false, we do not want to skip, we do want to fail
-            var processor = new RedactProcessor.Factory(notAllowed, MatcherWatchdog.noop()).create(null, "t", "d", config);
+            // bypassing the factory, because it won't construct a processor under these circumstances
+            var processor = new RedactProcessor(
+                "t",
+                "d",
+                GrokBuiltinPatterns.ecsV1Patterns(),
+                List.of("foo"),
+                "to_redact",
+                false, // set ignore_missing to false. usually, this would throw, but here it doesn't because of the license check
+                "<",
+                ">",
+                MatcherWatchdog.noop(),
+                notAllowed,
+                false // set skip_if_unlicensed to false, we do not want to skip, we do want to fail
+            );
             assertThat(processor.getSkipIfUnlicensed(), equalTo(false));
             var ingestDoc = createIngestDoc(Map.of("not_the_field", "fieldValue"));
 

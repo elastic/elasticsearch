@@ -384,6 +384,12 @@ public class RedactProcessor extends AbstractProcessor {
             }
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "pattern_definitions");
 
+            // on-creation license check, this is exercised at processor creation time
+            if (skipIfUnlicensed == false && REDACT_PROCESSOR_FEATURE.check(licenseState) == false) {
+                String message = LicenseUtils.newComplianceException(REDACT_PROCESSOR_FEATURE.getName()).getMessage();
+                throw newConfigurationException(TYPE, processorTag, "skip_if_unlicensed", message);
+            }
+
             try {
                 return new RedactProcessor(
                     processorTag,

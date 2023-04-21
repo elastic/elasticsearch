@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.WorkflowPermissionResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -84,6 +85,15 @@ public class RoleDescriptorRequestValidator {
                 "role descriptor metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
                 validationException
             );
+        }
+        if (roleDescriptor.getWorkflowPrivileges() != null) {
+            for (String wp : roleDescriptor.getWorkflowPrivileges()) {
+                try {
+                    WorkflowPermissionResolver.resolveWorkflow(wp);
+                } catch (IllegalArgumentException e) {
+                    validationException = addValidationError(e.getMessage(), validationException);
+                }
+            }
         }
         return validationException;
     }

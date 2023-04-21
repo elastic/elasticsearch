@@ -75,6 +75,11 @@ public final class LimitedRole implements Role {
     }
 
     @Override
+    public WorkflowPermission workflows() {
+        throw new UnsupportedOperationException("cannot retrieve workflow permissions on limited role");
+    }
+
+    @Override
     public ApplicationPermission application() {
         throw new UnsupportedOperationException("cannot retrieve application permission on limited role");
     }
@@ -161,6 +166,11 @@ public final class LimitedRole implements Role {
         mergedIntersection.addAll(baseIntersection.roleDescriptorsList());
         mergedIntersection.addAll(limitedByIntersection.roleDescriptorsList());
         return new RoleDescriptorsIntersection(Collections.unmodifiableList(mergedIntersection));
+    }
+
+    @Override
+    public boolean checkWorkflowEndpoint(String endpoint) {
+        return baseRole.checkWorkflowEndpoint(endpoint) && limitedByRole.checkWorkflowEndpoint(endpoint);
     }
 
     /**

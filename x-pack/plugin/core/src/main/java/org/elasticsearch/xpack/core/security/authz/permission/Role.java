@@ -58,6 +58,8 @@ public interface Role {
 
     RemoteIndicesPermission remoteIndices();
 
+    WorkflowPermission workflows();
+
     /**
      * Whether the Role has any field or document level security enabled index privileges
      * @return
@@ -173,6 +175,13 @@ public interface Role {
      */
     RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(String remoteClusterAlias);
 
+    /**
+     * Check if workflow permissions allow access to a given endpoint.
+     *
+     * @return {@code true} when at leas one workflow allows access to the given endpoint
+     */
+    boolean checkWorkflowEndpoint(String endpoint);
+
     /***
      * Creates a {@link LimitedRole} that uses this Role as base and the given role as limited-by.
      */
@@ -200,6 +209,7 @@ public interface Role {
         private final Map<Set<String>, List<IndicesPermissionGroupDefinition>> remoteGroups = new HashMap<>();
         private final List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
         private final RestrictedIndices restrictedIndices;
+        private WorkflowPermission workflows = WorkflowPermission.ALLOW_ALL;
 
         private Builder(RestrictedIndices restrictedIndices, String[] names) {
             this.restrictedIndices = restrictedIndices;
@@ -259,6 +269,11 @@ public interface Role {
             return this;
         }
 
+        public Builder workflows(Set<String> workflowPrivilegeNames) {
+            this.workflows = WorkflowPermissionResolver.resolve(workflowPrivilegeNames);
+            return this;
+        }
+
         public SimpleRole build() {
             final IndicesPermission indices;
             if (groups.isEmpty()) {
@@ -301,7 +316,7 @@ public interface Role {
             final ApplicationPermission applicationPermission = applicationPrivs.isEmpty()
                 ? ApplicationPermission.NONE
                 : new ApplicationPermission(applicationPrivs);
-            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndices);
+            return new SimpleRole(names, cluster, indices, applicationPermission, runAs, remoteIndices, workflows);
         }
 
         private static class IndicesPermissionGroupDefinition {
@@ -390,6 +405,10 @@ public interface Role {
         final String[] rdRunAs = roleDescriptor.getRunAs();
         if (rdRunAs != null && rdRunAs.length > 0) {
             builder.runAs(new Privilege(Sets.newHashSet(rdRunAs), rdRunAs));
+        }
+
+        if (roleDescriptor.hasWorkflowPrivileges()) {
+            builder.workflows(Set.of(roleDescriptor.getWorkflowPrivileges()));
         }
 
         return builder.build();

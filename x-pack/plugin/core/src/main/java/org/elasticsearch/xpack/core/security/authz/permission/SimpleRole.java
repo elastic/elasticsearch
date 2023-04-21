@@ -51,6 +51,7 @@ public class SimpleRole implements Role {
     private final ApplicationPermission application;
     private final RunAsPermission runAs;
     private final RemoteIndicesPermission remoteIndices;
+    private final WorkflowPermission workflows;
 
     SimpleRole(
         String[] names,
@@ -58,7 +59,8 @@ public class SimpleRole implements Role {
         IndicesPermission indices,
         ApplicationPermission application,
         RunAsPermission runAs,
-        RemoteIndicesPermission remoteIndices
+        RemoteIndicesPermission remoteIndices,
+        WorkflowPermission workflows
     ) {
         this.names = names;
         this.cluster = Objects.requireNonNull(cluster);
@@ -66,6 +68,7 @@ public class SimpleRole implements Role {
         this.application = Objects.requireNonNull(application);
         this.runAs = Objects.requireNonNull(runAs);
         this.remoteIndices = Objects.requireNonNull(remoteIndices);
+        this.workflows = Objects.requireNonNull(workflows);
     }
 
     @Override
@@ -96,6 +99,11 @@ public class SimpleRole implements Role {
     @Override
     public RemoteIndicesPermission remoteIndices() {
         return remoteIndices;
+    }
+
+    @Override
+    public WorkflowPermission workflows() {
+        return workflows;
     }
 
     @Override
@@ -203,6 +211,11 @@ public class SimpleRole implements Role {
                 null
             )
         );
+    }
+
+    @Override
+    public boolean checkWorkflowEndpoint(String endpoint) {
+        return workflows.checkEndpoint(endpoint);
     }
 
     private static Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> getFieldGrantExcludeGroups(IndicesPermission.Group group) {

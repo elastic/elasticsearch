@@ -116,7 +116,8 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2)
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
+            null
         );
         assertFalse(flsRole.getTransientMetadata().containsKey("unlicensed_features"));
 
@@ -131,7 +132,8 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2)
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
+            null
         );
         assertFalse(dlsRole.getTransientMetadata().containsKey("unlicensed_features"));
 
@@ -151,7 +153,8 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2)
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
+            null
         );
         assertFalse(flsDlsRole.getTransientMetadata().containsKey("unlicensed_features"));
 
@@ -164,7 +167,8 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2)
+            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
+            null
         );
         assertFalse(noFlsDlsRole.getTransientMetadata().containsKey("unlicensed_features"));
 
@@ -352,7 +356,8 @@ public class NativeRolesStoreTests extends ESTestCase {
             null,
             null,
             new RoleDescriptor.RemoteIndicesPrivileges[] {
-                RoleDescriptor.RemoteIndicesPrivileges.builder("remote").privileges("read").indices("index").build() }
+                RoleDescriptor.RemoteIndicesPrivileges.builder("remote").privileges("read").indices("index").build() },
+            null
         );
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         rolesStore.putRole(putRoleRequest, remoteIndicesRole, future);

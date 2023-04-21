@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.packageloader;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
@@ -27,6 +28,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class MachineLearningPackageLoader extends Plugin implements ActionPlugin {
 
     public static final String DEFAULT_ML_MODELS_REPOSITORY = "https://ml-models.elastic.co";
@@ -39,6 +42,12 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
 
     // re-using thread pool setup by the ml plugin
     public static final String UTILITY_THREAD_POOL_NAME = "ml_utility";
+
+    private static final String MODEL_REPOSITORY_DOCUMENTATION_LINK = format(
+        "https://www.elastic.co/guide/en/machine-learning/%d.%d/ml-nlp-deploy-models.html#ml-nlp-deploy-model-air-gaped",
+        Version.CURRENT.major,
+        Version.CURRENT.minor
+    );
 
     public MachineLearningPackageLoader() {}
 
@@ -67,7 +76,9 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
                     return BootstrapCheckResult.failure(
                         "Found an invalid configuration for xpack.ml.model_repository. "
                             + e.getMessage()
-                            + ". See <TODO: URL> for more information."
+                            + ". See "
+                            + MODEL_REPOSITORY_DOCUMENTATION_LINK
+                            + " for more information."
                     );
                 }
                 return BootstrapCheckResult.success();
@@ -82,7 +93,7 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
 
     static void validateModelRepository(String repository, Path configPath) throws URISyntaxException {
         URI baseUri = new URI(repository.endsWith("/") ? repository : repository + "/").normalize();
-        String normalizedConfigPath = configPath.normalize().toAbsolutePath().toString();
+        URI normalizedConfigUri = new URI("file://" + configPath.toAbsolutePath().toString()).normalize();
 
         if (Strings.isNullOrEmpty(baseUri.getScheme())) {
             throw new IllegalArgumentException(
@@ -97,9 +108,9 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
             );
         }
 
-        if (scheme.equals("file") && (baseUri.getPath().startsWith(normalizedConfigPath) == false)) {
+        if (scheme.equals("file") && (baseUri.getPath().startsWith(normalizedConfigUri.getPath()) == false)) {
             throw new IllegalArgumentException(
-                "If xpack.ml.model_repository is a file location, it must be placed below the configuration path: " + configPath
+                "If xpack.ml.model_repository is a file location, it must be placed below the configuration: " + normalizedConfigUri
             );
         }
     }

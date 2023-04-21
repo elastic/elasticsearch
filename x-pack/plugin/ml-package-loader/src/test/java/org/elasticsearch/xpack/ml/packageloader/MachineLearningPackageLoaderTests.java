@@ -19,7 +19,7 @@ public class MachineLearningPackageLoaderTests extends ESTestCase {
         );
 
         assertEquals(
-            "If xpack.ml.model_repository is a file location, it must be placed below the configuration path: /home/elk/elasticsearch",
+            "If xpack.ml.model_repository is a file location, it must be placed below the configuration: file:///home/elk/elasticsearch",
             e.getMessage()
         );
 
@@ -29,7 +29,7 @@ public class MachineLearningPackageLoaderTests extends ESTestCase {
         );
 
         assertEquals(
-            "If xpack.ml.model_repository is a file location, it must be placed below the configuration path: /home/elk/elasticsearch",
+            "If xpack.ml.model_repository is a file location, it must be placed below the configuration: file:///home/elk/elasticsearch",
             e.getMessage()
         );
 

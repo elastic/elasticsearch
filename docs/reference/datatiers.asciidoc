@@ -24,7 +24,7 @@ the warm tier.
 
 IMPORTANT: {es} generally expects nodes within a data tier to share the same 
 hardware profile. Variations not following this recommendation should be 
-carefully architected to avoid <<hotspotting,Hot Spotting>>.
+carefully architected to avoid <<hotspotting,hot spotting>>.
 
 When you index documents directly to a specific index, they remain on content tier nodes indefinitely.
 

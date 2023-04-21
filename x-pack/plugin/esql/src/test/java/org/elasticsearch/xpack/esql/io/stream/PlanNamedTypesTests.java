@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
@@ -289,6 +290,15 @@ public class PlanNamedTypesTests extends ESTestCase {
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeRound(out, orig);
         var deser = PlanNamedTypes.readRound(planStreamInput(bso));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
+    }
+
+    public void testPowSimple() throws IOException {
+        var orig = new Pow(Source.EMPTY, field("value", DataTypes.DOUBLE), new Literal(Source.EMPTY, 1, DataTypes.INTEGER));
+        BytesStreamOutput bso = new BytesStreamOutput();
+        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
+        PlanNamedTypes.writePow(out, orig);
+        var deser = PlanNamedTypes.readPow(planStreamInput(bso));
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 

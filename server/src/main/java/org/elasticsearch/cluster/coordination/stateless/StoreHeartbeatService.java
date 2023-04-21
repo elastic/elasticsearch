@@ -109,7 +109,7 @@ public class StoreHeartbeatService implements LeaderHeartbeatService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.trace("runIfNoRecentLeader: readLatestHeartbeat failed", e);
+                logger.warn("failed to read heartbeat from store", e);
             }
         });
     }

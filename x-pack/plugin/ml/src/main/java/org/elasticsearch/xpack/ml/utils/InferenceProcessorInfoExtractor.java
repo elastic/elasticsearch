@@ -71,10 +71,10 @@ public final class InferenceProcessorInfoExtractor {
 
     /**
      * @param state Current cluster state
-     * @return a map from Model IDs or Aliases to each pipeline referencing them.
+     * @return a map from Model or Deployment IDs or Aliases to each pipeline referencing them.
      */
     @SuppressWarnings("unchecked")
-    public static Map<String, Set<String>> pipelineIdsByModelIdsOrAliases(ClusterState state, Set<String> modelIds) {
+    public static Map<String, Set<String>> pipelineIdsByResource(ClusterState state, Set<String> ids) {
         Map<String, Set<String>> pipelineIdsByModelIds = new HashMap<>();
         Metadata metadata = state.metadata();
         if (metadata == null) {
@@ -90,7 +90,7 @@ public final class InferenceProcessorInfoExtractor {
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     addModelsAndPipelines(entry.getKey(), pipelineId, (Map<String, Object>) entry.getValue(), pam -> {
-                        if (modelIds.contains(pam.modelIdOrAlias)) {
+                        if (ids.contains(pam.modelIdOrAlias)) {
                             pipelineIdsByModelIds.computeIfAbsent(pam.modelIdOrAlias, m -> new LinkedHashSet<>()).add(pipelineId);
                         }
                     }, 0);

@@ -144,6 +144,7 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
             new HashSet<>(request.getTags()),
             ModelAliasMetadata.fromState(clusterService.state()),
             parentTaskId,
+            Collections.emptySet(),
             idExpansionListener
         );
     }

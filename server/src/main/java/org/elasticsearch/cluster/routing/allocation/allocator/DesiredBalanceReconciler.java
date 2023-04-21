@@ -91,6 +91,7 @@ public class DesiredBalanceReconciler {
             logger.trace("Reconciler#balance");
             balance();
 
+            warnOnDivergedAllocation();
             logger.debug("Reconciliation is complete");
         }
     }
@@ -399,6 +400,39 @@ public class DesiredBalanceReconciler {
                     allocation.changes()
                 );
             }
+        }
+    }
+
+    private void warnOnDivergedAllocation() {
+        int total = 0;
+        int undesired = 0;
+
+        for (final var iterator = routingNodes.nodeInterleavedShardIterator(); iterator.hasNext();) {
+            final var shardRouting = iterator.next();
+
+            if (shardRouting.started() == false) {
+                // can only rebalance started shards
+                continue;
+            }
+
+            total++;
+
+            final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
+            if (assignment == null) {
+                // balance is not computed
+                continue;
+            }
+
+            if (assignment.nodeIds().contains(shardRouting.currentNodeId())) {
+                // shard is already on a desired node
+                continue;
+            }
+
+            undesired++;
+        }
+
+        if (total > 100 && undesired > total * 0.1) {
+            logger.warn("{}/{} of shards are located to undesired nodes", undesired, total);
         }
     }
 

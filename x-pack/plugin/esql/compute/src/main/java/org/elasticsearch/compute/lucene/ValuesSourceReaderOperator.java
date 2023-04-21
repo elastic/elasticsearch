@@ -67,7 +67,7 @@ public class ValuesSourceReaderOperator implements Operator {
 
         @Override
         public String describe() {
-            return "ValuesSourceReaderOperator(field = " + field + ")";
+            return "ValuesSourceReaderOperator[field = " + field + "]";
         }
     }
 

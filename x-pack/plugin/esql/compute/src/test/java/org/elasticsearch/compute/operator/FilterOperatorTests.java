@@ -47,7 +47,7 @@ public class FilterOperatorTests extends OperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "FilterOperator{evaluator=SameLastDigit[lhs=0, rhs=1]}";
+        return "FilterOperator[evaluator=SameLastDigit[lhs=0, rhs=1]]";
     }
 
     @Override

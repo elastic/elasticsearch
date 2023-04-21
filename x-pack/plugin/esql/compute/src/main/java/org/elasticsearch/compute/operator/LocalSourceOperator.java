@@ -28,7 +28,7 @@ public class LocalSourceOperator extends SourceOperator {
 
         @Override
         public String describe() {
-            return "LocalSourceOperator(" + factory + ")";
+            return "LocalSourceOperator[" + factory + "]";
         }
     }
 

@@ -17,7 +17,7 @@ public class ShowOperator extends LocalSourceOperator {
     public record ShowOperatorFactory(List<List<Object>> objects) implements SourceOperatorFactory {
         @Override
         public String describe() {
-            return "ShowOperator(objects = " + objects.stream().map(Objects::toString).collect(joining(",")) + ")";
+            return "ShowOperator[objects = " + objects.stream().map(Objects::toString).collect(joining(",")) + "]";
         }
 
         @Override

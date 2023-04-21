@@ -179,7 +179,7 @@ public class TopNOperator implements Operator {
 
         @Override
         public String describe() {
-            return "TopNOperator(count = " + topCount + ", sortOrders = " + sortOrders + ")";
+            return "TopNOperator[count = " + topCount + ", sortOrders = " + sortOrders + "]";
         }
     }
 
@@ -360,6 +360,6 @@ public class TopNOperator implements Operator {
 
     @Override
     public String toString() {
-        return "TopNOperator(" + inputQueue + ")";
+        return "TopNOperator[" + inputQueue + "]";
     }
 }

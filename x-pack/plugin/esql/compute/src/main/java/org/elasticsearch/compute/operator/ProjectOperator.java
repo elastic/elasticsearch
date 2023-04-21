@@ -29,7 +29,7 @@ public class ProjectOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            return "ProjectOperator(mask = " + mask + ")";
+            return "ProjectOperator[mask = " + mask + "]";
         }
     }
 
@@ -60,6 +60,6 @@ public class ProjectOperator extends AbstractPageMappingOperator {
 
     @Override
     public String toString() {
-        return "ProjectOperator(mask = " + bs + ')';
+        return "ProjectOperator[mask = " + bs + ']';
     }
 }

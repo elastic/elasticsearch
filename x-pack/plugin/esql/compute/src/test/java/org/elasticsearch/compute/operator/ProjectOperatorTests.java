@@ -77,7 +77,7 @@ public class ProjectOperatorTests extends OperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "ProjectOperator(mask = {1})";
+        return "ProjectOperator[mask = {1}]";
     }
 
     @Override

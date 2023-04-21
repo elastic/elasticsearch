@@ -52,7 +52,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "HashAggregationOperator(mode = <not-needed>, aggs = avg of longs, max of longs)";
+        return "HashAggregationOperator[mode = <not-needed>, aggs = avg of longs, max of longs]";
     }
 
     @Override

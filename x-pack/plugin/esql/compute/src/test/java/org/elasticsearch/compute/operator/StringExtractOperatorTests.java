@@ -44,7 +44,7 @@ public class StringExtractOperatorTests extends OperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "StringExtractOperator[]";
+        return "StringExtractOperator[fields=[test]]";
     }
 
     @Override

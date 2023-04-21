@@ -41,7 +41,7 @@ public class ExchangeSourceOperator extends SourceOperator {
 
         @Override
         public String describe() {
-            return "ExchangeSourceOperator()";
+            return "ExchangeSourceOperator[]";
         }
     }
 

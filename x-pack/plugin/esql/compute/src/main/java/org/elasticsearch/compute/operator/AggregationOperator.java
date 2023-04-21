@@ -54,11 +54,11 @@ public class AggregationOperator implements Operator {
 
         @Override
         public String describe() {
-            return "AggregationOperator(mode = "
+            return "AggregationOperator[mode = "
                 + mode
                 + ", aggs = "
                 + aggregators.stream().map(AggregatorFactory::describe).collect(joining(", "))
-                + ")";
+                + "]";
         }
     }
 

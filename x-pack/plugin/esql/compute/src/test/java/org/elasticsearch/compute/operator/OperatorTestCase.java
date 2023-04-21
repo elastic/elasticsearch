@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -25,11 +26,26 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 
 /**
  * Base tests for all operators.
  */
 public abstract class OperatorTestCase extends ESTestCase {
+
+    /**
+     * the description of an Operator should be "OperatorName(additional info)"
+     * eg. "LimitOperator(limit = 10)"
+     * Additional info are optional
+     */
+    private static final String OPERATOR_DESCRIBE_PATTERN = "^\\w*\\[.*\\]$";
+
+    /**
+     * the name a grouping agg function should be "aggName of type" for typed aggregations, eg. "avg of ints"
+     * or "aggName" for type agnostic aggregations, eg. "count"
+     */
+    private static final String GROUPING_AGG_FUNCTION_DESCRIBE_PATTERN = "^\\w*( of \\w*$)?";
+
     /**
      * The operator configured a "simple" or basic way, used for smoke testing
      * descriptions and {@link BigArrays} and scatter/gather.
@@ -113,7 +129,16 @@ public abstract class OperatorTestCase extends ESTestCase {
      * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
      */
     public final void testSimpleDescription() {
-        assertThat(simple(nonBreakingBigArrays()).describe(), equalTo(expectedDescriptionOfSimple()));
+        Operator.OperatorFactory factory = simple(nonBreakingBigArrays());
+        String description = factory.describe();
+        assertThat(description, equalTo(expectedDescriptionOfSimple()));
+        try (Operator op = factory.get()) {
+            if (op instanceof GroupingAggregatorFunction) {
+                assertThat(description, matchesPattern(GROUPING_AGG_FUNCTION_DESCRIBE_PATTERN));
+            } else {
+                assertThat(description, matchesPattern(OPERATOR_DESCRIBE_PATTERN));
+            }
+        }
     }
 
     /**

@@ -50,12 +50,12 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "TopNOperator(count = 4, sortOrders = [SortOrder[channel=0, asc=true, nullsFirst=false]])";
+        return "TopNOperator[count = 4, sortOrders = [SortOrder[channel=0, asc=true, nullsFirst=false]]]";
     }
 
     @Override
     protected String expectedToStringOfSimple() {
-        return "TopNOperator(count = 0/4, sortOrder = SortOrder[channel=0, asc=true, nullsFirst=false])";
+        return "TopNOperator[count = 0/4, sortOrder = SortOrder[channel=0, asc=true, nullsFirst=false]]";
     }
 
     @Override
@@ -326,9 +326,9 @@ public class TopNOperatorTests extends OperatorTestCase {
         String sorts = List.of("SortOrder[channel=1, asc=false, nullsFirst=false]", "SortOrder[channel=3, asc=false, nullsFirst=true]")
             .stream()
             .collect(Collectors.joining(", "));
-        assertThat(factory.describe(), equalTo("TopNOperator(count = 10, sortOrders = [" + sorts + "])"));
+        assertThat(factory.describe(), equalTo("TopNOperator[count = 10, sortOrders = [" + sorts + "]]"));
         try (Operator operator = factory.get()) {
-            assertThat(operator.toString(), equalTo("TopNOperator(count = 0/10, sortOrders = [" + sorts + "])"));
+            assertThat(operator.toString(), equalTo("TopNOperator[count = 0/10, sortOrders = [" + sorts + "]]"));
         }
     }
 }

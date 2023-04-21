@@ -55,7 +55,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     @Override
     protected final String expectedDescriptionOfSimple() {
-        return "AggregationOperator(mode = SINGLE, aggs = " + expectedDescriptionOfAggregator() + ")";
+        return "AggregationOperator[mode = SINGLE, aggs = " + expectedDescriptionOfAggregator() + "]";
     }
 
     @Override

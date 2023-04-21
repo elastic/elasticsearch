@@ -60,7 +60,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public String describe() {
-            return "LuceneSourceOperator(dataPartitioning = " + dataPartitioning + ", limit = " + limit + ")";
+            return "LuceneSourceOperator[dataPartitioning = " + dataPartitioning + ", limit = " + limit + "]";
         }
     }
 

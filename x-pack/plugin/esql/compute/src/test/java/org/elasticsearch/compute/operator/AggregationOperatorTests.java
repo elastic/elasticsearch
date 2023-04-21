@@ -43,7 +43,7 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "AggregationOperator(mode = SINGLE, aggs = avg of longs, max of longs)";
+        return "AggregationOperator[mode = SINGLE, aggs = avg of longs, max of longs]";
     }
 
     @Override

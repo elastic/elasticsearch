@@ -17,7 +17,7 @@ public final class EmptySourceOperator extends SourceOperator {
     public static class Factory implements SourceOperatorFactory {
         @Override
         public String describe() {
-            return "EmptySourceOperatorFactory";
+            return "EmptySourceOperator[]";
         }
 
         @Override

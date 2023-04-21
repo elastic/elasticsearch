@@ -76,7 +76,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     @Override
     protected final String expectedDescriptionOfSimple() {
-        return "HashAggregationOperator(mode = <not-needed>, aggs = " + expectedDescriptionOfAggregator() + ")";
+        return "HashAggregationOperator[mode = <not-needed>, aggs = " + expectedDescriptionOfAggregator() + "]";
     }
 
     @Override

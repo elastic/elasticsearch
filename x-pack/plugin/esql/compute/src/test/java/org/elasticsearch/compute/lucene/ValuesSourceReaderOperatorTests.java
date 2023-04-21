@@ -141,7 +141,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "ValuesSourceReaderOperator(field = long)";
+        return "ValuesSourceReaderOperator[field = long]";
     }
 
     @Override

@@ -25,7 +25,7 @@ public class RowOperator extends LocalSourceOperator {
 
         @Override
         public String describe() {
-            return "RowOperator(objects = " + objects.stream().map(Objects::toString).collect(joining(",")) + ")";
+            return "RowOperator[objects = " + objects.stream().map(Objects::toString).collect(joining(",")) + "]";
         }
     }
 

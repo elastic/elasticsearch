@@ -49,11 +49,11 @@ public class HashAggregationOperator implements Operator {
 
         @Override
         public String describe() {
-            return "HashAggregationOperator(mode = "
+            return "HashAggregationOperator[mode = "
                 + "<not-needed>"
                 + ", aggs = "
                 + aggregators.stream().map(Describable::describe).collect(joining(", "))
-                + ")";
+                + "]";
         }
     }
 

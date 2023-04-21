@@ -38,7 +38,7 @@ public class LimitOperator implements Operator {
 
         @Override
         public String describe() {
-            return "LimitOperator(limit = " + limit + ")";
+            return "LimitOperator[limit = " + limit + "]";
         }
     }
 

@@ -883,12 +883,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".ds-logs-ti_*.*-*")
                     .privileges(
-//                        "all"
                         // Require "delete_index" to perform ILM policy actions
                         DeleteIndexAction.NAME,
                         // Require "read" and "view_index_metadata" for transform
                         "read",
-                        "view_index_metadata"
+                        "view_index_metadata",
+                        UpdateSettingsAction.NAME,
+                        PutMappingAction.NAME,
+                        RolloverAction.NAME
                     )
                     .build(),
                 // For src/dest indices of the example transform package

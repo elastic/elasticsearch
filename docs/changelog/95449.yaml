@@ -1,0 +1,5 @@
+pr: 95449
+summary: Add backing indices to kibana_system permissions for TI packages supporting IOC expiration
+area: Authorization
+type: bug
+issues: []

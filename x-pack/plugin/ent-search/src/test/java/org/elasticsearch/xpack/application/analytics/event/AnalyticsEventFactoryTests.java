@@ -57,13 +57,11 @@ public class AnalyticsEventFactoryTests extends ESTestCase {
     }
 
     private PostAnalyticsEventAction.Request toRequest(AnalyticsEvent event) {
-        return new PostAnalyticsEventAction.Request(
+        return PostAnalyticsEventAction.Request.builder(
             event.eventCollectionName(),
             event.eventType().toString(),
-            randomBoolean(),
-            event.eventTime(),
             XContentType.JSON,
             event.payload()
-        );
+        ).eventTime(event.eventTime()).debug(randomBoolean()).request();
     }
 }

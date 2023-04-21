@@ -34,21 +34,26 @@ public class RestPostAnalyticsEventAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+        PostAnalyticsEventAction.Request request = buidRequest(restRequest);
+        return channel -> client.execute(PostAnalyticsEventAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
+    }
+
+    private PostAnalyticsEventAction.Request buidRequest(RestRequest restRequest) {
         Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
 
-        // TODO:
-        // 1. Use the builder class
-        // 2. Extract ip address (do not forget the X-Forwarded-For header) and pass it to the request.
-        // 3. Extract / sanitize headers (user agent)
-
-        PostAnalyticsEventAction.Request request = new PostAnalyticsEventAction.Request(
+        PostAnalyticsEventAction.RequestBuilder builder = PostAnalyticsEventAction.Request.builder(
             restRequest.param("collection_name"),
             restRequest.param("event_type"),
-            restRequest.paramAsBoolean("debug", false),
             sourceTuple.v1(),
             sourceTuple.v2()
         );
 
-        return channel -> client.execute(PostAnalyticsEventAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
+        builder.debug(restRequest.paramAsBoolean("debug", false));
+
+        // TODO:
+        // 1. Extract ip address (do not forget the X-Forwarded-For header) and pass it to the request.
+        // 2. Extract / sanitize headers (user agent)
+
+        return builder.request();
     }
 }

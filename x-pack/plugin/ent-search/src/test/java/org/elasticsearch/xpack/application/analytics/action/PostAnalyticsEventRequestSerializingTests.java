@@ -32,14 +32,12 @@ public class PostAnalyticsEventRequestSerializingTests extends AbstractWireSeria
         List<String> invalidEventTypes = List.of(randomIdentifier(), randomEventType().toUpperCase(Locale.ROOT));
 
         for (String eventType : invalidEventTypes) {
-            PostAnalyticsEventAction.Request request = new PostAnalyticsEventAction.Request(
+            PostAnalyticsEventAction.Request request = PostAnalyticsEventAction.Request.builder(
                 randomIdentifier(),
                 eventType,
-                randomBoolean(),
-                randomLong(),
                 randomFrom(XContentType.values()),
                 mock(BytesReference.class)
-            );
+            ).eventTime(randomLong()).debug(randomBoolean()).request();
 
             ValidationException e = request.validate();
             assertNotNull(e);
@@ -54,14 +52,12 @@ public class PostAnalyticsEventRequestSerializingTests extends AbstractWireSeria
 
     @Override
     protected PostAnalyticsEventAction.Request createTestInstance() {
-        return new PostAnalyticsEventAction.Request(
+        return PostAnalyticsEventAction.Request.builder(
             randomIdentifier(),
             randomEventType(),
-            randomBoolean(),
-            randomLong(),
             randomFrom(XContentType.values()),
             new BytesArray(randomByteArrayOfLength(20))
-        );
+        ).eventTime(randomLong()).debug(randomBoolean()).request();
     }
 
     @Override

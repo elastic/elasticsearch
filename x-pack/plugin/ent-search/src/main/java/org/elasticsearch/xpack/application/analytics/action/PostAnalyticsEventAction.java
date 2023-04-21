@@ -53,21 +53,15 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         private final XContentType xContentType;
 
-        // TODO: Remove: default value for time can be set into the builder
-        Request(String eventCollectionName, String eventType, boolean debug, XContentType xContentType, BytesReference payload) {
-            this(eventCollectionName, eventType, debug, System.currentTimeMillis(), xContentType, payload);
-        }
-
         // TODO:
-        // 1. Create a builder class
-        // 2. Add optional params for ip and headers
-        Request(
+        // 1. Add optional params for ip and headers
+        private Request(
             String eventCollectionName,
             String eventType,
-            boolean debug,
             long eventTime,
             XContentType xContentType,
-            BytesReference payload
+            BytesReference payload,
+            boolean debug
         ) {
             this.eventCollectionName = eventCollectionName;
             this.eventType = eventType;
@@ -85,6 +79,15 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             this.eventTime = in.readLong();
             this.xContentType = in.readEnum(XContentType.class);
             this.payload = in.readBytesReference();
+        }
+
+        public static RequestBuilder builder(
+            String eventCollectionName,
+            String eventType,
+            XContentType xContentType,
+            BytesReference payload
+        ) {
+            return new RequestBuilder(eventCollectionName, eventType, xContentType, payload);
         }
 
         public String eventCollectionName() {
@@ -163,6 +166,63 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         @Override
         public int hashCode() {
             return Objects.hash(eventCollectionName, eventType, debug, eventTime, xContentType, payload);
+        }
+    }
+
+    // TODO: Add tests.
+    public static class RequestBuilder {
+
+        private String eventCollectionName;
+
+        private String eventType;
+
+        private long eventTime = System.currentTimeMillis();
+
+        private boolean debug = false;
+
+        private BytesReference payload;
+
+        private XContentType xContentType;
+
+        private RequestBuilder(String eventCollectionName, String eventType, XContentType xContentType, BytesReference payload) {
+            this.eventCollectionName = eventCollectionName;
+            this.eventType = eventType;
+            this.xContentType = xContentType;
+            this.payload = payload;
+        }
+
+        public Request request() {
+            return new Request(eventCollectionName, eventType, eventTime, xContentType, payload, debug);
+        }
+
+        public RequestBuilder eventCollectionName(String eventCollectionName) {
+            this.eventCollectionName = eventCollectionName;
+            return this;
+        }
+
+        public RequestBuilder eventType(String eventType) {
+            this.eventType = eventType;
+            return this;
+        }
+
+        public RequestBuilder eventTime(long eventTime) {
+            this.eventTime = eventTime;
+            return this;
+        }
+
+        public RequestBuilder debug(boolean debug) {
+            this.debug = debug;
+            return this;
+        }
+
+        public RequestBuilder payload(BytesReference payload) {
+            this.payload = payload;
+            return this;
+        }
+
+        public RequestBuilder xContentType(XContentType xContentType) {
+            this.xContentType = xContentType;
+            return this;
         }
     }
 

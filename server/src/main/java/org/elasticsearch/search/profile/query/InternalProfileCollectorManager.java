@@ -13,7 +13,7 @@ import org.apache.lucene.search.CollectorManager;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
+import java.util.Objects;
 
 /**
  * This class wraps a Lucene Collector Manager. It assumes execution on a single thread
@@ -23,17 +23,25 @@ public final class InternalProfileCollectorManager implements CollectorManager<C
 
     private final CollectorManager<Collector, Void> in;
     private final String profilerName;
-    private final List<InternalProfileCollectorManager> children;
+    private final InternalProfileCollectorManager[] children;
     private InternalProfileCollector rootCollector;
 
+    @SafeVarargs
     public InternalProfileCollectorManager(
         CollectorManager<Collector, Void> in,
         String profilerName,
-        List<InternalProfileCollectorManager> children
+        CollectorManager<Collector, Void>... children
     ) {
         this.in = in;
         this.profilerName = profilerName;
-        this.children = children;
+        Objects.requireNonNull(children, "children collector managers cannot be null");
+        this.children = new InternalProfileCollectorManager[children.length];
+        for (int i = 0; i < children.length; i++) {
+            this.children[i] = (InternalProfileCollectorManager) Objects.requireNonNull(
+                children[i],
+                "child collector manager cannot be null"
+            );
+        }
     }
 
     @Override

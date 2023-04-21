@@ -58,9 +58,7 @@ public class AggregationPhase {
             collectorManager = new SingleThreadCollectorManager(bucketCollector.asCollector());
         }
         if (context.getProfilers() != null) {
-            context.registerAggsCollectorManager(
-                new InternalProfileCollectorManager(collectorManager, CollectorResult.REASON_AGGREGATION, List.of())
-            );
+            context.registerAggsCollectorManager(new InternalProfileCollectorManager(collectorManager, CollectorResult.REASON_AGGREGATION));
         } else {
             context.registerAggsCollectorManager(collectorManager);
         }

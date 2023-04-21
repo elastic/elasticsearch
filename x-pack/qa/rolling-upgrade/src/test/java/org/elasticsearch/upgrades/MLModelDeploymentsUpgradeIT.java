@@ -96,6 +96,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         client().performRequest(request);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95360")
     public void testTrainedModelDeployment() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
 

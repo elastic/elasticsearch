@@ -122,6 +122,22 @@
                         }
                       }
                     },
+                    "event_loop_utilization": {
+                      "properties": {
+                        "active": {
+                          "scaling_factor": 1000,
+                          "type": "scaled_float"
+                        },
+                        "idle": {
+                          "scaling_factor": 1000,
+                          "type": "scaled_float"
+                        },
+                        "utilization": {
+                          "scaling_factor": 1000,
+                          "type": "scaled_float"
+                        }
+                      }
+                    },
                     "uptime": {
                       "properties": {
                         "ms": {

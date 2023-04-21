@@ -53,10 +53,10 @@ public final class HttpHeadersUtils {
      * The HTTP headers of the to-be-validated {@link HttpRequest} must be wrapped by the special {@link HttpHeadersWithValidationContext},
      * see {@link #wrapAsValidatableMessage(HttpMessage)}.
      */
-    public static Netty4HttpHeaderValidator getValidatorInboundHandler(Validator validator) {
+    public static Netty4HttpHeaderValidator getValidatorInboundHandler(Validator validator, ThreadContext threadContext) {
         return new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
+            // make sure validation only runs on properly wrapped "validatable" headers implementation
             if (httpRequest.headers() instanceof HttpHeadersWithValidationContext httpHeadersWithValidationContext) {
-                // make sure validation only runs on properly wrapped "validatable" headers implementation
                 validator.apply(asHttpPreRequest(httpRequest), channel, ActionListener.wrap(validationResult -> {
                     httpHeadersWithValidationContext.addValidationContext(validationResult);
                     // a successful validation needs to signal to the {@link Netty4HttpHeaderValidator} to resume
@@ -64,15 +64,16 @@ public final class HttpHeadersUtils {
                     listener.onResponse(null);
                 }, e -> listener.onFailure(new HttpHeadersValidationException(e))));
             } else {
-                listener.onFailure(new IllegalStateException("Expected a validatable request for validation"));
+                // cannot validate un-validatable requests, see {@link #wrapAsValidatableMessage}
+                listener.onFailure(new IllegalStateException("Cannot validate un-validatable requests"));
             }
-        });
+        }, threadContext);
     }
 
     /**
      * Given a {@link DefaultHttpRequest} argument, this returns a new {@link DefaultHttpRequest} instance that's identical to the
      * passed-in one, but the headers of the latter are "validatable", in the sense that the channel handlers returned by
-     * {@link #getValidatorInboundHandler(Validator)} can use to convey the validation result.
+     * {@link #getValidatorInboundHandler(Validator, ThreadContext)} can use to convey the validation result.
      */
     public static HttpMessage wrapAsValidatableMessage(HttpMessage newlyDecodedMessage) {
         assert newlyDecodedMessage instanceof HttpRequest;
@@ -88,6 +89,9 @@ public final class HttpHeadersUtils {
         );
     }
 
+    /**
+     * Returns the validation thread context for the {@param request}.
+     */
     public static ThreadContext.StoredContext extractValidationContext(org.elasticsearch.http.HttpRequest request) {
         HttpHeadersWithValidationContext authenticatedHeaders = unwrapValidatableHeaders(request);
         return authenticatedHeaders != null ? authenticatedHeaders.validationResultContextSetOnce.get() : null;

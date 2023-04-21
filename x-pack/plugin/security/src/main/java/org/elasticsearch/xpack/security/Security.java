@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
@@ -56,7 +55,7 @@ import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.HttpHeadersUtils;
-import org.elasticsearch.http.netty4.HttpHeadersUtils.Validator;
+import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -1648,37 +1647,26 @@ public class Security extends Plugin
             }
             final AuthenticationService authenticationService = this.authcService.get();
             final ThreadContext threadContext = this.threadContext.get();
-            final Validator authenticateMessage = (httpRequest, channel, listener) -> {
-                // step 1: Wrap the passed-in listener such that the changes wrt to authentication are not visible to `listener#onResponse`.
-                // Authentication will change the thread-context, but we don't want such a context be visible to whatever code is going to
-                // run under the `listener#onResponse` call stack.
-                var contextPreservingListener = new ContextPreservingActionListener<>(
-                    threadContext.wrapRestorable(threadContext.newStoredContext()),
-                    listener
-                );
-                // step 2: Stash the thread context, such that changes to the thread context from inside the `try` block are not visible to
-                // anything after the try block (though, in practice, nothing interesting ought to happen after a code that called in
-                // a listener) . "Stashing" is a generic way to also guard against any pre-existent context, by setting
-                // a default/empty context (empty with some caveats that should not matter here), before entering the `try` block.
-                try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
-                    assert threadContext.isDefaultContext();
-                    // step 3: Populate the thread context with credentials and any other HTTP request header values that the
+            final Supplier<Netty4HttpHeaderValidator> authenticateHttpRequest = () -> HttpHeadersUtils.getValidatorInboundHandler(
+                (httpRequest, channel, listener) -> {
+                    if (threadContext.isDefaultContext() == false) {
+                        listener.onFailure(new IllegalStateException("HTTP authentication will not run on non-empty thread context"));
+                        return;
+                    }
+                    // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
                     // authentication process looks for while doing its duty.
                     perRequestThreadContext.accept(httpRequest, threadContext);
                     populateClientCertificate.accept(channel, threadContext);
                     RemoteHostHeader.process(channel, threadContext);
-                    // step 4: Run authentication on the now properly prepared thread-context.
+                    // step 2: Run authentication on the now properly prepared thread-context.
                     // This inspects and modifies the thread context.
-                    authenticationService.authenticate(httpRequest, ActionListener.wrap(authentication -> {
-                        // step 5: Capture the now *authenticated* thread context and store it in a variable.
-                        // The captured authenticated context is going to be instated only while executing the associated request handler.
-                        ThreadContext.StoredContext authenticatedStoredContext = threadContext.newStoredContext();
-                        // step 6: Pass the lambda that restores the *authenticated* context as an argument to the listener.
-                        contextPreservingListener.onResponse(authenticatedStoredContext);
-                    }, contextPreservingListener::onFailure));
-                }
-                // the thread context here is identical to how the `try` block found it
-            };
+                    authenticationService.authenticate(
+                        httpRequest,
+                        ActionListener.wrap(ignored -> listener.onResponse(threadContext.newStoredContext()), listener::onFailure)
+                    );
+                },
+                threadContext
+            );
             return getHttpServerTransportWithHeadersValidator(
                 settings,
                 networkService,
@@ -1690,7 +1678,7 @@ public class Security extends Plugin
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
-                authenticateMessage
+                authenticateHttpRequest
             );
         });
         return httpTransports;
@@ -1708,7 +1696,7 @@ public class Security extends Plugin
         Tracer tracer,
         TLSConfig tlsConfig,
         @Nullable AcceptChannelHandler.AcceptPredicate acceptPredicate,
-        HttpHeadersUtils.Validator headersValidator
+        Supplier<Netty4HttpHeaderValidator> headerValidatorSupplier
     ) {
         return new Netty4HttpServerTransport(
             settings,
@@ -1721,7 +1709,7 @@ public class Security extends Plugin
             tracer,
             tlsConfig,
             acceptPredicate,
-            Objects.requireNonNull(headersValidator)
+            Objects.requireNonNull(headerValidatorSupplier)
         ) {
             @Override
             protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {

@@ -82,6 +82,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
@@ -668,12 +669,15 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 throw new AssertionError();
             }
         };
-        final HttpHeadersUtils.Validator successHeadersValidator = (httpPreRequest, channel, validationResultContextActionListener) -> {
-            assertThat(httpPreRequest.uri(), is(urlReference.get()));
-            assertThat(httpPreRequest.header(headerReference.get()), is(headerValueReference.get()));
-            assertThat(httpPreRequest.method(), is(translateRequestMethod(httpMethodReference.get())));
-            validationResultContextActionListener.onResponse(validationResultContextReference.get());
-        };
+        final Supplier<Netty4HttpHeaderValidator> successHeadersValidator = () -> HttpHeadersUtils.getValidatorInboundHandler(
+            (httpPreRequest, channel, validationResultContextActionListener) -> {
+                assertThat(httpPreRequest.uri(), is(urlReference.get()));
+                assertThat(httpPreRequest.header(headerReference.get()), is(headerValueReference.get()));
+                assertThat(httpPreRequest.method(), is(translateRequestMethod(httpMethodReference.get())));
+                validationResultContextActionListener.onResponse(validationResultContextReference.get());
+            },
+            threadPool.getThreadContext()
+        );
         try (
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 settings,
@@ -753,12 +757,15 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 }
             }
         };
-        final HttpHeadersUtils.Validator failureHeadersValidator = (httpPreRequest, channel, validationResultContextActionListener) -> {
-            assertThat(httpPreRequest.uri(), is(urlReference.get()));
-            assertThat(httpPreRequest.header(headerReference.get()), is(headerValueReference.get()));
-            assertThat(httpPreRequest.method(), is(translateRequestMethod(httpMethodReference.get())));
-            validationResultContextActionListener.onFailure(validationResultExceptionReference.get());
-        };
+        final Supplier<Netty4HttpHeaderValidator> failureHeadersValidator = () -> HttpHeadersUtils.getValidatorInboundHandler(
+            (httpPreRequest, channel, validationResultContextActionListener) -> {
+                assertThat(httpPreRequest.uri(), is(urlReference.get()));
+                assertThat(httpPreRequest.header(headerReference.get()), is(headerValueReference.get()));
+                assertThat(httpPreRequest.method(), is(translateRequestMethod(httpMethodReference.get())));
+                validationResultContextActionListener.onFailure(validationResultExceptionReference.get());
+            },
+            threadPool.getThreadContext()
+        );
         try (
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 settings,

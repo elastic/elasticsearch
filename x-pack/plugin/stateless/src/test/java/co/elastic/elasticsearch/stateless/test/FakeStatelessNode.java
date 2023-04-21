@@ -192,7 +192,8 @@ public class FakeStatelessNode implements Closeable {
             commitService.register(shardId);
             objectStoreService = new ObjectStoreService(nodeSettings, () -> repoService, threadPool, clusterService, commitService, client);
             objectStoreService.start();
-            indexingDirectory.getSearchDirectory().setBlobContainer(() -> objectStoreService.getBlobContainer(shardId, 1));
+            indexingDirectory.getSearchDirectory()
+                .setBlobContainer(primaryTerm -> objectStoreService.getBlobContainer(shardId, primaryTerm));
 
             closeables = localCloseables.transfer();
         }

@@ -41,6 +41,7 @@ import co.elastic.elasticsearch.stateless.xpack.DummyVotingOnlyUsageTransportAct
 
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -111,12 +112,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.shard.StoreRecovery.bootstrap;
 
 public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, ClusterPlugin, ClusterCoordinationPlugin {
 
@@ -267,6 +270,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             indexModule.setIndexCommitListener(createIndexCommitListener());
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isPromotableToPrimary()) {
+                    Lucene.cleanLuceneIndex(in);
                     return new IndexDirectory(in, sharedBlobCacheService.get(), shardRouting.shardId());
                 } else {
                     return in;
@@ -298,11 +302,25 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                             .add("indices")
                             .add(shardId.getIndex().getUUID())
                             .add(String.valueOf(shardId.id()));
-                        final Supplier<BlobContainer> containerSupplier = () -> objectStore.blobContainer(
-                            basePath.add(String.valueOf(indexShard.getOperationPrimaryTerm()))
+                        final LongFunction<BlobContainer> containerSupplier = primaryTerm -> objectStore.blobContainer(
+                            basePath.add(String.valueOf(primaryTerm))
                         );
                         searchDirectory.setBlobContainer(containerSupplier);
-                        final StatelessCompoundCommit commit = ObjectStoreService.findSearchShardFiles(containerSupplier.get());
+                        StatelessCompoundCommit latestCommit = null;
+                        final long primaryTerm = indexShard.getOperationPrimaryTerm();
+                        if (indexShard.recoveryState().getRecoverySource() == RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
+                            logger.debug("Skipping checking for existing commit for empty store recovery of [{}]", shardId);
+                        } else {
+                            logger.debug("Checking for usable commit for [{}] starting at term [{}]", shardId, primaryTerm);
+                            for (long term = primaryTerm; term >= 0; term--) {
+                                latestCommit = ObjectStoreService.findSearchShardFiles(containerSupplier.apply(term));
+                                if (latestCommit != null) {
+                                    logger.debug("Found usable commit [{}] at term [{}]", latestCommit, term);
+                                    break;
+                                }
+                            }
+                        }
+                        final StatelessCompoundCommit commit = latestCommit;
 
                         logger.debug(() -> {
                             var segments = commit == null
@@ -317,19 +335,21 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                         if (commit != null) {
                             searchDirectory.updateCommit(commit);
                         }
-                        if (indexShard.routingEntry().role().isSearchable() == false) {
-                            // TODO assert we only do EmptyStoreRecoverySource / ExistingStoreRecoverySource recovery here
-                            if (indexShard.recoveryState().getRecoverySource() != RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
-                                logger.info("Recovering primary shard [{}] on {}", indexShard.shardId());
-                                Lucene.cleanLuceneIndex(store.directory());
-                                store.createEmpty();
-                                var translogUUID = Translog.createEmptyTranslog(
+                        if (indexShard.routingEntry().isPromotableToPrimary()) {
+                            final var segmentInfos = SegmentInfos.readLatestCommit(searchDirectory);
+                            final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
+                            final var checkPoint = segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
+                            if (translogUUID != null) {
+                                Translog.createEmptyTranslog(
                                     indexShard.shardPath().resolveTranslog(),
-                                    SequenceNumbers.NO_OPS_PERFORMED,
                                     indexShard.shardId(),
-                                    indexShard.getPendingPrimaryTerm()
+                                    checkPoint == null ? SequenceNumbers.UNASSIGNED_SEQ_NO : Long.parseLong(checkPoint),
+                                    indexShard.getPendingPrimaryTerm(),
+                                    translogUUID,
+                                    null
                                 );
-                                store.associateIndexWithNewTranslog(translogUUID);
+                            } else {
+                                bootstrap(indexShard, store);
                             }
                         }
                     } finally {

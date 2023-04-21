@@ -138,10 +138,12 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         return true;
     }
 
+    @Override
     public long getValueCount() {
         return ordinalMap.getValueCount();
     }
 
+    @Override
     public TimeValue getBuildingTime() {
         return took;
     }

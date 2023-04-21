@@ -32,7 +32,7 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
 
     public FieldDataStats stats(String... fields) {
         Map<String, Long> fieldTotals = null;
-        Map<String, FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldGlobalOrdinalsStats = new HashMap<>();
+        Map<String, FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldGlobalOrdinalsStats = null;
         if (CollectionUtils.isEmpty(fields) == false) {
             fieldTotals = new HashMap<>();
             for (Map.Entry<String, CounterMetric> entry : perFieldTotals.entrySet()) {
@@ -42,6 +42,9 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
             }
             for (var entry : perFieldGlobalOrdinalStats.entrySet()) {
                 if (Regex.simpleMatch(fields, entry.getKey())) {
+                    if (fieldGlobalOrdinalsStats == null) {
+                        fieldGlobalOrdinalsStats = new HashMap<>();
+                    }
                     fieldGlobalOrdinalsStats.put(
                         entry.getKey(),
                         new FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats(

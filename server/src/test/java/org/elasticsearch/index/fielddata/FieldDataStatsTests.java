@@ -45,7 +45,7 @@ public class FieldDataStatsTests extends ESTestCase {
         assertEquals(fieldDataStats.getMemorySizeInBytes(), 2L);
         assertEquals(fieldDataStats.getEvictions(), 2L);
         assertEquals(fieldDataStats.getGlobalOrdinalsStats().getBuildTimeMillis(), 2L);
-        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().size(), 0);
+        assertNull(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats());
 
         fieldDataStats = createInstance(2L, 2L, 2L, List.of(Map.entry("field1", new long[] { 2L, 2L })));
         fieldDataStats.add(createInstance(2L, 2L, 2L, List.of(Map.entry("field1", new long[] { 2L, 2L }))));
@@ -53,8 +53,8 @@ public class FieldDataStatsTests extends ESTestCase {
         assertEquals(fieldDataStats.getEvictions(), 4L);
         assertEquals(fieldDataStats.getGlobalOrdinalsStats().getBuildTimeMillis(), 4L);
         assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().size(), 1);
-        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").getValueCount(), 2L);
-        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").getTotalBuildingTime(), 4L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").valueCount(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").totalBuildingTime(), 4L);
 
         fieldDataStats = createInstance(2L, 2L, 2L, List.of(Map.entry("field1", new long[] { 2L, 2L })));
         fieldDataStats.add(
@@ -64,11 +64,29 @@ public class FieldDataStatsTests extends ESTestCase {
         assertEquals(fieldDataStats.getEvictions(), 4L);
         assertEquals(fieldDataStats.getGlobalOrdinalsStats().getBuildTimeMillis(), 6L);
         assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().size(), 2);
-        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").getValueCount(), 2L);
-        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").getTotalBuildingTime(), 4L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").valueCount(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").totalBuildingTime(), 4L);
         assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().size(), 2);
-        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field2").getValueCount(), 2L);
-        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field2").getTotalBuildingTime(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field2").valueCount(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field2").totalBuildingTime(), 2L);
+
+        fieldDataStats = createInstance(0L, 0L, 0L, List.of());
+        fieldDataStats.add(createInstance(2L, 2L, 2L, List.of(Map.entry("field1", new long[] { 2L, 2L }))));
+        assertEquals(fieldDataStats.getMemorySizeInBytes(), 2L);
+        assertEquals(fieldDataStats.getEvictions(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getBuildTimeMillis(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().size(), 1);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").valueCount(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").totalBuildingTime(), 2L);
+
+        fieldDataStats = createInstance(2L, 2L, 2L, List.of(Map.entry("field1", new long[] { 2L, 2L })));
+        fieldDataStats.add(createInstance(0L, 0L, 0L, List.of()));
+        assertEquals(fieldDataStats.getMemorySizeInBytes(), 2L);
+        assertEquals(fieldDataStats.getEvictions(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getBuildTimeMillis(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().size(), 1);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").valueCount(), 2L);
+        assertEquals(fieldDataStats.getGlobalOrdinalsStats().getFieldGlobalOrdinalsStats().get("field1").totalBuildingTime(), 2L);
     }
 
     private static FieldDataStats createInstance(
@@ -77,7 +95,7 @@ public class FieldDataStatsTests extends ESTestCase {
         long buildTime,
         List<Map.Entry<String, long[]>> entries
     ) {
-        Map<String, FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats> f = new HashMap<>();
+        Map<String, FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats> f = entries.isEmpty() ? null : new HashMap<>();
         for (Map.Entry<String, long[]> entry : entries) {
             f.put(entry.getKey(), new FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats(entry.getValue()[0], entry.getValue()[1]));
         }

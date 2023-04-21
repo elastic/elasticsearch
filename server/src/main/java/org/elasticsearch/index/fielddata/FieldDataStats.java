@@ -166,11 +166,18 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         return Objects.hash(memorySize, evictions, fields, globalOrdinalsStats);
     }
 
+    /**
+     * The global ordinal stats. Keeps track of total build time for all fields that support global ordinals.
+     * Also keeps track of build time per field and the maximum unique value on a shard level.
+     * <p>
+     * Global ordinals can speed up sorting and aggregations, but can be expensive to build (dependents on number of unique values).
+     * Each time a refresh happens global ordinals need to be rebuilt. These stats should give more insight on these costs.
+     */
     public static class GlobalOrdinalsStats {
 
         private long buildTimeMillis;
         @Nullable
-        private final Map<String, GlobalOrdinalFieldStats> fieldGlobalOrdinalsStats;
+        private Map<String, GlobalOrdinalFieldStats> fieldGlobalOrdinalsStats;
 
         public GlobalOrdinalsStats(long buildTimeMillis, Map<String, GlobalOrdinalFieldStats> fieldGlobalOrdinalsStats) {
             this.buildTimeMillis = buildTimeMillis;
@@ -188,7 +195,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
 
         void add(GlobalOrdinalsStats other) {
             buildTimeMillis += other.buildTimeMillis;
-            if (fieldGlobalOrdinalsStats != null) {
+            if (fieldGlobalOrdinalsStats != null && other.fieldGlobalOrdinalsStats != null) {
                 for (var entry : other.fieldGlobalOrdinalsStats.entrySet()) {
                     fieldGlobalOrdinalsStats.merge(
                         entry.getKey(),
@@ -199,6 +206,8 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
                         )
                     );
                 }
+            } else if (other.fieldGlobalOrdinalsStats != null) {
+                fieldGlobalOrdinalsStats = other.fieldGlobalOrdinalsStats;
             }
         }
 
@@ -215,37 +224,7 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
             return Objects.hash(buildTimeMillis, fieldGlobalOrdinalsStats);
         }
 
-        public static class GlobalOrdinalFieldStats {
-
-            long totalBuildingTime;
-            long valueCount;
-
-            public GlobalOrdinalFieldStats(long totalBuildingTime, long valueCount) {
-                this.totalBuildingTime = totalBuildingTime;
-                this.valueCount = valueCount;
-            }
-
-            public long getTotalBuildingTime() {
-                return totalBuildingTime;
-            }
-
-            public long getValueCount() {
-                return valueCount;
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                GlobalOrdinalFieldStats that = (GlobalOrdinalFieldStats) o;
-                return totalBuildingTime == that.totalBuildingTime && valueCount == that.valueCount;
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(totalBuildingTime, valueCount);
-            }
-        }
+        public record GlobalOrdinalFieldStats(long totalBuildingTime, long valueCount) {}
 
     }
 }

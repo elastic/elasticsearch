@@ -325,6 +325,7 @@ setup:
         - min(arg1)
         - mv_max(arg1)
         - mv_min(arg1)
+        - pow(arg1, arg2)
         - round(arg1, arg2)
         - starts_with(arg1, arg2)
         - substring(arg1, arg2, arg3)

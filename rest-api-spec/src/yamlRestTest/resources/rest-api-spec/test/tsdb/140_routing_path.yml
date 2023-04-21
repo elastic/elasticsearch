@@ -93,11 +93,11 @@ missing routing path field:
 ---
 missing dimension on routing path field:
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/95406"
+      version: " - 8.7.99"
+      reason: error message changed in 8.8.0
 
   - do:
-      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] and without the \[script\] parameter. \[tag\] was not \[time_series_dimension: true\]./'
+      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[tag\] was not a dimension./'
       indices.create:
         index: test
         body:

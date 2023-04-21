@@ -36,6 +36,8 @@ configurations {
 dependencies {
   api project(":libs:elasticsearch-ssl-config")
 
+  api "org.slf4j:slf4j-nop:2.0.6" // netty is using slf4j-api.
+
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"
   api "io.netty:netty-codec:${versions.netty}"
@@ -164,6 +166,13 @@ tasks.named("thirdPartyAudit").configure {
     'org.slf4j.Logger',
     'org.slf4j.LoggerFactory',
     'org.slf4j.spi.LocationAwareLogger',
+
+    // from slf4j-nop
+    'org.slf4j.ILoggerFactory',
+    'org.slf4j.IMarkerFactory',
+    'org.slf4j.spi.MDCAdapter',
+    'org.slf4j.spi.SLF4JServiceProvider',
+
 
     'com.google.protobuf.ExtensionRegistryLite',
     'com.google.protobuf.MessageLiteOrBuilder',

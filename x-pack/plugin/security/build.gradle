@@ -56,7 +56,7 @@ dependencies {
     exclude group: 'org.bouncycastle'
   }
   api "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}" //TODO should we remove this as well? https://github.com/elastic/elasticsearch/issues/93714
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"

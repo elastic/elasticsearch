@@ -21,7 +21,6 @@ import org.elasticsearch.search.profile.query.InternalProfileCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;
@@ -57,7 +56,10 @@ abstract class QueryCollectorContext {
      */
     protected InternalProfileCollector createWithProfiler(InternalProfileCollector in) throws IOException {
         final Collector collector = create(in);
-        return new InternalProfileCollector(collector, profilerName, in != null ? Collections.singletonList(in) : Collections.emptyList());
+        if (in == null) {
+            return new InternalProfileCollector(collector, profilerName);
+        }
+        return new InternalProfileCollector(collector, profilerName, in);
     }
 
     /**
@@ -132,14 +134,11 @@ abstract class QueryCollectorContext {
 
             @Override
             protected InternalProfileCollector createWithProfiler(InternalProfileCollector in) {
-                final List<InternalProfileCollector> subCollectors = new ArrayList<>();
-                subCollectors.add(in);
                 if (subCollector instanceof InternalProfileCollector == false) {
                     throw new IllegalArgumentException("non-profiling collector");
                 }
-                subCollectors.add((InternalProfileCollector) subCollector);
-                final Collector collector = MultiCollector.wrap(subCollectors);
-                return new InternalProfileCollector(collector, REASON_SEARCH_MULTI, subCollectors);
+                final Collector collector = MultiCollector.wrap(in, subCollector);
+                return new InternalProfileCollector(collector, REASON_SEARCH_MULTI, in, (InternalProfileCollector) subCollector);
             }
         };
     }

@@ -100,7 +100,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
 
     }
 
-    private final class Maps {
+    private static final class Maps {
 
         // All writes (adds and deletes) go into here:
         final VersionLookup current;
@@ -149,6 +149,10 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
          * builds a new map that invalidates the old map but maintains the current. This should be called in afterRefresh()
          */
         Maps invalidateOldMap() {
+            return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
+        }
+
+        Maps invalidateOldMap(LiveVersionMapArchiver archiver) {
             archiver.afterRefresh(old);
             return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
         }
@@ -256,7 +260,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact
         // reflected in the previous reader. We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
 
-        maps = maps.invalidateOldMap();
+        maps = maps.invalidateOldMap(archiver);
         assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMap()) != null;
 
     }
@@ -305,18 +309,18 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         return maps.current.isUnsafe() || maps.old.isUnsafe();
     }
 
-    void enforceSafeAccess() {
+    public void enforceSafeAccess() {
         maps.needsSafeAccess = true;
     }
 
-    boolean isSafeAccessRequired() {
+    public boolean isSafeAccessRequired() {
         return maps.isSafeAccessMode();
     }
 
     /**
      * Adds this uid/version to the pending adds map iff the map needs safe access.
      */
-    void maybePutIndexUnderLock(BytesRef uid, IndexVersionValue version) {
+    public void maybePutIndexUnderLock(BytesRef uid, IndexVersionValue version) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         Maps maps = this.maps;
         if (maps.isSafeAccessMode()) {

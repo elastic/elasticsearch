@@ -88,7 +88,7 @@ public class TransformSchedulerTests extends ESTestCase {
             assertThat(events, hasSize(1));
             clock.advanceTimeBy(Duration.ofMillis(1001));
         }
-        assertThat(clock.currentTime, is(equalTo(Instant.ofEpochMilli(5005))));
+        assertThat(clock.instant(), is(equalTo(Instant.ofEpochMilli(5005))));
 
         for (int i = 0; i < frequencySeconds; ++i) {
             transformScheduler.processScheduledTasks();
@@ -99,7 +99,7 @@ public class TransformSchedulerTests extends ESTestCase {
             assertThat(events, hasSize(2));
             clock.advanceTimeBy(Duration.ofMillis(1001));
         }
-        assertThat(clock.currentTime, is(equalTo(Instant.ofEpochMilli(10010))));
+        assertThat(clock.instant(), is(equalTo(Instant.ofEpochMilli(10010))));
 
         for (int i = 0; i < frequencySeconds; ++i) {
             transformScheduler.processScheduledTasks();
@@ -110,7 +110,7 @@ public class TransformSchedulerTests extends ESTestCase {
             assertThat(events, hasSize(3));
             clock.advanceTimeBy(Duration.ofMillis(1001));
         }
-        assertThat(clock.currentTime, is(equalTo(Instant.ofEpochMilli(15015))));
+        assertThat(clock.instant(), is(equalTo(Instant.ofEpochMilli(15015))));
 
         assertThat(events.get(0), is(equalTo(new TransformScheduler.Event(transformId, 0, 0))));
         assertThat(events.get(1), is(equalTo(new TransformScheduler.Event(transformId, 5000, 5005))));
@@ -147,7 +147,7 @@ public class TransformSchedulerTests extends ESTestCase {
             assertThat(events, hasSize(1));
             clock.advanceTimeBy(Duration.ofMillis(TEST_SCHEDULER_FREQUENCY.millis()));
         }
-        assertThat(clock.currentTime, is(equalTo(Instant.ofEpochSecond(60))));
+        assertThat(clock.instant(), is(equalTo(Instant.ofEpochSecond(60))));
 
         transformScheduler.handleTransformFailureCountChanged(transformId, 1);
         assertThat(
@@ -450,41 +450,5 @@ public class TransformSchedulerTests extends ESTestCase {
         assertThat(events.get(3).transformId(), is(equalTo(transformId1)));
         assertThat(events.get(4).transformId(), is(equalTo(transformId2)));
         assertThat(events.get(5).transformId(), is(equalTo(transformId3)));
-    }
-
-    private static class FakeClock extends Clock {
-
-        private Instant currentTime;
-
-        FakeClock(Instant time) {
-            assertThat(time, is(notNullValue()));
-            currentTime = time;
-        }
-
-        public void setCurrentTime(Instant time) {
-            // We cannot go back in time.
-            assertThat(time, is(greaterThanOrEqualTo(currentTime)));
-            currentTime = time;
-        }
-
-        public void advanceTimeBy(Duration duration) {
-            assertThat(duration, is(notNullValue()));
-            setCurrentTime(currentTime.plus(duration));
-        }
-
-        @Override
-        public Instant instant() {
-            return currentTime;
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneId.systemDefault();
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
     }
 }

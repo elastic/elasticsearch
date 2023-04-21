@@ -13,11 +13,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
@@ -26,6 +30,8 @@ import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 import java.util.Map;
 
 public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTransportAction {
+    private final Settings settings;
+    private final XPackLicenseState licenseState;
     private final SearchApplicationIndexService searchApplicationIndexService;
 
     @Inject
@@ -35,6 +41,8 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        Settings settings,
+        XPackLicenseState licenseState,
         SearchApplicationIndexService searchApplicationIndexService
     ) {
         super(
@@ -45,6 +53,8 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
             actionFilters,
             indexNameExpressionResolver
         );
+        this.settings = settings;
+        this.licenseState = licenseState;
         this.searchApplicationIndexService = searchApplicationIndexService;
     }
 
@@ -58,7 +68,11 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         searchApplicationIndexService.listSearchApplication("*", 0, 0, listener.delegateFailure((l, searchApplicationResult) -> {
             l.onResponse(
                 new XPackUsageFeatureResponse(
-                    new EnterpriseSearchFeatureSetUsage(true, true, Map.of("count", searchApplicationResult.totalResults()))
+                    new EnterpriseSearchFeatureSetUsage(
+                        XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings),
+                        LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
+                        Map.of("count", searchApplicationResult.totalResults())
+                    )
                 )
             );
         }));

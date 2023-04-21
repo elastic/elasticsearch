@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class EnterpriseSearchFeatureSetUsageTests extends AbstractWireSerializingTestCase<EnterpriseSearchFeatureSetUsage> {
+public class EnterpriseSearchFeatureSetUsageSerializingTests extends AbstractWireSerializingTestCase<EnterpriseSearchFeatureSetUsage> {
 
     @Override
     protected EnterpriseSearchFeatureSetUsage createTestInstance() {

@@ -33,6 +33,8 @@ import java.util.stream.Collectors;
  */
 public class XPackLicenseState {
 
+    // TODO do I need to add a `messages` entry for the new feature? I'm not sure.
+
     /** Messages for each feature which are printed when the license expires. */
     static final Map<String, String[]> EXPIRATION_MESSAGES;
     static {

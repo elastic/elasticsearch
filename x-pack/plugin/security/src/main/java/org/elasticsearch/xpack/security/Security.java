@@ -1670,11 +1670,6 @@ public class Security extends Plugin
                     // step 4: Run authentication on the now properly prepared thread-context.
                     // This inspects and modifies the thread context.
                     authenticationService.authenticate(httpRequest, ActionListener.wrap(authentication -> {
-                        if (authentication == null) {
-                            logger.trace("No authentication available for HTTP request [{}]", httpRequest.uri());
-                        } else {
-                            logger.trace("Authenticated HTTP request [{}] as {}", httpRequest.uri(), authentication);
-                        }
                         // step 5: Capture the now *authenticated* thread context and store it in a variable.
                         // The captured authenticated context is going to be instated only while executing the associated request handler.
                         ThreadContext.StoredContext authenticatedStoredContext = threadContext.newStoredContext();

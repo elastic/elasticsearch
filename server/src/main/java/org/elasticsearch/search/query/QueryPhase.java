@@ -53,7 +53,7 @@ import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEAR
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MULTI;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_POST_FILTER;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_TERMINATE_AFTER_COUNT;
-import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
+import static org.elasticsearch.search.query.TopDocsCollectorFactory.createTopDocsCollectorFactory;
 
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
@@ -132,7 +132,7 @@ public class QueryPhase {
             }
 
             // create the top docs collector last when the other collectors are known
-            final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(
+            final TopDocsCollectorFactory topDocsFactory = createTopDocsCollectorFactory(
                 searchContext,
                 searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null
             );

@@ -83,7 +83,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.IntUnaryOperator;
 
-import static org.elasticsearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
+import static org.elasticsearch.search.query.TopDocsCollectorFactory.hasInfMaxScore;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -679,7 +679,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.parsedQuery(new ParsedQuery(q));
         context.setSize(3);
         context.trackTotalHitsUpTo(3);
-        TopDocsCollectorContext topDocsContext = TopDocsCollectorContext.createTopDocsCollectorContext(context, false);
+        TopDocsCollectorFactory topDocsContext = TopDocsCollectorFactory.createTopDocsCollectorFactory(context, false);
         assertEquals(topDocsContext.collector().scoreMode(), org.apache.lucene.search.ScoreMode.COMPLETE);
         QueryPhase.executeInternal(context);
         assertEquals(5, context.queryResult().topDocs().topDocs.totalHits.value);
@@ -687,7 +687,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(3));
 
         context.sort(new SortAndFormats(new Sort(new SortField("other", SortField.Type.INT)), new DocValueFormat[] { DocValueFormat.RAW }));
-        topDocsContext = TopDocsCollectorContext.createTopDocsCollectorContext(context, false);
+        topDocsContext = TopDocsCollectorFactory.createTopDocsCollectorFactory(context, false);
         assertEquals(topDocsContext.collector().scoreMode(), org.apache.lucene.search.ScoreMode.TOP_DOCS);
         QueryPhase.executeInternal(context);
         assertEquals(5, context.queryResult().topDocs().topDocs.totalHits.value);

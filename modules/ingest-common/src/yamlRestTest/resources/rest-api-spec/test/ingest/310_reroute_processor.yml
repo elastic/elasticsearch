@@ -1,0 +1,140 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-with-two-data-stream-processors"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "logs-router-default"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "logs-nginx-default"
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: logs-router
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: logs-nginx
+        ignore: 404
+
+---
+"Test first matching router terminates pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-with-two-data-stream-processors"
+        body:  >
+          {
+            "processors": [
+              {
+                "reroute" : {
+                  "dataset" : "first"
+                }
+              },
+              {
+                "reroute" : {
+                  "dataset" : "second"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: logs-generic-default
+        id: "1"
+        pipeline: "pipeline-with-two-data-stream-processors"
+        body: {
+          foo: "bar"
+        }
+
+  - do:
+      get:
+        index: logs-first-default
+        id: "1"
+  - match: { _source.foo: "bar" }
+---
+"Test two stage routing":
+  - skip:
+      features: allowed_warnings
+  - do:
+      ingest.put_pipeline:
+        id: "logs-router"
+        body:  >
+          {
+            "processors": [
+              {
+                "reroute" : {
+                  "tag": "nginx",
+                  "if" : "ctx?.log?.file?.path?.contains('nginx')",
+                  "dataset": "nginx"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      allowed_warnings:
+        - "index template [logs-router] has index patterns [logs-router-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-router] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-router
+        body:
+          index_patterns: [ "logs-router-*" ]
+          template:
+            settings:
+              index.default_pipeline: "logs-router"
+  - do:
+      ingest.put_pipeline:
+        id: "logs-nginx"
+        body:  >
+          {
+            "processors": [
+              {
+                "reroute": {
+                  "tag": "nginx.access",
+                  "if": "ctx?.log?.file?.path?.contains('access')",
+                  "dataset": "nginx.access"
+                }
+              },
+              {
+                "reroute": {
+                  "tag": "nginx.error",
+                  "if": "ctx?.log?.file?.path?.contains('error')",
+                  "dataset": "nginx.error"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      allowed_warnings:
+        - "index template [logs-nginx] has index patterns [logs-nginx-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-nginx] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-nginx
+        body:
+          index_patterns: [ "logs-nginx-*" ]
+          template:
+            settings:
+              index.default_pipeline: "logs-nginx"
+
+  - do:
+      index:
+        index: logs-nginx-default
+        id: "example-log"
+        op_type: create
+        body:
+          "@timestamp": "2022-04-13"
+          message: "this is an error log"
+          log:
+            file:
+              path: "nginx-error.log"
+
+  - do:
+      get:
+        index: logs-nginx.error-default
+        id: "example-log"
+  - match: { _source.message: "this is an error log" }

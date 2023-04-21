@@ -58,9 +58,7 @@ The following example sets the lifecycle of `my-data-stream`:
 --------------------------------------------------
 PUT _data_stream/my-data-stream/_lifecycle
 {
-  "lifecycle": {
-    "data_retention": "7d"
-  }
+  "data_retention": "7d"
 }
 --------------------------------------------------
 // TEST[setup:my_data_stream]

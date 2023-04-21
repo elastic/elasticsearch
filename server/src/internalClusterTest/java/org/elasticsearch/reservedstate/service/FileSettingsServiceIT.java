@@ -334,7 +334,6 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateNotSaved(savedClusterState.v1(), savedClusterState.v2());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94464")
     public void testSettingsAppliedOnMasterReElection() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start master node");
@@ -343,6 +342,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         logger.info("--> start master eligible nodes, 2 more for quorum");
         String masterNode1 = internalCluster().startNode(Settings.builder().put(masterNode()).put("discovery.initial_state_timeout", "1s"));
         String masterNode2 = internalCluster().startNode(Settings.builder().put(masterNode()).put("discovery.initial_state_timeout", "1s"));
+        internalCluster().validateClusterFormed();
         FileSettingsService master1FS = internalCluster().getInstance(FileSettingsService.class, masterNode1);
         FileSettingsService master2FS = internalCluster().getInstance(FileSettingsService.class, masterNode2);
 

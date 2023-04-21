@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.StartJoinRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -93,7 +94,9 @@ public class StatelessElectionStrategy extends ElectionStrategy {
                         listener.onResponse(new StartJoinRequest(candidateMasterNode, electionTerm));
                     } else {
                         listener.onFailure(
-                            new CoordinationStateRejectedException("Term " + proposedTerm + " already claimed by a different node")
+                            new CoordinationStateRejectedException(
+                                Strings.format("term [%d] already claimed by a different node", electionTerm)
+                            )
                         );
                     }
                 })
@@ -108,12 +111,18 @@ public class StatelessElectionStrategy extends ElectionStrategy {
 
     private void doBeforeCommit(long term, long version, int retryCount, ActionListener<Void> listener) {
         getCurrentLeaseTerm(listener.delegateFailure((delegate, currentTerm) -> {
-            if (currentTerm.isEmpty() && retryCount < MAX_READ_CURRENT_LEASE_TERM_RETRIES) {
-                threadPool.schedule(
-                    () -> doBeforeCommit(term, version, retryCount + 1, delegate),
-                    READ_CURRENT_LEASE_TERM_RETRY_DELAY,
-                    ThreadPool.Names.SAME
-                );
+            if (currentTerm.isEmpty()) {
+                if (retryCount < MAX_READ_CURRENT_LEASE_TERM_RETRIES) {
+                    threadPool.schedule(
+                        () -> doBeforeCommit(term, version, retryCount + 1, delegate),
+                        READ_CURRENT_LEASE_TERM_RETRY_DELAY,
+                        ThreadPool.Names.SAME
+                    );
+                } else {
+                    delegate.onFailure(new IllegalStateException(Strings.format("""
+                        failing commit of cluster state version [%d] in term [%d] after [%d] failed attempts to verify the \
+                        current term""", version, term, retryCount)));
+                }
                 return;
             }
 
@@ -121,7 +130,16 @@ public class StatelessElectionStrategy extends ElectionStrategy {
                 delegate.onResponse(null);
             } else {
                 assert term < currentTerm.getAsLong() : term + " vs " + currentTerm;
-                delegate.onFailure(new CoordinationStateRejectedException("Term " + term + " already claimed by another node"));
+                delegate.onFailure(
+                    new CoordinationStateRejectedException(
+                        Strings.format(
+                            "failing commit of cluster state version [%d] in term [%d] since current term is now [%d]",
+                            version,
+                            term,
+                            currentTerm.getAsLong()
+                        )
+                    )
+                );
             }
         }));
     }

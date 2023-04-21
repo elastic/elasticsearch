@@ -34,7 +34,7 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected DataType expressionForSimpleDataType() {
+    protected DataType expectedType(List<DataType> argTypes) {
         return DataTypes.INTEGER;
     }
 

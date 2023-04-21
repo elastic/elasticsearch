@@ -35,7 +35,7 @@ public class IsNullTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected DataType expressionForSimpleDataType() {
+    protected DataType expectedType(List<DataType> argTypes) {
         return DataTypes.BOOLEAN;
     }
 

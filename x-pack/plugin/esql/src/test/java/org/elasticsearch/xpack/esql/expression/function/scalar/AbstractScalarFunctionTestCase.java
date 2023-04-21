@@ -34,6 +34,8 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTestCase {
     protected abstract List<ArgumentSpec> argSpec();
 
+    protected abstract DataType expectedType(List<DataType> argTypes);
+
     protected final ArgumentSpec required(DataType... validTypes) {
         return new ArgumentSpec(false, withNullAndSorted(validTypes));
     }
@@ -66,6 +68,11 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     protected record ArgumentSpec(boolean optional, Set<DataType> validTypes) {}
+
+    @Override
+    protected final DataType expressionForSimpleDataType() {
+        return expectedType(simpleData().stream().map(v -> EsqlDataTypes.fromJava(v instanceof List ? ((List<?>) v).get(0) : v)).toList());
+    }
 
     public final void testSimpleResolveTypeValid() {
         assertResolveTypeValid(expressionForSimpleData(), expressionForSimpleDataType());
@@ -102,13 +109,13 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     private void assertResolution(List<ArgumentSpec> specs, List<Literal> args, int mutArg, DataType mutArgType, boolean shouldBeValid) {
         Expression exp = build(new Source(Location.EMPTY, "exp"), args);
         logger.info("checking {} is {}", exp.nodeString(), shouldBeValid ? "valid" : "invalid");
-        Expression.TypeResolution resolution = exp.typeResolved();
         if (shouldBeValid) {
-            assertTrue(exp.nodeString(), resolution.resolved());
-        } else {
-            assertFalse(exp.nodeString(), resolution.resolved());
-            assertThat(exp.nodeString(), resolution.message(), badTypeError(specs, mutArg, mutArgType));
+            assertResolveTypeValid(exp, expectedType(args.stream().map(Expression::dataType).toList()));
+            return;
         }
+        Expression.TypeResolution resolution = exp.typeResolved();
+        assertFalse(exp.nodeString(), resolution.resolved());
+        assertThat(exp.nodeString(), resolution.message(), badTypeError(specs, mutArg, mutArgType));
     }
 
     protected Matcher<String> badTypeError(List<ArgumentSpec> spec, int badArgPosition, DataType badArgType) {
@@ -118,7 +125,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         return equalTo(
             ordinal
                 + "argument of [exp] must be ["
-                + expectedType(spec.get(badArgPosition).validTypes())
+                + expectedTypeName(spec.get(badArgPosition).validTypes())
                 + "], found value [arg"
                 + badArgPosition
                 + "] type ["
@@ -127,7 +134,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         );
     }
 
-    private String expectedType(Set<DataType> validTypes) {
+    private String expectedTypeName(Set<DataType> validTypes) {
         List<DataType> withoutNull = validTypes.stream().filter(t -> t != DataTypes.NULL).toList();
         if (withoutNull.size() == 1) {
             String expectedType = withoutNull.get(0).typeName();

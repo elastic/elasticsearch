@@ -95,8 +95,8 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected DataType expressionForSimpleDataType() {
-        return DataTypes.DOUBLE;
+    protected DataType expectedType(List<DataType> argTypes) {
+        return argTypes.get(0);
     }
 
     @Override

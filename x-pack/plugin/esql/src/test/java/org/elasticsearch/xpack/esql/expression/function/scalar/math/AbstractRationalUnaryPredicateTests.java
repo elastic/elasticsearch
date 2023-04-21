@@ -39,7 +39,7 @@ public abstract class AbstractRationalUnaryPredicateTests extends AbstractScalar
     }
 
     @Override
-    protected final DataType expressionForSimpleDataType() {
+    protected DataType expectedType(List<DataType> argTypes) {
         return DataTypes.BOOLEAN;
     }
 

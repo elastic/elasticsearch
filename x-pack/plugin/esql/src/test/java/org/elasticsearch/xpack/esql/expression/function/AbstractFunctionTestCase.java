@@ -113,7 +113,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     protected final void assertResolveTypeValid(Expression expression, DataType expectedType) {
         assertTrue(expression.typeResolved().resolved());
-        assertThat(expressionForSimpleData().dataType(), equalTo(expectedType));
+        assertThat(expression.dataType(), equalTo(expectedType));
     }
 
     public final void testSimple() {

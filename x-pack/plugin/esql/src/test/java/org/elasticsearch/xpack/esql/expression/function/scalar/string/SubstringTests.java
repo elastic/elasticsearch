@@ -41,7 +41,7 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected DataType expressionForSimpleDataType() {
+    protected DataType expectedType(List<DataType> argTypes) {
         return DataTypes.KEYWORD;
     }
 

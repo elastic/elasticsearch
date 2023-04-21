@@ -46,8 +46,8 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     @Override
-    protected final DataType expressionForSimpleDataType() {
-        return representable()[0];
+    protected DataType expectedType(List<DataType> argTypes) {
+        return argTypes.get(0);
     }
 
     @Override

@@ -57,29 +57,6 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
         }
     }
 
-    static class AnalyticsEventContext implements Context {
-        private final AnalyticsEvent event;
-
-        AnalyticsEventContext(AnalyticsEvent event) {
-            this.event = Objects.requireNonNull(event, "event cannot be null");
-        }
-
-        @Override
-        public long eventTime() {
-            return event.eventTime();
-        }
-
-        @Override
-        public Type eventType() {
-            return event.eventType();
-        }
-
-        @Override
-        public String eventCollectionName() {
-            return event.eventCollectionName();
-        }
-    }
-
     /**
      * Analytics event types.
      */
@@ -154,10 +131,6 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
 
     public Map<String, Object> payloadAsMap() {
         return XContentHelper.convertToMap(payload(), true, xContentType()).v2();
-    }
-
-    public Context context() {
-        return new AnalyticsEventContext(this);
     }
 
     @Override

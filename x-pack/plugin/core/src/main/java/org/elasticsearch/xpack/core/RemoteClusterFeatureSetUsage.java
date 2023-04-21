@@ -48,7 +48,7 @@ public class RemoteClusterFeatureSetUsage extends XPackFeatureSet.Usage {
         builder.field("size", size);
 
         int numberOfSniffModes = 0;
-        int numberOfConfigurableModels = 0;
+        int numberOfApiKeySecured = 0;
         for (var info : remoteConnectionInfos) {
             if ("sniff".equals(info.getModeInfo().modeName())) {
                 numberOfSniffModes += 1;
@@ -56,7 +56,7 @@ public class RemoteClusterFeatureSetUsage extends XPackFeatureSet.Usage {
                 assert "proxy".equals(info.getModeInfo().modeName());
             }
             if (info.hasClusterCredentials()) {
-                numberOfConfigurableModels += 1;
+                numberOfApiKeySecured += 1;
             }
         }
 
@@ -66,8 +66,8 @@ public class RemoteClusterFeatureSetUsage extends XPackFeatureSet.Usage {
         builder.endObject();
 
         builder.startObject("security");
-        builder.field("basic", size - numberOfConfigurableModels);
-        builder.field("configurable", numberOfConfigurableModels);
+        builder.field("cert", size - numberOfApiKeySecured);
+        builder.field("api_key", numberOfApiKeySecured);
         builder.endObject();
     }
 }

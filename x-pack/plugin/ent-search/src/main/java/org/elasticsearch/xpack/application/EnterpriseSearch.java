@@ -51,7 +51,7 @@ import org.elasticsearch.xpack.application.analytics.action.TransportDeleteAnaly
 import org.elasticsearch.xpack.application.analytics.action.TransportGetAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
-import org.elasticsearch.xpack.application.analytics.ingest.BulkProcessorConfig;
+import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.GetSearchApplicationAction;
@@ -199,9 +199,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
-            BulkProcessorConfig.MAX_NUMBER_OF_EVENTS_PER_BULK_SETTING,
-            BulkProcessorConfig.FLUSH_DELAY_SETTING,
-            BulkProcessorConfig.MAX_NUMBER_OF_RETRIES_SETTING
+            AnalyticsEventIngestConfig.MAX_NUMBER_OF_EVENTS_PER_BULK_SETTING,
+            AnalyticsEventIngestConfig.FLUSH_DELAY_SETTING,
+            AnalyticsEventIngestConfig.MAX_NUMBER_OF_RETRIES_SETTING,
+            AnalyticsEventIngestConfig.MAX_BYTES_IN_FLIGHT_SETTING
         );
     }
 }

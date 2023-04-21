@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.audit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
@@ -80,7 +81,7 @@ public class AuditTrailService {
         }
 
         @Override
-        public void authenticationSuccess(String requestId, Authentication authentication, RestRequest request) {}
+        public void authenticationSuccess(RestRequest request) {}
 
         @Override
         public void authenticationSuccess(
@@ -94,10 +95,10 @@ public class AuditTrailService {
         public void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest) {}
 
         @Override
-        public void anonymousAccessDenied(String requestId, RestRequest request) {}
+        public void anonymousAccessDenied(String requestId, HttpPreRequest request) {}
 
         @Override
-        public void authenticationFailed(String requestId, RestRequest request) {}
+        public void authenticationFailed(String requestId, HttpPreRequest request) {}
 
         @Override
         public void authenticationFailed(String requestId, String action, TransportRequest transportRequest) {}
@@ -106,7 +107,7 @@ public class AuditTrailService {
         public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportRequest transportRequest) {}
 
         @Override
-        public void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request) {}
+        public void authenticationFailed(String requestId, AuthenticationToken token, HttpPreRequest request) {}
 
         @Override
         public void authenticationFailed(
@@ -118,7 +119,7 @@ public class AuditTrailService {
         ) {}
 
         @Override
-        public void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {}
+        public void authenticationFailed(String requestId, String realm, AuthenticationToken token, HttpPreRequest request) {}
 
         @Override
         public void accessGranted(
@@ -139,7 +140,7 @@ public class AuditTrailService {
         ) {}
 
         @Override
-        public void tamperedRequest(String requestId, RestRequest request) {}
+        public void tamperedRequest(String requestId, HttpPreRequest request) {}
 
         @Override
         public void tamperedRequest(String requestId, String action, TransportRequest transportRequest) {}
@@ -175,7 +176,7 @@ public class AuditTrailService {
         public void runAsDenied(
             String requestId,
             Authentication authentication,
-            RestRequest request,
+            HttpPreRequest request,
             AuthorizationInfo authorizationInfo
         ) {}
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.transform.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationStateTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 
@@ -32,6 +33,9 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
         );
         if (randomBoolean()) {
             request.setConfig(TransformConfigTests.randomTransformConfig());
+        }
+        if (randomBoolean()) {
+            request.setAuthState(AuthorizationStateTests.randomAuthorizationState());
         }
         return request;
     }
@@ -70,5 +74,4 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
 
         return new Request(update, id, deferValidation, timeout);
     }
-
 }

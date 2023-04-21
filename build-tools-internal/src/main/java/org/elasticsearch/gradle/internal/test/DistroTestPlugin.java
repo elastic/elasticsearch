@@ -37,9 +37,11 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Specs;
 import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.initialization.layout.BuildLayout;
@@ -199,13 +201,9 @@ public class DistroTestPlugin implements Plugin<Project> {
 
             // windows boxes get windows distributions, and linux boxes get linux distributions
             if (isWindows(vmProject)) {
-                configureVMWrapperTasks(
-                    vmProject,
-                    windowsTestTasks,
-                    depsTasks,
-                    wrapperTask -> { vmLifecyleTasks.get(ARCHIVE).configure(t -> t.dependsOn(wrapperTask)); },
-                    vmDependencies
-                );
+                configureVMWrapperTasks(vmProject, windowsTestTasks, depsTasks, wrapperTask -> {
+                    vmLifecyleTasks.get(ARCHIVE).configure(t -> t.dependsOn(wrapperTask));
+                }, vmDependencies);
             } else {
                 for (var entry : linuxTestTasks.entrySet()) {
                     ElasticsearchDistributionType type = entry.getKey();
@@ -375,6 +373,9 @@ public class DistroTestPlugin implements Plugin<Project> {
             t.onlyIf(t3 -> distribution.getArchitecture() == Architecture.current());
             t.getOutputs().doNotCacheIf("Build cache is disabled for packaging tests", Specs.satisfyAll());
             t.setMaxParallelForks(1);
+            SourceSet testSourceSet = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().getByName("test");
+            t.setClasspath(testSourceSet.getRuntimeClasspath());
+            t.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
             t.setWorkingDir(project.getProjectDir());
             if (System.getProperty(IN_VM_SYSPROP) == null) {
                 t.dependsOn(deps);

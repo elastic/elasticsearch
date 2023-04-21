@@ -126,10 +126,9 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 .wrapLongitude(false);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                ElasticsearchParseException exception = expectThrows(
-                    ElasticsearchParseException.class,
-                    () -> { searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType)); }
-                );
+                ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> {
+                    searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+                });
                 assertThat(exception.getMessage(), startsWith("unsupported symbol"));
             }
         }

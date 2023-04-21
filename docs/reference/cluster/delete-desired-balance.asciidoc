@@ -1,0 +1,18 @@
+[[delete-desired-balance]]
+=== Delete/reset desired balance API
+++++
+<titleabbrev>Delete/reset desired balance</titleabbrev>
+++++
+
+NOTE: {cloud-only}
+
+Exposes the desired balance and basic metrics.
+
+[[delete-desired-balance-request]]
+==== {api-request-title}
+
+[source,console]
+--------------------------------------------------
+DELETE /_internal/desired_balance
+--------------------------------------------------
+// TEST[skip:Can't reliably test desired balance]

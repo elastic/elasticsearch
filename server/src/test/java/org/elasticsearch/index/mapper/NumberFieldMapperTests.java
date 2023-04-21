@@ -396,7 +396,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         public SyntheticSourceExample example(int maxVals) {
             if (randomBoolean()) {
                 Tuple<Object, Object> v = generateValue();
-                if (v.v2()instanceof Number n) {
+                if (v.v2() instanceof Number n) {
                     return new SyntheticSourceExample(v.v1(), round.apply(n), this::mapping);
                 }
                 // ignore_malformed value

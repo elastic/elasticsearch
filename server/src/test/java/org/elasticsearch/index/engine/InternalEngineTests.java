@@ -2541,7 +2541,7 @@ public class InternalEngineTests extends EngineTestCase {
         private final List<String> messages = Collections.synchronizedList(new ArrayList<>());
 
         List<String> messages() {
-            return messages;
+            return List.copyOf(messages);
         }
 
         MockMTAppender(final String name) throws IllegalAccessException {

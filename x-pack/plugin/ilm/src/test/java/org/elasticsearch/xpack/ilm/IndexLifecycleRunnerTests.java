@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -886,7 +887,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         // Come back to the "present"
         now.set(5L);
         indexMetadata = IndexMetadata.builder(indexMetadata)
-            .settings(Settings.builder().put(indexMetadata.getSettings()).put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, 3L).build())
+            .settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexSettings.LIFECYCLE_ORIGINATION_DATE, 3L).build())
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .build();
         assertTrue(

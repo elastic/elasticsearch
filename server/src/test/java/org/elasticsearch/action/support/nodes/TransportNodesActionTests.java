@@ -143,7 +143,7 @@ public class TransportNodesActionTests extends ESTestCase {
         assertNotEquals(failedNodeIds.isEmpty(), response.hasFailures());
         for (FailedNodeException failure : response.failures()) {
             assertThat(failedNodeIds, Matchers.hasItem(failure.nodeId()));
-            if (failure.getCause()instanceof ElasticsearchException elasticsearchException) {
+            if (failure.getCause() instanceof ElasticsearchException elasticsearchException) {
                 final var cause = elasticsearchException.unwrapCause();
                 assertEquals("simulated", cause.getMessage());
             } else {

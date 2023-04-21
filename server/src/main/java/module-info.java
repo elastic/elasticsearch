@@ -182,6 +182,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.component;
     exports org.elasticsearch.common.compress;
     exports org.elasticsearch.common.document;
+    exports org.elasticsearch.common.file;
     exports org.elasticsearch.common.filesystem;
     exports org.elasticsearch.common.geo;
     exports org.elasticsearch.common.hash;
@@ -356,7 +357,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.snapshots;
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
-    exports org.elasticsearch.timeseries.support;
     exports org.elasticsearch.tracing;
     exports org.elasticsearch.transport;
     exports org.elasticsearch.upgrades;
@@ -376,6 +376,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+    uses org.elasticsearch.jdk.ModuleQualifiedExportsService;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

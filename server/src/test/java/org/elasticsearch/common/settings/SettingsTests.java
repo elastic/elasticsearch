@@ -635,19 +635,17 @@ public class SettingsTests extends ESTestCase {
 
     public void testIndentation() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-settings.yml";
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> { Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false); }
-        );
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
+        });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
 
     public void testIndentationWithExplicitDocumentStart() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> { Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false); }
-        );
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
+        });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
 

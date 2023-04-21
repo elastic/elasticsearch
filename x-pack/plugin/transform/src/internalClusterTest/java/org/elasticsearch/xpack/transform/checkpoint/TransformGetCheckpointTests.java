@@ -96,14 +96,12 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 if (action.equals(GetCheckpointNodeAction.NAME)) {
-                    getCheckpointNodeAction.execute(
-                        null,
-                        (GetCheckpointNodeAction.Request) request,
-                        ActionListener.wrap(r -> { this.handleResponse(requestId, r); }, e -> {
-                            this.handleError(requestId, new TransportException(e.getMessage(), e));
+                    getCheckpointNodeAction.execute(null, (GetCheckpointNodeAction.Request) request, ActionListener.wrap(r -> {
+                        this.handleResponse(requestId, r);
+                    }, e -> {
+                        this.handleError(requestId, new TransportException(e.getMessage(), e));
 
-                        })
-                    );
+                    }));
                 }
             }
         };

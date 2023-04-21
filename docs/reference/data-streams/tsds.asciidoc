@@ -102,6 +102,8 @@ parameter:
 * <<number,`long`>>
 * <<number,`unsigned_long`>>
 
+For a flattened field, use the `time_series_dimensions` parameter to configure an array of fields as dimensions. For details refer to <<flattened-params,`flattened`>>.
+
 [[dimension-limits]]
 .Dimension limits
 ****
@@ -146,6 +148,8 @@ example, a count of errors or completed tasks.
 +
 Only numeric and `aggregate_metric_double` fields support the `counter` metric
 type.
+
+NOTE: Counter fields do come with a limitation in aggregations. Only the following aggregations are supported with the `counter` field: `rate`, `histogram`, `range`, `min`, `max`, `top_metrics` and `variable_width_histogram`.
 
 // tag::time-series-metric-gauge[]
 `gauge`:: A number that can increase or decrease. For example, a temperature or

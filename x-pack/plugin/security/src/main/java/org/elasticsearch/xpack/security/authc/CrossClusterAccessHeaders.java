@@ -60,7 +60,12 @@ public final class CrossClusterAccessHeaders {
         }
     }
 
-    public CrossClusterAccessSubjectInfo subjectInfo() {
+    public CrossClusterAccessSubjectInfo getCleanAndValidatedSubjectInfo() {
+        return crossClusterAccessSubjectInfo.cleanAndValidate();
+    }
+
+    // package-private for testing
+    CrossClusterAccessSubjectInfo getSubjectInfo() {
         return crossClusterAccessSubjectInfo;
     }
 

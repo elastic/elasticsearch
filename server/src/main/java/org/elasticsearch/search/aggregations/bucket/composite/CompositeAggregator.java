@@ -630,7 +630,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        if (sources[0]instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
+        if (sources[0] instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
             globalOrdinalValuesSource.collectDebugInfo(Strings.format("sources.%s", sourceConfigs[0].name()), add);
         }
     }

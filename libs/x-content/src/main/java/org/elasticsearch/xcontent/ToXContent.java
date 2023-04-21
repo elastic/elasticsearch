@@ -122,4 +122,5 @@ public interface ToXContent {
         return true;
     }
 
+    ToXContent EMPTY = (b, p) -> b;
 }

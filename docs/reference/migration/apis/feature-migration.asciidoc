@@ -67,6 +67,12 @@ Example response:
       "indices" : [ ]
     },
     {
+      "feature_name" : "ent_search",
+      "minimum_index_version" : "8.0.0",
+      "migration_status" : "NO_MIGRATION_NEEDED",
+      "indices" : [ ]
+    },
+    {
       "feature_name" : "fleet",
       "minimum_index_version" : "8.0.0",
       "migration_status" : "NO_MIGRATION_NEEDED",

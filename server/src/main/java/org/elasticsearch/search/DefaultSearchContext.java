@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -178,6 +179,7 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void addQueryResult() {
         this.queryResult = new QuerySearchResult(this.readerContext.id(), this.shardTarget, this.request);
+        addReleasable(queryResult::decRef);
     }
 
     @Override
@@ -711,6 +713,10 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public QuerySearchResult queryResult() {
         return queryResult;
+    }
+
+    public void addQuerySearchResultReleasable(Releasable releasable) {
+        queryResult.addReleasable(releasable);
     }
 
     @Override

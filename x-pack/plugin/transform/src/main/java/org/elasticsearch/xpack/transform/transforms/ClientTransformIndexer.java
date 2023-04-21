@@ -421,7 +421,9 @@ class ClientTransformIndexer extends TransformIndexer {
             client,
             ClosePointInTimeAction.INSTANCE,
             closePitRequest,
-            ActionListener.wrap(response -> { logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit); }, e -> {
+            ActionListener.wrap(response -> {
+                logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit);
+            }, e -> {
                 // note: closing the pit should never throw, even if the pit is invalid
                 logger.error(() -> "[" + getJobId() + "] Failed to close point in time reader", e);
             })

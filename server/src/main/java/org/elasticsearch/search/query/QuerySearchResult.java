@@ -15,6 +15,9 @@ import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.RescoreDocIds;
@@ -29,6 +32,8 @@ import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
@@ -60,6 +65,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     private final boolean isNull;
 
+    private final RefCounted refCounted;
+
+    private final List<Releasable> toRelease;
+
     public QuerySearchResult() {
         this(false);
     }
@@ -84,6 +93,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
             ShardSearchContextId id = new ShardSearchContextId(in);
             readFromWithId(id, in, delayedAggregations);
         }
+        refCounted = null;
+        toRelease = null;
     }
 
     public QuerySearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -91,10 +102,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
         setSearchShardTarget(shardTarget);
         isNull = false;
         setShardSearchRequest(shardSearchRequest);
+        this.refCounted = AbstractRefCounted.of(this::close);
+        this.toRelease = new ArrayList<>();
     }
 
     private QuerySearchResult(boolean isNull) {
         this.isNull = isNull;
+        this.refCounted = null;
+        toRelease = null;
     }
 
     /**
@@ -218,6 +233,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
             aggregations.close();
             aggregations = null;
         }
+    }
+
+    private void close() {
+        Releasables.close(toRelease);
+    }
+
+    public void addReleasable(Releasable releasable) {
+        toRelease.add(releasable);
     }
 
     public void aggregations(InternalAggregations aggregations) {
@@ -433,5 +456,38 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public float getMaxScore() {
         return maxScore;
+    }
+
+    @Override
+    public void incRef() {
+        if (refCounted != null) {
+            refCounted.incRef();
+        } else {
+            super.incRef();
+        }
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        if (refCounted != null) {
+            return refCounted.tryIncRef();
+        }
+        return super.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted != null) {
+            return refCounted.decRef();
+        }
+        return super.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        if (refCounted != null) {
+            return refCounted.hasReferences();
+        }
+        return super.hasReferences();
     }
 }

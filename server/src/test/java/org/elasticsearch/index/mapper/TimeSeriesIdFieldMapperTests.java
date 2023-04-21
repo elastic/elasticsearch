@@ -102,10 +102,9 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testIncludeInDocumentNotAllowed() throws Exception {
-        DocumentMapper docMapper = createDocumentMapper(
-            "a",
-            mapping(b -> { b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject(); })
-        );
+        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
         Exception e = expectThrows(DocumentParsingException.class, () -> parseDocument(docMapper, b -> b.field("_tsid", "foo")));
 
         assertThat(e.getCause().getMessage(), containsString("Field [_tsid] is a metadata field and cannot be added inside a document"));
@@ -155,10 +154,9 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testKeywordTooLong() throws IOException {
-        DocumentMapper docMapper = createDocumentMapper(
-            "a",
-            mapping(b -> { b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject(); })
-        );
+        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
 
         Exception e = expectThrows(
             DocumentParsingException.class,
@@ -168,10 +166,9 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testKeywordTooLongUtf8() throws IOException {
-        DocumentMapper docMapper = createDocumentMapper(
-            "a",
-            mapping(b -> { b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject(); })
-        );
+        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
 
         String theWordLong = "長い";
         Exception e = expectThrows(

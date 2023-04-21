@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -110,9 +110,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         final var threadContext = new ThreadContext(Settings.EMPTY);
         final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
             CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
-            randomBoolean()
-                ? AuthenticationTestHelper.crossClusterAccessSubjectInfoForInternalUser(true)
-                : AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(false)
+            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
         );
         crossClusterAccessHeaders.writeToContext(threadContext);
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
@@ -137,18 +135,9 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         listenerCaptor.getValue().onResponse(apiKeyAuthentication);
         future.get();
 
-        final Authentication remoteAuthentication = crossClusterAccessHeaders.subjectInfo().getAuthentication();
-        final Authentication expectedAuthentication;
-        if (CrossClusterAccessUser.is(remoteAuthentication.getEffectiveSubject().getUser())) {
-            expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(
-                CrossClusterAccessUser.subjectInfoWithRoleDescriptors(
-                    remoteAuthentication.getEffectiveSubject().getTransportVersion(),
-                    remoteAuthentication.getEffectiveSubject().getRealm().getNodeName()
-                )
-            );
-        } else {
-            expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(crossClusterAccessHeaders.subjectInfo());
-        }
+        final Authentication expectedAuthentication = apiKeyAuthentication.toCrossClusterAccess(
+            crossClusterAccessHeaders.getCleanAndValidatedSubjectInfo()
+        );
         verify(auditableRequest).authenticationSuccess(expectedAuthentication);
         verifyNoMoreInteractions(auditableRequest);
         verify(authcContext).addAuthenticationToken(credentialsArgMatches(crossClusterAccessHeaders.credentials()));
@@ -159,11 +148,12 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
             CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
             new CrossClusterAccessSubjectInfo(
-                Authentication.newRealmAuthentication(AuthenticationTestHelper.randomUser(), AuthenticationTestHelper.randomRealmRef()),
+                // Invalid internal user
+                AuthenticationTestHelper.builder().internal(XPackUser.INSTANCE).build(),
                 new RoleDescriptorsIntersection(
                     new RoleDescriptor(
                         "invalid_role",
-                        new String[] { "all" }, // invalid privileges
+                        new String[] { "all" },
                         null,
                         null,
                         null,
@@ -209,9 +199,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         assertThat(actual.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(
             actual.getCause().getCause().getMessage(),
-            containsString(
-                "role descriptor for cross cluster access can only contain index privileges but other privileges found for subject"
-            )
+            containsString("received cross cluster request from an unexpected internal user [" + XPackUser.NAME + "]")
         );
         verify(auditableRequest).exceptionProcessingRequest(
             any(Exception.class),

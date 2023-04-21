@@ -25,10 +25,9 @@ public class AllocationActionListenerTests extends ESTestCase {
 
     public void testShouldDelegateWhenBothComplete() {
         var completed = new AtomicBoolean(false);
-        var listener = new AllocationActionListener<AcknowledgedResponse>(
-            ActionListener.wrap(ignore -> completed.set(true), exception -> { throw new AssertionError("Should not fail in test"); }),
-            createEmptyThreadContext()
-        );
+        var listener = new AllocationActionListener<AcknowledgedResponse>(ActionListener.wrap(ignore -> completed.set(true), exception -> {
+            throw new AssertionError("Should not fail in test");
+        }), createEmptyThreadContext());
 
         listener.clusterStateUpdate().onResponse(AcknowledgedResponse.TRUE);
         listener.reroute().onResponse(null);
@@ -38,10 +37,9 @@ public class AllocationActionListenerTests extends ESTestCase {
 
     public void testShouldNotDelegateWhenOnlyOneComplete() {
         var completed = new AtomicBoolean(false);
-        var listener = new AllocationActionListener<AcknowledgedResponse>(
-            ActionListener.wrap(ignore -> completed.set(true), exception -> { throw new AssertionError("Should not fail in test"); }),
-            createEmptyThreadContext()
-        );
+        var listener = new AllocationActionListener<AcknowledgedResponse>(ActionListener.wrap(ignore -> completed.set(true), exception -> {
+            throw new AssertionError("Should not fail in test");
+        }), createEmptyThreadContext());
 
         if (randomBoolean()) {
             listener.clusterStateUpdate().onResponse(AcknowledgedResponse.TRUE);
@@ -54,10 +52,9 @@ public class AllocationActionListenerTests extends ESTestCase {
 
     public void testShouldDelegateFailureImmediately() {
         var completed = new AtomicBoolean(false);
-        var listener = new AllocationActionListener<AcknowledgedResponse>(
-            ActionListener.wrap(ignore -> { throw new AssertionError("Should not complete in test"); }, exception -> completed.set(true)),
-            createEmptyThreadContext()
-        );
+        var listener = new AllocationActionListener<AcknowledgedResponse>(ActionListener.wrap(ignore -> {
+            throw new AssertionError("Should not complete in test");
+        }, exception -> completed.set(true)), createEmptyThreadContext());
 
         if (randomBoolean()) {
             listener.clusterStateUpdate().onFailure(new RuntimeException());

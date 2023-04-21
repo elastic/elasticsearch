@@ -69,7 +69,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -77,6 +76,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -185,7 +185,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
-        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+        Map<String, Processor.Factory> processorFactories = new TreeMap<>();
         for (IngestPlugin ingestPlugin : ingestPlugins) {
             Map<String, Processor.Factory> newProcessors = ingestPlugin.getProcessors(parameters);
             for (Map.Entry<String, Processor.Factory> entry : newProcessors.entrySet()) {
@@ -194,7 +194,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
             }
         }
-        return Collections.unmodifiableMap(processorFactories);
+        logger.debug("registered ingest processor types: {}", processorFactories.keySet());
+        return Map.copyOf(processorFactories);
     }
 
     /**
@@ -363,7 +364,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     static List<PipelineConfiguration> innerGetPipelines(IngestMetadata ingestMetadata, String... ids) {
         if (ingestMetadata == null) {
-            return Collections.emptyList();
+            return List.of();
         }
 
         // if we didn't ask for _any_ ID, then we get them all (this is the same as if they ask for '*')
@@ -686,9 +687,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         });
 
                         IngestDocument ingestDocument = newIngestDocument(indexRequest);
-                        LinkedHashSet<String> indexRecursionDetection = new LinkedHashSet<>();
-                        indexRecursionDetection.add(indexRequest.index());
-                        executePipelines(pipelines, indexRequest, ingestDocument, documentListener, indexRecursionDetection);
+                        executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
                         i++;
                     }
                 }
@@ -772,8 +771,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final PipelineIterator pipelines,
         final IndexRequest indexRequest,
         final IngestDocument ingestDocument,
-        final ActionListener<Boolean> listener,
-        final Set<String> indexRecursionDetection
+        final ActionListener<Boolean> listener
     ) {
         assert pipelines.hasNext();
         PipelineSlot slot = pipelines.next();
@@ -857,17 +855,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return; // document failed!
                     }
 
-                    // check for cycles in the visited indices
-                    if (indexRecursionDetection.add(newIndex) == false) {
-                        List<String> indexRoute = new ArrayList<>(indexRecursionDetection);
-                        indexRoute.add(newIndex);
+                    // add the index to the document's index history, and check for cycles in the visited indices
+                    boolean cycle = ingestDocument.updateIndexHistory(newIndex) == false;
+                    if (cycle) {
+                        List<String> indexCycle = new ArrayList<>(ingestDocument.getIndexHistory());
+                        indexCycle.add(newIndex);
                         listener.onFailure(
                             new IllegalStateException(
                                 format(
                                     "index cycle detected while processing pipeline [%s] for document [%s]: %s",
                                     pipelineId,
                                     indexRequest.id(),
-                                    indexRoute
+                                    indexCycle
                                 )
                             )
                         );
@@ -888,7 +887,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (newPipelines.hasNext()) {
-                    executePipelines(newPipelines, indexRequest, ingestDocument, listener, indexRecursionDetection);
+                    executePipelines(newPipelines, indexRequest, ingestDocument, listener);
                 } else {
                     // update the index request's source and (potentially) cache the timestamp for TSDB
                     updateIndexRequestSource(indexRequest, ingestDocument);

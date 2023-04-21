@@ -61,21 +61,19 @@ public class IgnoredFieldMapperTests extends MetadataMapperTestCase {
 
     public void testFetchIgnoredFieldValue() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("ignore_above", 3)));
-        withLuceneIndex(
-            mapperService,
-            iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", "value"))).rootDoc()); },
-            iw -> {
-                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup(mapperService), (ctx, doc) -> null);
-                SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-                when(searchExecutionContext.lookup()).thenReturn(lookup);
-                IgnoredFieldMapper.IgnoredFieldType ft = (IgnoredFieldMapper.IgnoredFieldType) mapperService.fieldType("_ignored");
-                ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
-                IndexSearcher searcher = newSearcher(iw);
-                LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-                valueFetcher.setNextReader(context);
-                assertEquals(List.of("field"), valueFetcher.fetchValues(Source.empty(XContentType.JSON), 0, new ArrayList<>()));
-            }
-        );
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", "value"))).rootDoc());
+        }, iw -> {
+            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup(mapperService), (ctx, doc) -> null);
+            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+            when(searchExecutionContext.lookup()).thenReturn(lookup);
+            IgnoredFieldMapper.IgnoredFieldType ft = (IgnoredFieldMapper.IgnoredFieldType) mapperService.fieldType("_ignored");
+            ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+            valueFetcher.setNextReader(context);
+            assertEquals(List.of("field"), valueFetcher.fetchValues(Source.empty(XContentType.JSON), 0, new ArrayList<>()));
+        });
     }
 
 }

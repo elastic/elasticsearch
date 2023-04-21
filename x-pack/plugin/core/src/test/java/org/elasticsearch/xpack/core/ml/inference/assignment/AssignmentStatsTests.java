@@ -43,8 +43,11 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
 
         nodeStatsList.sort(Comparator.comparing(n -> n.getNode().getId()));
 
+        String deploymentId = randomAlphaOfLength(5);
+        String modelId = randomBoolean() ? deploymentId : randomAlphaOfLength(5);
         return new AssignmentStats(
-            randomAlphaOfLength(5),
+            deploymentId,
+            modelId,
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
@@ -95,6 +98,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
         String modelId = randomAlphaOfLength(10);
 
         AssignmentStats existingStats = new AssignmentStats(
+            modelId,
             modelId,
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
@@ -159,6 +163,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
 
         AssignmentStats existingStats = new AssignmentStats(
             modelId,
+            modelId,
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
@@ -175,8 +180,10 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
 
     public void testGetOverallInferenceStatsWithOnlyStoppedNodes() {
         String modelId = randomAlphaOfLength(10);
+        String deploymentId = randomAlphaOfLength(10);
 
         AssignmentStats existingStats = new AssignmentStats(
+            deploymentId,
             modelId,
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),

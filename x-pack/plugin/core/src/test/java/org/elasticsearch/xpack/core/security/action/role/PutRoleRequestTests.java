@@ -181,13 +181,13 @@ public class PutRoleRequestTests extends ESTestCase {
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(
+        final TransportVersion versionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
             TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
         );
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.V_7_17_0,
-            versionBeforeRemoteIndices
+            versionBeforeAdvancedRemoteClusterSecurity
         );
         out.setTransportVersion(version);
 
@@ -197,7 +197,9 @@ public class PutRoleRequestTests extends ESTestCase {
             assertThat(
                 ex.getMessage(),
                 containsString(
-                    "versions of Elasticsearch before [8060099] can't handle remote indices privileges and attempted to send to ["
+                    "versions of Elasticsearch before ["
+                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                        + "] can't handle remote indices privileges and attempted to send to ["
                         + version
                         + "]"
                 )

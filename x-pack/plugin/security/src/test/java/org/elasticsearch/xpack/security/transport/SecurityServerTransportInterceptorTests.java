@@ -126,7 +126,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         threadContext = threadPool.getThreadContext();
         securityContext = spy(new SecurityContext(settings, threadPool.getThreadContext()));
         mockLicenseState = MockLicenseState.createMock();
-        Mockito.when(mockLicenseState.isAllowed(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(true);
+        Mockito.when(mockLicenseState.isAllowed(Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE)).thenReturn(true);
     }
 
     @After
@@ -591,7 +591,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         final MockLicenseState unsupportedLicenseState = MockLicenseState.createMock();
-        Mockito.when(unsupportedLicenseState.isAllowed(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(false);
+        Mockito.when(unsupportedLicenseState.isAllowed(Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE)).thenReturn(false);
 
         AuthenticationTestHelper.builder().build().writeToContext(threadContext);
         final String remoteClusterAlias = randomAlphaOfLengthBetween(5, 10);
@@ -645,7 +645,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertThat(actualException.get().getCause(), instanceOf(ElasticsearchSecurityException.class));
         assertThat(
             actualException.get().getCause().getMessage(),
-            equalTo("current license is non-compliant for [" + Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.getName() + "]")
+            equalTo("current license is non-compliant for [" + Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.getName() + "]")
         );
         verify(remoteClusterCredentialsResolver, times(1)).resolve(eq(remoteClusterAlias));
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());

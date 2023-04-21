@@ -54,7 +54,6 @@ public class VersionProperties {
 
     private static final Map<String, String> versions = new HashMap<String, String>();
 
-
     static {
         Properties props = getVersionProperties();
         elasticsearch = props.getProperty("elasticsearch");

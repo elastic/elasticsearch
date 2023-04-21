@@ -110,7 +110,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         modelSizeStatsListener.whenComplete(modelSizeStatsByModelId -> {
             responseBuilder.setModelSizeStatsByModelId(modelSizeStatsByModelId);
             listener.onResponse(
-                responseBuilder.build(modelToDeployments(responseBuilder.getExpandedIdsWithAliases().keySet(), assignmentMetadata))
+                responseBuilder.build(modelToDeployments(responseBuilder.getExpandedModelIdsWithAliases().keySet(), assignmentMetadata))
             );
         }, listener::onFailure);
 
@@ -124,7 +124,12 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                     .stream()
                     .collect(Collectors.toMap(AssignmentStats::getDeploymentId, Function.identity()))
             );
-            modelSizeStats(responseBuilder.getExpandedIdsWithAliases(), request.isAllowNoResources(), parentTaskId, modelSizeStatsListener);
+            modelSizeStats(
+                responseBuilder.getExpandedModelIdsWithAliases(),
+                request.isAllowNoResources(),
+                parentTaskId,
+                modelSizeStatsListener
+            );
         }, listener::onFailure);
 
         StepListener<List<InferenceStats>> inferenceStatsListener = new StepListener<>();
@@ -141,7 +146,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         nodesStatsListener.whenComplete(nodesStatsResponse -> {
             // find all pipelines whether using the model id,
             // alias or deployment id.
-            Set<String> allPossiblePipelineReferences = responseBuilder.getExpandedIdsWithAliases()
+            Set<String> allPossiblePipelineReferences = responseBuilder.getExpandedModelIdsWithAliases()
                 .entrySet()
                 .stream()
                 .flatMap(entry -> Stream.concat(entry.getValue().stream(), Stream.of(entry.getKey())))
@@ -156,7 +161,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             );
             responseBuilder.setIngestStatsByModelId(modelIdIngestStats);
             trainedModelProvider.getInferenceStats(
-                responseBuilder.getExpandedIdsWithAliases().keySet().toArray(new String[0]),
+                responseBuilder.getExpandedModelIdsWithAliases().keySet().toArray(new String[0]),
                 parentTaskId,
                 inferenceStatsListener
             );
@@ -164,7 +169,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
 
         StepListener<Tuple<Long, Map<String, Set<String>>>> idsListener = new StepListener<>();
         idsListener.whenComplete(tuple -> {
-            responseBuilder.setExpandedIdsWithAliases(tuple.v2()).setTotalModelCount(tuple.v1());
+            responseBuilder.setExpandedModelIdsWithAliases(tuple.v2()).setTotalModelCount(tuple.v1());
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
@@ -179,6 +184,10 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         String idExpression = addModelsUsedInMatchingDeployments(request.getResourceId(), assignmentMetadata);
         logger.debug("Expanded models/deployment Ids request [{}]", idExpression);
 
+        // the request id may contain deployment ids
+        // It is not an error if these don't match a model id but
+        // they need to be included in case the deployment id is also
+        // a model id. Hence, the `matchedDeploymentIds` parameter
         trainedModelProvider.expandIds(
             idExpression,
             request.isAllowNoResources(),
@@ -186,7 +195,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             Collections.emptySet(),
             modelAliasMetadata,
             parentTaskId,
-            matchedDeploymentIds,  // the request Id may contain deployment Ids
+            matchedDeploymentIds,
             idsListener
         );
     }

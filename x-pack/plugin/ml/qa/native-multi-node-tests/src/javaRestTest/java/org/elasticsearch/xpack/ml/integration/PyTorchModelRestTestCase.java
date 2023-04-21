@@ -60,7 +60,8 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
                     "logger.org.elasticsearch.xpack.ml.inference.assignment" : "DEBUG",
                     "logger.org.elasticsearch.xpack.ml.inference.deployment" : "DEBUG",
                     "logger.org.elasticsearch.xpack.ml.inference.pytorch" : "DEBUG",
-                    "logger.org.elasticsearch.xpack.ml.process.logging" : "DEBUG"
+                    "logger.org.elasticsearch.xpack.ml.process.logging" : "DEBUG",
+                    "logger.org.elasticsearch.xpack.ml.action" : "DEBUG"
                 }}""");
         client().performRequest(loggingSettings);
     }

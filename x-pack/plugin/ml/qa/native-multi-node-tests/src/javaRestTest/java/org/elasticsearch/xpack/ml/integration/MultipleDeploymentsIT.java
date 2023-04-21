@@ -53,6 +53,7 @@ public class MultipleDeploymentsIT extends PyTorchModelRestTestCase {
         assertThat(stats.toString(), trainedModelStats, hasSize(2));
 
         for (var statsMap : trainedModelStats) {
+            // no deployment stats when the deployment is stopped
             assertNull(stats.toString(), statsMap.get("deployment_stats"));
         }
     }
@@ -121,8 +122,28 @@ public class MultipleDeploymentsIT extends PyTorchModelRestTestCase {
             List<Map<String, Object>> trainedModelStats = (List<Map<String, Object>>) stats.get("trained_model_stats");
             checkExpectedStats(List.of(new Tuple<>(modelWith2Deployments, forIngestDeployment)), trainedModelStats);
         }
-
-        stopDeployment(modelWith2Deployments); // TODO should stop 2 deployments
+        {
+            // wildcard model id matching
+            Map<String, Object> stats = entityAsMap(getTrainedModelStats("model-with-*"));
+            List<Map<String, Object>> trainedModelStats = (List<Map<String, Object>>) stats.get("trained_model_stats");
+            checkExpectedStats(
+                List.of(
+                    new Tuple<>(modelWith1Deployment, modelWith1Deployment),
+                    new Tuple<>(modelWith2Deployments, forSearchDeployment),
+                    new Tuple<>(modelWith2Deployments, forIngestDeployment)
+                ),
+                trainedModelStats
+            );
+        }
+        {
+            // wildcard deployment id matching
+            Map<String, Object> stats = entityAsMap(getTrainedModelStats("for-*"));
+            List<Map<String, Object>> trainedModelStats = (List<Map<String, Object>>) stats.get("trained_model_stats");
+            checkExpectedStats(
+                List.of(new Tuple<>(modelWith2Deployments, forSearchDeployment), new Tuple<>(modelWith2Deployments, forIngestDeployment)),
+                trainedModelStats
+            );
+        }
     }
 
     private void checkExpectedStats(List<Tuple<String, String>> modelDeploymentPairs, List<Map<String, Object>> trainedModelStats) {

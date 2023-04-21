@@ -6,15 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.ingest.IngestStats;
@@ -50,8 +47,6 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
     public static final ParseField PIPELINE_COUNT = new ParseField("pipeline_count");
     public static final ParseField INFERENCE_STATS = new ParseField("inference_stats");
     public static final ParseField DEPLOYMENT_STATS = new ParseField("deployment_stats");
-
-    private static final Logger logger = LogManager.getLogger(GetTrainedModelsStatsAction.class);
 
     private GetTrainedModelsStatsAction() {
         super(NAME, GetTrainedModelsStatsAction.Response::new);
@@ -239,7 +234,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
         public static class Builder {
 
             private long totalModelCount;
-            private Map<String, Set<String>> expandedIdsWithAliases;
+            private Map<String, Set<String>> expandedModelIdsWithAliases;
             private Map<String, TrainedModelSizeStats> modelSizeStatsMap;
             private Map<String, IngestStats> ingestStatsMap;
             private Map<String, InferenceStats> inferenceStatsMap;
@@ -250,13 +245,13 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return this;
             }
 
-            public Builder setExpandedIdsWithAliases(Map<String, Set<String>> expandedIdsWithAliases) {
-                this.expandedIdsWithAliases = expandedIdsWithAliases;
+            public Builder setExpandedModelIdsWithAliases(Map<String, Set<String>> expandedIdsWithAliases) {
+                this.expandedModelIdsWithAliases = expandedIdsWithAliases;
                 return this;
             }
 
-            public Map<String, Set<String>> getExpandedIdsWithAliases() {
-                return this.expandedIdsWithAliases;
+            public Map<String, Set<String>> getExpandedModelIdsWithAliases() {
+                return this.expandedModelIdsWithAliases;
             }
 
             public Builder setModelSizeStatsByModelId(Map<String, TrainedModelSizeStats> modelSizeStatsByModelId) {
@@ -285,24 +280,21 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             }
 
             public Response build(Map<String, Set<String>> modelToDeploymentIds) {
-                int numResponses = expandedIdsWithAliases.size();
+                int numResponses = expandedModelIdsWithAliases.size();
                 // plus an extra response for every deployment after
                 // the first per model
                 for (var entry : modelToDeploymentIds.entrySet()) {
-                    assert expandedIdsWithAliases.containsKey(entry.getKey()); // model id
+                    assert expandedModelIdsWithAliases.containsKey(entry.getKey()); // model id
                     assert entry.getValue().size() > 0; // must have a deployment
                     numResponses += entry.getValue().size() - 1;
                 }
 
                 if (inferenceStatsMap == null) {
-                    inferenceStatsMap = Maps.newHashMapWithExpectedSize(assignmentStatsMap.size());
+                    inferenceStatsMap = Collections.emptyMap();
                 }
-                assignmentStatsMap.forEach(
-                    (modelId, assignmentStats) -> inferenceStatsMap.put(modelId, assignmentStats.getOverallInferenceStats())
-                );
 
                 List<TrainedModelStats> trainedModelStats = new ArrayList<>(numResponses);
-                expandedIdsWithAliases.keySet().forEach(modelId -> {
+                expandedModelIdsWithAliases.keySet().forEach(modelId -> {
                     if (modelToDeploymentIds.containsKey(modelId) == false) { // not deployed
                         TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.get(modelId);
                         IngestStats ingestStats = ingestStatsMap.get(modelId);
@@ -321,10 +313,8 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                         for (var deploymentId : modelToDeploymentIds.get(modelId)) {
                             AssignmentStats assignmentStats = assignmentStatsMap.get(deploymentId);
                             if (assignmentStats == null) {
-                                logger.info("no stats for deployment [{}]", deploymentId);
                                 continue;
                             }
-                            logger.info("stats for deployment [{}]", deploymentId);
                             InferenceStats inferenceStats = assignmentStats.getOverallInferenceStats();
                             IngestStats ingestStats = ingestStatsMap.get(deploymentId);
                             if (ingestStats == null) {

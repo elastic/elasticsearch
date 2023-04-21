@@ -230,11 +230,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         assertThat(
             e.getCause().getMessage(),
             is(
-                "setting ["
+                "Setting ["
                     + SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()
                     + "] to be positive ["
                     + cacheSize
-                    + "] is only permitted on nodes with the data_frozen role, roles are [data_hot]"
+                    + "] is only permitted on nodes with the data_frozen, search, or indexing role. Roles are [data_hot]"
             )
         );
     }

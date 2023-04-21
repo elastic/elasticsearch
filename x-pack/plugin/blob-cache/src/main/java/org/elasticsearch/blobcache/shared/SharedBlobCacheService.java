@@ -136,7 +136,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         && rolesSet.contains(DiscoveryNodeRole.SEARCH_ROLE) == false
                         && rolesSet.contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
                         throw new SettingsException(
-                            "setting [{}] to be positive [{}] is only permitted on nodes with the data_frozen role, roles are [{}]",
+                            "Setting [{}] to be positive [{}] is only permitted on nodes with the data_frozen, search, or indexing role."
+                                + " Roles are [{}]",
                             SHARED_CACHE_SETTINGS_PREFIX + "size",
                             value.getStringRep(),
                             roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","))

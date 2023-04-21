@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -315,7 +313,6 @@ public class NativeRolesStoreTests extends ESTestCase {
         assertTrue(future.actionGet());
     }
 
-    @Repeat(iterations = 100)
     public void testPutRoleWithRemoteIndicesUnsupportedMinNodeVersion() {
         final Client client = mock(Client.class);
         final Version versionBeforeAdvancedRemoteClusterSecurity = VersionUtils.getPreviousVersion(

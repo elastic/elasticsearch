@@ -79,18 +79,69 @@ public class BlockTestUtils {
 
     public static void readInto(List<Object> values, Block block) {
         for (int i = 0; i < block.getPositionCount(); i++) {
+            int valueCount = block.getValueCount(i);
             if (block.isNull(i)) {
                 values.add(null);
             } else if (block instanceof IntBlock b) {
-                values.add(b.getInt(i));
+                if (valueCount > 1) {
+                    List<Object> mv = new ArrayList<>(valueCount);
+                    int start = block.getFirstValueIndex(i);
+                    int end = start + valueCount;
+                    for (int j = start; j < end; j++) {
+                        mv.add(b.getInt(j));
+                    }
+                    values.add(mv);
+                } else {
+                    values.add(b.getInt(block.getFirstValueIndex(i)));
+                }
             } else if (block instanceof LongBlock b) {
-                values.add(b.getLong(i));
+                if (valueCount > 1) {
+                    List<Object> mv = new ArrayList<>(valueCount);
+                    int start = block.getFirstValueIndex(i);
+                    int end = start + valueCount;
+                    for (int j = start; j < end; j++) {
+                        mv.add(b.getLong(j));
+                    }
+                    values.add(mv);
+                } else {
+                    values.add(b.getLong(block.getFirstValueIndex(i)));
+                }
             } else if (block instanceof DoubleBlock b) {
-                values.add(b.getDouble(i));
+                if (valueCount > 1) {
+                    List<Object> mv = new ArrayList<>(valueCount);
+                    int start = block.getFirstValueIndex(i);
+                    int end = start + valueCount;
+                    for (int j = start; j < end; j++) {
+                        mv.add(b.getDouble(j));
+                    }
+                    values.add(mv);
+                } else {
+                    values.add(b.getDouble(block.getFirstValueIndex(i)));
+                }
             } else if (block instanceof BytesRefBlock b) {
-                values.add(b.getBytesRef(i, new BytesRef()));
+                if (valueCount > 1) {
+                    List<Object> mv = new ArrayList<>(valueCount);
+                    int start = block.getFirstValueIndex(i);
+                    int end = start + valueCount;
+                    for (int j = start; j < end; j++) {
+                        mv.add(b.getBytesRef(j, new BytesRef()));
+                    }
+                    values.add(mv);
+                } else {
+                    values.add(b.getBytesRef(block.getFirstValueIndex(i), new BytesRef()));
+                }
             } else if (block instanceof BooleanBlock b) {
-                values.add(b.getBoolean(i));
+                if (valueCount > 1) {
+                    List<Object> mv = new ArrayList<>(valueCount);
+                    int start = block.getFirstValueIndex(i);
+                    int end = start + valueCount;
+                    for (int j = start; j < end; j++) {
+                        mv.add(b.getBoolean(j));
+                    }
+                    values.add(mv);
+                } else {
+                    values.add(b.getBoolean(block.getFirstValueIndex(i)));
+                }
             } else if (block instanceof DocBlock b) {
                 DocVector v = b.asVector();
                 values.add(new Doc(v.shards().getInt(i), v.segments().getInt(i), v.docs().getInt(i)));

@@ -31,6 +31,11 @@ import java.util.List;
 @Experimental
 public class TopNOperator implements Operator {
 
+    /**
+     * Internal row to be used in the PriorityQueue instead of the full blown Page.
+     * It mirrors somehow the Block build in the sense that it keeps around an array of offsets and a count of values (to account for
+     * multivalues) to reference each position in each block of the Page.
+     */
     static final class Row {
         boolean[] booleans;
         int[] ints;
@@ -38,34 +43,34 @@ public class TopNOperator implements Operator {
         double[] doubles;
         BytesRef[] byteRefs;
         int[] docs;
-
         boolean[] nullValues;
 
-        int[] idToPosition;
+        int[] idToFirstValueIndex; // keeps the offset inside each of the arrays above where a specific block position starts from
         ElementType[] idToType;
+        int[] numberOfValues; // keeps the count of values each specialized array (booleans, ints, longs etc) above has
 
         boolean isNull(int i) {
             return nullValues[i];
         }
 
-        boolean getBoolean(int i) {
-            return booleans[idToPosition[i]];
+        boolean getBoolean(int i, int offset) {
+            return booleans[idToFirstValueIndex[i] + offset];
         }
 
-        int getInt(int i) {
-            return ints[idToPosition[i]];
+        int getInt(int i, int offset) {
+            return ints[idToFirstValueIndex[i] + offset];
         }
 
-        long getLong(int i) {
-            return longs[idToPosition[i]];
+        long getLong(int i, int offset) {
+            return longs[idToFirstValueIndex[i] + offset];
         }
 
-        double getDouble(int i) {
-            return doubles[idToPosition[i]];
+        double getDouble(int i, int offset) {
+            return doubles[idToFirstValueIndex[i] + offset];
         }
 
-        BytesRef getBytesRef(int i) {
-            return byteRefs[idToPosition[i]];
+        BytesRef getBytesRef(int i, int offset) {
+            return byteRefs[idToFirstValueIndex[i] + offset];
         }
     }
 
@@ -79,31 +84,28 @@ public class TopNOperator implements Operator {
         int nByteRefs;
         int nDocs;
 
-        int[] idToPosition;
         ElementType[] idToType;
 
         RowFactory(Page page) {
             size = page.getBlockCount();
-            idToPosition = new int[size];
             idToType = new ElementType[size];
             for (int i = 0; i < size; i++) {
                 Block block = page.getBlock(i);
-                int idx = switch (block.elementType()) {
+                switch (block.elementType()) {
                     case LONG -> nLongs++;
                     case INT -> nInts++;
                     case DOUBLE -> nDoubles++;
                     case BYTES_REF -> nByteRefs++;
                     case BOOLEAN -> nBooleans++;
                     case DOC -> nDocs++;
-                    case NULL -> -1;
+                    case NULL -> {
+                    }
                     case UNKNOWN -> {
                         assert false : "Must not occur here as TopN should never receive intermediate blocks";
                         throw new UnsupportedOperationException("Block doesn't support retrieving elements");
                     }
-                };
-                idToPosition[i] = idx;
+                }
                 idToType[i] = block.elementType();
-
             }
         }
 
@@ -120,37 +122,113 @@ public class TopNOperator implements Operator {
                 for (int i = 0; i < nByteRefs; i++) {
                     result.byteRefs[i] = new BytesRef();
                 }
-                result.idToPosition = idToPosition;
+                result.idToFirstValueIndex = new int[size];
                 result.idToType = idToType;
                 result.docs = new int[nDocs * 3];
+                result.numberOfValues = new int[size];
             } else {
                 result = spare;
                 Arrays.fill(result.nullValues, false);
             }
 
-            for (int i = 0; i < origin.getBlockCount(); i++) {
+            int lastLongFirstValueIndex = 0;
+            int lastIntFirstValueIndex = 0;
+            int lastDoubleFirstValueIndex = 0;
+            int lastBytesRefFirstValueIndex = 0;
+            int lastBooleanFirstValueIndex = 0;
+            int lastDocFirstValueIndex = 0;
+
+            for (int i = 0; i < size; i++) {
                 Block block = origin.getBlock(i);
                 if (block.isNull(rowNum)) {
                     result.nullValues[i] = true;
                 } else {
+                    int valuesCount = block.getValueCount(rowNum);
+                    result.numberOfValues[i] = valuesCount;
                     switch (block.elementType()) {
-                        case LONG -> result.longs[idToPosition[i]] = ((LongBlock) block).getLong(block.getFirstValueIndex(rowNum));
-                        case INT -> result.ints[idToPosition[i]] = ((IntBlock) block).getInt(block.getFirstValueIndex(rowNum));
-                        case DOUBLE -> result.doubles[idToPosition[i]] = ((DoubleBlock) block).getDouble(block.getFirstValueIndex(rowNum));
-                        case BYTES_REF -> {
-                            BytesRef b = result.byteRefs[idToPosition[i]];
-                            b = ((BytesRefBlock) block).getBytesRef(block.getFirstValueIndex(rowNum), b);
-                            result.byteRefs[idToPosition[i]] = b;
+                        case LONG -> {
+                            int firstValueIndex = lastLongFirstValueIndex;
+                            if (firstValueIndex + valuesCount > result.longs.length) {
+                                result.longs = Arrays.copyOf(result.longs, firstValueIndex + valuesCount);
+                            }
+                            int start = block.getFirstValueIndex(rowNum);
+                            int end = start + valuesCount;
+                            for (int j = start, offset = 0; j < end; j++, offset++) {
+                                result.longs[firstValueIndex + offset] = ((LongBlock) block).getLong(j);
+                            }
+                            result.idToFirstValueIndex[i] = firstValueIndex;
+                            lastLongFirstValueIndex = firstValueIndex + valuesCount;
                         }
-                        case BOOLEAN -> result.booleans[idToPosition[i]] = ((BooleanBlock) block).getBoolean(
-                            block.getFirstValueIndex(rowNum)
-                        );
+                        case INT -> {
+                            int firstValueIndex = lastIntFirstValueIndex;
+                            if (firstValueIndex + valuesCount > result.ints.length) {
+                                result.ints = Arrays.copyOf(result.ints, firstValueIndex + valuesCount);
+                            }
+                            int start = block.getFirstValueIndex(rowNum);
+                            int end = start + valuesCount;
+                            for (int j = start, offset = 0; j < end; j++, offset++) {
+                                result.ints[firstValueIndex + offset] = ((IntBlock) block).getInt(j);
+                            }
+                            result.idToFirstValueIndex[i] = firstValueIndex;
+                            lastIntFirstValueIndex = firstValueIndex + valuesCount;
+                        }
+                        case DOUBLE -> {
+                            int firstValueIndex = lastDoubleFirstValueIndex;
+                            if (firstValueIndex + valuesCount > result.doubles.length) {
+                                result.doubles = Arrays.copyOf(result.doubles, firstValueIndex + valuesCount);
+                            }
+                            int start = block.getFirstValueIndex(rowNum);
+                            int end = start + valuesCount;
+                            for (int j = start, offset = 0; j < end; j++, offset++) {
+                                result.doubles[firstValueIndex + offset] = ((DoubleBlock) block).getDouble(j);
+                            }
+                            result.idToFirstValueIndex[i] = firstValueIndex;
+                            lastDoubleFirstValueIndex = firstValueIndex + valuesCount;
+                        }
+                        case BYTES_REF -> {
+                            int firstValueIndex = lastBytesRefFirstValueIndex;
+                            if (firstValueIndex + valuesCount > result.byteRefs.length) {
+                                int additionalSize = firstValueIndex + valuesCount - result.byteRefs.length;
+                                result.byteRefs = Arrays.copyOf(result.byteRefs, firstValueIndex + valuesCount);
+                                for (int j = 1; j <= additionalSize; j++) {
+                                    result.byteRefs[result.byteRefs.length - j] = new BytesRef();
+                                }
+                            }
+                            int start = block.getFirstValueIndex(rowNum);
+                            int end = start + valuesCount;
+                            for (int j = start, offset = 0; j < end; j++, offset++) {
+                                BytesRef b = result.byteRefs[firstValueIndex + offset];
+                                b = ((BytesRefBlock) block).getBytesRef(j, b);
+                                result.byteRefs[firstValueIndex + offset] = b;
+                            }
+                            result.idToFirstValueIndex[i] = firstValueIndex;
+                            lastBytesRefFirstValueIndex = firstValueIndex + valuesCount;
+                        }
+                        case BOOLEAN -> {
+                            int firstValueIndex = lastBooleanFirstValueIndex;
+                            if (firstValueIndex + valuesCount > result.booleans.length) {
+                                result.booleans = Arrays.copyOf(result.booleans, firstValueIndex + valuesCount);
+                            }
+                            int start = block.getFirstValueIndex(rowNum);
+                            int end = start + valuesCount;
+                            for (int j = start, offset = 0; j < end; j++, offset++) {
+                                result.booleans[firstValueIndex + offset] = ((BooleanBlock) block).getBoolean(j);
+                            }
+                            result.idToFirstValueIndex[i] = firstValueIndex;
+                            lastBooleanFirstValueIndex = firstValueIndex + valuesCount;
+                        }
                         case DOC -> {
-                            int p = idToPosition[i];
+                            int firstValueIndex = lastDocFirstValueIndex;
+                            if (firstValueIndex + 3 > result.docs.length) {
+                                result.docs = Arrays.copyOf(result.docs, firstValueIndex + 3);
+                            }
                             DocVector doc = ((DocBlock) block).asVector();
-                            result.docs[p++] = doc.shards().getInt(rowNum);
-                            result.docs[p++] = doc.segments().getInt(rowNum);
-                            result.docs[p] = doc.docs().getInt(rowNum);
+                            result.docs[firstValueIndex] = doc.shards().getInt(rowNum);
+                            result.docs[firstValueIndex + 1] = doc.segments().getInt(rowNum);
+                            result.docs[firstValueIndex + 2] = doc.docs().getInt(rowNum);
+
+                            result.idToFirstValueIndex[i] = firstValueIndex;
+                            lastDocFirstValueIndex = firstValueIndex + 3;
                         }
                         case NULL -> {
                             assert false : "Must not occur here as we check nulls above already";
@@ -241,11 +319,11 @@ public class TopNOperator implements Operator {
             );
         }
         int cmp = switch (b1.idToType[position]) {
-            case INT -> Integer.compare(b1.getInt(position), b2.getInt(position));
-            case LONG -> Long.compare(b1.getLong(position), b2.getLong(position));
-            case DOUBLE -> Double.compare(b1.getDouble(position), b2.getDouble(position));
-            case BOOLEAN -> Boolean.compare(b1.getBoolean(position), b2.getBoolean(position));
-            case BYTES_REF -> b1.getBytesRef(position).compareTo(b2.getBytesRef(position));
+            case INT -> Integer.compare(b1.getInt(position, 0), b2.getInt(position, 0));
+            case LONG -> Long.compare(b1.getLong(position, 0), b2.getLong(position, 0));
+            case DOUBLE -> Double.compare(b1.getDouble(position, 0), b2.getDouble(position, 0));
+            case BOOLEAN -> Boolean.compare(b1.getBoolean(position, 0), b2.getBoolean(position, 0));
+            case BYTES_REF -> b1.getBytesRef(position, 0).compareTo(b2.getBytesRef(position, 0));
             case DOC -> throw new UnsupportedOperationException("Block of nulls doesn't support comparison");
             case NULL -> {
                 assert false : "Must not occur here as we check nulls above already";
@@ -314,13 +392,63 @@ public class TopNOperator implements Operator {
                     continue;
                 }
                 switch (rowFactory.idToType[b]) {
-                    case BOOLEAN -> ((BooleanBlock.Builder) builders[b]).appendBoolean(row.getBoolean(b));
-                    case INT -> ((IntBlock.Builder) builders[b]).appendInt(row.getInt(b));
-                    case LONG -> ((LongBlock.Builder) builders[b]).appendLong(row.getLong(b));
-                    case DOUBLE -> ((DoubleBlock.Builder) builders[b]).appendDouble(row.getDouble(b));
-                    case BYTES_REF -> ((BytesRefBlock.Builder) builders[b]).appendBytesRef(row.getBytesRef(b));
+                    case BOOLEAN -> {
+                        if (row.numberOfValues[b] > 1) {
+                            ((BooleanBlock.Builder) builders[b]).beginPositionEntry();
+                            for (int j = 0; j < row.numberOfValues[b]; j++) {
+                                ((BooleanBlock.Builder) builders[b]).appendBoolean(row.getBoolean(b, j));
+                            }
+                            ((BooleanBlock.Builder) builders[b]).endPositionEntry();
+                        } else {
+                            ((BooleanBlock.Builder) builders[b]).appendBoolean(row.getBoolean(b, 0));
+                        }
+                    }
+                    case INT -> {
+                        if (row.numberOfValues[b] > 1) {
+                            ((IntBlock.Builder) builders[b]).beginPositionEntry();
+                            for (int j = 0; j < row.numberOfValues[b]; j++) {
+                                ((IntBlock.Builder) builders[b]).appendInt(row.getInt(b, j));
+                            }
+                            ((IntBlock.Builder) builders[b]).endPositionEntry();
+                        } else {
+                            ((IntBlock.Builder) builders[b]).appendInt(row.getInt(b, 0));
+                        }
+                    }
+                    case LONG -> {
+                        if (row.numberOfValues[b] > 1) {
+                            ((LongBlock.Builder) builders[b]).beginPositionEntry();
+                            for (int j = 0; j < row.numberOfValues[b]; j++) {
+                                ((LongBlock.Builder) builders[b]).appendLong(row.getLong(b, j));
+                            }
+                            ((LongBlock.Builder) builders[b]).endPositionEntry();
+                        } else {
+                            ((LongBlock.Builder) builders[b]).appendLong(row.getLong(b, 0));
+                        }
+                    }
+                    case DOUBLE -> {
+                        if (row.numberOfValues[b] > 1) {
+                            ((DoubleBlock.Builder) builders[b]).beginPositionEntry();
+                            for (int j = 0; j < row.numberOfValues[b]; j++) {
+                                ((DoubleBlock.Builder) builders[b]).appendDouble(row.getDouble(b, j));
+                            }
+                            ((DoubleBlock.Builder) builders[b]).endPositionEntry();
+                        } else {
+                            ((DoubleBlock.Builder) builders[b]).appendDouble(row.getDouble(b, 0));
+                        }
+                    }
+                    case BYTES_REF -> {
+                        if (row.numberOfValues[b] > 1) {
+                            ((BytesRefBlock.Builder) builders[b]).beginPositionEntry();
+                            for (int j = 0; j < row.numberOfValues[b]; j++) {
+                                ((BytesRefBlock.Builder) builders[b]).appendBytesRef(row.getBytesRef(b, j));
+                            }
+                            ((BytesRefBlock.Builder) builders[b]).endPositionEntry();
+                        } else {
+                            ((BytesRefBlock.Builder) builders[b]).appendBytesRef(row.getBytesRef(b, 0));
+                        }
+                    }
                     case DOC -> {
-                        int dp = row.idToPosition[b];
+                        int dp = row.idToFirstValueIndex[b];
                         int shard = row.docs[dp++];
                         int segment = row.docs[dp++];
                         int doc = row.docs[dp];

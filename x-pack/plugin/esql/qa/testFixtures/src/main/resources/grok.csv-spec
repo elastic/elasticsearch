@@ -176,9 +176,9 @@ optionalMatchMv
 from employees | grok job_positions "%{WORD:a}?\\s*%{WORD:b}?\\s*%{WORD:c}?" | project emp_no, a, b, c, job_positions | sort emp_no | limit 5;
 
 emp_no:integer | a:keyword      | b:keyword      | c:keyword      | job_positions:keyword                             
-10001          | Accountant     | null           | null           | Accountant                                 
+10001          | Accountant     | null           | null           | [Accountant, Senior Python Developer]                                 
 10002          | Senior         | Team           | Lead           | Senior Team Lead                                                      
 10003          | null           | null           | null           | null                                                                  
-10004          | Head           | Human          | Resources      | Head Human Resources
+10004          | Head           | Human          | Resources      | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
 10005          | null           | null           | null           | null
 ;

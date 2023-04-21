@@ -21,12 +21,18 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 public class StatelessCommitService {
 
     // We don't do null checks when reading from this sub-map because we hold a commit reference while files are being uploaded. This will
     // prevent commit deletion in the interim.
     private final ConcurrentHashMap<ShardId, Map<String, BlobFile>> fileToBlobFile = new ConcurrentHashMap<>();
+    private final Supplier<String> nodeEphemeralIdSupplier;
+
+    public StatelessCommitService(Supplier<String> nodeEphemeralIdSupplier) {
+        this.nodeEphemeralIdSupplier = nodeEphemeralIdSupplier;
+    }
 
     public void markFileUploaded(ShardId shardId, String name, BlobLocation objectStoreLocation) {
         Map<String, BlobFile> fileMap = fileToBlobFile.get(shardId);
@@ -55,7 +61,12 @@ public class StatelessCommitService {
     ) {
         Map<String, BlobFile> fileMap = fileToBlobFile.get(shardId);
         ensureShardOpen(shardId, fileMap);
-        StatelessCompoundCommit.Writer writer = new StatelessCompoundCommit.Writer(shardId, generation, primaryTerm);
+        StatelessCompoundCommit.Writer writer = new StatelessCompoundCommit.Writer(
+            shardId,
+            generation,
+            primaryTerm,
+            nodeEphemeralIdSupplier.get()
+        );
         synchronized (fileMap) {
             for (StoreFileMetadata commitFile : commitFiles) {
                 String fileName = commitFile.name();

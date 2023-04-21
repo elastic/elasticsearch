@@ -108,7 +108,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(compoundFiles.size(), equalTo(1));
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId),
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
             new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
         );
     }
@@ -151,19 +151,25 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(compoundFiles.size(), equalTo(2));
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId, 0, 5),
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, 5),
             new Translog.Operation[] { operations[0], operations[1], operations[3], operations[5], operations[2], operations[4] }
         );
-        assertTranslogContains(new TranslogReplicatorReader(objectStoreService, shardId, 1, 1), new Translog.Operation[] { operations[1] });
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId, 1, 3),
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 1, 1),
+            new Translog.Operation[] { operations[1] }
+        );
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 1, 3),
             new Translog.Operation[] { operations[1], operations[3], operations[2] }
         );
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId, 4, 5),
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 4, 5),
             new Translog.Operation[] { operations[5], operations[4] }
         );
-        assertTranslogContains(new TranslogReplicatorReader(objectStoreService, shardId, 8, 10), new Translog.Operation[] {});
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 8, 10),
+            new Translog.Operation[] {}
+        );
     }
 
     public void testListenerThreadContextPreserved() throws IOException {
@@ -244,7 +250,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(compoundFiles.size(), equalTo(1));
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId),
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
             new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
         );
     }
@@ -279,7 +285,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             int index = Integer.parseInt(filename);
             return compoundFiles.get(index).streamInput();
         }).when(blobContainer).readBlob(any());
-        doReturn(blobContainer).when(objectStoreService).getLocalTranslogBlobContainer();
+        doReturn(blobContainer).when(objectStoreService).getTranslogBlobContainer();
 
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
@@ -302,7 +308,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(compoundFiles.size(), equalTo(1));
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId),
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
             new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
         );
     }
@@ -371,7 +377,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         }
 
         var exception = expectThrows(TranslogCorruptedException.class, () -> {
-            var reader = new TranslogReplicatorReader(objectStoreService, shardId);
+            var reader = new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId);
             reader.next();
         });
         assertThat(exception.getMessage(), containsString("checksum verification failed"));
@@ -463,11 +469,11 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(compoundFiles.size(), equalTo(1));
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId1),
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId1),
             new Translog.Operation[] { operations[0], operations[1] }
         );
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId2),
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId2),
             new Translog.Operation[] { operations[0], operations[1], operations[3] }
         );
 
@@ -487,11 +493,11 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(compoundFiles.size(), equalTo(2));
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId1),
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId1),
             new Translog.Operation[] { operations[0], operations[1] }
         );
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId2),
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId2),
             new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
         );
     }
@@ -524,7 +530,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(compoundFiles.size(), equalTo(1));
 
         assertTranslogContains(
-            new TranslogReplicatorReader(objectStoreService, shardId),
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
             new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
         );
     }
@@ -587,7 +593,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             int index = Integer.parseInt(filename);
             return compoundFiles.get(index).streamInput();
         }).when(blobContainer).readBlob(any());
-        doReturn(blobContainer).when(objectStoreService).getLocalTranslogBlobContainer();
+        doReturn(blobContainer).when(objectStoreService).getTranslogBlobContainer();
 
         return objectStoreService;
     }

@@ -30,34 +30,51 @@ public class StatelessCompoundCommitTests extends AbstractWireTestCase<Stateless
 
     @Override
     protected StatelessCompoundCommit createTestInstance() {
-        return new StatelessCompoundCommit(randomShardId(), randomNonZeroPositiveLong(), randomNonZeroPositiveLong(), randomCommitFiles());
+        return new StatelessCompoundCommit(
+            randomShardId(),
+            randomNonZeroPositiveLong(),
+            randomNonZeroPositiveLong(),
+            randomNodeEphemeralId(),
+            randomCommitFiles()
+        );
     }
 
     @Override
     protected StatelessCompoundCommit mutateInstance(StatelessCompoundCommit instance) throws IOException {
-        return switch (randomInt(3)) {
+        return switch (randomInt(4)) {
             case 0 -> new StatelessCompoundCommit(
                 randomValueOtherThan(instance.shardId(), StatelessCompoundCommitTests::randomShardId),
                 instance.generation(),
                 instance.primaryTerm(),
+                instance.nodeEphemeralId(),
                 instance.commitFiles()
             );
             case 1 -> new StatelessCompoundCommit(
                 instance.shardId(),
                 randomValueOtherThan(instance.generation(), StatelessCompoundCommitTests::randomNonZeroPositiveLong),
                 instance.primaryTerm(),
+                instance.nodeEphemeralId(),
                 instance.commitFiles()
             );
             case 2 -> new StatelessCompoundCommit(
                 instance.shardId(),
                 instance.generation(),
                 randomValueOtherThan(instance.primaryTerm(), StatelessCompoundCommitTests::randomNonZeroPositiveLong),
+                instance.nodeEphemeralId(),
                 instance.commitFiles()
             );
             case 3 -> new StatelessCompoundCommit(
                 instance.shardId(),
                 instance.generation(),
                 instance.primaryTerm(),
+                randomValueOtherThan(instance.nodeEphemeralId(), StatelessCompoundCommitTests::randomNodeEphemeralId),
+                instance.commitFiles()
+            );
+            case 4 -> new StatelessCompoundCommit(
+                instance.shardId(),
+                instance.generation(),
+                instance.primaryTerm(),
+                instance.nodeEphemeralId(),
                 randomValueOtherThan(instance.commitFiles(), StatelessCompoundCommitTests::randomCommitFiles)
             );
             default -> throw new AssertionError("Unexpected value");
@@ -70,12 +87,12 @@ public class StatelessCompoundCommitTests extends AbstractWireTestCase<Stateless
             StatelessCompoundCommit.Writer writer = new StatelessCompoundCommit.Writer(
                 instance.shardId(),
                 instance.generation(),
-                instance.primaryTerm()
+                instance.primaryTerm(),
+                instance.nodeEphemeralId()
             );
             for (Map.Entry<String, BlobLocation> entry : instance.commitFiles().entrySet()) {
                 writer.addReferencedBlobFile(entry.getKey(), entry.getValue());
             }
-
             writer.write(output, mock(Directory.class));
             try (StreamInput in = output.bytes().streamInput()) {
                 return StatelessCompoundCommit.readFromStore(in);
@@ -89,18 +106,17 @@ public class StatelessCompoundCommitTests extends AbstractWireTestCase<Stateless
             StatelessCompoundCommit.Writer writer = new StatelessCompoundCommit.Writer(
                 testInstance.shardId(),
                 testInstance.generation(),
-                testInstance.primaryTerm()
+                testInstance.primaryTerm(),
+                testInstance.nodeEphemeralId()
             );
             for (Map.Entry<String, BlobLocation> entry : testInstance.commitFiles().entrySet()) {
                 writer.addReferencedBlobFile(entry.getKey(), entry.getValue());
             }
             writer.write(output, mock(Directory.class));
-
             // flip one byte anywhere
             byte[] bytes = BytesReference.toBytes(output.bytes());
             int i = randomIntBetween(0, bytes.length - 1);
             bytes[i] = (byte) ~bytes[i];
-
             try (StreamInput in = new ByteArrayStreamInput(bytes)) {
                 expectThrows(IOException.class, () -> StatelessCompoundCommit.readFromStore(in));
             }
@@ -113,6 +129,10 @@ public class StatelessCompoundCommitTests extends AbstractWireTestCase<Stateless
 
     private static Long randomNonZeroPositiveLong() {
         return randomLongBetween(1L, Long.MAX_VALUE - 1L);
+    }
+
+    private static String randomNodeEphemeralId() {
+        return randomAlphaOfLength(10);
     }
 
     private static Map<String, BlobLocation> randomCommitFiles() {

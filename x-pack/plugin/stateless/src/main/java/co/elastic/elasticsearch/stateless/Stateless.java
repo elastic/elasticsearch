@@ -201,7 +201,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     ) {
         // use the settings that include additional settings.
         Settings settings = environment.settings();
-        var commitService = setAndGet(this.commitService, new StatelessCommitService());
+        var commitService = setAndGet(this.commitService, new StatelessCommitService(() -> clusterService.localNode().getEphemeralId()));
         var objectStoreService = setAndGet(
             this.objectStoreService,
             new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService, commitService, client)

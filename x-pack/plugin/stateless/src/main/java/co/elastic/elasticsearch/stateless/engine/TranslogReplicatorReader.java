@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.ObjectStoreService;
-
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -54,16 +52,16 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     /**
      * Creates the reader and captures the compound translog files from the object store that will be read when iterating.
      *
-     * @param objectStoreService the object store service to use
-     * @param shardId            the shard id whose translog operations to return
-     * @param fromSeqNo          each returned operation is equal or larger than this seq no
-     * @param toSeqNo            each returned operation is equal or smaller than this seq no
-     * @throws IOException       related to listing blobs from the object store
+     * @param translogBlobContainer the translog blob container to use
+     * @param shardId               the shard id whose translog operations to return
+     * @param fromSeqNo             each returned operation is equal or larger than this seq no
+     * @param toSeqNo               each returned operation is equal or smaller than this seq no
+     * @throws IOException          related to listing blobs from the object store
      * @throws TranslogCorruptedException in case the checksum of the checkpoints of a compound translog file is incorrect, or an inner
      *                                    {@link IOException} occurred while reading from the translog file and/or the object store
      */
     public TranslogReplicatorReader(
-        final ObjectStoreService objectStoreService,
+        final BlobContainer translogBlobContainer,
         final ShardId shardId,
         final long fromSeqNo,
         final long toSeqNo
@@ -73,7 +71,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         this.shardId = shardId;
         this.fromSeqNo = fromSeqNo;
         this.toSeqNo = toSeqNo;
-        this.translogBlobContainer = objectStoreService.getLocalTranslogBlobContainer();
+        this.translogBlobContainer = translogBlobContainer;
         Iterator<BlobMetadata> blobs = translogBlobContainer.listBlobs()
             .entrySet()
             .stream()
@@ -86,12 +84,12 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     /**
      * Creates the reader and captures the compound translog files from the object store that will be read when iterating.
      *
-     * @param objectStoreService the object store service to use
-     * @param shardId            the shard id whose translog operations to return
-     * @throws IOException       related to reading from the object store
+     * @param translogBlobContainer the translog blob container to use
+     * @param shardId               the shard id whose translog operations to return
+     * @throws IOException          related to reading from the object store
      */
-    public TranslogReplicatorReader(final ObjectStoreService objectStoreService, final ShardId shardId) throws IOException {
-        this(objectStoreService, shardId, 0, Long.MAX_VALUE);
+    public TranslogReplicatorReader(final BlobContainer translogBlobContainer, final ShardId shardId) throws IOException {
+        this(translogBlobContainer, shardId, 0, Long.MAX_VALUE);
     }
 
     @Override

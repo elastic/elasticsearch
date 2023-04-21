@@ -98,7 +98,7 @@ public class TransportGetTrainedModelPackageConfigAction extends TransportMaster
                         return;
                     }
 
-                    if (Strings.isNullOrEmpty(packageConfig.getSha256())) {
+                    if (Strings.isNullOrEmpty(packageConfig.getSha256()) || packageConfig.getSha256().length() != 64) {
                         listener.onFailure(new ElasticsearchStatusException("Invalid package sha", RestStatus.INTERNAL_SERVER_ERROR));
                         return;
                     }

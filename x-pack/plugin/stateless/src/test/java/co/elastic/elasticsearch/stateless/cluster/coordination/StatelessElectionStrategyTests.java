@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -234,7 +235,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
             registerValueRef.set(OptionalLong.empty());
 
             PlainActionFuture<Void> beforeCommitListener = PlainActionFuture.newFuture();
-            electionStrategy.beforeCommit(1, 1, beforeCommitListener);
+            electionStrategy.beforeCommit(1, 2, beforeCommitListener);
 
             final var failAllReads = randomBoolean();
 
@@ -266,7 +267,10 @@ public class StatelessElectionStrategyTests extends ESTestCase {
 
             assertThat(capturingThreadPool.tasks.poll(), is(nullValue()));
             if (failAllReads) {
-                expectThrows(Exception.class, beforeCommitListener::get);
+                assertEquals(
+                    "failing commit of cluster state version [2] in term [1] after [4] failed attempts to verify the current term",
+                    expectThrows(IllegalStateException.class, () -> FutureUtils.get(beforeCommitListener)).getMessage()
+                );
             } else {
                 beforeCommitListener.get();
             }

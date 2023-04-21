@@ -161,7 +161,7 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         }
     }
 
-    public void getLatestStoredClusterStateMetadataForTerm(
+    private void getLatestStoredClusterStateMetadataForTerm(
         long targetTerm,
         ActionListener<Optional<PersistedClusterStateMetadata>> listener
     ) {

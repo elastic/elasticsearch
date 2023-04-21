@@ -45,8 +45,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         if (jdkVersionMatcher.matches() == false) {
             throw new IllegalStateException("Unable to parse bundled JDK version " + bundledJdkVersion);
         }
-        String bundledMajor = jdkVersionMatcher.group(1);
-        String baseVersion = bundledMajor + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
+        String baseVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
         String build = jdkVersionMatcher.group(3);
         String hash = jdkVersionMatcher.group(5);
 
@@ -57,7 +56,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         return Optional.of(
             () -> URI.create(
                 "https://download.oracle.com/java/GA/jdk"
-                    + bundledMajor
+                    + baseVersion
                     + "/"
                     + hash
                     + "/"

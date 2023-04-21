@@ -101,6 +101,19 @@ public class RedactProcessorFactoryTests extends ESTestCase {
             RedactProcessor processor = factory.create(null, null, null, config);
             assertThat(processor.getSkipIfUnlicensed(), equalTo(false));
         }
+
+        {
+            Map<String, Object> config = new HashMap<>();
+            config.put("field", "_field");
+            config.put("patterns", List.of("%{MY_PATTERN:name}!"));
+            config.put("pattern_definitions", Map.of("MY_PATTERN", "foo"));
+
+            // if skip_if_unlicensed is false, then the license must allow for redact to be used in order to construct a processor
+            config.put("skip_if_unlicensed", false);
+            RedactProcessor.Factory factory = new RedactProcessor.Factory(mockNotAllowedLicenseState(), MatcherWatchdog.noop());
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, null, null, config));
+            assertThat(e.getMessage(), containsString("[skip_if_unlicensed] current license is non-compliant for [redact_processor]"));
+        }
     }
 
 }

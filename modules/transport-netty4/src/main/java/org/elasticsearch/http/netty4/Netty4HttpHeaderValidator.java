@@ -111,15 +111,13 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         } else {
             assert threadContext.isDefaultContext();
             // validator should not change the thread context for the code that forwards the requests through the netty pipeline
-            var contextPreservingListener = new ContextPreservingActionListener<>(
+            ContextPreservingActionListener<Void> contextPreservingListener = new ContextPreservingActionListener<>(
                 threadContext.wrapRestorable(threadContext.newStoredContext()),
-                ActionListener.wrap((Void unused) -> {
-                    // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
-                    ctx.channel().eventLoop().submit(() -> forwardFullRequest(ctx));
-                }, (Exception e) -> {
-                    // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
-                    ctx.channel().eventLoop().submit(() -> forwardRequestWithDecoderExceptionAndNoContent(ctx, e));
-                })
+                ActionListener.wrap(aVoid ->
+                // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
+                ctx.channel().eventLoop().submit(() -> forwardFullRequest(ctx)), e ->
+                // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
+                ctx.channel().eventLoop().submit(() -> forwardRequestWithDecoderExceptionAndNoContent(ctx, e)))
             );
             // validator should not change the thread context of netty worker threads
             try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {

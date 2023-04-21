@@ -155,6 +155,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             Priority.URGENT,
             new ReconcileDesiredBalanceExecutor()
         );
+        clusterService.addListener(event -> {
+            if (event.localNodeMaster() == false) {
+                onNoLongerMaster();
+            }
+        });
     }
 
     @Override

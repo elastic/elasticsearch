@@ -1104,10 +1104,13 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new ConcurrentRebalanceAllocationDecider(clusterSettings),
             new ThrottlingAllocationDecider(clusterSettings) };
 
+        var allocationOrdering = new NodeAllocationOrdering();
+        var moveOrdering = new NodeAllocationOrdering();
+
         while (true) {
 
             var allocation = createRoutingAllocationFrom(clusterState, deciders);
-            reconcile(allocation, balance);
+            new DesiredBalanceReconciler(balance, allocation, allocationOrdering, moveOrdering).run();
 
             var initializing = shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING);
             if (initializing.isEmpty()) {
@@ -1142,7 +1145,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     }
 
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
-        new DesiredBalanceReconciler(desiredBalance, routingAllocation, new NodeAllocationOrdering()).run();
+        new DesiredBalanceReconciler(desiredBalance, routingAllocation, new NodeAllocationOrdering(), new NodeAllocationOrdering()).run();
     }
 
     private static AllocationService createTestAllocationService(

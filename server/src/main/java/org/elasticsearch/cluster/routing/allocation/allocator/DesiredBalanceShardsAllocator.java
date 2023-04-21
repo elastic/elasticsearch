@@ -62,6 +62,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
     private final MasterServiceTaskQueue<ReconcileDesiredBalanceTask> masterServiceTaskQueue;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
+    private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile boolean resetCurrentDesiredBalance = false;
 
@@ -229,7 +230,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
         }
         allocationOrdering.retainNodes(getNodeIds(allocation.routingNodes()));
-        recordTime(cumulativeReconciliationTime, new DesiredBalanceReconciler(desiredBalance, allocation, allocationOrdering)::run);
+        recordTime(
+            cumulativeReconciliationTime,
+            new DesiredBalanceReconciler(desiredBalance, allocation, allocationOrdering, moveOrdering)::run
+        );
         if (logger.isTraceEnabled()) {
             logger.trace("Reconciled desired balance: {}", desiredBalance);
         } else {

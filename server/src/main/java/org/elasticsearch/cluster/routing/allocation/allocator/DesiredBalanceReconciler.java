@@ -27,9 +27,13 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
@@ -47,16 +51,19 @@ public class DesiredBalanceReconciler {
     private final RoutingAllocation allocation; // name chosen to align with code in BalancedShardsAllocator but TODO rename
     private final RoutingNodes routingNodes;
     private final NodeAllocationOrdering allocationOrdering;
+    private final NodeAllocationOrdering moveOrdering;
 
     DesiredBalanceReconciler(
         DesiredBalance desiredBalance,
         RoutingAllocation routingAllocation,
-        NodeAllocationOrdering allocationOrdering
+        NodeAllocationOrdering allocationOrdering,
+        NodeAllocationOrdering moveOrdering
     ) {
         this.desiredBalance = desiredBalance;
         this.allocation = routingAllocation;
         this.routingNodes = routingAllocation.routingNodes();
         this.allocationOrdering = allocationOrdering;
+        this.moveOrdering = moveOrdering;
     }
 
     void run() {
@@ -283,12 +290,14 @@ public class DesiredBalanceReconciler {
     }
 
     private Iterable<String> getDesiredNodesIds(ShardRouting shard, ShardAssignment assignment) {
-        return allocationOrdering.sort(allocation.deciders().getForcedInitialShardAllocationToNodes(shard, allocation).map(forced -> {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Shard [{}] assignment is ignored. Initial allocation forced to {}", shard.shardId(), forced);
-            }
-            return forced;
-        }).orElse(assignment.nodeIds()));
+        return allocationOrdering.sortNodeIds(
+            allocation.deciders().getForcedInitialShardAllocationToNodes(shard, allocation).map(forced -> {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Shard [{}] assignment is ignored. Initial allocation forced to {}", shard.shardId(), forced);
+                }
+                return forced;
+            }).orElse(assignment.nodeIds())
+        );
     }
 
     private Iterable<String> getFallbackNodeIds(ShardRouting shard, AtomicBoolean isThrottled) {
@@ -298,7 +307,7 @@ public class DesiredBalanceReconciler {
                 if (logger.isDebugEnabled()) {
                     logger.trace("Shard [{}] assignment is temporary not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
                 }
-                return allocationOrdering.sort(fallbackNodeIds).iterator();
+                return allocationOrdering.sortNodeIds(fallbackNodeIds).iterator();
             } else {
                 return Collections.emptyIterator();
             }
@@ -309,24 +318,9 @@ public class DesiredBalanceReconciler {
         // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
         // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
         // offloading the shards.
-        for (final var iterator = routingNodes.nodeInterleavedShardIterator(); iterator.hasNext();) {
+        for (final var iterator = nodeInterleavedShardIterator(); iterator.hasNext();) {
             final var shardRouting = iterator.next();
-
-            if (shardRouting.started() == false) {
-                // can only move started shards
-                continue;
-            }
-
             final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
-            if (assignment == null) {
-                // balance is not computed
-                continue;
-            }
-
-            if (assignment.nodeIds().contains(shardRouting.currentNodeId())) {
-                // shard is already on a desired node
-                continue;
-            }
 
             if (allocation.deciders().canAllocate(shardRouting, allocation).type() != Decision.Type.YES) {
                 // cannot allocate anywhere, no point in looking for a target node
@@ -353,6 +347,7 @@ public class DesiredBalanceReconciler {
                     allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
                     allocation.changes()
                 );
+                moveOrdering.recordAllocation(shardRouting.currentNodeId());
             }
         }
     }
@@ -365,24 +360,9 @@ public class DesiredBalanceReconciler {
         // Iterate over the started shards interleaving between nodes, and try to move any which are on undesired nodes. In the presence of
         // throttling shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
         // offloading the shards.
-        for (final var iterator = routingNodes.nodeInterleavedShardIterator(); iterator.hasNext();) {
+        for (final var iterator = nodeInterleavedShardIterator(); iterator.hasNext();) {
             final var shardRouting = iterator.next();
-
-            if (shardRouting.started() == false) {
-                // can only rebalance started shards
-                continue;
-            }
-
             final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
-            if (assignment == null) {
-                // balance is not computed
-                continue;
-            }
-
-            if (assignment.nodeIds().contains(shardRouting.currentNodeId())) {
-                // shard is already on a desired node
-                continue;
-            }
 
             if (allocation.deciders().canRebalance(shardRouting, allocation).type() != Decision.Type.YES) {
                 // rebalancing disabled for this shard
@@ -411,6 +391,7 @@ public class DesiredBalanceReconciler {
                     allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
                     allocation.changes()
                 );
+                moveOrdering.recordAllocation(shardRouting.currentNodeId());
             }
         }
     }
@@ -461,5 +442,55 @@ public class DesiredBalanceReconciler {
     private Decision decideCanForceAllocateForVacate(ShardRouting shardRouting, RoutingNode target) {
         assert target != null : "Target node is not found";
         return allocation.deciders().canForceAllocateDuringReplace(shardRouting, target, allocation);
+    }
+
+    private Iterator<ShardRouting> nodeInterleavedShardIterator() {
+        var queue = new ArrayDeque<Iterator<ShardRouting>>(routingNodes.size());
+
+        for (RoutingNode routingNode : moveOrdering.sortNodes(routingNodes)) {
+            var nodeShards = new ArrayList<ShardRouting>();
+            for (ShardRouting shardRouting : routingNode) {
+
+                if (shardRouting.started() == false) {
+                    // can only rebalance started shards
+                    continue;
+                }
+
+                final var assignment = desiredBalance.getAssignment(shardRouting.shardId());
+                if (assignment == null) {
+                    // balance is not computed
+                    continue;
+                }
+
+                if (assignment.nodeIds().contains(shardRouting.currentNodeId())) {
+                    // shard is already on a desired node
+                    continue;
+                }
+                nodeShards.add(shardRouting);
+            }
+
+            if (nodeShards.isEmpty() == false) {
+                queue.add(nodeShards.iterator());
+            }
+        }
+
+        return new Iterator<>() {
+            public boolean hasNext() {
+                return queue.isEmpty() == false;
+            }
+
+            public ShardRouting next() {
+                if (queue.isEmpty()) {
+                    throw new NoSuchElementException();
+                }
+                final var nodeIterator = queue.poll();
+                assert nodeIterator.hasNext();
+                final var nextShard = nodeIterator.next();
+                if (nodeIterator.hasNext()) {
+                    queue.offer(nodeIterator);
+                }
+                return nextShard;
+            }
+        };
     }
 }

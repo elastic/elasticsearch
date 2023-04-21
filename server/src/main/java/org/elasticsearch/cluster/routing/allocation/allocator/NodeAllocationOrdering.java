@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.routing.RoutingNode;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -25,15 +27,22 @@ public class NodeAllocationOrdering {
 
     private final AtomicLong order = new AtomicLong(0);
     private final Map<String, Long> recentAllocations = new HashMap<>();
-    private final Comparator<String> comparator = Comparator.comparing(nodeId -> recentAllocations.getOrDefault(nodeId, 0L));
+    private final Comparator<String> nodeIdsComparator = Comparator.comparing(nodeId -> recentAllocations.getOrDefault(nodeId, 0L));
+    private final Comparator<RoutingNode> nodesComparator = Comparator.comparing(RoutingNode::nodeId, nodeIdsComparator);
 
     public void recordAllocation(String nodeId) {
         recentAllocations.put(nodeId, order.incrementAndGet());
     }
 
-    public List<String> sort(Collection<String> nodeIds) {
+    public List<String> sortNodeIds(Collection<String> nodeIds) {
         var list = new ArrayList<>(nodeIds);
-        list.sort(comparator);
+        list.sort(nodeIdsComparator);
+        return list;
+    }
+
+    public List<RoutingNode> sortNodes(Collection<RoutingNode> nodes) {
+        var list = new ArrayList<>(nodes);
+        list.sort(nodesComparator);
         return list;
     }
 

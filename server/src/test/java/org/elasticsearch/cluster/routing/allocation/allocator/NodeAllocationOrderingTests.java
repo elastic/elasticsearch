@@ -23,7 +23,7 @@ public class NodeAllocationOrderingTests extends ESTestCase {
         order.recordAllocation("node-1");
         order.recordAllocation("node-2");
 
-        var nodeIds = order.sort(Set.of("node-1", "node-2", "node-3", "node-4", "node-5"));
+        var nodeIds = order.sortNodeIds(Set.of("node-1", "node-2", "node-3", "node-4", "node-5"));
 
         assertThat(nodeIds.get(4), equalTo("node-2"));// as this node received the most recent allocation
         assertThat(nodeIds.get(3), equalTo("node-1"));
@@ -38,7 +38,7 @@ public class NodeAllocationOrderingTests extends ESTestCase {
 
         order.retainNodes(Set.of("node-1", "node-2"));// simulate node-3 leaving the cluster
 
-        var nodeIds = order.sort(Set.of("node-1", "node-2", "node-3"));// node-3 is back
+        var nodeIds = order.sortNodeIds(Set.of("node-1", "node-2", "node-3"));// node-3 is back
 
         // node-3 should be pushed to the beginning of the list as its allocation history was cleaned when it left.
         // now we assume no recent allocations on it

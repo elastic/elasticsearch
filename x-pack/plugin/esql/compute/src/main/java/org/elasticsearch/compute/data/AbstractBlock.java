@@ -85,10 +85,4 @@ abstract class AbstractBlock implements Block {
     public boolean areAllValuesNull() {
         return nullValuesCount() == getPositionCount();
     }
-
-    @Override
-    public int validPositionCount() {
-        // TODO this is almost always incorrect to use. remove it?
-        return positionCount - nullValuesCount();
-    }
 }

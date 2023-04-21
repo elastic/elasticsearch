@@ -86,11 +86,6 @@ abstract class AbstractFilterBlock implements Block {
         return block.getFirstValueIndex(mapPosition(position));
     }
 
-    @Override
-    public final int validPositionCount() {
-        return positions.length - nullValuesCount();
-    }
-
     private int mapPosition(int position) {
         assert assertPosition(position);
         return positions[position];

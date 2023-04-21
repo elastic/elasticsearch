@@ -101,7 +101,7 @@ public class FilteredBlockTests extends ESTestCase {
         assertTrue(filtered.mayHaveNulls());
         assertFalse(filtered.areAllValuesNull());
         assertEquals(1, filtered.nullValuesCount());
-        assertEquals(2, filtered.validPositionCount());
+        assertEquals(2, filtered.getTotalValueCount());
         assertFalse(filtered.isNull(1));
         assertEquals(30, filtered.getInt(filtered.getFirstValueIndex(1)));
     }
@@ -127,7 +127,7 @@ public class FilteredBlockTests extends ESTestCase {
         assertTrue(filtered.mayHaveNulls());
         assertTrue(filtered.areAllValuesNull());
         assertEquals(3, filtered.nullValuesCount());
-        assertEquals(0, filtered.validPositionCount());
+        assertEquals(0, filtered.getTotalValueCount());
     }
 
     public void testFilterOnNoNullsBlock() {
@@ -148,12 +148,11 @@ public class FilteredBlockTests extends ESTestCase {
         assertFalse(filtered.mayHaveNulls());
         assertFalse(filtered.areAllValuesNull());
         assertEquals(0, filtered.nullValuesCount());
-        assertEquals(3, filtered.validPositionCount());
+        assertEquals(3, filtered.getTotalValueCount());
 
         assertEquals(20, filtered.asVector().getInt(0));
         assertEquals(30, filtered.asVector().getInt(1));
         assertEquals(40, filtered.asVector().getInt(2));
-
     }
 
     public void testFilterToStringSimple() {

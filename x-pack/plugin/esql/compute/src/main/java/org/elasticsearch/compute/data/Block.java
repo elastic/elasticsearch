@@ -70,11 +70,6 @@ public interface Block extends NamedWriteable {
     int nullValuesCount();
 
     /**
-     * @return the number of non-null values in this block.
-     */
-    int validPositionCount();
-
-    /**
      * @return true if some values might be null. False, if all values are guaranteed to be not null.
      */
     boolean mayHaveNulls();

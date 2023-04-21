@@ -110,11 +110,11 @@ public class BasicBlockTests extends ESTestCase {
                 assertThat(block.isNull(pos), is(false));
             }
             assertThat(block.asVector().getPositionCount(), is(positionCount));
+            assertThat(block.asVector().asBlock().getTotalValueCount(), is(positionCount));
             assertThat(block.asVector().asBlock().getPositionCount(), is(positionCount));
             assertThat(block.nullValuesCount(), is(0));
             assertThat(block.mayHaveNulls(), is(false));
             assertThat(block.areAllValuesNull(), is(false));
-            assertThat(block.validPositionCount(), is(block.getPositionCount()));
 
             initialBlock = block.asVector().asBlock();
         }
@@ -822,7 +822,6 @@ public class BasicBlockTests extends ESTestCase {
         var block = blockProducer.build(blockBuilder);
 
         assertThat(block.getPositionCount(), equalTo(positionCount));
-        assertThat(block.validPositionCount(), equalTo(positionCount - 1));
         assertThat(block.getTotalValueCount(), equalTo(positionCount - 1));
         asserter.accept(randomNonNullPosition, block);
         assertTrue(block.isNull(randomNullPosition));

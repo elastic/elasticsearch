@@ -20,6 +20,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -143,6 +144,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     private final CounterMetric throttledTime = new CounterMetric();
 
+    private final SingleResultDeduplicator<ClusterState> csDeduplicator;
+
     public CcrRepository(
         RepositoryMetadata metadata,
         Client client,
@@ -159,6 +162,17 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         this.ccrLicenseChecker = ccrLicenseChecker;
         this.client = client;
         this.threadPool = threadPool;
+        csDeduplicator = new SingleResultDeduplicator<>(
+            threadPool.getThreadContext(),
+            l -> getRemoteClusterClient().admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setMetadata(true)
+                .setNodes(true)
+                .setMasterNodeTimeout(TimeValue.MAX_VALUE)
+                .execute(l.map(ClusterStateResponse::getState))
+        );
     }
 
     @Override
@@ -191,27 +205,22 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         assert snapshotIds.size() == 1 && SNAPSHOT_ID.equals(snapshotIds.iterator().next())
             : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId but saw " + snapshotIds;
         try {
-            getRemoteClusterClient().admin()
-                .cluster()
-                .prepareState()
-                .clear()
-                .setMetadata(true)
-                .setNodes(true)
-                // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
-                .execute(new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SNAPSHOT_META, context.map(response -> {
-                    Metadata responseMetadata = response.getState().metadata();
+            csDeduplicator.execute(
+                new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SNAPSHOT_META, context.map(response -> {
+                    Metadata responseMetadata = response.metadata();
                     ImmutableOpenMap<String, IndexMetadata> indicesMap = responseMetadata.indices();
-                    List<String> indices = new ArrayList<>(indicesMap.keySet());
                     return new SnapshotInfo(
                         new Snapshot(this.metadata.name(), SNAPSHOT_ID),
-                        indices,
-                        new ArrayList<>(responseMetadata.dataStreams().keySet()),
-                        Collections.emptyList(),
-                        response.getState().getNodes().getMaxNodeVersion(),
+                        org.elasticsearch.core.List.copyOf(indicesMap.keySet()),
+                        org.elasticsearch.core.List.copyOf(responseMetadata.dataStreams().keySet()),
+                        org.elasticsearch.core.List.of(),
+                        response.getNodes().getMaxNodeVersion(),
                         SnapshotState.SUCCESS
                     );
-                }), false));
+                }), false)
+            );
         } catch (Exception e) {
+            assert false : e;
             context.onFailure(e);
         }
     }
@@ -275,8 +284,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
         try {
-            getRemoteClusterClient().admin().cluster().prepareState().clear().setMetadata(true).execute(listener.map(response -> {
-                final Metadata remoteMetadata = response.getState().getMetadata();
+            csDeduplicator.execute(listener.map(response -> {
+                final Metadata remoteMetadata = response.getMetadata();
                 final String[] concreteAllIndices = remoteMetadata.getConcreteAllIndices();
                 final Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
                 final Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = new HashMap<>();
@@ -308,6 +317,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 );
             }));
         } catch (Exception e) {
+            assert false;
             listener.onFailure(e);
         }
     }

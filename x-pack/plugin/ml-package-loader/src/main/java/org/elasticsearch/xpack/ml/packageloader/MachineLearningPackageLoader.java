@@ -93,7 +93,7 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
 
     static void validateModelRepository(String repository, Path configPath) throws URISyntaxException {
         URI baseUri = new URI(repository.endsWith("/") ? repository : repository + "/").normalize();
-        URI normalizedConfigUri = new URI("file://" + configPath.toAbsolutePath().toString()).normalize();
+        URI normalizedConfigUri = configPath.toUri().normalize();
 
         if (Strings.isNullOrEmpty(baseUri.getScheme())) {
             throw new IllegalArgumentException(

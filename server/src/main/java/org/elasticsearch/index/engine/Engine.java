@@ -630,18 +630,8 @@ public abstract class Engine implements Closeable {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
-        Function<Engine.Searcher, Engine.Searcher> searcherWrapper,
-        boolean translogOnly
-    );
-
-    public GetResult get(
-        Get get,
-        MappingLookup mappingLookup,
-        DocumentParser documentParser,
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
-    ) {
-        return get(get, mappingLookup, documentParser, searcherWrapper, false);
-    }
+    );
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.

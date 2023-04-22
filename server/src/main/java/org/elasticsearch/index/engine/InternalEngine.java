@@ -747,8 +747,7 @@ public class InternalEngine extends Engine {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
-        Function<Engine.Searcher, Engine.Searcher> searcherWrapper,
-        boolean translogOnly
+        Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     ) {
         assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
         try (ReleasableLock ignored = readLock.acquire()) {
@@ -782,6 +781,8 @@ public class InternalEngine extends Engine {
                         );
                     }
                     if (get.isReadFromTranslog()) {
+                        // this is only used for updates - API _GET calls will always read form a reader for consistency
+                        // the update call doesn't need the consistency since it's source only + _parent but parent can go away in 7.0
                         if (versionValue.getLocation() != null) {
                             try {
                                 final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
@@ -798,9 +799,6 @@ public class InternalEngine extends Engine {
                     }
                     assert versionValue.seqNo >= 0 : versionValue;
                     refreshIfNeeded("realtime_get", versionValue.seqNo);
-                } else if (translogOnly) {
-                    assert get.realtime() : "get_from_translog can be used only with real-time get";
-                    return GetResult.NOT_EXISTS;
                 }
                 return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
             } else {

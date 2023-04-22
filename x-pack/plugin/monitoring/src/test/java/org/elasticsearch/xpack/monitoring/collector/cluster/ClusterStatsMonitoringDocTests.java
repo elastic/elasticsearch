@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.cluster.stats.MappingStats;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.action.admin.cluster.stats.VersionStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterSnapshotStats;
@@ -81,7 +80,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<ClusterStatsMonitoringDoc> {

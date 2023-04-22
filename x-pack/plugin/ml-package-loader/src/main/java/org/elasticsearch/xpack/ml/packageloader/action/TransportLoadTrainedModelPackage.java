@@ -146,7 +146,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                 } else {
                     logger.error(
                         format(
-                            "Model sha256 checksum do not match, expected[%s] but got [%s]",
+                            "Model sha256 checksums do not match, expected [%s] but got [%s]",
                             modelPackageConfig.getSha256(),
                             chunkIterator.getSha256()
                         )

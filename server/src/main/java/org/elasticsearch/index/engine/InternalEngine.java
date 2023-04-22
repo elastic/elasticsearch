@@ -3136,8 +3136,8 @@ public class InternalEngine extends Engine {
         return LiveVersionMapArchiver.NOOP_ARCHIVER;
     }
 
-    // Package private for testing purposes only
-    LiveVersionMap getLiveVersionMap() {
+    // Visible for testing purposes only
+    public LiveVersionMap getLiveVersionMap() {
         return versionMap;
     }
 }

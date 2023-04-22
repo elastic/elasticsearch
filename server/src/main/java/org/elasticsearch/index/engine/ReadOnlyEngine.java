@@ -274,8 +274,12 @@ public class ReadOnlyEngine extends Engine {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
-        Function<Searcher, Searcher> searcherWrapper
+        Function<Searcher, Searcher> searcherWrapper,
+        boolean translogOnly
     ) {
+        if (translogOnly) {
+            return GetResult.NOT_EXISTS;
+        }
         return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
     }
 

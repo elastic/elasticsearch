@@ -409,7 +409,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final ShardStats mockShardStats = mock(ShardStats.class);
         when(mockShardStats.getShardRouting()).thenReturn(shardRouting);
         CommonStats commonStats = mock(CommonStats.class);
-        when(commonStats.getFieldData()).thenReturn(new FieldDataStats(1, 0, null, new FieldDataStats.GlobalOrdinalsStats(1, Map.of())));
+        when(commonStats.getFieldData()).thenReturn(new FieldDataStats(1, 0, null, new FieldDataStats.GlobalOrdinalsStats(1, null)));
         when(mockShardStats.getStats()).thenReturn(commonStats);
 
         final ClusterStatsNodeResponse mockNodeResponse = mock(ClusterStatsNodeResponse.class);

@@ -261,6 +261,9 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // reflected in the previous reader. We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
 
         maps = maps.invalidateOldMap(archiver);
+        if (maps.isSafeAccessMode() == false) {
+            archiver.clear();
+        }
         assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMap()) != null;
 
     }

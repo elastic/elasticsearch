@@ -24,6 +24,8 @@ public interface LiveVersionMapArchiver {
 
     VersionValue get(BytesRef uid);
 
+    void clear();
+
     LiveVersionMapArchiver NOOP_ARCHIVER = new LiveVersionMapArchiver() {
         @Override
         public void afterRefresh(LiveVersionMap.VersionLookup old) {}
@@ -35,5 +37,8 @@ public interface LiveVersionMapArchiver {
         public VersionValue get(BytesRef uid) {
             return null;
         }
+
+        @Override
+        public void clear() {}
     };
 }

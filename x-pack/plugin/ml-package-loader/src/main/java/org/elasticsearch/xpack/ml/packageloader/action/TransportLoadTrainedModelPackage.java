@@ -88,6 +88,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
         threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
+                logAndWriteNotificationAtDebug(modelId, "starting model upload");
+
                 URI uri = new URI(repository).resolve(packagedModelId + ModelLoaderUtils.MODEL_FILE_EXTENSION);
 
                 // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the

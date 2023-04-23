@@ -891,6 +891,8 @@ public class MachineLearning extends Plugin
             machineLearningExtension.get().includeNodeInfo()
         );
         InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService, machineLearningExtension.get().includeNodeInfo());
+        SystemAuditor systemAuditor = new SystemAuditor(client, clusterService);
+
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
         OriginSettingClient originSettingClient = new OriginSettingClient(client, ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(
@@ -1172,7 +1174,7 @@ public class MachineLearning extends Plugin
                 clusterService,
                 threadPool,
                 new NodeLoadDetector(memoryTracker),
-                new SystemAuditor(client, clusterService),
+                systemAuditor,
                 nodeAvailabilityZoneMapper
             )
         );
@@ -1209,6 +1211,7 @@ public class MachineLearning extends Plugin
             anomalyDetectionAuditor,
             dataFrameAnalyticsAuditor,
             inferenceAuditor,
+            systemAuditor,
             mlAssignmentNotifier,
             mlAutoUpdateService,
             memoryTracker,

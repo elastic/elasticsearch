@@ -299,7 +299,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             this.countingPageCacheRecycler = new CountingPageCacheRecycler();
             this.recycler = new BytesRefRecycler(countingPageCacheRecycler);
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
-            this.coordinatorStrategy = getCoordinatorStrategy();
+            this.coordinatorStrategy = createCoordinatorStrategy();
 
             assertThat(initialNodeCount, greaterThan(0));
 
@@ -874,6 +874,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             blackholedConnections.clear();
         }
 
+        CoordinatorStrategy getCoordinatorStrategy() {
+            return coordinatorStrategy;
+        }
+
         @Override
         public void close() {
             // noinspection ReplaceInefficientStreamCount using .count() to run the filter on every node
@@ -1089,6 +1093,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     persistedState,
                     () -> disconnectedNodes.contains(localNode.getId())
                         || blackholedNodes.contains(localNode.getId())
+                        || nodeHealthService.getHealth().getStatus() != HEALTHY
                         || (disruptStorage && rarely())
                 );
                 coordinator = new Coordinator(
@@ -1592,7 +1597,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
     }
 
-    protected CoordinatorStrategy getCoordinatorStrategy() {
+    protected CoordinatorStrategy createCoordinatorStrategy() {
         return new DefaultCoordinatorStrategy();
     }
 

@@ -13,8 +13,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -28,10 +26,10 @@ import java.util.stream.Collectors;
 public class BulkProcessorFactory {
     private static final Logger logger = LogManager.getLogger(AnalyticsEventEmitter.class);
 
-    private final BulkProcessorConfig config;
+    private final AnalyticsEventIngestConfig config;
 
     @Inject
-    public BulkProcessorFactory(BulkProcessorConfig config) {
+    public BulkProcessorFactory(AnalyticsEventIngestConfig config) {
         this.config = config;
     }
 
@@ -39,8 +37,8 @@ public class BulkProcessorFactory {
         return BulkProcessor2.builder(client::bulk, new BulkProcessorListener(), client.threadPool())
             .setMaxNumberOfRetries(config.maxNumberOfRetries())
             .setBulkActions(config.maxNumberOfEventsPerBulk())
-            .setBulkSize(new ByteSizeValue(-1, ByteSizeUnit.BYTES))
             .setFlushInterval(config.flushDelay())
+            .setMaxBytesInFlight(config.maxBytesInFlight())
             .build();
     }
 

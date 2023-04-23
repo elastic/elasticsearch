@@ -103,7 +103,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         final boolean operatorPrivilegesAvailable = randomBoolean();
         when(licenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(operatorPrivilegesAvailable);
         final boolean remoteClusterServerAvailable = randomBoolean();
-        when(licenseState.isAllowed(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(remoteClusterServerAvailable);
+        when(licenseState.isAllowed(Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE)).thenReturn(remoteClusterServerAvailable);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 

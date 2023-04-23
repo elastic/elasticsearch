@@ -76,15 +76,12 @@
                   "type": "keyword"
                 },
                 "original": {
-                  "fields": {
-                    "text": {
-                      "type": "match_only_text"
-                    }
-                  },
-                  "type": "wildcard"
+                  "ignore_above": 1024,
+                  "type": "keyword"
                 },
                 "path": {
-                  "type": "wildcard"
+                  "ignore_above": 1024,
+                  "type": "keyword"
                 },
                 "port": {
                   "type": "long"
@@ -118,15 +115,12 @@
                   "type": "keyword"
                 },
                 "original": {
-                  "fields": {
-                    "text": {
-                      "type": "match_only_text"
-                    }
-                  },
-                  "type": "wildcard"
+                  "ignore_above": 1024,
+                  "type": "keyword"
                 },
                 "path": {
-                  "type": "wildcard"
+                  "ignore_above": 1024,
+                  "type": "keyword"
                 },
                 "port": {
                   "type": "long"
@@ -184,67 +178,8 @@
                   "type": "integer"
                 },
                 "items": {
-                  "properties": {
-                    "document": {
-                      "properties": {
-
-                      "index": {
-                        "type": "keyword",
-                        "ignore_above": 1024
-                      },
-                      "id": {
-                        "type": "keyword",
-                        "ignore_above": 1024
-                      }
-                    }
-                    },
-                    "page": {
-                      "properties": {
-                        "url": {
-                          "properties": {
-                            "domain": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "extension": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "fragment": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "original": {
-                              "fields": {
-                                "text": {
-                                  "type": "match_only_text"
-                                }
-                              },
-                              "type": "wildcard"
-                            },
-                            "path": {
-                              "type": "wildcard"
-                            },
-                            "port": {
-                              "type": "long"
-                            },
-                            "query": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            },
-                            "scheme": {
-                              "ignore_above": 1024,
-                              "type": "keyword"
-                            }
-                          }
-                        },
-                        "title": {
-                          "type": "keyword",
-                          "ignore_above": 1024
-                        }
-                      }
-                    }
-                  }
+                  "type": "object",
+                  "enabled": false
                 }
               }
             }

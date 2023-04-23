@@ -12,4 +12,10 @@ public interface MachineLearningExtension {
     boolean useIlm();
 
     boolean includeNodeInfo();
+
+    boolean isAnomalyDetectionEnabled();
+
+    boolean isDataFrameAnalyticsEnabled();
+
+    boolean isNlpEnabled();
 }

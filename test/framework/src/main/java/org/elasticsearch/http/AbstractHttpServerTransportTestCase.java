@@ -22,10 +22,7 @@ public class AbstractHttpServerTransportTestCase extends ESTestCase {
      * Trivial {@link HttpHeadersUtils} implementation that successfully validates any and all HTTP request headers.
      */
     public static final Supplier<Netty4HttpHeaderValidator> VALIDATE_EVERYTHING_VALIDATOR = () -> HttpHeadersUtils
-        .getValidatorInboundHandler(
-            (httpPreRequest, channel, listener) -> listener.onResponse(() -> {}),
-            new ThreadContext(Settings.EMPTY)
-        );
+        .getValidatorInboundHandler((httpPreRequest, channel, listener) -> listener.onResponse(null), new ThreadContext(Settings.EMPTY));
 
     protected static ClusterSettings randomClusterSettings() {
         return new ClusterSettings(

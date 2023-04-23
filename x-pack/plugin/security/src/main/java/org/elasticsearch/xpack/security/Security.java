@@ -1662,7 +1662,7 @@ public class Security extends Plugin
                     // This inspects and modifies the thread context.
                     authenticationService.authenticate(
                         httpRequest,
-                        ActionListener.wrap(ignored -> listener.onResponse(threadContext.newStoredContext()), listener::onFailure)
+                        ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
                     );
                 },
                 threadContext

@@ -43,7 +43,7 @@ public final class HttpHeadersUtils {
      * in case the validation is to be considered successful, or otherwise call {@code ActionListener#onFailure}.
      */
     @FunctionalInterface
-    public interface Validator extends TriConsumer<HttpPreRequest, Channel, ActionListener<ThreadContext.StoredContext>> {}
+    public interface Validator extends TriConsumer<HttpPreRequest, Channel, ActionListener<Void>> {}
 
     // utility class
     private HttpHeadersUtils() {}
@@ -57,8 +57,8 @@ public final class HttpHeadersUtils {
         return new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
             // make sure validation only runs on properly wrapped "validatable" headers implementation
             if (httpRequest.headers() instanceof HttpHeadersWithValidationContext httpHeadersWithValidationContext) {
-                validator.apply(asHttpPreRequest(httpRequest), channel, ActionListener.wrap(validationResult -> {
-                    httpHeadersWithValidationContext.addValidationContext(validationResult);
+                validator.apply(asHttpPreRequest(httpRequest), channel, ActionListener.wrap(aVoid -> {
+                    httpHeadersWithValidationContext.addValidationContext(threadContext.newStoredContext());
                     // a successful validation needs to signal to the {@link Netty4HttpHeaderValidator} to resume
                     // forwarding the request beyond the headers part
                     listener.onResponse(null);

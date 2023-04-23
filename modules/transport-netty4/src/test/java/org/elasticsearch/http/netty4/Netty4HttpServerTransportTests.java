@@ -92,6 +92,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests for the {@link Netty4HttpServerTransport} class.
@@ -651,16 +653,19 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         final Settings settings = createSettings();
         final AtomicReference<HttpMethod> httpMethodReference = new AtomicReference<>();
         final AtomicReference<String> urlReference = new AtomicReference<>();
-        final AtomicReference<String> headerReference = new AtomicReference<>();
-        final AtomicReference<String> headerValueReference = new AtomicReference<>();
-        final AtomicReference<ThreadContext.StoredContext> validationResultContextReference = new AtomicReference<>();
+        final AtomicReference<String> requestHeaderReference = new AtomicReference<>();
+        final AtomicReference<String> requestHeaderValueReference = new AtomicReference<>();
+        final AtomicReference<String> contextHeaderReference = new AtomicReference<>();
+        final AtomicReference<String> contextHeaderValueReference = new AtomicReference<>();
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                assertThat(HttpHeadersUtils.extractValidationContext(request.getHttpRequest()), is(validationResultContextReference.get()));
                 assertThat(request.getHttpRequest().uri(), is(urlReference.get()));
-                assertThat(request.getHttpRequest().header(headerReference.get()), is(headerValueReference.get()));
+                assertThat(request.getHttpRequest().header(requestHeaderReference.get()), is(requestHeaderValueReference.get()));
                 assertThat(request.getHttpRequest().method(), is(translateRequestMethod(httpMethodReference.get())));
+                // validation context is restored
+                assertThat(threadPool.getThreadContext().getHeader(contextHeaderReference.get()), is(contextHeaderValueReference.get()));
+                assertThat(threadPool.getThreadContext().getTransient(contextHeaderReference.get()), is(contextHeaderValueReference.get()));
                 channel.sendResponse(new RestResponse(OK, RestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
             }
 
@@ -670,11 +675,16 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             }
         };
         final Supplier<Netty4HttpHeaderValidator> successHeadersValidator = () -> HttpHeadersUtils.getValidatorInboundHandler(
-            (httpPreRequest, channel, validationResultContextActionListener) -> {
+            (httpPreRequest, channel, validationListener) -> {
                 assertThat(httpPreRequest.uri(), is(urlReference.get()));
-                assertThat(httpPreRequest.header(headerReference.get()), is(headerValueReference.get()));
+                assertThat(httpPreRequest.header(requestHeaderReference.get()), is(requestHeaderValueReference.get()));
                 assertThat(httpPreRequest.method(), is(translateRequestMethod(httpMethodReference.get())));
-                validationResultContextActionListener.onResponse(validationResultContextReference.get());
+                contextHeaderReference.set(randomAlphaOfLengthBetween(4, 8));
+                contextHeaderValueReference.set(randomAlphaOfLengthBetween(4, 8));
+                // Validation alters thread context!!!!
+                threadPool.getThreadContext().putHeader(contextHeaderReference.get(), contextHeaderValueReference.get());
+                threadPool.getThreadContext().putTransient(contextHeaderReference.get(), contextHeaderValueReference.get());
+                validationListener.onResponse(null);
             },
             threadPool.getThreadContext()
         );
@@ -694,9 +704,21 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             ) {
                 @Override
                 protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                    assertThat(threadPool.getThreadContext().getHeader(contextHeaderReference.get()), nullValue());
+                    assertThat(threadPool.getThreadContext().getTransient(contextHeaderReference.get()), nullValue());
+                    ThreadContext.StoredContext storedAuthenticatedContext = HttpHeadersUtils.extractValidationContext(
+                        restRequest.getHttpRequest()
+                    );
+                    assertThat(storedAuthenticatedContext, notNullValue());
+                    // restore validation context
+                    storedAuthenticatedContext.restore();
                     assertThat(
-                        HttpHeadersUtils.extractValidationContext(restRequest.getHttpRequest()),
-                        is(validationResultContextReference.get())
+                        threadPool.getThreadContext().getHeader(contextHeaderReference.get()),
+                        is(contextHeaderValueReference.get())
+                    );
+                    assertThat(
+                        threadPool.getThreadContext().getTransient(contextHeaderReference.get()),
+                        is(contextHeaderValueReference.get())
                     );
                 }
             }
@@ -713,16 +735,15 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         + "="
                         + randomAlphaOfLengthBetween(4, 8)
                 );
-                headerReference.set("X-" + randomAlphaOfLengthBetween(4, 8));
-                headerValueReference.set(randomAlphaOfLengthBetween(4, 8));
-                validationResultContextReference.set(() -> {});
+                requestHeaderReference.set("X-" + randomAlphaOfLengthBetween(4, 8));
+                requestHeaderValueReference.set(randomAlphaOfLengthBetween(4, 8));
                 try (Netty4HttpClient client = new Netty4HttpClient()) {
                     FullHttpRequest request = new DefaultFullHttpRequest(
                         HttpVersion.HTTP_1_1,
                         httpMethodReference.get(),
                         urlReference.get()
                     );
-                    request.headers().set(headerReference.get(), headerValueReference.get());
+                    request.headers().set(requestHeaderReference.get(), requestHeaderValueReference.get());
                     FullHttpResponse response = client.send(remoteAddress.address(), request);
                     assertThat(response.status(), is(HttpResponseStatus.OK));
                 }
@@ -758,11 +779,11 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             }
         };
         final Supplier<Netty4HttpHeaderValidator> failureHeadersValidator = () -> HttpHeadersUtils.getValidatorInboundHandler(
-            (httpPreRequest, channel, validationResultContextActionListener) -> {
+            (httpPreRequest, channel, validationResultListener) -> {
                 assertThat(httpPreRequest.uri(), is(urlReference.get()));
                 assertThat(httpPreRequest.header(headerReference.get()), is(headerValueReference.get()));
                 assertThat(httpPreRequest.method(), is(translateRequestMethod(httpMethodReference.get())));
-                validationResultContextActionListener.onFailure(validationResultExceptionReference.get());
+                validationResultListener.onFailure(validationResultExceptionReference.get());
             },
             threadPool.getThreadContext()
         );

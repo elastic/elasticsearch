@@ -261,9 +261,6 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // reflected in the previous reader. We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
 
         maps = maps.invalidateOldMap(archiver);
-        if (maps.isSafeAccessMode() == false) {
-            archiver.clear();
-        }
         assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMap()) != null;
 
     }
@@ -485,6 +482,10 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
         assert keyedLock.isHeldByCurrentThread(uid) : "Thread [" + Thread.currentThread().getName() + "], uid [" + uid.utf8ToString() + "]";
         return true;
+    }
+
+    public void clearArchive() {
+        archiver.clear();
     }
 
     // visible for testing purposes only

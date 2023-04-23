@@ -26,6 +26,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.common.notifications.Level;
+import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
@@ -101,7 +103,11 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                         vocabularyAndMerges.v2()
                     );
                     client.execute(PutTrainedModelVocabularyAction.INSTANCE, r2).actionGet();
-                    logger.debug(() -> format("uploaded model vocabulary [%s]", modelPackageConfig.getVocabularyFile()));
+
+                    logAndWriteNotificationAtDebug(
+                        modelId,
+                        format("uploaded model vocabulary [%s]", modelPackageConfig.getVocabularyFile())
+                    );
                 }
 
                 InputStream modelInputStream = ModelLoaderUtils.getInputStreamFromModelRepository(uri);
@@ -141,27 +147,42 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                     );
 
                     client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
-
-                    logger.debug(() -> format("finished uploading model using [%d] parts", totalParts));
+                    logAndWriteNotificationAtDebug(modelId, format("finished uploading model using [%d] parts", totalParts));
                 } else {
-                    logger.error(
-                        format(
-                            "Model sha256 checksums do not match, expected [%s] but got [%s]",
-                            modelPackageConfig.getSha256(),
-                            chunkIterator.getSha256()
-                        )
+                    String message = format(
+                        "Model sha256 checksums do not match, expected [%s] but got [%s]",
+                        modelPackageConfig.getSha256(),
+                        chunkIterator.getSha256()
                     );
+                    logAndWriteNotificationAtError(modelId, message);
                 }
             } catch (MalformedURLException e) {
-                logger.error(format("Invalid URL [%s]", e));
+                logAndWriteNotificationAtError(modelId, format("Invalid URL [%s]", e));
             } catch (URISyntaxException e) {
-                logger.error(format("Invalid URL syntax [%s]", e));
+                logAndWriteNotificationAtError(modelId, format("Invalid URL syntax [%s]", e));
             } catch (IOException e) {
-                logger.error(format("IOException [%s]", e));
+                logAndWriteNotificationAtError(modelId, format("IOException [%s]", e));
             }
         });
 
         listener.onResponse(AcknowledgedResponse.TRUE);
+    }
+
+    private void logAndWriteNotificationAtError(String modelId, String message) {
+        writeNotification(modelId, message, Level.ERROR);
+        logger.error(format("[%s] %s", modelId, message));
+    }
+
+    private void logAndWriteNotificationAtDebug(String modelId, String message) {
+        writeNotification(modelId, message, Level.INFO); // info is the lowest level
+        logger.debug(format("[%s] %s", modelId, message));
+    }
+
+    private void writeNotification(String modelId, String message, Level level) {
+        client.execute(
+            AuditMlNotificationAction.INSTANCE,
+            new AuditMlNotificationAction.Request(AuditMlNotificationAction.AuditType.INFERENCE, modelId, message, level)
+        ).actionGet();
     }
 
     @Override

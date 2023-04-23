@@ -127,6 +127,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     }
 
     private void forwardFullRequest(ChannelHandlerContext ctx) {
+        assert threadContext.isDefaultContext();
         assert ctx.channel().eventLoop().inEventLoop();
         assert ctx.channel().config().isAutoRead() == false;
         assert state == QUEUEING_DATA;
@@ -146,6 +147,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     }
 
     private void forwardRequestWithDecoderExceptionAndNoContent(ChannelHandlerContext ctx, Exception e) {
+        assert threadContext.isDefaultContext();
         assert ctx.channel().eventLoop().inEventLoop();
         assert ctx.channel().config().isAutoRead() == false;
         assert state == QUEUEING_DATA;

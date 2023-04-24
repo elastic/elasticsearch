@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
+import org.elasticsearch.xpack.core.security.authz.permission.WorkflowPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -2654,6 +2655,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private List<RoleDescriptor> randomRoleDescriptors() {
         boolean allowRemoteIndices = TcpTransport.isUntrustedRemoteClusterEnabled();
+        boolean allowWorkflows = WorkflowPermission.WORKFLOW_FEATURE_FLAG.isEnabled();
         int caseNo = randomIntBetween(0, 3);
         return switch (caseNo) {
             case 0 -> List.of(new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null));
@@ -2661,7 +2663,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
                 randomValueOtherThanMany(
                     rd -> RoleDescriptorRequestValidator.validate(rd) != null,
-                    () -> RoleDescriptorTests.randomRoleDescriptor(false, allowRemoteIndices)
+                    () -> RoleDescriptorTests.randomRoleDescriptor(false, allowRemoteIndices, allowWorkflows)
                 )
             );
             case 2 -> null;

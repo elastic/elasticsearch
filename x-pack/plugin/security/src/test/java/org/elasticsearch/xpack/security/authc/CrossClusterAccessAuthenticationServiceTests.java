@@ -151,18 +151,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
                 // Invalid internal user
                 AuthenticationTestHelper.builder().internal(XPackUser.INSTANCE).build(),
                 new RoleDescriptorsIntersection(
-                    new RoleDescriptor(
-                        "invalid_role",
-                        new String[] { "all" },
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null
-
-                    )
+                    new RoleDescriptor("invalid_role", new String[] { "all" }, null, null, null, null, null, null, null, null)
                 )
             )
         );

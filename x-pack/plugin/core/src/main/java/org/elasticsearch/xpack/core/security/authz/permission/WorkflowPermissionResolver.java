@@ -103,7 +103,9 @@ public final class WorkflowPermissionResolver {
                     T value = fieldType.cast(field.get(null));
                     assert result.contains(value) == false
                         : "field value " + value.toString() + " defined more than once in " + source.getCanonicalName();
-                    result.add(value);
+                    if (value != null) {
+                        result.add(value);
+                    }
                 } catch (IllegalArgumentException | IllegalAccessException e) {
                     throw new IllegalStateException(
                         "failed to read field ["

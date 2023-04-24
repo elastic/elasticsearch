@@ -10,6 +10,4 @@ module org.elasticsearch.geo {
     exports org.elasticsearch.geometry;
     exports org.elasticsearch.geometry.utils;
     exports org.elasticsearch.geometry.simplify;
-
-    requires org.apache.lucene.core;
 }

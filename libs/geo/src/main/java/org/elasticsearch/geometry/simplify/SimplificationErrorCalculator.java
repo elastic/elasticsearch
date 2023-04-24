@@ -8,8 +8,6 @@
 
 package org.elasticsearch.geometry.simplify;
 
-import org.apache.lucene.util.SloppyMath;
-
 import java.util.Locale;
 
 public interface SimplificationErrorCalculator {

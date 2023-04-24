@@ -38,6 +38,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -60,6 +61,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -116,7 +118,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
             null
         );
         assertFalse(flsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -132,7 +134,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
             null
         );
         assertFalse(dlsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -153,7 +155,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
             null
         );
         assertFalse(flsDlsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -167,7 +169,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2) : null,
             null
         );
         assertFalse(noFlsDlsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -317,11 +319,13 @@ public class NativeRolesStoreTests extends ESTestCase {
 
     public void testPutRoleWithRemoteIndicesUnsupportedMinNodeVersion() {
         final Client client = mock(Client.class);
-        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
+        final Version versionBeforeAdvancedRemoteClusterSecurity = VersionUtils.getPreviousVersion(
+            VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+        );
         final Version version = VersionUtils.randomVersionBetween(
             random(),
-            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
-            versionBeforeRemoteIndices
+            versionBeforeAdvancedRemoteClusterSecurity.minimumCompatibilityVersion(),
+            versionBeforeAdvancedRemoteClusterSecurity
         );
         final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(version);
 
@@ -362,7 +366,14 @@ public class NativeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         rolesStore.putRole(putRoleRequest, remoteIndicesRole, future);
         IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("all nodes must have version [8.6.0] or higher to support remote indices privileges"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "all nodes must have version ["
+                    + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                    + "] or higher to support remote indices privileges"
+            )
+        );
     }
 
     private ClusterService mockClusterServiceWithMinNodeVersion(Version version) {

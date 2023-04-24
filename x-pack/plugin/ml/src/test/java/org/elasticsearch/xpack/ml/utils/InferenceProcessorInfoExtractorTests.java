@@ -48,10 +48,7 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
 
         ClusterState clusterState = buildClusterStateWithModelReferences(2, modelId1, modelId2, modelId3);
 
-        Map<String, Set<String>> pipelineIdsByModelIds = InferenceProcessorInfoExtractor.pipelineIdsByModelIdsOrAliases(
-            clusterState,
-            modelIds
-        );
+        Map<String, Set<String>> pipelineIdsByModelIds = InferenceProcessorInfoExtractor.pipelineIdsByResource(clusterState, modelIds);
 
         assertThat(pipelineIdsByModelIds.keySet(), equalTo(modelIds));
         assertThat(

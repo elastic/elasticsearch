@@ -11,6 +11,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
@@ -138,6 +139,8 @@ public interface Processor {
          */
         public final Client client;
 
+        public final MatcherWatchdog matcherWatchdog;
+
         public Parameters(
             Environment env,
             ScriptService scriptService,
@@ -147,7 +150,8 @@ public interface Processor {
             BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
             IngestService ingestService,
             Client client,
-            Consumer<Runnable> genericExecutor
+            Consumer<Runnable> genericExecutor,
+            MatcherWatchdog matcherWatchdog
         ) {
             this.env = env;
             this.scriptService = scriptService;
@@ -158,7 +162,7 @@ public interface Processor {
             this.ingestService = ingestService;
             this.client = client;
             this.genericExecutor = genericExecutor;
+            this.matcherWatchdog = matcherWatchdog;
         }
-
     }
 }

@@ -10,13 +10,13 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -91,12 +91,12 @@ public class PublicationTests extends ESTestCase {
                 }
 
                 @Override
-                protected Optional<ListenableFuture<ApplyCommitRequest>> handlePublishResponse(
+                protected Optional<SubscribableListener<ApplyCommitRequest>> handlePublishResponse(
                     DiscoveryNode sourceNode,
                     PublishResponse publishResponse
                 ) {
                     return coordinationState.handlePublishResponse(sourceNode, publishResponse).map(applyCommitRequest -> {
-                        final var future = new ListenableFuture<ApplyCommitRequest>();
+                        final var future = new SubscribableListener<ApplyCommitRequest>();
                         future.onResponse(applyCommitRequest);
                         return future;
                     });

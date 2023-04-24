@@ -181,6 +181,13 @@
                     },
                     "evictions": {
                       "type": "long"
+                    },
+                    "global_ordinals": {
+                      "properties": {
+                        "build_time_in_millis": {
+                          "type": "long"
+                        }
+                      }
                     }
                   }
                 },
@@ -334,6 +341,13 @@
                     },
                     "evictions": {
                       "type": "long"
+                    },
+                    "global_ordinals": {
+                      "properties": {
+                        "build_time_in_millis": {
+                          "type": "long"
+                        }
+                      }
                     }
                   }
                 },
@@ -535,6 +549,13 @@
                     },
                     "evictions": {
                       "type": "long"
+                    },
+                    "global_ordinals": {
+                      "properties": {
+                        "build_time_in_millis": {
+                          "type": "long"
+                        }
+                      }
                     }
                   }
                 },

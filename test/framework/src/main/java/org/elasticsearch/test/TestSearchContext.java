@@ -8,6 +8,7 @@
 package org.elasticsearch.test;
 
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
@@ -70,8 +71,7 @@ public class TestSearchContext extends SearchContext {
     SortAndFormats sort;
     boolean trackScores = false;
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
-    Collector aggCollector;
-
+    CollectorManager<Collector, Void> aggCollectorManager;
     ContextIndexSearcher searcher;
     int from;
     int size;
@@ -525,13 +525,13 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Collector getAggsCollector() {
-        return aggCollector;
+    public CollectorManager<Collector, Void> getAggsCollectorManager() {
+        return aggCollectorManager;
     }
 
     @Override
-    public void registerAggsCollector(Collector collector) {
-        this.aggCollector = collector;
+    public void registerAggsCollectorManager(CollectorManager<Collector, Void> collector) {
+        this.aggCollectorManager = collector;
     }
 
     @Override

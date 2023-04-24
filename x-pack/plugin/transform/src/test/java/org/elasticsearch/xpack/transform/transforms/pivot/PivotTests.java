@@ -55,6 +55,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -125,6 +126,13 @@ public class PivotTests extends ESTestCase {
 
     public void testValidateNonExistingIndex() throws Exception {
         SourceConfig source = new SourceConfig("non_existing_source_index");
+        Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+
+        assertInvalidTransform(client, source, pivot);
+    }
+
+    public void testValidateAggregationsBeingNullInSearchResponse() throws Exception {
+        SourceConfig source = new SourceConfig("no_permissions");
         Function pivot = new Pivot(getValidPivotConfig(), new SettingsConfig(), Version.CURRENT, Collections.emptySet());
 
         assertInvalidTransform(client, source, pivot);
@@ -298,9 +306,12 @@ public class PivotTests extends ESTestCase {
                     }
                 }
 
+                final Aggregations aggregations = Arrays.stream(searchRequest.indices()).anyMatch(index -> index.contains("no_permissions"))
+                    ? null
+                    : new Aggregations(List.of());
                 final SearchResponseSections sections = new SearchResponseSections(
                     new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0),
-                    null,
+                    aggregations,
                     null,
                     false,
                     null,

@@ -106,7 +106,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected String expectedEvaluatorSimpleToString() {
-        return "PowDoubleIntEvaluator[base=Attribute[channel=0], exponent=Attribute[channel=1]]";
+        return "PowDoubleEvaluator[base=Attribute[channel=0], exponent=CastIntToDoubleEvaluator[v=Attribute[channel=1]]]";
     }
 
     @Override

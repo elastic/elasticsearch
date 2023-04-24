@@ -64,36 +64,42 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
     }
 
     public void testIsNodeShuttingDown() {
-        NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(
-            Collections.singletonMap(
-                "this_node",
-                SingleNodeShutdownMetadata.builder()
-                    .setNodeId("this_node")
-                    .setReason("shutdown for a unit test")
-                    .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
-                    .setStartedAtMillis(randomNonNegativeLong())
-                    .build()
-            )
-        );
+        for (SingleNodeShutdownMetadata.Type type : List.of(
+            SingleNodeShutdownMetadata.Type.RESTART,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.SIGTERM
+        )) {
+            NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(
+                Collections.singletonMap(
+                    "this_node",
+                    SingleNodeShutdownMetadata.builder()
+                        .setNodeId("this_node")
+                        .setReason("shutdown for a unit test")
+                        .setType(type)
+                        .setStartedAtMillis(randomNonNegativeLong())
+                        .build()
+                )
+            );
 
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "this_node"));
-        nodes.localNodeId("this_node");
-        nodes.masterNodeId("this_node");
+            DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+            nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "this_node"));
+            nodes.localNodeId("this_node");
+            nodes.masterNodeId("this_node");
 
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
 
-        state = ClusterState.builder(state)
-            .metadata(Metadata.builder(state.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
-            .nodes(
-                DiscoveryNodes.builder(state.nodes())
-                    .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
-                    .build()
-            )
-            .build();
+            state = ClusterState.builder(state)
+                .metadata(Metadata.builder(state.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
+                .nodes(
+                    DiscoveryNodes.builder(state.nodes())
+                        .add(new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT))
+                        .build()
+                )
+                .build();
 
-        assertThat(NodesShutdownMetadata.isNodeShuttingDown(state, "this_node"), equalTo(true));
-        assertThat(NodesShutdownMetadata.isNodeShuttingDown(state, "_node_1"), equalTo(false));
+            assertThat(NodesShutdownMetadata.isNodeShuttingDown(state, "this_node"), equalTo(true));
+            assertThat(NodesShutdownMetadata.isNodeShuttingDown(state, "_node_1"), equalTo(false));
+        }
     }
 
     @Override

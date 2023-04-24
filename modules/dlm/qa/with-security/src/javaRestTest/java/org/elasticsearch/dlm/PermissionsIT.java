@@ -58,7 +58,7 @@ public class PermissionsIT extends ESRestTestCase {
         XContentBuilder clusterSettingsEntity = JsonXContent.contentBuilder();
         clusterSettingsEntity.startObject();
         clusterSettingsEntity.startObject("persistent");
-        clusterSettingsEntity.field(DataLifecycleService.DLM_POLL_INTERVAL, "1s");
+        clusterSettingsEntity.field("indices.dlm.poll_interval", "1s");
         clusterSettingsEntity.field(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
         clusterSettingsEntity.endObject();
         clusterSettingsEntity.endObject();

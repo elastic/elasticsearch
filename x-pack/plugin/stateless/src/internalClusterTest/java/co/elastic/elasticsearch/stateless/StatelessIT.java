@@ -19,12 +19,15 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicatorReader;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -35,6 +38,8 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -45,6 +50,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -53,6 +59,7 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -432,6 +439,71 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                     assertThat(searchShardSegment.getSegmentSort(), equalTo(indexShardSegment.getSegmentSort()));
                 }
             }
+        }
+    }
+
+    public void testUploadToObjectStoreAfterShardIsClosed() {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1L))
+                .build()
+        );
+        ensureGreen(indexName);
+
+        if (randomBoolean()) {
+            indexDocs(indexName, randomIntBetween(1, 100));
+            flush(indexName);
+        }
+        assertObjectStoreConsistentWithIndexShards();
+
+        indexDocs(indexName, randomIntBetween(1, 100));
+
+        // block the object store uploading thread pool with tasks before triggering a flush and closing the shard
+        var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
+        final String uploadThreadPoolName = ThreadPool.Names.SNAPSHOT;
+        final int maxUploadTasks = threadPool.info(uploadThreadPoolName).getMax();
+        final CountDownLatch latch = new CountDownLatch(1);
+        for (int i = 0; i < maxUploadTasks; i++) {
+            threadPool.executor(uploadThreadPoolName).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    latch.await();
+                }
+            });
+        }
+
+        int active = -1;
+        for (var stats : threadPool.stats()) {
+            if (stats.getName().equals(uploadThreadPoolName)) {
+                active = stats.getActive();
+                break;
+            }
+        }
+        assertThat(active, equalTo(maxUploadTasks));
+
+        flush(indexName);
+
+        var indexShard = findIndexShard(resolveIndex(indexName), 0);
+        // we must hold a ref on the store to allow assertThatObjectStoreIsConsistentWithLastCommit
+        indexShard.store().incRef();
+        try {
+            var future = client().admin().indices().close(new CloseIndexRequest(indexName).waitForActiveShards(ActiveShardCount.NONE));
+            latch.countDown();
+            assertThatObjectStoreIsConsistentWithLastCommit(indexShard);
+            assertAcked(future.actionGet());
+        } finally {
+            indexShard.store().decRef();
         }
     }
 

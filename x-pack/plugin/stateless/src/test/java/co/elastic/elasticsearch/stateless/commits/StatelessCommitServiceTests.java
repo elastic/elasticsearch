@@ -31,7 +31,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         commitService.markFileUploaded(shardId, "file-name1", new BlobLocation(1, "1", 0, 10));
         Set<String> commit2 = Set.of("file-name1", "file-name2");
         commitService.markNewCommit(shardId, commit2, Set.of("file-name2"));
-        commitService.unregisterShard(shardId);
+        commitService.unregister(shardId);
         expectThrows(
             AlreadyClosedException.class,
             () -> commitService.markFileUploaded(shardId, "file-name2", new BlobLocation(1, "2", 0, 20))

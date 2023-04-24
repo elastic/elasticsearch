@@ -139,7 +139,7 @@ public class QueryPhase {
                 searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null
             );
 
-            CollectorManager<? extends Collector, Void> collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
+            CollectorManager<Collector, Void> collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                 searchContext.getProfilers(),
                 topDocsFactory.collector(),
                 topDocsFactory.profilerName
@@ -241,7 +241,7 @@ public class QueryPhase {
         }
     }
 
-    private static CollectorManager<? extends Collector, Void> wrapWithProfilerCollectorManagerIfNeeded(
+    private static CollectorManager<Collector, Void> wrapWithProfilerCollectorManagerIfNeeded(
         Profilers profilers,
         Collector collector,
         String profilerName,
@@ -257,7 +257,7 @@ public class QueryPhase {
         SearchContext searchContext,
         ContextIndexSearcher searcher,
         Query query,
-        CollectorManager<? extends Collector, Void> collectorManager,
+        CollectorManager<Collector, Void> collectorManager,
         boolean timeoutSet
     ) throws IOException {
         if (searchContext.getProfilers() != null) {

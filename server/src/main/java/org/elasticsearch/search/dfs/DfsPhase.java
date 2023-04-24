@@ -179,7 +179,7 @@ public class DfsPhase {
         for (int i = 0; i < knnSearch.size(); i++) {
             Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(knnSearch.get(i).k(), Integer.MAX_VALUE);
-            CollectorManager<? extends Collector, Void> collectorManager = new SingleThreadCollectorManager(topScoreDocCollector);
+            CollectorManager<Collector, Void> collectorManager = new SingleThreadCollectorManager(topScoreDocCollector);
             if (context.getProfilers() != null) {
                 InternalProfileCollectorManager ipcm = new InternalProfileCollectorManager(
                     new InternalProfileCollector(collectorManager.newCollector(), CollectorResult.REASON_SEARCH_TOP_HITS)

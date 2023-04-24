@@ -552,8 +552,8 @@ Period of time used to extend the life of the PIT.
 
 [[request-body-rank]]
 `rank`::
-(Optional, object) Defines a method for combining and ranking multiple queries
-including both bm25 and knn.
+(Optional, object) Defines a method for combining and ranking `1` standard query
+with `1..n` knn searches or no standard query with `2..n` knn searches.
 +
 .Ranking methods
 [%collapsible%open]

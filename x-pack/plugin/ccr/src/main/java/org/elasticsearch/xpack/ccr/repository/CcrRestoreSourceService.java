@@ -227,7 +227,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
         private long readFileBytes(String fileName, BytesReference reference) throws IOException {
             // Ensure no file system traversal is possible
-            if (false == getMetadata().fileMetadataMap().containsKey(fileName)) {
+            if (false == getMetadata().contains(fileName)) {
                 throw new IllegalArgumentException("invalid file name [" + fileName + "]");
             }
             try (Releasable ignored = keyedLock.acquire(fileName)) {

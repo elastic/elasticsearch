@@ -62,7 +62,7 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
-                API_KEY_MAP_REF.compareAndSet(null, createCrossClusterAccessCcrApiKey());
+                API_KEY_MAP_REF.updateAndGet(v -> v != null ? v : createCrossClusterAccessCcrApiKey());
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })
             .user("ccr_user", PASS.toString(), "ccr_user_role")

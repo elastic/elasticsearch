@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -19,12 +20,13 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
+import org.elasticsearch.xpack.application.search.action.ListSearchApplicationAction;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 
 import java.util.Map;
@@ -32,7 +34,7 @@ import java.util.Map;
 public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final Settings settings;
     private final XPackLicenseState licenseState;
-    private final SearchApplicationIndexService searchApplicationIndexService;
+    private final NodeClient client;
 
     @Inject
     public EnterpriseSearchUsageTransportAction(
@@ -43,7 +45,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         IndexNameExpressionResolver indexNameExpressionResolver,
         Settings settings,
         XPackLicenseState licenseState,
-        SearchApplicationIndexService searchApplicationIndexService
+        NodeClient client
     ) {
         super(
             XPackUsageFeatureAction.ENTERPRISE_SEARCH.name(),
@@ -55,7 +57,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         );
         this.settings = settings;
         this.licenseState = licenseState;
-        this.searchApplicationIndexService = searchApplicationIndexService;
+        this.client = client;
     }
 
     @Override
@@ -64,17 +66,23 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         XPackUsageRequest request,
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
-    ) throws Exception {
-        searchApplicationIndexService.listSearchApplication("*", 0, 0, listener.delegateFailure((l, searchApplicationResult) -> {
-            l.onResponse(
+    ) {
+        try {
+            ListSearchApplicationAction.Response resp = client.execute(
+                ListSearchApplicationAction.INSTANCE,
+                new ListSearchApplicationAction.Request(null, new PageParams(0, 0))
+            ).get();
+            listener.onResponse(
                 new XPackUsageFeatureResponse(
                     new EnterpriseSearchFeatureSetUsage(
                         XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings),
                         LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
-                        Map.of("count", searchApplicationResult.totalResults())
+                        Map.of("count", resp.queryPage().count())
                     )
                 )
             );
-        }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 }

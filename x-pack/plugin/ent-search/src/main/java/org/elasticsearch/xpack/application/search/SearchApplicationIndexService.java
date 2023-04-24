@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -102,7 +101,6 @@ public class SearchApplicationIndexService {
     public final NamedWriteableRegistry namedWriteableRegistry;
     private final BigArrays bigArrays;
 
-    @Inject
     public SearchApplicationIndexService(
         Client client,
         ClusterService clusterService,

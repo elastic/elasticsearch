@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.WorkflowPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
@@ -43,6 +44,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
     private List<RoleDescriptor.RemoteIndicesPrivileges> remoteIndicesPrivileges = new ArrayList<>();
+    private String[] workflowPrivileges = Strings.EMPTY_ARRAY;
 
     public PutRoleRequest(StreamInput in) throws IOException {
         super(in);
@@ -60,6 +62,9 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         metadata = in.readMap();
         if (in.getTransportVersion().onOrAfter(RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES)) {
             remoteIndicesPrivileges = in.readList(RoleDescriptor.RemoteIndicesPrivileges::new);
+        }
+        if (in.getTransportVersion().onOrAfter(WorkflowPermission.WORKFLOW_VERSION)) {
+            workflowPrivileges = in.readStringArray();
         }
     }
 
@@ -144,6 +149,10 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         this.runAs = usernames;
     }
 
+    public void workflowPrivileges(String... workflowPrivileges) {
+        this.workflowPrivileges = workflowPrivileges;
+    }
+
     @Override
     public PutRoleRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
         this.refreshPolicy = refreshPolicy;
@@ -199,6 +208,10 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         return metadata;
     }
 
+    public String[] workflows() {
+        return workflowPrivileges;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -224,6 +237,17 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
                     + "]"
             );
         }
+        if (out.getTransportVersion().onOrAfter(WorkflowPermission.WORKFLOW_VERSION)) {
+            out.writeStringArray(workflowPrivileges);
+        } else if (workflowPrivileges.length > 0) {
+            throw new IllegalArgumentException(
+                "versions of Elasticsearch before ["
+                    + WorkflowPermission.WORKFLOW_VERSION
+                    + "] can't handle workflow privileges and attempted to send to ["
+                    + out.getTransportVersion()
+                    + "]"
+            );
+        }
     }
 
     public RoleDescriptor roleDescriptor() {
@@ -236,7 +260,8 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
             runAs,
             metadata,
             Collections.emptyMap(),
-            remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0])
+            remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0]),
+            workflowPrivileges
         );
     }
 }

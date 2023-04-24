@@ -48,6 +48,7 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         request.addApplicationPrivileges(descriptor.getApplicationPrivileges());
         request.runAs(descriptor.getRunAs());
         request.metadata(descriptor.getMetadata());
+        request.workflowPrivileges(descriptor.getWorkflowPrivileges());
         return this;
     }
 

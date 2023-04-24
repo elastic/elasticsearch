@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,6 +35,7 @@ import java.util.Collections;
 import java.util.Map;
 
 public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTransportAction {
+    private static final Logger logger = LogManager.getLogger(EnterpriseSearchUsageTransportAction.class);
     private final XPackLicenseState licenseState;
     private final Client client;
 
@@ -94,7 +97,13 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
                 )
             );
         } catch (Exception e) {
-            listener.onFailure(e);
+            logger.warn("Failed to get search application count to include in Enterprise Search usage", e);
+            EnterpriseSearchFeatureSetUsage usage = new EnterpriseSearchFeatureSetUsage(
+                LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
+                enabled,
+                Collections.emptyMap()
+            );
+            listener.onResponse(new XPackUsageFeatureResponse(usage));
         }
     }
 }

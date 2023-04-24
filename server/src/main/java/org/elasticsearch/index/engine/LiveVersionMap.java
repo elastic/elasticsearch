@@ -315,18 +315,18 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         return maps.current.isUnsafe() || maps.old.isUnsafe();
     }
 
-    public void enforceSafeAccess() {
+    void enforceSafeAccess() {
         maps.needsSafeAccess = true;
     }
 
-    public boolean isSafeAccessRequired() {
+    boolean isSafeAccessRequired() {
         return maps.isSafeAccessMode();
     }
 
     /**
      * Adds this uid/version to the pending adds map iff the map needs safe access.
      */
-    public void maybePutIndexUnderLock(BytesRef uid, IndexVersionValue version) {
+    void maybePutIndexUnderLock(BytesRef uid, IndexVersionValue version) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         Maps maps = this.maps;
         if (maps.isSafeAccessMode()) {

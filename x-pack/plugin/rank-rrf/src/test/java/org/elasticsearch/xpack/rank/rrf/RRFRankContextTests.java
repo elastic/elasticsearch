@@ -9,6 +9,10 @@ package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.action.search.SearchPhaseController;
+import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
+import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -114,5 +118,18 @@ public class RRFRankContextTests extends ESTestCase {
         expected.scores[1] = 0.0f;
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[4]);
+    }
+
+    public void testCoordinatorRank() {
+        RRFRankCoordinatorContext context = new RRFRankCoordinatorContext(3, 0, 5, 1);
+        QuerySearchResult qsr0 = new QuerySearchResult();
+        qsr0.setShardIndex(1);
+        qsr0.setRankShardResult(new RRFRankShardResult(2, new RRFRankDoc[] {}));
+        QuerySearchResult qsr1 = new QuerySearchResult();
+        qsr1.setShardIndex(2);
+        qsr1.setRankShardResult(new RRFRankShardResult(2, new RRFRankDoc[] {}));
+        TopDocsStats tds = new TopDocsStats(0);
+        SortedTopDocs std = context.rank(List.of(qsr0, qsr1), tds);
+        std.scoreDocs();
     }
 }

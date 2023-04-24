@@ -784,7 +784,7 @@ public final class SearchPhaseController {
         public boolean timedOut;
         public Boolean terminatedEarly;
 
-        TopDocsStats(int trackTotalHitsUpTo) {
+        public TopDocsStats(int trackTotalHitsUpTo) {
             this.trackTotalHitsUpTo = trackTotalHitsUpTo;
             this.totalHits = 0;
             this.totalHitsRelation = Relation.EQUAL_TO;

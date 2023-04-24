@@ -154,10 +154,4 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
         // and completion suggesters are not allowed
         return new SortedTopDocs(topResults, false, null, null, null, 0);
     }
-
-    public void decorateSearchHit(ScoreDoc scoreDoc, SearchHit searchHit) {
-
-        RRFRankDoc rankResult = (RRFRankDoc) scoreDoc;
-        searchHit.setRank(rankResult.rank);
-    }
 }

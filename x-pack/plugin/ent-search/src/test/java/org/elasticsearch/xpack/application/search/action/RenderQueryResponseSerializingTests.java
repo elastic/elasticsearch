@@ -25,8 +25,14 @@ public class RenderQueryResponseSerializingTests extends AbstractWireSerializing
 
     @Override
     protected RenderQueryAction.Response createTestInstance() {
-        SearchSourceBuilder searchSourceBuilder =
-            randomSearchSourceBuilder(() -> null, () -> null, null, Collections::emptyList, () -> null, () -> null);
+        SearchSourceBuilder searchSourceBuilder = randomSearchSourceBuilder(
+            () -> null,
+            () -> null,
+            null,
+            Collections::emptyList,
+            () -> null,
+            () -> null
+        );
         return new RenderQueryAction.Response(searchSourceBuilder);
     }
 

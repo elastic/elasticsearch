@@ -299,6 +299,7 @@ setup:
         - min
         - mv_max
         - mv_min
+        - pow
         - round
         - starts_with
         - substring

@@ -257,6 +257,7 @@ public class Constants {
         "cluster:internal/xpack/ml/model_allocation/create",
         "cluster:internal/xpack/ml/model_allocation/delete",
         "cluster:internal/xpack/ml/model_allocation/update",
+        "cluster:internal/xpack/ml/notification",
         "cluster:internal/xpack/ml/reset_mode",
         "cluster:internal/xpack/ml/trained_models/cache/info",
         "cluster:internal/xpack/ml/trained_models/deployments/stats/get",

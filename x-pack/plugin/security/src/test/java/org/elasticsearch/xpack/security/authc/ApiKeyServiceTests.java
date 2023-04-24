@@ -68,6 +68,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -2040,7 +2041,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Version minNodeVersion = randomFrom(
             Version.getDeclaredVersions(Version.class)
                 .stream()
-                .filter(v -> v.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES))
+                .filter(v -> v.before(RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY))
                 .toList()
         );
 
@@ -2075,7 +2076,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Version minNodeVersion = randomFrom(
             Version.getDeclaredVersions(Version.class)
                 .stream()
-                .filter(v -> v.onOrAfter(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES))
+                .filter(v -> v.onOrAfter(RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY))
                 .toList()
         );
 

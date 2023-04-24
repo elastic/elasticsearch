@@ -53,12 +53,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -79,6 +81,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
@@ -110,6 +113,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final IngestMetric totalMetrics = new IngestMetric();
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
+
+    private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
+        return (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC);
+    }
+
+    public static MatcherWatchdog createGrokThreadWatchdog(Environment env, ThreadPool threadPool) {
+        final Settings settings = env.settings();
+        final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler = createScheduler(threadPool);
+        long intervalMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
+        long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
+        return MatcherWatchdog.newInstance(intervalMillis, maxExecutionTimeMillis, threadPool::relativeTimeInMillis, scheduler::apply);
+    }
 
     /**
      * Cluster state task executor for ingest pipeline operations
@@ -161,7 +176,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ScriptService scriptService,
         AnalysisRegistry analysisRegistry,
         List<IngestPlugin> ingestPlugins,
-        Client client
+        Client client,
+        MatcherWatchdog matcherWatchdog
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -173,13 +189,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 analysisRegistry,
                 threadPool.getThreadContext(),
                 threadPool::relativeTimeInMillis,
-                (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC),
+                createScheduler(threadPool),
                 this,
                 client,
-                threadPool.generic()::execute
+                threadPool.generic()::execute,
+                matcherWatchdog
             )
         );
-
         this.threadPool = threadPool;
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
     }

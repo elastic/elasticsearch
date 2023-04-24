@@ -114,8 +114,9 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                 // simple round up
                 int totalParts = (int) ((size + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE);
 
-                for (int part = 0; part < totalParts; ++part) {
+                for (int part = 0; part < totalParts - 1; ++part) {
                     BytesArray definition = chunkIterator.next();
+
                     PutTrainedModelDefinitionPartAction.Request r = new PutTrainedModelDefinitionPartAction.Request(
                         modelId,
                         definition,
@@ -126,7 +127,31 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
                     client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
                 }
-                logger.debug(() -> format("finished uploading model using [%d] parts", totalParts));
+
+                // get the last part, this time verify the checksum
+                BytesArray definition = chunkIterator.next();
+
+                if (modelPackageConfig.getSha256().equals(chunkIterator.getSha256())) {
+                    PutTrainedModelDefinitionPartAction.Request r = new PutTrainedModelDefinitionPartAction.Request(
+                        modelId,
+                        definition,
+                        totalParts - 1,
+                        size,
+                        totalParts
+                    );
+
+                    client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
+
+                    logger.debug(() -> format("finished uploading model using [%d] parts", totalParts));
+                } else {
+                    logger.error(
+                        format(
+                            "Model sha256 checksums do not match, expected [%s] but got [%s]",
+                            modelPackageConfig.getSha256(),
+                            chunkIterator.getSha256()
+                        )
+                    );
+                }
             } catch (MalformedURLException e) {
                 logger.error(format("Invalid URL [%s]", e));
             } catch (URISyntaxException e) {

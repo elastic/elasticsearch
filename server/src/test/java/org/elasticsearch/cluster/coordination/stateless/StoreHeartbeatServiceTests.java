@@ -8,12 +8,14 @@
 
 package org.elasticsearch.cluster.coordination.stateless;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -262,9 +264,19 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
 
             failReadingHeartbeat.set(true);
 
-            AtomicBoolean noRecentLeaderFound = new AtomicBoolean();
-            heartbeatService.runIfNoRecentLeader(() -> noRecentLeaderFound.set(true));
-            assertThat(noRecentLeaderFound.get(), is(false));
+            final var mockAppender = new MockLogAppender();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "warning log",
+                    StoreHeartbeatService.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to read heartbeat from store"
+                )
+            );
+            try (var ignored = mockAppender.capturing(StoreHeartbeatService.class)) {
+                heartbeatService.runIfNoRecentLeader(() -> fail("should not be called"));
+                mockAppender.assertAllExpectationsMatched();
+            }
         }
     }
 

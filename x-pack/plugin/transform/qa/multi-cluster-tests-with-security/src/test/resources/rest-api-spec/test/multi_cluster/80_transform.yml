@@ -306,6 +306,7 @@ teardown:
 ---
 "Batch transform from remote cluster when the user is not authorized":
   - do:
+      catch: /Source indices have been deleted or closed./
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.put_transform:
         transform_id: "simple-remote-transform-3"
@@ -318,6 +319,37 @@ teardown:
               "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
             }
           }
+
+  - do:
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.put_transform:
+        transform_id: "simple-remote-transform-3"
+        # With defer_validation set, the validation is not performed, so the transform can be created
+        defer_validation: true
+        body: >
+          {
+            "source": { "index": "my_remote_cluster:remote_test_index" },
+            "dest": { "index": "simple-remote-transform-3" },
+            "pivot": {
+              "group_by": { "user": {"terms": {"field": "user"}}},
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      # bob is unauthorized to access the remote index
+      catch: /Source indices have been deleted or closed./
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.preview_transform:
+        transform_id: "simple-remote-transform-3"
+
+  - do:
+      # On start, we perform the validation regardless of the defer_validation flag specified on PUT, hence the failure
+      catch: /Source indices have been deleted or closed./
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.start_transform:
+        transform_id: "simple-remote-transform-3"
 
 ---
 "Batch transform update from remote cluster when the user is not authorized":
@@ -336,6 +368,7 @@ teardown:
           }
   - match: { acknowledged: true }
   - do:
+      catch: /Source indices have been deleted or closed./
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.update_transform:
         transform_id: "simple-remote-transform-2"

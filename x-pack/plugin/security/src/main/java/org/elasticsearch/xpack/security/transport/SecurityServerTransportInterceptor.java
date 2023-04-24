@@ -67,7 +67,7 @@ import static org.elasticsearch.xpack.security.transport.RemoteClusterCredential
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
-    private static final Map<String, String> RCS_ACTION_NAME_LOOKUP = Map.of(
+    private static final Map<String, String> RCS_INTERNAL_ACTIONS_REPLACEMENTS = Map.of(
         "internal:admin/ccr/restore/session/put",
         "indices:internal/admin/ccr/restore/session/put",
         "internal:admin/ccr/restore/session/clear",
@@ -362,9 +362,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                             authentication.getEffectiveSubject().getRealm().getNodeName()
                         )
                     );
-                    final String effectiveAction = RCS_ACTION_NAME_LOOKUP.getOrDefault(action, action);
+                    final String effectiveAction = RCS_INTERNAL_ACTIONS_REPLACEMENTS.getOrDefault(action, action);
                     if (false == effectiveAction.equals(action)) {
-                        logger.info("switching action from [{}] to [{}]", action, effectiveAction);
+                        logger.trace("switching internal action from [{}] to [{}]", action, effectiveAction);
                     }
                     sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, effectiveAction, request, options, handler);
                 } else if (User.isInternal(user)) {
@@ -372,6 +372,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     assert false : message;
                     throw illegalArgumentExceptionWithDebugLog(message);
                 } else {
+                    assert false == action.startsWith("internal:") : "internal action must not be sent with non-system-user";
                     authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,
                         authentication.getEffectiveSubject(),

@@ -68,6 +68,153 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
+    public ShardSearchRequest request() {
+        return parent.request();
+    }
+
+    @Override
+    public SearchShardTarget shardTarget() {
+        return parent.shardTarget();
+    }
+
+    /**
+     * Ranking is not allowed with scroll.
+     */
+    @Override
+    public ScrollContext scrollContext() {
+        return null;
+    }
+
+    /**
+     * Aggregations are run as a separate query.
+     */
+    @Override
+    public SearchContextAggregations aggregations() {
+        return null;
+    }
+
+    /**
+     * Rescore is not supported by ranking.
+     */
+    @Override
+    public List<RescoreContext> rescore() {
+        return List.of();
+    }
+
+    @Override
+    public ContextIndexSearcher searcher() {
+        return parent.searcher();
+    }
+
+    @Override
+    public IndexShard indexShard() {
+        return parent.indexShard();
+    }
+
+    @Override
+    public TimeValue timeout() {
+        return parent.timeout();
+    }
+
+    @Override
+    public int terminateAfter() {
+        return parent.terminateAfter();
+    }
+
+    @Override
+    public Float minimumScore() {
+        return parent.minimumScore();
+    }
+
+    /**
+     * Sort is not allowed with ranking.
+     */
+    @Override
+    public SortAndFormats sort() {
+        return null;
+    }
+
+    @Override
+    public boolean trackScores() {
+        return parent.trackScores();
+    }
+
+    /**
+     * Total hits are tracked as part of a separate query.
+     */
+    @Override
+    public int trackTotalHitsUpTo() {
+        return 0;
+    }
+
+    @Override
+    public FieldDoc searchAfter() {
+        return parent.searchAfter();
+    }
+
+    /**
+     * Collapse is not supported by ranking.
+     */
+    @Override
+    public CollapseContext collapse() {
+        return null;
+    }
+
+    @Override
+    public ParsedQuery parsedPostFilter() {
+        return parent.parsedPostFilter();
+    }
+
+    /**
+     * Use a single rank query.
+     */
+    @Override
+    public Query query() {
+        return rankQuery;
+    }
+
+    @Override
+    public int from() {
+        return parent.from();
+    }
+
+    @Override
+    public int size() {
+        return windowSize;
+    }
+
+    /**
+     * Use a separate query search result.
+     */
+    @Override
+    public QuerySearchResult queryResult() {
+        return querySearchResult;
+    }
+
+    /**
+     * Profiling is not supported by ranking.
+     */
+    @Override
+    public Profilers getProfilers() {
+        return null;
+    }
+
+    @Override
+    public long getRelativeTimeInMillis() {
+        return parent.getRelativeTimeInMillis();
+    }
+
+    /**
+     * Aggregations are run as a separate query, so do not add any aggregations collectors.
+     */
+    @Override
+    public CollectorManager<Collector, Void> getAggsCollectorManager() {
+        return null;
+    }
+
+    /* ---- ALL METHODS ARE UNSUPPORTED BEYOND HERE ---- */
+
+    @Override
     public void setTask(SearchShardTask task) {
         throw new UnsupportedOperationException();
     }
@@ -103,39 +250,13 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public ShardSearchRequest request() {
-        return parent.request();
-    }
-
-    @Override
     public SearchType searchType() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public SearchShardTarget shardTarget() {
-        return parent.shardTarget();
-    }
-
-    @Override
     public int numberOfShards() {
         throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Ranking is now allowed with scroll.
-     */
-    @Override
-    public ScrollContext scrollContext() {
-        return null;
-    }
-
-    /**
-     * Aggregations are run as a separate query.
-     */
-    @Override
-    public SearchContextAggregations aggregations() {
-        return null;
     }
 
     @Override
@@ -186,14 +307,6 @@ public class RankSearchContext extends SearchContext {
     @Override
     public void rankShardContext(RankShardContext rankShardContext) {
         throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Rescore is not supported by ranking.
-     */
-    @Override
-    public List<RescoreContext> rescore() {
-        return List.of();
     }
 
     @Override
@@ -252,33 +365,13 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public ContextIndexSearcher searcher() {
-        return parent.searcher();
-    }
-
-    @Override
-    public IndexShard indexShard() {
-        return parent.indexShard();
-    }
-
-    @Override
     public BitsetFilterCache bitsetFilterCache() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public TimeValue timeout() {
-        return parent.timeout();
-    }
-
-    @Override
     public void timeout(TimeValue timeout) {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public int terminateAfter() {
-        return parent.terminateAfter();
     }
 
     @Override
@@ -297,21 +390,8 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public Float minimumScore() {
-        return parent.minimumScore();
-    }
-
-    @Override
     public SearchContext sort(SortAndFormats sort) {
         throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Sort is not allowed with ranking.
-     */
-    @Override
-    public SortAndFormats sort() {
-        return null;
     }
 
     @Override
@@ -320,21 +400,8 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean trackScores() {
-        return parent.trackScores();
-    }
-
-    @Override
     public SearchContext trackTotalHitsUpTo(int trackTotalHits) {
         throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Total hits are tracked as part of a separate query.
-     */
-    @Override
-    public int trackTotalHitsUpTo() {
-        return 0;
     }
 
     @Override
@@ -343,31 +410,13 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public FieldDoc searchAfter() {
-        return parent.searchAfter();
-    }
-
-    @Override
     public SearchContext collapse(CollapseContext collapse) {
         throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Collapse is not supported by ranking.
-     */
-    @Override
-    public CollapseContext collapse() {
-        return null;
     }
 
     @Override
     public SearchContext parsedPostFilter(ParsedQuery postFilter) {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ParsedQuery parsedPostFilter() {
-        return parent.parsedPostFilter();
     }
 
     @Override
@@ -380,27 +429,9 @@ public class RankSearchContext extends SearchContext {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * Use a single rank query.
-     */
-    @Override
-    public Query query() {
-        return rankQuery;
-    }
-
-    @Override
-    public int from() {
-        return parent.from();
-    }
-
     @Override
     public SearchContext from(int from) {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public int size() {
-        return windowSize;
     }
 
     @Override
@@ -483,14 +514,6 @@ public class RankSearchContext extends SearchContext {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * Use a separate query search result.
-     */
-    @Override
-    public QuerySearchResult queryResult() {
-        return querySearchResult;
-    }
-
     @Override
     public void addQueryResult() {
         throw new UnsupportedOperationException();
@@ -521,30 +544,9 @@ public class RankSearchContext extends SearchContext {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * Profiling is not supported by ranking.
-     */
-    @Override
-    public Profilers getProfilers() {
-        return null;
-    }
-
-    @Override
-    public long getRelativeTimeInMillis() {
-        return parent.getRelativeTimeInMillis();
-    }
-
     @Override
     public void registerAggsCollectorManager(CollectorManager<Collector, Void> collectorManager) {
         throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Aggregations are run as a separate query, so do not add any aggregations collectors.
-     */
-    @Override
-    public CollectorManager<Collector, Void> getAggsCollectorManager() {
-        return null;
     }
 
     @Override

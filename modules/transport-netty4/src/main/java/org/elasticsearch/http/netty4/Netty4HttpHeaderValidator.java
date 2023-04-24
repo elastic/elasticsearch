@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayDeque;
 
@@ -114,7 +115,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             // this looks like a malformed request and will forward without validation
             ctx.channel().eventLoop().submit(() -> forwardFullRequest(ctx));
         } else {
-            assert threadContext.isDefaultContext();
+            Transports.assertDefaultThreadContext(threadContext);
             // this prevents thread-context changes to propagate to the validation listener
             // atm, the validation listener submits to the event loop executor, which doesn't know about the ES thread-context,
             // so this is just a defensive play, in case the code inside the listener changes to not use the event loop executor
@@ -134,7 +135,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     }
 
     private void forwardFullRequest(ChannelHandlerContext ctx) {
-        assert threadContext.isDefaultContext();
+        Transports.assertDefaultThreadContext(threadContext);
         assert ctx.channel().eventLoop().inEventLoop();
         assert ctx.channel().config().isAutoRead() == false;
         assert state == QUEUEING_DATA;
@@ -154,7 +155,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     }
 
     private void forwardRequestWithDecoderExceptionAndNoContent(ChannelHandlerContext ctx, Exception e) {
-        assert threadContext.isDefaultContext();
+        Transports.assertDefaultThreadContext(threadContext);
         assert ctx.channel().eventLoop().inEventLoop();
         assert ctx.channel().config().isAutoRead() == false;
         assert state == QUEUEING_DATA;

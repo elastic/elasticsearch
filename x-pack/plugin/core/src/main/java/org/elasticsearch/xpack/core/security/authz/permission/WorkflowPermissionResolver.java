@@ -25,8 +25,6 @@ public final class WorkflowPermissionResolver {
 
     private static final Logger logger = LogManager.getLogger(WorkflowPermissionResolver.class);
 
-    private static final Map<String, Workflow> WORKFLOW_LOOKUP_MAP = buildWorkflowLookupMap();
-
     /**
      * Allows access to search application query REST endpoints.
      */
@@ -34,6 +32,22 @@ public final class WorkflowPermissionResolver {
         .name("search_application")
         .endpoints("search_application_query_action")
         .build();
+
+    private static final Map<String, Workflow> WORKFLOW_LOOKUP_MAP;
+    static {
+        final Set<Workflow> workflows = readStaticFields(WorkflowPermissionResolver.class, Workflow.class);
+        if (workflows.isEmpty()) {
+            WORKFLOW_LOOKUP_MAP = Map.of();
+        } else {
+            final Map<String, Workflow> lookup = new HashMap<>(workflows.size());
+            for (final Workflow workflow : workflows) {
+                assert lookup.containsKey(workflow.name()) == false
+                    : "Workflow names must be unique. Workflow with the name [" + workflow.name() + "] has been defined more than once.";
+                lookup.put(workflow.name(), workflow);
+            }
+            WORKFLOW_LOOKUP_MAP = Map.copyOf(lookup);
+        }
+    }
 
     /**
      * Returns all workflow names.
@@ -50,10 +64,10 @@ public final class WorkflowPermissionResolver {
      * @return a resolved {@link Workflow}
      * @throws IllegalArgumentException if a workflow with the given {@code name} does not exist
      */
-    public static Workflow resolveWorkflow(String name) {
-        name = Objects.requireNonNull(name).toLowerCase(Locale.ROOT).trim();
+    public static Workflow resolveWorkflow(final String name) {
+        final String filteredName = Objects.requireNonNull(name).toLowerCase(Locale.ROOT).trim();
 
-        final Workflow resolvedWorkflow = WORKFLOW_LOOKUP_MAP.get(name);
+        final Workflow resolvedWorkflow = WORKFLOW_LOOKUP_MAP.get(filteredName);
         if (resolvedWorkflow != null) {
             return resolvedWorkflow;
         }
@@ -79,21 +93,6 @@ public final class WorkflowPermissionResolver {
         return new WorkflowPermission(workflows);
     }
 
-    private static Map<String, Workflow> buildWorkflowLookupMap() {
-        final Set<Workflow> workflows = readStaticFields(WorkflowPermissionResolver.class, Workflow.class);
-        if (workflows.isEmpty()) {
-            return Map.of();
-        }
-
-        final Map<String, Workflow> lookup = new HashMap<>(workflows.size());
-        for (final Workflow workflow : workflows) {
-            assert lookup.containsKey(workflow.name()) == false
-                : "Workflow names must be unique. Workflow with the name [" + workflow.name() + "] has been defined more than once.";
-            lookup.put(workflow.name(), workflow);
-        }
-        return Map.copyOf(lookup);
-    }
-
     private static <T> Set<T> readStaticFields(Class<?> source, Class<T> fieldType) {
         final Field[] fields = source.getFields();
         final Set<T> result = new HashSet<>();
@@ -101,11 +100,17 @@ public final class WorkflowPermissionResolver {
             if (Modifier.isStatic(field.getModifiers()) && fieldType.isAssignableFrom(field.getType())) {
                 try {
                     T value = fieldType.cast(field.get(null));
+                    assert value != null
+                        : "null value defined for field ["
+                            + field.getName()
+                            + "] of type ["
+                            + fieldType.getCanonicalName()
+                            + "] in class ["
+                            + source.getCanonicalName()
+                            + "]";
                     assert result.contains(value) == false
-                        : "field value " + value.toString() + " defined more than once in " + source.getCanonicalName();
-                    if (value != null) {
-                        result.add(value);
-                    }
+                        : "field value " + value + " defined more than once in " + source.getCanonicalName();
+                    result.add(value);
                 } catch (IllegalArgumentException | IllegalAccessException e) {
                     throw new IllegalStateException(
                         "failed to read field ["

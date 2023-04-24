@@ -1,6 +1,0 @@
-pr: 95491
-summary: Disable incompatible build check when running serverless
-area: "Cluster Coordination, Infra/Transport API"
-type: bug
-issues:
- - 95485

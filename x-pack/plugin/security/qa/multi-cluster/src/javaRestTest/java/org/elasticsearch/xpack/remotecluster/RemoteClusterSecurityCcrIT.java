@@ -86,7 +86,9 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
                   "index": [
                     {
                        "names": ["leader-index", "metrics-*"],
-                       "privileges": ["manage", "read", "read_cross_cluster", "internal:transport/proxy/indices:admin/ccr/restore/*"]
+                       "privileges": ["manage", "read",
+                         "indices:internal/admin/ccr/restore/*",
+                         "internal:transport/proxy/indices:internal/admin/ccr/restore/*"]
                     }
                   ]
                 }

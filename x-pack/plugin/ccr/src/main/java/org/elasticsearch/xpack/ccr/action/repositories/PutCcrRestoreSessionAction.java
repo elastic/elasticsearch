@@ -35,7 +35,7 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
 
     public static final PutCcrRestoreSessionAction INTERNAL_INSTANCE = new PutCcrRestoreSessionAction();
     public static final String INTERNAL_NAME = "internal:admin/ccr/restore/session/put";
-    public static final String NAME = "indices:admin/ccr/restore/session/put";
+    public static final String NAME = "indices:internal/admin/ccr/restore/session/put";
     public static final PutCcrRestoreSessionAction INSTANCE = new PutCcrRestoreSessionAction(NAME);
 
     private PutCcrRestoreSessionAction() {
@@ -46,7 +46,7 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
         super(name, PutCcrRestoreSessionResponse::new);
     }
 
-    public abstract static class TransportPutCcrRestoreSessionAction extends TransportSingleShardAction<
+    abstract static class TransportPutCcrRestoreSessionAction extends TransportSingleShardAction<
         PutCcrRestoreSessionRequest,
         PutCcrRestoreSessionResponse> {
 

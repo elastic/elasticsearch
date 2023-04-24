@@ -38,11 +38,11 @@ public class CrossClusterAccessUser extends User {
                     RetentionLeaseActions.Remove.ACTION_NAME,
                     RetentionLeaseActions.Renew.ACTION_NAME,
                     "indices:monitor/stats",
-                    "indices:admin/ccr/restore/session/put",
-                    "indices:admin/ccr/restore/session/clear",
-                    "internal:transport/proxy/indices:admin/ccr/restore/session/clear",
-                    "indices:admin/ccr/restore/file_chunk/get",
-                    "internal:transport/proxy/indices:admin/ccr/restore/file_chunk/get"
+                    "indices:internal/admin/ccr/restore/session/put",
+                    "indices:internal/admin/ccr/restore/session/clear",
+                    "internal:transport/proxy/indices:internal/admin/ccr/restore/session/clear",
+                    "indices:internal/admin/ccr/restore/file_chunk/get",
+                    "internal:transport/proxy/indices:internal/admin/ccr/restore/file_chunk/get"
                 )
                 .allowRestrictedIndices(true)
                 .build() },

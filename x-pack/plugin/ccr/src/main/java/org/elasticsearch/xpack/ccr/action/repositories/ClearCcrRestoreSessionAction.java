@@ -24,7 +24,7 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
 
     public static final ClearCcrRestoreSessionAction INTERNAL_INSTANCE = new ClearCcrRestoreSessionAction();
     public static final String INTERNAL_NAME = "internal:admin/ccr/restore/session/clear";
-    public static final String NAME = "indices:admin/ccr/restore/session/clear";
+    public static final String NAME = "indices:internal/admin/ccr/restore/session/clear";
     public static final ClearCcrRestoreSessionAction INSTANCE = new ClearCcrRestoreSessionAction(NAME);
 
     private ClearCcrRestoreSessionAction() {
@@ -35,7 +35,7 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
         super(name, in -> ActionResponse.Empty.INSTANCE);
     }
 
-    private abstract static class TransportDeleteCcrRestoreSessionAction extends HandledTransportAction<
+    abstract static class TransportDeleteCcrRestoreSessionAction extends HandledTransportAction<
         ClearCcrRestoreSessionRequest,
         ActionResponse.Empty> {
 

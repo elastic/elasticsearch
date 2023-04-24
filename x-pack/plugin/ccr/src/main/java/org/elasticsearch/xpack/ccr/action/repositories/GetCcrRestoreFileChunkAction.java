@@ -32,7 +32,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
 
     public static final GetCcrRestoreFileChunkAction INTERNAL_INSTANCE = new GetCcrRestoreFileChunkAction();
     public static final String INTERNAL_NAME = "internal:admin/ccr/restore/file_chunk/get";
-    public static final String NAME = "indices:admin/ccr/restore/file_chunk/get";
+    public static final String NAME = "indices:internal/admin/ccr/restore/file_chunk/get";
     public static final GetCcrRestoreFileChunkAction INSTANCE = new GetCcrRestoreFileChunkAction(NAME);
 
     private GetCcrRestoreFileChunkAction() {
@@ -43,7 +43,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         super(name, GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse::new);
     }
 
-    public abstract static class TransportGetCcrRestoreFileChunkAction extends HandledTransportAction<
+    abstract static class TransportGetCcrRestoreFileChunkAction extends HandledTransportAction<
         GetCcrRestoreFileChunkRequest,
         GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> {
 

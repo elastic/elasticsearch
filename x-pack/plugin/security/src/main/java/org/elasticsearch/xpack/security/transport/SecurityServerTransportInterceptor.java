@@ -69,11 +69,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
     private static final Map<String, String> RCS_ACTION_NAME_LOOKUP = Map.of(
         "internal:admin/ccr/restore/session/put",
-        "indices:admin/ccr/restore/session/put",
+        "indices:internal/admin/ccr/restore/session/put",
         "internal:admin/ccr/restore/session/clear",
-        "indices:admin/ccr/restore/session/clear",
+        "indices:internal/admin/ccr/restore/session/clear",
         "internal:admin/ccr/restore/file_chunk/get",
-        "indices:admin/ccr/restore/file_chunk/get"
+        "indices:internal/admin/ccr/restore/file_chunk/get"
     );
 
     private final AuthenticationService authcService;

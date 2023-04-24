@@ -33,11 +33,13 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 public class Pow extends ScalarFunction implements OptionalArgument, Mappable {
 
     private final Expression base, exponent;
+    private final DataType dataType;
 
     public Pow(Source source, Expression base, Expression exponent) {
         super(source, Arrays.asList(base, exponent));
         this.base = base;
         this.exponent = exponent;
+        this.dataType = determineDataType(base, exponent);
     }
 
     @Override
@@ -99,6 +101,10 @@ public class Pow extends ScalarFunction implements OptionalArgument, Mappable {
 
     @Override
     public DataType dataType() {
+        return dataType;
+    }
+
+    private static DataType determineDataType(Expression base, Expression exponent) {
         if (base.dataType().isRational() || exponent.dataType().isRational()) {
             return DataTypes.DOUBLE;
         }
@@ -119,12 +125,12 @@ public class Pow extends ScalarFunction implements OptionalArgument, Mappable {
     ) {
         var baseEvaluator = toEvaluator.apply(base);
         var exponentEvaluator = toEvaluator.apply(exponent);
-        if (dataType() == DataTypes.DOUBLE) {
+        if (dataType == DataTypes.DOUBLE) {
             return () -> new PowDoubleEvaluator(
                 cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(),
                 cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get()
             );
-        } else if (base.dataType() == DataTypes.LONG) {
+        } else if (dataType == DataTypes.LONG) {
             return () -> new PowLongEvaluator(
                 cast(base.dataType(), DataTypes.LONG, baseEvaluator).get(),
                 cast(exponent.dataType(), DataTypes.LONG, exponentEvaluator).get()

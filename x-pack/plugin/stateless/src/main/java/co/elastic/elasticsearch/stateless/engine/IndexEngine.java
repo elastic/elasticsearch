@@ -192,6 +192,13 @@ public class IndexEngine extends InternalEngine {
         }
     }
 
+    @Override
+    public void flushAndClose() throws IOException {
+        // Don't flush on closing to avoid doing blobstore IO for reading back the latest commit from the repository
+        // if it's not cached or doing an actual flush if there's outstanding translog operations.
+        close();
+    }
+
     public void close() throws IOException {
         cancellableFlushTask.cancel();
         super.close();

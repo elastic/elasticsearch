@@ -484,10 +484,6 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         return true;
     }
 
-    public void clearArchive() {
-        archiver.clear();
-    }
-
     // visible for testing purposes only
     public LiveVersionMapArchiver getArchiver() {
         return archiver;

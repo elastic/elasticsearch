@@ -914,7 +914,6 @@ public class InternalEngine extends Engine {
                 // map so once we pass this point we can safely lookup from the version map.
                 if (versionMap.isUnsafe()) {
                     refresh("unsafe_version_map", SearcherScope.INTERNAL, true);
-                    versionMap.clearArchive();
                 }
                 versionMap.enforceSafeAccess();
             }

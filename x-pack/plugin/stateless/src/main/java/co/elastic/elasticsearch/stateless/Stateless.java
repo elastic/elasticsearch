@@ -263,8 +263,8 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 }
 
                 @Override
-                public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-                    statelessCommitService.unregisterShard(shardId);
+                public void onStoreClosed(ShardId shardId) {
+                    statelessCommitService.unregister(shardId);
                 }
             });
             indexModule.setIndexCommitListener(createIndexCommitListener());

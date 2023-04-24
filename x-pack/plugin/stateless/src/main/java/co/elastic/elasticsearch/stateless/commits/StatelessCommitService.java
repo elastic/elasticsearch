@@ -35,16 +35,14 @@ public class StatelessCommitService {
     }
 
     public void markFileUploaded(ShardId shardId, String name, BlobLocation objectStoreLocation) {
-        Map<String, BlobFile> fileMap = fileToBlobFile.get(shardId);
-        ensureShardOpen(shardId, fileMap);
+        Map<String, BlobFile> fileMap = getSafe(fileToBlobFile, shardId);
         synchronized (fileMap) {
             fileMap.get(name).setBlobLocation(objectStoreLocation);
         }
     }
 
     public List<String> resolveMissingFiles(ShardId shardId, Collection<String> commitFiles) {
-        Map<String, BlobFile> fileMap = fileToBlobFile.get(shardId);
-        ensureShardOpen(shardId, fileMap);
+        Map<String, BlobFile> fileMap = getSafe(fileToBlobFile, shardId);
         synchronized (fileMap) {
             return commitFiles.stream()
                 .filter(s -> s.startsWith(IndexFileNames.SEGMENTS) == false)
@@ -59,8 +57,7 @@ public class StatelessCommitService {
         long primaryTerm,
         Collection<StoreFileMetadata> commitFiles
     ) {
-        Map<String, BlobFile> fileMap = fileToBlobFile.get(shardId);
-        ensureShardOpen(shardId, fileMap);
+        Map<String, BlobFile> fileMap = getSafe(fileToBlobFile, shardId);
         StatelessCompoundCommit.Writer writer = new StatelessCompoundCommit.Writer(
             shardId,
             generation,
@@ -83,8 +80,7 @@ public class StatelessCommitService {
     }
 
     public void markNewCommit(ShardId shardId, Collection<String> commitFiles, Set<String> additionalFiles) {
-        Map<String, BlobFile> fileMap = fileToBlobFile.get(shardId);
-        ensureShardOpen(shardId, fileMap);
+        Map<String, BlobFile> fileMap = getSafe(fileToBlobFile, shardId);
         synchronized (fileMap) {
             for (String file : commitFiles) {
                 if (additionalFiles.contains(file)) {
@@ -98,8 +94,7 @@ public class StatelessCommitService {
     }
 
     public void markCommitDeleted(ShardId shardId, Collection<String> commitFiles) {
-        Map<String, BlobFile> fileMap = fileToBlobFile.get(shardId);
-        ensureShardOpen(shardId, fileMap);
+        Map<String, BlobFile> fileMap = getSafe(fileToBlobFile, shardId);
         synchronized (fileMap) {
             for (String file : commitFiles) {
                 boolean shouldRemove = fileMap.get(file).decRef();
@@ -112,12 +107,12 @@ public class StatelessCommitService {
 
     public void register(ShardId shardId) {
         Map<String, BlobFile> existing = fileToBlobFile.put(shardId, new HashMap<>());
-        assert existing == null;
+        assert existing == null : shardId + " already registered";
     }
 
-    public void unregisterShard(ShardId shardId) {
+    public void unregister(ShardId shardId) {
         Map<String, BlobFile> removed = fileToBlobFile.remove(shardId);
-        assert removed != null;
+        assert removed != null : shardId + " not registered";
     }
 
     // Visible for testing
@@ -125,10 +120,12 @@ public class StatelessCommitService {
         return fileToBlobFile.get(shardId);
     }
 
-    private static void ensureShardOpen(ShardId shardId, Map<String, BlobFile> fileMap) {
+    private static Map<String, BlobFile> getSafe(ConcurrentHashMap<ShardId, Map<String, BlobFile>> map, ShardId shardId) {
+        final Map<String, BlobFile> fileMap = map.get(shardId);
         if (fileMap == null) {
             throw new AlreadyClosedException("shard [" + shardId + "] has already been closed");
         }
+        return fileMap;
     }
 
     private static class BlobFile extends AbstractRefCounted {

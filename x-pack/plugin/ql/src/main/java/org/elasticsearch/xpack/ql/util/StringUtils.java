@@ -136,6 +136,47 @@ public final class StringUtils {
         return regex.toString();
     }
 
+    // * -> .*
+    // ? -> .
+    // escape character - can be 0 (in which case no regex gets escaped) or
+    // should be followed by % or _ (otherwise an exception is thrown)
+    public static String wildcardToJavaPattern(String pattern, char escape) {
+        StringBuilder regex = new StringBuilder(pattern.length() + 4);
+
+        boolean escaped = false;
+        regex.append('^');
+        for (int i = 0; i < pattern.length(); i++) {
+            char curr = pattern.charAt(i);
+            if (escaped == false && (curr == escape) && escape != 0) {
+                escaped = true;
+                if (i + 1 == pattern.length()) {
+                    throw new QlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
+                }
+            } else {
+                switch (curr) {
+                    case '*' -> regex.append(escaped ? "\\*" : ".*");
+                    case '?' -> regex.append(escaped ? "\\?" : ".");
+                    default -> {
+                        if (escaped) {
+                            throw new QlIllegalArgumentException(
+                                "Invalid sequence - escape character is not followed by special wildcard char"
+                            );
+                        }
+                        // escape special regex characters
+                        switch (curr) {
+                            case '\\', '^', '$', '.', '*', '?', '+', '|', '(', ')', '[', ']', '{', '}' -> regex.append('\\');
+                        }
+                        regex.append(curr);
+                    }
+                }
+                escaped = false;
+            }
+        }
+        regex.append('$');
+
+        return regex.toString();
+    }
+
     /**
      * Translates a like pattern to a Lucene wildcard.
      * This methods pays attention to the custom escape char which gets converted into \ (used by Lucene).

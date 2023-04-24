@@ -13,6 +13,7 @@ import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -48,7 +49,8 @@ public class BulkProcessorFactoryTests extends ESTestCase {
     }
 
     public void testFlushDelay() throws Exception {
-        BulkProcessorConfig config = mock(BulkProcessorConfig.class);
+        AnalyticsEventIngestConfig config = mock(AnalyticsEventIngestConfig.class);
+        doReturn(ByteSizeValue.ofMb(10)).when(config).maxBytesInFlight();
         doReturn(TimeValue.timeValueSeconds(1)).when(config).flushDelay();
         doReturn(10).when(config).maxNumberOfEventsPerBulk();
 
@@ -70,8 +72,9 @@ public class BulkProcessorFactoryTests extends ESTestCase {
         int maxBulkActions = randomIntBetween(1, 10);
         int totalEvents = randomIntBetween(1, 5) * maxBulkActions + randomIntBetween(1, maxBulkActions);
 
-        BulkProcessorConfig config = mock(BulkProcessorConfig.class);
+        AnalyticsEventIngestConfig config = mock(AnalyticsEventIngestConfig.class);
         doReturn(maxBulkActions).when(config).maxNumberOfEventsPerBulk();
+        doReturn(ByteSizeValue.ofMb(10)).when(config).maxBytesInFlight();
 
         Client client = mock(Client.class);
         InOrder inOrder = Mockito.inOrder(client);
@@ -102,9 +105,10 @@ public class BulkProcessorFactoryTests extends ESTestCase {
 
     public void testMaxRetries() {
         int numberOfRetries = between(0, 5);
-        BulkProcessorConfig config = mock(BulkProcessorConfig.class);
+        AnalyticsEventIngestConfig config = mock(AnalyticsEventIngestConfig.class);
         doReturn(1).when(config).maxNumberOfEventsPerBulk();
         doReturn(numberOfRetries).when(config).maxNumberOfRetries();
+        doReturn(ByteSizeValue.ofMb(10)).when(config).maxBytesInFlight();
 
         Client client = mock(Client.class);
         doAnswer(i -> {

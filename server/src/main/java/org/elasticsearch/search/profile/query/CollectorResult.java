@@ -67,7 +67,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
     /**
      * A list of children collectors "embedded" inside this collector
      */
-    private List<CollectorResult> children;
+    private final List<CollectorResult> children;
 
     public CollectorResult(String collectorName, String reason, long time, List<CollectorResult> children) {
         this.collectorName = collectorName;

@@ -9,6 +9,7 @@
 package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
@@ -534,7 +535,7 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public void registerAggsCollector(Collector collector) {
+    public void registerAggsCollectorManager(CollectorManager<Collector, Void> collectorManager) {
         throw new UnsupportedOperationException();
     }
 
@@ -542,7 +543,7 @@ public class RankSearchContext extends SearchContext {
      * Aggregations are run as a separate query, so do not add any aggregations collectors.
      */
     @Override
-    public Collector getAggsCollector() {
+    public CollectorManager<Collector, Void> getAggsCollectorManager() {
         return null;
     }
 

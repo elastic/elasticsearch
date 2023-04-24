@@ -2,6 +2,12 @@
   "description": "Built-in ingest pipeline applied by default as final pipeline to behavioral analytics event data streams.",
   "processors": [
     {
+      "set": {
+        "field": "_routing",
+        "copy_from": "session.id"
+      }
+    },
+    {
       "uri_parts": {
         "field": "page.url",
         "target_field": "page.url",

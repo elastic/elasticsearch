@@ -94,6 +94,8 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
                         explainIndexMap.get("time_since_rollover"),
                         is(explainIndex.getTimeSinceRollover(() -> now).toHumanReadableString(2))
                     );
+                }
+                if (explainIndex.getGenerationTime(() -> now) != null) {
                     assertThat(
                         explainIndexMap.get("generation_time"),
                         is(explainIndex.getGenerationTime(() -> now).toHumanReadableString(2))
@@ -145,6 +147,8 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
                         explainIndexMap.get("time_since_rollover"),
                         is(explainIndex.getTimeSinceRollover(() -> now).toHumanReadableString(2))
                     );
+                }
+                if (explainIndex.getGenerationTime(() -> now) != null) {
                     assertThat(
                         explainIndexMap.get("generation_time"),
                         is(explainIndex.getGenerationTime(() -> now).toHumanReadableString(2))
@@ -160,6 +164,35 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
                 assertThat(lifecycleRollover.get("min_primary_shard_docs"), is(4));
                 assertThat(lifecycleRollover.get("max_primary_shard_docs"), is(9));
             }
+        }
+        {
+            // Make sure generation_date is not present if it is null (which it is for a write index):
+            ExplainIndexDataLifecycle explainIndexWithNullGenerationDate = new ExplainIndexDataLifecycle(
+                randomAlphaOfLengthBetween(10, 30),
+                true,
+                now,
+                randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
+                null,
+                lifecycle,
+                randomBoolean() ? new NullPointerException("bad times").getMessage() : null
+            );
+            Response response = new Response(List.of(explainIndexWithNullGenerationDate), null);
+
+            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            response.toXContentChunked(EMPTY_PARAMS).forEachRemaining(xcontent -> {
+                try {
+                    xcontent.toXContent(builder, EMPTY_PARAMS);
+                } catch (IOException e) {
+                    logger.error(e.getMessage(), e);
+                    fail(e.getMessage());
+                }
+            });
+            Map<String, Object> xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+            Map<String, Object> indices = (Map<String, Object>) xContentMap.get("indices");
+            assertThat(indices.size(), is(1));
+            Map<String, Object> explainIndexMap = (Map<String, Object>) indices.get(explainIndexWithNullGenerationDate.getIndex());
+            assertThat(explainIndexMap.get("managed_by_dlm"), is(true));
+            assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
         }
     }
 
@@ -186,6 +219,7 @@ public class ExplainDataLifecycleResponseTests extends AbstractWireSerializingTe
             true,
             now,
             randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
+            randomBoolean() ? TimeValue.timeValueMillis(now) : null,
             lifecycle,
             randomBoolean() ? new NullPointerException("bad times").getMessage() : null
         );

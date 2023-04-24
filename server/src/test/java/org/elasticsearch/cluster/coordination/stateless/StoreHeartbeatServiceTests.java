@@ -8,25 +8,30 @@
 
 package org.elasticsearch.cluster.coordination.stateless;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.OptionalLong;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -55,7 +60,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
         PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
@@ -118,7 +123,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
         PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
@@ -160,7 +165,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
         PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
@@ -215,7 +220,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         ) {
             @Override
             protected long absoluteTimeInMillis() {
@@ -259,9 +264,61 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
 
             failReadingHeartbeat.set(true);
 
-            AtomicBoolean noRecentLeaderFound = new AtomicBoolean();
-            heartbeatService.runIfNoRecentLeader(() -> noRecentLeaderFound.set(true));
-            assertThat(noRecentLeaderFound.get(), is(false));
+            final var mockAppender = new MockLogAppender();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "warning log",
+                    StoreHeartbeatService.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to read heartbeat from store"
+                )
+            );
+            try (var ignored = mockAppender.capturing(StoreHeartbeatService.class)) {
+                heartbeatService.runIfNoRecentLeader(() -> fail("should not be called"));
+                mockAppender.assertAllExpectationsMatched();
+            }
         }
     }
+
+    public void testRetriesEarlyAfterGettingAnEmptyTerm() {
+        final var heartbeatFrequency = TimeValue.timeValueSeconds(randomIntBetween(15, 30));
+        final var maxTimeSinceLastHeartbeat = TimeValue.timeValueSeconds(2 * heartbeatFrequency.seconds());
+        final var currentLeader = new DiscoveryNode("master", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final var currentTermSupplier = new AtomicReference<>(OptionalLong.empty());
+        final var fakeClock = new AtomicLong();
+        final var heartbeatStore = new InMemoryHeartbeatStore();
+        final var heartbeatService = new StoreHeartbeatService(
+            heartbeatStore,
+            threadPool,
+            heartbeatFrequency,
+            maxTimeSinceLastHeartbeat,
+            listener -> listener.onResponse(currentTermSupplier.get())
+        ) {
+            @Override
+            protected long absoluteTimeInMillis() {
+                return fakeClock.get();
+            }
+        };
+
+        PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
+        heartbeatService.start(currentLeader, 1, completionListener);
+
+        var retryTask = threadPool.scheduledTasks.poll();
+        assertThat(retryTask, is(notNullValue()));
+        assertThat(retryTask.v1(), is(lessThan(heartbeatFrequency)));
+
+        currentTermSupplier.set(OptionalLong.of(1));
+
+        retryTask.v2().run();
+
+        Heartbeat firstHeartbeat = PlainActionFuture.get(heartbeatStore::readLatestHeartbeat);
+        assertThat(firstHeartbeat, is(notNullValue()));
+        assertThat(firstHeartbeat.term(), is(equalTo(1L)));
+
+        var scheduledTask = threadPool.scheduledTasks.poll();
+        assertThat(scheduledTask, is(notNullValue()));
+        assertThat(scheduledTask.v1(), is(equalTo(heartbeatFrequency)));
+    }
+
 }

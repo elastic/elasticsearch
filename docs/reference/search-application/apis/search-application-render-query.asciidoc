@@ -8,7 +8,9 @@ preview::[]
 <titleabbrev>Render Search Application Query</titleabbrev>
 ++++
 
-Given merged template metadata provided by the <<search-application-render-metadata,render metadata>> call, creates an Elasticsearch query to run.
+Given specified query parameters, creates an Elasticsearch query to run. Any unspecified template parameters will be
+assigned their default values if applicable. Returns the specific Elasticsearch query that would be generated and
+run by calling <<search-application-search,search application search>>.
 
 [[search-application-render-query-request]]
 ==== {api-request-title}
@@ -18,7 +20,7 @@ Given merged template metadata provided by the <<search-application-render-metad
 [[search-application-render-query-prereqs]]
 ==== {api-prereq-title}
 
-Requires the `manage_search_application` cluster privilege.
+Requires read privileges on the backing alias of the search application.
 
 [[search-application-render-query-request-body]]
 ==== {api-request-body-title}
@@ -36,7 +38,8 @@ Search Application `<name>` does not exist.
 [[search-application-render-query-example]]
 ==== {api-examples-title}
 
-The following example renders a query for a Search Application called `my-app`:
+The following example renders a query for a search application called `my-app`. In this case, the `from` and `size`
+parameters are not specified, so default values are pulled from the search application template.
 
 [source,console]
 ----
@@ -44,8 +47,6 @@ POST _application/search_application/my-app/_render_query
 {
   "params": {
     "value": "my first query",
-    "size": 10,
-    "from": 0,
     "text_fields": [
         {
             "name": "title",

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security;
 
 import io.netty.channel.Channel;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
@@ -1649,10 +1648,6 @@ public class Security extends Plugin
             final ThreadContext threadContext = this.threadContext.get();
             final Supplier<Netty4HttpHeaderValidator> authenticateHttpRequest = () -> HttpHeadersUtils.getValidatorInboundHandler(
                 (httpRequest, channel, listener) -> {
-                    if (threadContext.isDefaultContext() == false) {
-                        listener.onFailure(new IllegalStateException("HTTP authentication will not run on non-empty thread context"));
-                        return;
-                    }
                     // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
                     // authentication process looks for while doing its duty.
                     perRequestThreadContext.accept(httpRequest, threadContext);

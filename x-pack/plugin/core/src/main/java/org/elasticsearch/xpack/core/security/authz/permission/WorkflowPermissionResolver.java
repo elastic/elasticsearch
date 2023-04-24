@@ -95,10 +95,9 @@ public final class WorkflowPermissionResolver {
     }
 
     private static <T> Set<T> readStaticFields(Class<?> source, Class<T> fieldType) {
-        final Field[] fields = source.getDeclaredFields();
+        final Field[] fields = source.getFields();
         final Set<T> result = new HashSet<>();
         for (Field field : fields) {
-            field.setAccessible(true);
             if (Modifier.isStatic(field.getModifiers()) && fieldType.isAssignableFrom(field.getType())) {
                 try {
                     T value = fieldType.cast(field.get(null));

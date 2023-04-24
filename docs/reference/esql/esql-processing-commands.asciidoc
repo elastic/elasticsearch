@@ -183,7 +183,7 @@ The default sort order is ascending. Set an explicit sort order using `ASC` or
 ----
 FROM employees
 | PROJECT first_name, last_name, height
-| SORT height desc
+| SORT height DESC
 ----
 
 If two rows have the same sort key, the original order will be preserved. You
@@ -193,7 +193,7 @@ can provide additional sort expressions to act as tie breakers:
 ----
 FROM employees
 | PROJECT first_name, last_name, height
-| SORT height desc, first_name ASC
+| SORT height DESC, first_name ASC
 ----
 
 [discrete]

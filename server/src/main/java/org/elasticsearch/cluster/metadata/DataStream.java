@@ -678,7 +678,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * This is the raw defintion of an index being managed by DLM. And index is managed by DLM if it's part of a data stream
+     * This is the raw defintion of an index being managed by DLM. An index is managed by DLM if it's part of a data stream
      * that has a DLM lifecycle configured and depending on the value of {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
      * having an ILM policy configured will play into the decision.
      * This method also skips any validation to make sure the index is part of this data stream, hence the private

@@ -14,5 +14,5 @@ testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   rolesFile file('roles.yml')
   user username: "test_dlm", password: "x-pack-test-password", role: "manage_dlm"
-  user username: "test_not_dlm", password: "x-pack-test-password", role: "not_manage_dlm"
+  user username: "test_non_privileged", password: "x-pack-test-password", role: "not_privileged"
 }

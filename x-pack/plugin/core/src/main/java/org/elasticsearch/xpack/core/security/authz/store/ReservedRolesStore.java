@@ -697,7 +697,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // For Fleet package upgrade
                 "manage_pipeline",
                 "manage_ilm",
-                "manage_dlm",
                 // For the endpoint package that ships a transform
                 "manage_transform",
                 InvalidateApiKeyAction.NAME,

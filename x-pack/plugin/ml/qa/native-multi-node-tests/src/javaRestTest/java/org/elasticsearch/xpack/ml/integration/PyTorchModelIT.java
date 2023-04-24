@@ -667,7 +667,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(
             EntityUtils.toString(ex.getResponse().getEntity()),
             containsString(
-                "Cannot stop deployment for model [test_stop_used_deployment_by_ingest_processor] as it is referenced by"
+                "Cannot stop deployment [test_stop_used_deployment_by_ingest_processor] as it is referenced by"
                     + " ingest processors; use force to stop the deployment"
             )
         );
@@ -699,7 +699,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(
             EntityUtils.toString(ex.getResponse().getEntity()),
             containsString(
-                "Cannot stop deployment for model [test_stop_model_alias_used_deployment_by_ingest_processor] as it has a "
+                "Cannot stop deployment [test_stop_model_alias_used_deployment_by_ingest_processor] as it has a "
                     + "model_alias [used_model_alias] that is still referenced"
                     + " by ingest processors; use force to stop the deployment"
             )
@@ -846,8 +846,8 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putModelDefinition(modelId2);
         putVocabulary(List.of("these", "are", "my", "words"), modelId2);
 
-        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL);
-        startDeployment(modelId2, AllocationStatus.State.STARTING.toString(), 1, 1, Priority.NORMAL);
+        startDeployment(modelId1, modelId1, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL);
+        startDeployment(modelId2, modelId2, AllocationStatus.State.STARTING.toString(), 1, 1, Priority.NORMAL);
 
         // Check second model did not get any allocations
         assertAllocationCount(modelId2, 0);
@@ -888,7 +888,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
         ResponseException ex = expectThrows(
             ResponseException.class,
-            () -> startDeployment(modelId, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL)
+            () -> startDeployment(modelId, modelId, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL)
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
         assertThat(
@@ -924,7 +924,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putModelDefinition(modelId2);
         putVocabulary(List.of("these", "are", "my", "words"), modelId2);
 
-        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL);
+        startDeployment(modelId1, modelId1, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL);
 
         {
             Request request = new Request(
@@ -1033,7 +1033,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         createPassThroughModel(modelId);
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
-        startDeployment(modelId, "started", 2, 1, Priority.NORMAL);
+        startDeployment(modelId, modelId, "started", 2, 1, Priority.NORMAL);
 
         assertBusy(() -> assertAllocationCount(modelId, 2));
 
@@ -1051,7 +1051,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             createPassThroughModel(modelId);
             putModelDefinition(modelId);
             putVocabulary(List.of("these", "are", "my", "words"), modelId);
-            startDeployment(modelId, "started", 1, 1, Priority.LOW);
+            startDeployment(modelId, modelId, "started", 1, 1, Priority.LOW);
             assertAllocationCount(modelId, 1);
         }
     }

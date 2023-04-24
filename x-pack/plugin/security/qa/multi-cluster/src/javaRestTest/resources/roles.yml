@@ -13,9 +13,19 @@ read_remote_shared_metrics:
 transform_remote_shared_index:
   indices:
     - names: [ 'simple-remote-transform' ]
-      privileges: ['create_index', 'index', 'read']
+      privileges: [ 'create_index', 'index', 'read' ]
   remote_indices:
     - names: [ 'shared-transform-index' ]
+      privileges: [ 'read', 'read_cross_cluster', 'view_index_metadata' ]
+      clusters: [ 'my_*' ]
+
+ml_jobs_shared_airline_data:
+  cluster: [ 'manage_ml' ]
+  indices:
+    - names: [ 'data-frame-analytics-dest' ]
+      privileges: [ 'all' ]
+  remote_indices:
+    - names: [ 'shared-airline-data' ]
       privileges: [ 'read', 'read_cross_cluster', 'view_index_metadata' ]
       clusters: [ 'my_*' ]
 

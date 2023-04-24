@@ -24,6 +24,7 @@ import java.util.List;
 import static org.elasticsearch.dlm.DLMFixtures.putComposableIndexTemplate;
 import static org.elasticsearch.dlm.DLMFixtures.randomDataLifecycle;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -62,11 +63,13 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
         {
             GetDataLifecycleAction.Request getDataLifecycleRequest = new GetDataLifecycleAction.Request(new String[] { "*" });
             GetDataLifecycleAction.Response response = client().execute(GetDataLifecycleAction.INSTANCE, getDataLifecycleRequest).get();
-            assertThat(response.getDataStreamLifecycles().size(), equalTo(2));
+            assertThat(response.getDataStreamLifecycles().size(), equalTo(3));
             assertThat(response.getDataStreamLifecycles().get(0).dataStreamName(), equalTo("with-lifecycle-1"));
             assertThat(response.getDataStreamLifecycles().get(0).lifecycle(), equalTo(lifecycle));
             assertThat(response.getDataStreamLifecycles().get(1).dataStreamName(), equalTo("with-lifecycle-2"));
             assertThat(response.getDataStreamLifecycles().get(1).lifecycle(), equalTo(lifecycle));
+            assertThat(response.getDataStreamLifecycles().get(2).dataStreamName(), equalTo("without-lifecycle"));
+            assertThat(response.getDataStreamLifecycles().get(2).lifecycle(), is(nullValue()));
             assertThat(response.getRolloverConfiguration(), nullValue());
         }
 
@@ -101,11 +104,13 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
             GetDataLifecycleAction.INSTANCE,
             getDataLifecycleRequestWithDefaults
         ).get();
-        assertThat(responseWithRollover.getDataStreamLifecycles().size(), equalTo(2));
+        assertThat(responseWithRollover.getDataStreamLifecycles().size(), equalTo(3));
         assertThat(responseWithRollover.getDataStreamLifecycles().get(0).dataStreamName(), equalTo("with-lifecycle-1"));
         assertThat(responseWithRollover.getDataStreamLifecycles().get(0).lifecycle(), equalTo(lifecycle));
         assertThat(responseWithRollover.getDataStreamLifecycles().get(1).dataStreamName(), equalTo("with-lifecycle-2"));
         assertThat(responseWithRollover.getDataStreamLifecycles().get(1).lifecycle(), equalTo(lifecycle));
+        assertThat(responseWithRollover.getDataStreamLifecycles().get(2).dataStreamName(), equalTo("without-lifecycle"));
+        assertThat(responseWithRollover.getDataStreamLifecycles().get(2).lifecycle(), is(nullValue()));
         assertThat(responseWithRollover.getRolloverConfiguration(), notNullValue());
     }
 
@@ -119,7 +124,10 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
         {
             GetDataLifecycleAction.Request getDataLifecycleRequest = new GetDataLifecycleAction.Request(new String[] { "my-data-stream" });
             GetDataLifecycleAction.Response response = client().execute(GetDataLifecycleAction.INSTANCE, getDataLifecycleRequest).get();
-            assertThat(response.getDataStreamLifecycles().isEmpty(), equalTo(true));
+            assertThat(response.getDataStreamLifecycles().isEmpty(), equalTo(false));
+            GetDataLifecycleAction.Response.DataStreamLifecycle dataStreamLifecycle = response.getDataStreamLifecycles().get(0);
+            assertThat(dataStreamLifecycle.dataStreamName(), is(dataStreamName));
+            assertThat(dataStreamLifecycle.lifecycle(), is(nullValue()));
         }
 
         // Set lifecycle
@@ -176,9 +184,13 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
             );
             GetDataLifecycleAction.Request getDataLifecycleRequest = new GetDataLifecycleAction.Request(new String[] { "with-lifecycle*" });
             GetDataLifecycleAction.Response response = client().execute(GetDataLifecycleAction.INSTANCE, getDataLifecycleRequest).get();
-            assertThat(response.getDataStreamLifecycles().size(), equalTo(2));
-            assertThat(response.getDataStreamLifecycles().get(0).dataStreamName(), equalTo("with-lifecycle-2"));
-            assertThat(response.getDataStreamLifecycles().get(1).dataStreamName(), equalTo("with-lifecycle-3"));
+            assertThat(response.getDataStreamLifecycles().size(), equalTo(3));
+            GetDataLifecycleAction.Response.DataStreamLifecycle dataStreamLifecycle = response.getDataStreamLifecycles().get(0);
+            assertThat(dataStreamLifecycle.dataStreamName(), is("with-lifecycle-1"));
+            assertThat(dataStreamLifecycle.lifecycle(), is(nullValue()));
+            assertThat(response.getDataStreamLifecycles().get(1).dataStreamName(), equalTo("with-lifecycle-2"));
+            assertThat(response.getDataStreamLifecycles().get(2).dataStreamName(), equalTo("with-lifecycle-3"));
+
         }
 
         // Remove lifecycle from all data streams
@@ -190,7 +202,14 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
             );
             GetDataLifecycleAction.Request getDataLifecycleRequest = new GetDataLifecycleAction.Request(new String[] { "with-lifecycle*" });
             GetDataLifecycleAction.Response response = client().execute(GetDataLifecycleAction.INSTANCE, getDataLifecycleRequest).get();
-            assertThat(response.getDataStreamLifecycles().isEmpty(), equalTo(true));
+            assertThat(response.getDataStreamLifecycles().size(), equalTo(3));
+            assertThat(response.getDataStreamLifecycles().get(0).dataStreamName(), equalTo("with-lifecycle-1"));
+            assertThat(response.getDataStreamLifecycles().get(1).dataStreamName(), equalTo("with-lifecycle-2"));
+            assertThat(response.getDataStreamLifecycles().get(2).dataStreamName(), equalTo("with-lifecycle-3"));
+
+            for (GetDataLifecycleAction.Response.DataStreamLifecycle dataStreamLifecycle : response.getDataStreamLifecycles()) {
+                assertThat(dataStreamLifecycle.lifecycle(), nullValue());
+            }
         }
     }
 }

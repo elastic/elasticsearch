@@ -98,13 +98,23 @@ s:double
 ;
 
 powHeightSquared
-from employees | sort height asc | limit 20 | eval s = round(pow(height, 2),2) | project s | sort s desc | limit 4;
+from employees | sort height asc | limit 20 | eval s = round(pow(height, 2) - 2, 2) | project height, s | sort s desc | limit 4;
 
-s:double
-2.40
-2.37
-2.34
-2.34
+height:double | s:double
+1.55          | 0.40
+1.54          | 0.37
+1.53          | 0.34
+1.53          | 0.34
+;
+
+powSalarySquared
+from employees | eval s = pow(salary - 75000, 2) + 10000 | project salary, s | sort salary desc | limit 4;
+
+salary:integer | s:integer
+74999          | 10001
+74970          | 10900
+74572          | 193184
+73851          | 1330201
 ;
 
 isFiniteFalse
@@ -164,17 +174,17 @@ base:integer | exponent:integer | s:integer
 ;
 
 powIntIntPlusInt
-row base = 2, exponent = 2 | eval s = 1 + pow(base, exponent);
+row s = 1 + pow(2, 2);
 
-base:integer | exponent:integer | s:integer
-2            | 2                | 5
+s:integer
+5
 ;
 
 powIntIntPlusDouble
-row base = 2, exponent = 2 | eval s = 1.0 + pow(base, exponent);
+row s = 1.0 + pow(2, 2);
 
-base:integer | exponent:integer | s:double
-2            | 2                | 5.0
+s:double
+5
 ;
 
 mvMax

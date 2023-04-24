@@ -1,0 +1,178 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.http.netty4;
+
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.DefaultHttpHeaders;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpMessage;
+import io.netty.handler.codec.http.HttpRequest;
+
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.HttpHeadersValidationException;
+import org.elasticsearch.http.HttpPreRequest;
+import org.elasticsearch.rest.RestRequest;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.http.netty4.Netty4HttpRequest.getHttpHeadersAsMap;
+import static org.elasticsearch.http.netty4.Netty4HttpRequest.translateRequestMethod;
+
+/**
+ * Provides utilities for hooking into the netty pipeline and authenticate each HTTP request's headers.
+ * See also {@link Netty4HttpHeaderValidator}.
+ */
+public final class HttpHeadersAuthenticatorUtils {
+
+    /**
+     * An async HTTP headers authenticating function that receives as arguments part of the incoming HTTP request
+     * (except the body contents, see {@link HttpPreRequest}), as well as the netty channel that the request is
+     * being received over, and must then call the {@code ActionListener#onResponse} method on the listener parameter
+     * in case the validation is to be considered successful, or otherwise call {@code ActionListener#onFailure}
+     * and pass the failure exception.
+     */
+    @FunctionalInterface
+    public interface Authenticator extends TriConsumer<HttpPreRequest, Channel, ActionListener<Void>> {}
+
+    // utility class
+    private HttpHeadersAuthenticatorUtils() {}
+
+    /**
+     * Supplies a netty {@code ChannelInboundHandler} that runs the provided {@param authenticator} on the HTTP request headers.
+     * The HTTP headers of the to-be-authenticated {@link HttpRequest} must be wrapped by the special
+     * {@link HttpHeadersWithAuthenticationContext}, see {@link #wrapAsMessageWithAuthenticationContext(HttpMessage)}.
+     */
+    public static Netty4HttpHeaderValidator getValidatorInboundHandler(Authenticator authenticator, ThreadContext threadContext) {
+        return new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
+            // make sure authentication only runs on properly wrapped "authenticable" headers implementation
+            if (httpRequest.headers() instanceof HttpHeadersWithAuthenticationContext httpHeadersWithAuthenticationContext) {
+                authenticator.apply(asHttpPreRequest(httpRequest), channel, ActionListener.wrap(aVoid -> {
+                    httpHeadersWithAuthenticationContext.setAuthenticationContext(threadContext.newStoredContext());
+                    // a successful authentication needs to signal to the {@link Netty4HttpHeaderValidator} to resume
+                    // forwarding the request beyond the headers part
+                    listener.onResponse(null);
+                }, e -> listener.onFailure(new HttpHeadersValidationException(e))));
+            } else {
+                // cannot authenticate the request because it's not wrapped correctly, see {@link #wrapAsMessageWithAuthenticationContext}
+                listener.onFailure(new IllegalStateException("Cannot authenticate unwrapped requests"));
+            }
+        }, threadContext);
+    }
+
+    /**
+     * Given a {@link DefaultHttpRequest} argument, this returns a new {@link DefaultHttpRequest} instance that's identical to the
+     * passed-in one, but the headers of the latter can be authenticated, in the sense that the channel handlers returned by
+     * {@link #getValidatorInboundHandler(Authenticator, ThreadContext)} can use this to convey the authentication result context.
+     */
+    public static HttpMessage wrapAsMessageWithAuthenticationContext(HttpMessage newlyDecodedMessage) {
+        assert newlyDecodedMessage instanceof HttpRequest;
+        DefaultHttpRequest httpRequest = (DefaultHttpRequest) newlyDecodedMessage;
+        HttpHeadersWithAuthenticationContext httpHeadersWithAuthenticationContext = new HttpHeadersWithAuthenticationContext(
+            newlyDecodedMessage.headers()
+        );
+        return new DefaultHttpRequest(
+            httpRequest.protocolVersion(),
+            httpRequest.method(),
+            httpRequest.uri(),
+            httpHeadersWithAuthenticationContext
+        );
+    }
+
+    /**
+     * Returns the authentication thread context for the {@param request}.
+     */
+    public static ThreadContext.StoredContext extractAuthenticationContext(org.elasticsearch.http.HttpRequest request) {
+        HttpHeadersWithAuthenticationContext authenticatedHeaders = unwrapAuthenticatedHeaders(request);
+        return authenticatedHeaders != null ? authenticatedHeaders.authenticationContextSetOnce.get() : null;
+    }
+
+    private static HttpHeadersWithAuthenticationContext unwrapAuthenticatedHeaders(org.elasticsearch.http.HttpRequest request) {
+        if (request instanceof Netty4HttpRequest == false) {
+            return null;
+        }
+        if (((Netty4HttpRequest) request).getNettyRequest().headers() instanceof HttpHeadersWithAuthenticationContext == false) {
+            return null;
+        }
+        return (HttpHeadersWithAuthenticationContext) (((Netty4HttpRequest) request).getNettyRequest().headers());
+    }
+
+    /**
+     * {@link HttpHeaders} implementation that carries along the {@link ThreadContext.StoredContext} iff
+     * the HTTP headers have been authenticated successfully.
+     */
+    public static final class HttpHeadersWithAuthenticationContext extends DefaultHttpHeaders {
+
+        public final SetOnce<ThreadContext.StoredContext> authenticationContextSetOnce;
+
+        public HttpHeadersWithAuthenticationContext(HttpHeaders httpHeaders) {
+            this(httpHeaders, new SetOnce<>());
+        }
+
+        private HttpHeadersWithAuthenticationContext(
+            HttpHeaders httpHeaders,
+            SetOnce<ThreadContext.StoredContext> authenticationContextSetOnce
+        ) {
+            // the constructor implements the same logic as HttpHeaders#copy
+            super();
+            set(httpHeaders);
+            this.authenticationContextSetOnce = authenticationContextSetOnce;
+        }
+
+        private HttpHeadersWithAuthenticationContext(HttpHeaders httpHeaders, ThreadContext.StoredContext authenticationContext) {
+            this(httpHeaders);
+            if (authenticationContext != null) {
+                setAuthenticationContext(authenticationContext);
+            }
+        }
+
+        /**
+         * Must be called at most once in order to mark the http headers as successfully authenticated.
+         * The intent of the {@link ThreadContext.StoredContext} parameter is to associate the resulting
+         * thread context post authentication, that will later be restored when dispatching the request.
+         */
+        public void setAuthenticationContext(ThreadContext.StoredContext authenticationContext) {
+            this.authenticationContextSetOnce.set(Objects.requireNonNull(authenticationContext));
+        }
+
+        @Override
+        public HttpHeaders copy() {
+            // copy the headers but also STILL CARRY the same validation result
+            return new HttpHeadersWithAuthenticationContext(super.copy(), authenticationContextSetOnce.get());
+        }
+    }
+
+    /**
+     * Translates the netty request internal type to a {@link HttpPreRequest} instance that code outside the network plugin has access to.
+     */
+    private static HttpPreRequest asHttpPreRequest(HttpRequest request) {
+        return new HttpPreRequest() {
+
+            @Override
+            public RestRequest.Method method() {
+                return translateRequestMethod(request.method());
+            }
+
+            @Override
+            public String uri() {
+                return request.uri();
+            }
+
+            @Override
+            public Map<String, List<String>> getHeaders() {
+                return getHttpHeadersAsMap(request.headers());
+            }
+        };
+    }
+}

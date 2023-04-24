@@ -674,7 +674,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 throw new AssertionError();
             }
         };
-        final Supplier<Netty4HttpHeaderValidator> successHeadersValidator = () -> HttpHeadersUtils.getValidatorInboundHandler(
+        final Supplier<Netty4HttpHeaderValidator> successHeadersValidator = () -> HttpHeadersAuthenticatorUtils.getValidatorInboundHandler(
             (httpPreRequest, channel, validationListener) -> {
                 assertThat(httpPreRequest.uri(), is(urlReference.get()));
                 assertThat(httpPreRequest.header(requestHeaderReference.get()), is(requestHeaderValueReference.get()));
@@ -706,7 +706,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
                     assertThat(threadPool.getThreadContext().getHeader(contextHeaderReference.get()), nullValue());
                     assertThat(threadPool.getThreadContext().getTransient(contextHeaderReference.get()), nullValue());
-                    ThreadContext.StoredContext storedAuthenticatedContext = HttpHeadersUtils.extractValidationContext(
+                    ThreadContext.StoredContext storedAuthenticatedContext = HttpHeadersAuthenticatorUtils.extractAuthenticationContext(
                         restRequest.getHttpRequest()
                     );
                     assertThat(storedAuthenticatedContext, notNullValue());
@@ -778,7 +778,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 }
             }
         };
-        final Supplier<Netty4HttpHeaderValidator> failureHeadersValidator = () -> HttpHeadersUtils.getValidatorInboundHandler(
+        final Supplier<Netty4HttpHeaderValidator> failureHeadersValidator = () -> HttpHeadersAuthenticatorUtils.getValidatorInboundHandler(
             (httpPreRequest, channel, validationResultListener) -> {
                 assertThat(httpPreRequest.uri(), is(urlReference.get()));
                 assertThat(httpPreRequest.header(headerReference.get()), is(headerValueReference.get()));

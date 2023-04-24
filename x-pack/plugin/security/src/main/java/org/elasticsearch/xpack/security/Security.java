@@ -54,7 +54,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.netty4.HttpHeadersUtils;
+import org.elasticsearch.http.netty4.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -1647,8 +1647,8 @@ public class Security extends Plugin
             }
             final AuthenticationService authenticationService = this.authcService.get();
             final ThreadContext threadContext = this.threadContext.get();
-            final Supplier<Netty4HttpHeaderValidator> authenticateHttpRequest = () -> HttpHeadersUtils.getValidatorInboundHandler(
-                (httpRequest, channel, listener) -> {
+            final Supplier<Netty4HttpHeaderValidator> authenticateHttpRequest = () -> HttpHeadersAuthenticatorUtils
+                .getValidatorInboundHandler((httpRequest, channel, listener) -> {
                     // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
                     // authentication process looks for while doing its duty.
                     perRequestThreadContext.accept(httpRequest, threadContext);
@@ -1660,9 +1660,7 @@ public class Security extends Plugin
                         httpRequest,
                         ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
                     );
-                },
-                threadContext
-            );
+                }, threadContext);
             return getHttpServerTransportWithHeadersValidator(
                 settings,
                 networkService,
@@ -1709,13 +1707,13 @@ public class Security extends Plugin
         ) {
             @Override
             protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                ThreadContext.StoredContext validationThreadContext = HttpHeadersUtils.extractValidationContext(
+                ThreadContext.StoredContext authenticationThreadContext = HttpHeadersAuthenticatorUtils.extractAuthenticationContext(
                     restRequest.getHttpRequest()
                 );
-                if (validationThreadContext != null) {
-                    validationThreadContext.restore();
+                if (authenticationThreadContext != null) {
+                    authenticationThreadContext.restore();
                 } else {
-                    throw new ElasticsearchSecurityException("Request is not validated");
+                    throw new ElasticsearchSecurityException("Request is not authenticated");
                 }
             }
         };

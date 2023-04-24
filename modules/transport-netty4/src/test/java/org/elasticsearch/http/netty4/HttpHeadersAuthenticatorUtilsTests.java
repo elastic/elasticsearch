@@ -14,13 +14,13 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.netty4.HttpHeadersUtils.HttpHeadersWithValidationContext;
+import org.elasticsearch.http.netty4.HttpHeadersAuthenticatorUtils.HttpHeadersWithAuthenticationContext;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public final class HttpHeadersUtilsTests extends ESTestCase {
+public final class HttpHeadersAuthenticatorUtilsTests extends ESTestCase {
 
     public void testRemoveHeaderPreservesValidationResult() {
         final ThreadContext.StoredContext dummyValidationContext = () -> {};
@@ -31,10 +31,11 @@ public final class HttpHeadersUtilsTests extends ESTestCase {
         String headerValue2 = "headerValue2";
         httpRequest.headers().add(header1, headerValue1);
         httpRequest.headers().add(header2, headerValue2);
-        final DefaultHttpRequest validatableHttpRequest = (DefaultHttpRequest) HttpHeadersUtils.wrapAsValidatableMessage(httpRequest);
+        final DefaultHttpRequest validatableHttpRequest = (DefaultHttpRequest) HttpHeadersAuthenticatorUtils
+            .wrapAsMessageWithAuthenticationContext(httpRequest);
         boolean validated = randomBoolean();
         if (validated) {
-            ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).addValidationContext(dummyValidationContext);
+            ((HttpHeadersWithAuthenticationContext) validatableHttpRequest.headers()).setAuthenticationContext(dummyValidationContext);
         }
         if (randomBoolean()) {
             validatableHttpRequest.headers().remove("header1");
@@ -47,12 +48,12 @@ public final class HttpHeadersUtilsTests extends ESTestCase {
         }
         if (validated) {
             assertThat(
-                ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).validationResultContextSetOnce.get(),
+                ((HttpHeadersWithAuthenticationContext) validatableHttpRequest.headers()).authenticationContextSetOnce.get(),
                 is(dummyValidationContext)
             );
         } else {
             assertThat(
-                ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).validationResultContextSetOnce.get(),
+                ((HttpHeadersWithAuthenticationContext) validatableHttpRequest.headers()).authenticationContextSetOnce.get(),
                 nullValue()
             );
         }
@@ -64,19 +65,20 @@ public final class HttpHeadersUtilsTests extends ESTestCase {
         String header = "header";
         String headerValue = "headerValue";
         httpRequest.headers().add(header, headerValue);
-        final DefaultHttpRequest validatableHttpRequest = (DefaultHttpRequest) HttpHeadersUtils.wrapAsValidatableMessage(httpRequest);
+        final DefaultHttpRequest validatableHttpRequest = (DefaultHttpRequest) HttpHeadersAuthenticatorUtils
+            .wrapAsMessageWithAuthenticationContext(httpRequest);
         boolean validated = randomBoolean();
         if (validated) {
-            ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).addValidationContext(dummyValidationContext);
+            ((HttpHeadersWithAuthenticationContext) validatableHttpRequest.headers()).setAuthenticationContext(dummyValidationContext);
         }
-        HttpHeaders httpHeadersCopy = ((HttpHeadersWithValidationContext) validatableHttpRequest.headers()).copy();
+        HttpHeaders httpHeadersCopy = ((HttpHeadersWithAuthenticationContext) validatableHttpRequest.headers()).copy();
         if (validated) {
             assertThat(
-                ((HttpHeadersWithValidationContext) httpHeadersCopy).validationResultContextSetOnce.get(),
+                ((HttpHeadersWithAuthenticationContext) httpHeadersCopy).authenticationContextSetOnce.get(),
                 is(dummyValidationContext)
             );
         } else {
-            assertThat(((HttpHeadersWithValidationContext) httpHeadersCopy).validationResultContextSetOnce.get(), nullValue());
+            assertThat(((HttpHeadersWithAuthenticationContext) httpHeadersCopy).authenticationContextSetOnce.get(), nullValue());
         }
     }
 }

@@ -30,6 +30,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.WorkflowPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.WorkflowPermissionResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -150,7 +152,7 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testToXContentRoundtrip() throws Exception {
-        final RoleDescriptor descriptor = randomRoleDescriptor(true, true);
+        final RoleDescriptor descriptor = randomRoleDescriptor(true, true, true);
         final XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference xContentValue = toShuffledXContent(descriptor, xContentType, ToXContent.EMPTY_PARAMS, false);
         final RoleDescriptor parsed = RoleDescriptor.parse(descriptor.getName(), xContentValue, false, xContentType);
@@ -445,11 +447,12 @@ public class RoleDescriptorTests extends ESTestCase {
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         final boolean canIncludeRemoteIndices = version.onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
+        final boolean canIncludeWorkflows = version.onOrAfter(WorkflowPermission.WORKFLOW_VERSION);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
 
-        final RoleDescriptor descriptor = randomRoleDescriptor(true, canIncludeRemoteIndices);
+        final RoleDescriptor descriptor = randomRoleDescriptor(true, canIncludeRemoteIndices, canIncludeWorkflows);
         descriptor.writeTo(output);
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(
@@ -474,7 +477,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
 
-        final RoleDescriptor descriptor = randomRoleDescriptor(true, true);
+        final RoleDescriptor descriptor = randomRoleDescriptor(true, true, false);
         descriptor.writeTo(output);
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(
@@ -496,7 +499,8 @@ public class RoleDescriptorTests extends ESTestCase {
                         descriptor.getRunAs(),
                         descriptor.getMetadata(),
                         descriptor.getTransientMetadata(),
-                        null
+                        null,
+                        descriptor.getWorkflowPrivileges()
                     )
                 )
             );
@@ -884,11 +888,13 @@ public class RoleDescriptorTests extends ESTestCase {
                 new String[0],
                 new HashMap<>(),
                 new HashMap<>(),
-                new RoleDescriptor.RemoteIndicesPrivileges[0]
+                new RoleDescriptor.RemoteIndicesPrivileges[0],
+                new String[0]
             ).isEmpty()
         );
 
         final List<Boolean> booleans = Arrays.asList(
+            randomBoolean(),
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
@@ -921,7 +927,8 @@ public class RoleDescriptorTests extends ESTestCase {
             booleans.get(6)
                 ? new RoleDescriptor.RemoteIndicesPrivileges[0]
                 : new RoleDescriptor.RemoteIndicesPrivileges[] {
-                    RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build() }
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build() },
+            booleans.get(7) ?  new String[0] : new String[] { "foo" }
         );
 
         if (booleans.stream().anyMatch(e -> e.equals(false))) {
@@ -933,7 +940,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testHasPrivilegesOtherThanIndex() {
         assertThat(
-            new RoleDescriptor("name", null, randomBoolean() ? null : randomIndicesPrivileges(1, 5), null, null, null, null, null, null)
+            new RoleDescriptor("name", null, randomBoolean() ? null : randomIndicesPrivileges(1, 5), null, null, null, null, null, null, null)
                 .hasPrivilegesOtherThanIndex(),
             is(false)
         );
@@ -958,10 +965,10 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata) {
-        return randomRoleDescriptor(allowReservedMetadata, false);
+        return randomRoleDescriptor(allowReservedMetadata, false, false);
     }
 
-    public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata, boolean allowRemoteIndices) {
+    public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata, boolean allowRemoteIndices, boolean allowWorkflows) {
         final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges;
         if (false == allowRemoteIndices || randomBoolean()) {
             remoteIndexPrivileges = null;
@@ -978,7 +985,8 @@ public class RoleDescriptorTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
             randomRoleDescriptorMetadata(allowReservedMetadata),
             Map.of(),
-            remoteIndexPrivileges
+            remoteIndexPrivileges,
+            allowWorkflows ? randomSubsetOf(WorkflowPermissionResolver.names()).toArray(String[]::new) : null
         );
     }
 

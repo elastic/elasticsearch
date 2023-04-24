@@ -59,7 +59,7 @@ public class AggregationPhase {
             InternalProfileCollector profileCollector = new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION);
             context.registerAggsCollectorManager(new InternalProfileCollectorManager(profileCollector));
         } else {
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager<>(collector));
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
         }
     }
 

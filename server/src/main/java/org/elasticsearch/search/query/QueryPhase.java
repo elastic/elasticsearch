@@ -248,7 +248,7 @@ public class QueryPhase {
         Collector... children
     ) {
         if (profilers == null) {
-            return new SingleThreadCollectorManager<>(collector);
+            return new SingleThreadCollectorManager(collector);
         }
         return new InternalProfileCollectorManager(new InternalProfileCollector(collector, profilerName, children));
     }

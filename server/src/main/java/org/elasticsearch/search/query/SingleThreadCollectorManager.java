@@ -15,23 +15,23 @@ import java.io.IOException;
 import java.util.Collection;
 
 /** {@link CollectorManager} that runs in a non-concurrent search. */
-public class SingleThreadCollectorManager<C extends Collector> implements CollectorManager<C, Void> {
-    protected final C collector;
+public class SingleThreadCollectorManager implements CollectorManager<Collector, Void> {
+    protected final Collector collector;
     private boolean newCollectorCalled;
 
-    public SingleThreadCollectorManager(C collector) {
+    public SingleThreadCollectorManager(Collector collector) {
         this.collector = collector;
     }
 
     @Override
-    public C newCollector() {
+    public Collector newCollector() {
         assert newCollectorCalled == false;
         newCollectorCalled = true;
         return collector;
     }
 
     @Override
-    public Void reduce(Collection<C> collectors) throws IOException {
+    public Void reduce(Collection<Collector> collectors) throws IOException {
         assert collectors.size() == 1;
         assert this.collector == collectors.iterator().next();
         return null;

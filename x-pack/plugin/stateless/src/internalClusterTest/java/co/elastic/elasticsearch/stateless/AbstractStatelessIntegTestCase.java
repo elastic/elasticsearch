@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -79,26 +80,29 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected String startIndexNode() {
-        return internalCluster().startNode(
-            nodeSettings().putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName()).build()
-        );
+        return internalCluster().startNode(settingsForRoles(DiscoveryNodeRole.INDEX_ROLE));
     }
 
     protected String startSearchNode() {
-        return internalCluster().startNode(
-            nodeSettings().putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
-                .put(
-                    SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
-                    rarely()
-                        ? randomBoolean()
-                            ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.KB).getStringRep()
-                            : new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.BYTES).getStringRep()
-                        : randomBoolean() ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB).getStringRep()
-                        // only use up to 0.1% disk to be friendly.
-                        : new RatioValue(randomDoubleBetween(0.0d, 0.1d, false)).toString()
-                )
-                .build()
-        );
+        return internalCluster().startNode(settingsForRoles(DiscoveryNodeRole.SEARCH_ROLE));
+    }
+
+    private Settings settingsForRoles(DiscoveryNodeRole... roles) {
+        return nodeSettings().putList(
+            NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+            Arrays.stream(roles).map(DiscoveryNodeRole::roleName).toList()
+        )
+            .put(
+                SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                rarely()
+                    ? randomBoolean()
+                        ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.KB).getStringRep()
+                        : new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.BYTES).getStringRep()
+                    : randomBoolean() ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB).getStringRep()
+                    // only use up to 0.1% disk to be friendly.
+                    : new RatioValue(randomDoubleBetween(0.0d, 0.1d, false)).toString()
+            )
+            .build();
     }
 
     protected String startMasterOnlyNode() {
@@ -106,12 +110,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected String startMasterAndIndexNode() {
-        return internalCluster().startNode(
-            nodeSettings().putList(
-                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                List.of(DiscoveryNodeRole.MASTER_ROLE.roleName(), DiscoveryNodeRole.INDEX_ROLE.roleName())
-            ).build()
-        );
+        return internalCluster().startNode(settingsForRoles(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE));
     }
 
     protected List<String> startIndexNodes(int numOfNodes) {

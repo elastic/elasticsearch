@@ -349,9 +349,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         Provider<JavaLauncher> javaLauncherProvider = toolChainService.launcherFor(
             javaToolchainSpec -> javaToolchainSpec.getLanguageVersion().value(value)
         );
+
         try {
-            File javaBin = javaLauncherProvider.get().getExecutablePath().getAsFile();
-            return javaBin.getParentFile().getParentFile().getCanonicalPath();
+            return javaLauncherProvider.get().getMetadata().getInstallationPath().getAsFile().getCanonicalPath();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -400,7 +400,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         private final JvmVendorSpec expectedVendorSpec;
         private final JavaLanguageVersion expectedJavaLanguageVersion;
 
-        public MetadataBasedToolChainMatcher(JvmInstallationMetadata metadata) {
+        MetadataBasedToolChainMatcher(JvmInstallationMetadata metadata) {
             expectedVendorSpec = JvmVendorSpec.matching(metadata.getVendor().getRawVendor());
             expectedJavaLanguageVersion = JavaLanguageVersion.of(metadata.getLanguageVersion().getMajorVersion());
         }

@@ -45,7 +45,6 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
     def unsupportedRequests() {
         [
                 [20, ORACLE, WINDOWS, AARCH64]
-
         ]
     }
 

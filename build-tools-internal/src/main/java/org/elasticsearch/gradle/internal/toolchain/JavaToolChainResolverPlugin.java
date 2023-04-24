@@ -20,7 +20,6 @@ public abstract class JavaToolChainResolverPlugin implements Plugin<Settings> {
 
     public void apply(Settings settings) {
         settings.getPlugins().apply("jvm-toolchain-management");
-
         JavaToolchainResolverRegistry registry = getToolchainResolverRegistry();
         registry.register(OracleOpenJdkToolchainResolver.class);
         registry.register(AdoptiumJdkToolchainResolver.class);

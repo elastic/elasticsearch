@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -61,7 +60,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         private final Map<String, List<String>> headers;
 
-        private final InetAddress clientAddress;
+        private final String clientAddress;
 
         private Request(
             String eventCollectionName,
@@ -71,7 +70,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             BytesReference payload,
             boolean debug,
             @Nullable Map<String, List<String>> headers,
-            @Nullable InetAddress clientAddress
+            @Nullable String clientAddress
         ) {
             this.eventCollectionName = eventCollectionName;
             this.eventType = eventType;
@@ -92,8 +91,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             this.xContentType = in.readEnum(XContentType.class);
             this.payload = in.readBytesReference();
             this.headers = in.readMap(StreamInput::readString, StreamInput::readStringList);
-            InetAddress ipAddress = readInetAddress(in);
-            this.clientAddress = ipAddress;
+            this.clientAddress = in.readOptionalString();
         }
 
         public static RequestBuilder builder(
@@ -105,33 +103,41 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             return new RequestBuilder(eventCollectionName, eventType, xContentType, payload);
         }
 
+        @Override
         public String eventCollectionName() {
             return eventCollectionName;
         }
 
+        @Override
         public AnalyticsEvent.Type eventType() {
             return AnalyticsEvent.Type.valueOf(eventType.toUpperCase(Locale.ROOT));
         }
 
+        @Override
         public long eventTime() {
             return eventTime;
+        }
+
+        @Override
+        public String userAgent() {
+            return header("User-Agent");
+        }
+
+        @Override
+        public String clientAddress() {
+            return clientAddress;
         }
 
         public BytesReference payload() {
             return payload;
         }
 
-        public boolean isDebug() {
-            return debug;
-        }
-
         public XContentType xContentType() {
             return xContentType;
         }
 
-        @Override
-        public String userAgent() {
-            return header("User-Agent");
+        public boolean isDebug() {
+            return debug;
         }
 
         private String header(String header) {
@@ -141,10 +147,6 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             }
 
             return null;
-        }
-
-        public InetAddress clientAddress() {
-            return clientAddress;
         }
 
         @Override
@@ -182,7 +184,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             XContentHelper.writeTo(out, xContentType);
             out.writeBytesReference(payload);
             out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeStringCollection);
-            out.writeOptionalString(clientAddress == null ? null : NetworkAddress.format(clientAddress));
+            out.writeOptionalString(clientAddress);
         }
 
         @Override
@@ -204,19 +206,6 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         public int hashCode() {
             return Objects.hash(eventCollectionName, eventType, debug, eventTime, xContentType, payload, headers, clientAddress);
         }
-
-        private static InetAddress readInetAddress(StreamInput in) throws IOException {
-            final String ipString = in.readOptionalString();
-            if (ipString != null) {
-                try {
-                    return InetAddresses.forString(ipString);
-                } catch (IllegalArgumentException e) {
-                    // Ignore invalid client IP
-                }
-            }
-
-            return null;
-        }
     }
 
     public static class RequestBuilder {
@@ -235,7 +224,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         private Map<String, List<String>> headers;
 
-        private InetAddress clientAddress;
+        private String clientAddress;
 
         private RequestBuilder(String eventCollectionName, String eventType, XContentType xContentType, BytesReference payload) {
             this.eventCollectionName = eventCollectionName;
@@ -284,6 +273,10 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         }
 
         public RequestBuilder clientAddress(InetAddress clientAddress) {
+            return clientAddress(NetworkAddress.format(clientAddress));
+        }
+
+        public RequestBuilder clientAddress(String clientAddress) {
             this.clientAddress = clientAddress;
             return this;
         }

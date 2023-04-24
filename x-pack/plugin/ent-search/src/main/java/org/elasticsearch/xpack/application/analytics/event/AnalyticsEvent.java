@@ -13,10 +13,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,7 +22,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -45,9 +41,6 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
     public static final ParseField DATA_STREAM_TYPE_FIELD = new ParseField("type");
     public static final ParseField DATA_STREAM_NAMESPACE_FIELD = new ParseField("namespace");
     public static final ParseField DATA_STREAM_DATASET_FIELD = new ParseField("dataset");
-    public static final ParseField CLIENT_ADDRESS_FIELD = new ParseField("client_address");
-    public static final ParseField USER_AGENT_FIELD = new ParseField("user_agent");
-    private final String userAgent;
 
     /**
      * Analytics event types.
@@ -78,48 +71,23 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
     private final BytesReference payload;
 
     private final XContentType xContentType;
-    private final InetAddress clientAddress;
 
     protected AnalyticsEvent(
         String eventCollectionName,
         long eventTime,
         Type eventType,
         XContentType xContentType,
-        BytesReference payload,
-        @Nullable String userAgent,
-        @Nullable InetAddress clientAddress
+        BytesReference payload
     ) {
         this.eventCollectionName = Strings.requireNonBlank(eventCollectionName, "eventCollectionName cannot be null");
         this.eventTime = eventTime;
         this.eventType = eventType;
         this.xContentType = Objects.requireNonNull(xContentType, "xContentType cannot be null");
         this.payload = Objects.requireNonNull(payload, "payload cannot be null");
-        this.userAgent = userAgent;
-        this.clientAddress = clientAddress;
     }
 
     public AnalyticsEvent(StreamInput in) throws IOException {
-        this(
-            in.readString(),
-            in.readLong(),
-            in.readEnum(Type.class),
-            in.readEnum(XContentType.class),
-            in.readBytesReference(),
-            in.readOptionalString(),
-            readInetAddress(in)
-        );
-    }
-
-    private static InetAddress readInetAddress(StreamInput in) {
-        try {
-            return InetAddresses.forString(in.readOptionalString());
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    public String userAgent() {
-        return userAgent;
+        this(in.readString(), in.readLong(), in.readEnum(Type.class), in.readEnum(XContentType.class), in.readBytesReference());
     }
 
     public static Builder builder(AnalyticsEvent.Context context) {
@@ -150,10 +118,6 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
         return XContentHelper.convertToMap(payload(), true, xContentType()).v2();
     }
 
-    public InetAddress clientAddress() {
-        return clientAddress;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(eventCollectionName);
@@ -161,8 +125,6 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
         out.writeEnum(eventType);
         XContentHelper.writeTo(out, xContentType);
         out.writeBytesReference(payload);
-        out.writeOptionalString(userAgent);
-        out.writeOptionalString(clientAddress == null ? null : NetworkAddress.format(clientAddress));
     }
 
     @Override
@@ -187,14 +149,6 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
             builder.endObject();
 
             builder.mapContents(payloadAsMap());
-
-            if (userAgent != null) {
-                builder.field(USER_AGENT_FIELD.getPreferredName(), userAgent);
-            }
-
-            if (clientAddress != null) {
-                builder.field(CLIENT_ADDRESS_FIELD.getPreferredName(), NetworkAddress.format(clientAddress));
-            }
         }
         builder.endObject();
 
@@ -210,9 +164,7 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
             && eventTime == that.eventTime
             && eventType == that.eventType
             && xContentType.equals(that.xContentType)
-            && payloadAsMap().equals(that.payloadAsMap())
-            && Objects.equals(clientAddress, that.clientAddress)
-            && Objects.equals(userAgent, that.userAgent);
+            && payloadAsMap().equals(that.payloadAsMap());
     }
 
     @Override
@@ -222,7 +174,7 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(eventCollectionName, eventTime, xContentType, payloadAsMap(), clientAddress, userAgent);
+        return Objects.hash(eventCollectionName, eventTime, xContentType, payloadAsMap());
     }
 
     @Override
@@ -242,7 +194,7 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
 
         String userAgent();
 
-        InetAddress clientAddress();
+        String clientAddress();
 
         default AnalyticsCollection analyticsCollection() {
             // TODO: remove. Only used in tests.
@@ -269,9 +221,7 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
                     context.eventTime(),
                     context.eventType(),
                     builder.contentType(),
-                    payload,
-                    context.userAgent(),
-                    context.clientAddress()
+                    payload
                 );
             }
         }

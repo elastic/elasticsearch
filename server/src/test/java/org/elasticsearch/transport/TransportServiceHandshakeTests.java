@@ -388,8 +388,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             );
             AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);
             assertTrue(transportServiceA.nodeConnected(transportServiceB.getLocalNode()));
-        }
-        finally {
+        } finally {
             System.clearProperty("es.serverless");
         }
     }

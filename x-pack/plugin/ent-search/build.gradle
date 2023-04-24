@@ -17,7 +17,6 @@ dependencies {
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(project(':modules:lang-mustache'))
-  testImplementation(project(':modules:elasticsearch-server-test'))
 
   javaRestTestImplementation(project(path: xpackModule('core')))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))

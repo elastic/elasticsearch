@@ -13,7 +13,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -21,9 +20,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -50,20 +46,6 @@ public class PermissionsIT extends ESRestTestCase {
         // Note: This user is defined in build.gradle, and assigned the role "not_privileged". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_non_privileged", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    @Before
-    public void init() throws Exception {
-        Request request = new Request("PUT", "/_cluster/settings");
-        XContentBuilder clusterSettingsEntity = JsonXContent.contentBuilder();
-        clusterSettingsEntity.startObject();
-        clusterSettingsEntity.startObject("persistent");
-        clusterSettingsEntity.field("indices.dlm.poll_interval", "1s");
-        clusterSettingsEntity.field(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
-        clusterSettingsEntity.endObject();
-        clusterSettingsEntity.endObject();
-        request.setJsonEntity(Strings.toString(clusterSettingsEntity));
-        assertOK(adminClient().performRequest(request));
     }
 
     /**

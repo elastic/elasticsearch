@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
@@ -41,6 +42,7 @@ import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
+import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
@@ -137,7 +139,7 @@ public class QueryPhase {
                 searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null
             );
 
-            Collector collector = wrapWithProfilerCollectorIfNeeded(
+            CollectorManager<Collector, Void> collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                 searchContext.getProfilers(),
                 topDocsFactory.collector(),
                 topDocsFactory.profilerName
@@ -151,7 +153,8 @@ public class QueryPhase {
                     searchContext.terminateAfter(),
                     true
                 );
-                collector = wrapWithProfilerCollectorIfNeeded(
+                final Collector collector = collectorManager.newCollector();
+                collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
                     MultiCollector.wrap(earlyTerminatingCollector, collector),
                     REASON_SEARCH_TERMINATE_AFTER_COUNT,
@@ -166,25 +169,29 @@ public class QueryPhase {
                     ScoreMode.COMPLETE_NO_SCORES,
                     1f
                 );
-                collector = wrapWithProfilerCollectorIfNeeded(
+                final Collector collector = collectorManager.newCollector();
+                collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
                     new FilteredCollector(collector, filterWeight),
                     REASON_SEARCH_POST_FILTER,
                     collector
                 );
             }
-            if (searchContext.getAggsCollector() != null) {
-                collector = wrapWithProfilerCollectorIfNeeded(
+            if (searchContext.getAggsCollectorManager() != null) {
+                final Collector collector = collectorManager.newCollector();
+                final Collector aggsCollector = searchContext.getAggsCollectorManager().newCollector();
+                collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    MultiCollector.wrap(collector, searchContext.getAggsCollector()),
+                    MultiCollector.wrap(collector, aggsCollector),
                     REASON_SEARCH_MULTI,
                     collector,
-                    searchContext.getAggsCollector()
+                    aggsCollector
                 );
             }
             if (searchContext.minimumScore() != null) {
+                final Collector collector = collectorManager.newCollector();
                 // apply the minimum score after multi collector so we filter aggs as well
-                collector = wrapWithProfilerCollectorIfNeeded(
+                collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
                     new MinimumScoreCollector(collector, searchContext.minimumScore()),
                     REASON_SEARCH_MIN_SCORE,
@@ -212,7 +219,7 @@ public class QueryPhase {
             }
 
             try {
-                searchWithCollector(searchContext, searcher, query, collector, timeoutSet);
+                searchWithCollectorManager(searchContext, searcher, query, collectorManager, timeoutSet);
                 queryResult.topDocs(topDocsFactory.topDocsAndMaxScore(), topDocsFactory.sortValueFormats);
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
                 assert executor instanceof EWMATrackingEsThreadPoolExecutor
@@ -234,31 +241,31 @@ public class QueryPhase {
         }
     }
 
-    private static Collector wrapWithProfilerCollectorIfNeeded(
+    private static CollectorManager<Collector, Void> wrapWithProfilerCollectorManagerIfNeeded(
         Profilers profilers,
         Collector collector,
         String profilerName,
         Collector... children
     ) {
         if (profilers == null) {
-            return collector;
+            return new SingleThreadCollectorManager(collector);
         }
-        return new InternalProfileCollector(collector, profilerName, children);
+        return new InternalProfileCollectorManager(new InternalProfileCollector(collector, profilerName, children));
     }
 
-    private static void searchWithCollector(
+    private static void searchWithCollectorManager(
         SearchContext searchContext,
         ContextIndexSearcher searcher,
         Query query,
-        Collector collector,
+        CollectorManager<Collector, Void> collectorManager,
         boolean timeoutSet
     ) throws IOException {
         if (searchContext.getProfilers() != null) {
-            searchContext.getProfilers().getCurrentQueryProfiler().setCollector((InternalProfileCollector) collector);
+            searchContext.getProfilers().getCurrentQueryProfiler().setCollectorManager((InternalProfileCollectorManager) collectorManager);
         }
         QuerySearchResult queryResult = searchContext.queryResult();
         try {
-            searcher.search(query, collector);
+            searcher.search(query, collectorManager);
         } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
             queryResult.terminatedEarly(true);
         } catch (TimeExceededException e) {

@@ -400,13 +400,13 @@ public class QueryPhaseTests extends IndexShardTestCase {
         {
             context.setSize(10);
             TotalHitCountCollector collector = new TotalHitCountCollector();
-            context.registerAggsCollector(collector);
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
             QueryPhase.executeInternal(context);
             assertFalse(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(10));
             assertThat(collector.getTotalHits(), equalTo(numDocs));
-            context.registerAggsCollector(null);
+            context.registerAggsCollectorManager(null);
         }
 
         context.terminateAfter(1);
@@ -438,7 +438,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         {
             context.setSize(1);
             TotalHitCountCollector collector = new TotalHitCountCollector();
-            context.registerAggsCollector(collector);
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
             QueryPhase.executeInternal(context);
             assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
@@ -446,12 +446,12 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
             // TotalHitCountCollector counts num docs in the first leaf
             assertThat(collector.getTotalHits(), equalTo(reader.leaves().get(0).reader().numDocs()));
-            context.registerAggsCollector(null);
+            context.registerAggsCollectorManager(null);
         }
         {
             context.setSize(0);
             TotalHitCountCollector collector = new TotalHitCountCollector();
-            context.registerAggsCollector(collector);
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
             QueryPhase.executeInternal(context);
             assertTrue(context.queryResult().terminatedEarly());
             // TotalHitCountCollector counts num docs in the first leaf
@@ -460,7 +460,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
             assertThat(collector.getTotalHits(), equalTo(numDocsInFirstLeaf));
-            context.registerAggsCollector(null);
+            context.registerAggsCollectorManager(null);
         }
 
         // tests with trackTotalHits and terminateAfter
@@ -469,7 +469,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         for (int trackTotalHits : new int[] { -1, 3, 76, 100 }) {
             context.trackTotalHitsUpTo(trackTotalHits);
             TotalHitCountCollector collector = new TotalHitCountCollector();
-            context.registerAggsCollector(collector);
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
             QueryPhase.executeInternal(context);
             assertTrue(context.queryResult().terminatedEarly());
             if (trackTotalHits == -1) {
@@ -484,7 +484,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             }
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
             assertThat(collector.getTotalHits(), equalTo(countDocUpTo.applyAsInt(10)));
-            context.registerAggsCollector(null);
+            context.registerAggsCollectorManager(null);
         }
 
         context.terminateAfter(7);
@@ -492,7 +492,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         for (int trackTotalHits : new int[] { -1, 3, 75, 100 }) {
             context.trackTotalHitsUpTo(trackTotalHits);
             EarlyTerminatingCollector collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 1, false);
-            context.registerAggsCollector(collector);
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
             QueryPhase.executeInternal(context);
             assertTrue(context.queryResult().terminatedEarly());
             if (trackTotalHits == -1) {
@@ -506,7 +506,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 assertThat(context.queryResult().topDocs().topDocs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
             }
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(7));
-            context.registerAggsCollector(null);
+            context.registerAggsCollectorManager(null);
         }
         reader.close();
         dir.close();
@@ -557,7 +557,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.parsedPostFilter(null);
 
             final TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
-            context.registerAggsCollector(totalHitCountCollector);
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(totalHitCountCollector));
             QueryPhase.executeInternal(context);
             assertNull(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
@@ -565,7 +565,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
             assertThat(fieldDoc.fields[0], anyOf(equalTo(1), equalTo(2)));
             assertThat(totalHitCountCollector.getTotalHits(), equalTo(numDocs));
-            context.registerAggsCollector(null);
+            context.registerAggsCollectorManager(null);
         }
 
         {

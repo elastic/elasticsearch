@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.ml;
 
+import org.elasticsearch.common.settings.Settings;
+
 public interface MachineLearningExtension {
+
+    default void configure(Settings settings) {}
 
     boolean useIlm();
 

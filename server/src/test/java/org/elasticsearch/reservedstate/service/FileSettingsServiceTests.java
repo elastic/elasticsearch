@@ -165,6 +165,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95436")
     public void testInitialFileWorks() throws Exception {
         ReservedClusterStateService stateService = mock(ReservedClusterStateService.class);
 

@@ -20,11 +20,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -32,6 +35,7 @@ public class PermissionsIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
+        // Note: This user is defined in build.gradle, and assigned the role "manage_dlm". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_dlm", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
@@ -43,6 +47,7 @@ public class PermissionsIT extends ESRestTestCase {
     }
 
     protected Settings restUnprivilegedClientSettings() {
+        // Note: This user is defined in build.gradle, and assigned the role "not_privileged". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_non_privileged", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
@@ -50,14 +55,14 @@ public class PermissionsIT extends ESRestTestCase {
     @Before
     public void init() throws Exception {
         Request request = new Request("PUT", "/_cluster/settings");
-        XContentBuilder pollIntervalEntity = JsonXContent.contentBuilder();
-        pollIntervalEntity.startObject();
-        pollIntervalEntity.startObject("persistent");
-        pollIntervalEntity.field(DataLifecycleService.DLM_POLL_INTERVAL, "1s");
-        pollIntervalEntity.field(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
-        pollIntervalEntity.endObject();
-        pollIntervalEntity.endObject();
-        request.setJsonEntity(Strings.toString(pollIntervalEntity));
+        XContentBuilder clusterSettingsEntity = JsonXContent.contentBuilder();
+        clusterSettingsEntity.startObject();
+        clusterSettingsEntity.startObject("persistent");
+        clusterSettingsEntity.field(DataLifecycleService.DLM_POLL_INTERVAL, "1s");
+        clusterSettingsEntity.field(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1");
+        clusterSettingsEntity.endObject();
+        clusterSettingsEntity.endObject();
+        request.setJsonEntity(Strings.toString(clusterSettingsEntity));
         assertOK(adminClient().performRequest(request));
     }
 
@@ -68,14 +73,18 @@ public class PermissionsIT extends ESRestTestCase {
      * does not need to be the same user who created both the policy and the index to have the
      * index be properly managed by DLM.
      */
+    @SuppressWarnings("unchecked")
     public void testManageDLM() throws Exception {
-        String index = "dlm-00001";
-        createIndexAsAdmin(index);
-        assertBusy(() -> assertTrue(indexExists(index)));
+        String dataStreamName = "dlm-test"; // Needs to match the pattern of the names in roles.yml
+        createDataStreamAsAdmin(dataStreamName);
+        Response createDatastreamRepsonse = adminClient().performRequest(new Request("GET", "/_data_stream/" + dataStreamName));
+        final List<Map<String, Object>> nodes = ObjectPath.createFromResponse(createDatastreamRepsonse).evaluate("data_streams");
+        String index = (String) ((List<Map<String, Object>>) nodes.get(0).get("indices")).get(0).get("index_name");
+
         Request explainLifecycleRequest = new Request("POST", "/" + index + "/_lifecycle/explain");
-        Request getLifecycleRequest = new Request("GET", "_data_stream/" + index + "/_lifecycle");
-        Request deleteLifecycleRequest = new Request("DELETE", "_data_stream/" + index + "/_lifecycle");
-        Request putLifecycleRequest = new Request("PUT", "_data_stream/" + index + "/_lifecycle");
+        Request getLifecycleRequest = new Request("GET", "_data_stream/" + dataStreamName + "/_lifecycle");
+        Request deleteLifecycleRequest = new Request("DELETE", "_data_stream/" + dataStreamName + "/_lifecycle");
+        Request putLifecycleRequest = new Request("PUT", "_data_stream/" + dataStreamName + "/_lifecycle");
         putLifecycleRequest.setJsonEntity("{}");
 
         makeRequest(client(), explainLifecycleRequest, true);
@@ -101,8 +110,50 @@ public class PermissionsIT extends ESRestTestCase {
         }
     }
 
-    private void createIndexAsAdmin(String name) throws IOException {
-        Request request = new Request("PUT", "/" + name);
+    private void createDataStreamAsAdmin(String name) throws IOException {
+        String mappingsTemplateName = name + "_mappings";
+        Request mappingsRequest = new Request("PUT", "/_component_template/" + mappingsTemplateName);
+        mappingsRequest.setJsonEntity("""
+            {
+              "template": {
+                "mappings": {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date",
+                      "format": "date_optional_time||epoch_millis"
+                    },
+                    "message": {
+                      "type": "wildcard"
+                    }
+                  }
+                }
+              }
+            }""");
+        assertOK(adminClient().performRequest(mappingsRequest));
+
+        String settingsTemplateName = name + "_settings";
+        Request settingsRequest = new Request("PUT", "/_component_template/" + settingsTemplateName);
+        settingsRequest.setJsonEntity("""
+            {
+              "template": {
+                  "settings": {
+                    "number_of_shards": 1,
+                    "number_of_replicas": 0
+                  }
+              }
+            }""");
+        assertOK(adminClient().performRequest(settingsRequest));
+
+        Request indexTemplateRequest = new Request("PUT", "/_index_template/" + name + "_template");
+        indexTemplateRequest.setJsonEntity(Strings.format("""
+            {
+                "index_patterns": ["%s*"],
+                "data_stream": { },
+                "composed_of": [ "%s", "%s" ]
+            }""", name, mappingsTemplateName, settingsTemplateName));
+        assertOK(adminClient().performRequest(indexTemplateRequest));
+
+        Request request = new Request("PUT", "/_data_stream/" + name);
         assertOK(adminClient().performRequest(request));
     }
 

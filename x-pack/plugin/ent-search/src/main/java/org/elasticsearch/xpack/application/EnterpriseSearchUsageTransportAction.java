@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.application;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,12 +29,14 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 
+import java.util.Collections;
 import java.util.Map;
 
 public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private final Settings settings;
     private final XPackLicenseState licenseState;
-    private final NodeClient client;
+    private final Client client;
+
+    private final boolean enabled;
 
     @Inject
     public EnterpriseSearchUsageTransportAction(
@@ -45,7 +47,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         IndexNameExpressionResolver indexNameExpressionResolver,
         Settings settings,
         XPackLicenseState licenseState,
-        NodeClient client
+        Client client
     ) {
         super(
             XPackUsageFeatureAction.ENTERPRISE_SEARCH.name(),
@@ -55,9 +57,9 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
             actionFilters,
             indexNameExpressionResolver
         );
-        this.settings = settings;
         this.licenseState = licenseState;
         this.client = client;
+        this.enabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
     }
 
     @Override
@@ -67,6 +69,16 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
+        if (enabled == false) {
+            EnterpriseSearchFeatureSetUsage usage = new EnterpriseSearchFeatureSetUsage(
+                LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
+                enabled,
+                Collections.emptyMap()
+            );
+            listener.onResponse(new XPackUsageFeatureResponse(usage));
+            return;
+        }
+
         try {
             ListSearchApplicationAction.Response resp = client.execute(
                 ListSearchApplicationAction.INSTANCE,
@@ -75,7 +87,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
             listener.onResponse(
                 new XPackUsageFeatureResponse(
                     new EnterpriseSearchFeatureSetUsage(
-                        XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings),
+                        enabled,
                         LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
                         Map.of("count", resp.queryPage().count())
                     )

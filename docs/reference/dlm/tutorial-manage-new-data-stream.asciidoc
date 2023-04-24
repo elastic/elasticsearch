@@ -106,7 +106,7 @@ The result will look like this:
 be kept at least for 7 days. After that {es} can delete it at its own discretion.
 
 If you want to see more information about how the individual backing indices are managed by {dlm-init} use the
-following command:
+<<dlm-explain-lifecycle,explain data lifecycle>> API:
 
 [source,console]
 --------------------------------------------------

@@ -46,7 +46,7 @@ public class PermissionsIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    protected Settings restUnprivilegedClientSettings() {
+    private Settings restUnprivilegedClientSettings() {
         // Note: This user is defined in build.gradle, and assigned the role "not_privileged". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_non_privileged", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
@@ -100,6 +100,10 @@ public class PermissionsIT extends ESRestTestCase {
         }
     }
 
+    /*
+     * This makes the given request with the given client. It asserts a 200 response if expectSuccess is true, and asserts an exception
+     * with a 403 response if expectStatus is false.
+     */
     private void makeRequest(RestClient client, Request request, boolean expectSuccess) throws IOException {
         if (expectSuccess) {
             Response response = client.performRequest(request);

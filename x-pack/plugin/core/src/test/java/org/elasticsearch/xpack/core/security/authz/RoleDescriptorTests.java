@@ -928,7 +928,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 ? new RoleDescriptor.RemoteIndicesPrivileges[0]
                 : new RoleDescriptor.RemoteIndicesPrivileges[] {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build() },
-            booleans.get(7) ?  new String[0] : new String[] { "foo" }
+            booleans.get(7) ? new String[0] : new String[] { "foo" }
         );
 
         if (booleans.stream().anyMatch(e -> e.equals(false))) {
@@ -940,8 +940,18 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testHasPrivilegesOtherThanIndex() {
         assertThat(
-            new RoleDescriptor("name", null, randomBoolean() ? null : randomIndicesPrivileges(1, 5), null, null, null, null, null, null, null)
-                .hasPrivilegesOtherThanIndex(),
+            new RoleDescriptor(
+                "name",
+                null,
+                randomBoolean() ? null : randomIndicesPrivileges(1, 5),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            ).hasPrivilegesOtherThanIndex(),
             is(false)
         );
         final RoleDescriptor roleDescriptor = randomRoleDescriptor();

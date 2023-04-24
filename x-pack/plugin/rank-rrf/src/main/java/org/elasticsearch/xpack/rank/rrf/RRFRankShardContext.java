@@ -74,7 +74,7 @@ public class RRFRankShardContext extends RankShardContext {
             if (rrf1.score != rrf2.score) {
                 return rrf1.score < rrf2.score ? 1 : -1;
             }
-            return rrf1.doc < rrf2.doc ? 1 : -1;
+            return rrf1.doc < rrf2.doc ? -1 : 1;
         });
         // trim the results to window size
         RRFRankDoc[] topResults = new RRFRankDoc[Math.min(windowSize + from, sortedResults.length)];

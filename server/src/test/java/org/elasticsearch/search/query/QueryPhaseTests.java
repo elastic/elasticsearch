@@ -31,6 +31,7 @@ import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
@@ -1011,9 +1012,10 @@ public class QueryPhaseTests extends IndexShardTestCase {
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true
         ) {
-            public void search(Query query, Collector collector) throws IOException {
+            @Override
+            public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
                 executed.add(query);
-                super.search(query, collector);
+                return super.search(query, collectorManager);
             }
         };
 

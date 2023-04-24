@@ -43,7 +43,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 import javax.net.ssl.SSLEngine;
 
@@ -259,7 +258,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         assertNotNull(transport.configureServerChannelHandler());
     }
 
-    public void testValidationErrors() throws ExecutionException, InterruptedException {
+    public void testHttpHeaderAuthenticationErrors() throws Exception {
         final Settings settings = Settings.builder().put(env.settings()).build();
         final ThreadPool testThreadPool = new TestThreadPool(TEST_MOCK_TRANSPORT_THREAD_PREFIX);
         try (
@@ -289,10 +288,10 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                     ch.pipeline().remove(pipelineHandlerName);
                 }
             }
-            // this tests a request that cannot be validated, but somehow passed authentication
+            // this tests a request that cannot be authenticated, but somehow passed authentication
             // this is the case of an erroneous internal state
             var writeFuture = testThreadPool.generic().submit(() -> {
-                ch.writeInbound(new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, "/unvalidatable_request"));
+                ch.writeInbound(new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, "/unauthenticable_request"));
                 ch.flushInbound();
             });
             writeFuture.get();
@@ -300,12 +299,15 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Netty4HttpResponse response = ch.readOutbound();
             assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
             String responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
-            assertThat(responseContentString, containsString("\"type\":\"security_exception\",\"reason\":\"Request is not validated\""));
-            // this tests a request that CAN be validated, but that, somehow, has not been
+            assertThat(
+                responseContentString,
+                containsString("\"type\":\"security_exception\",\"reason\":\"Request is not authenticated\"")
+            );
+            // this tests a request that CAN be authenticated, but that, somehow, has not been
             writeFuture = testThreadPool.generic().submit(() -> {
                 ch.writeInbound(
                     HttpHeadersAuthenticatorUtils.wrapAsMessageWithAuthenticationContext(
-                        new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/unvalidated_request")
+                        new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/_request")
                     )
                 );
                 ch.writeInbound(new DefaultLastHttpContent());
@@ -316,18 +318,21 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             response = ch.readOutbound();
             assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
             responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
-            assertThat(responseContentString, containsString("\"type\":\"security_exception\",\"reason\":\"Request is not validated\""));
-            // this tests the case where validation passed and the request is to be dispatched, BUT that the validation context
+            assertThat(
+                responseContentString,
+                containsString("\"type\":\"security_exception\",\"reason\":\"Request is not authenticated\"")
+            );
+            // this tests the case where authentication passed and the request is to be dispatched, BUT that the authentication context
             // cannot be instated before dispatching the request
             writeFuture = testThreadPool.generic().submit(() -> {
-                HttpMessage validatableHttpRequest = HttpHeadersAuthenticatorUtils.wrapAsMessageWithAuthenticationContext(
-                    new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/unvalidated_request")
+                HttpMessage authenticableMessage = HttpHeadersAuthenticatorUtils.wrapAsMessageWithAuthenticationContext(
+                    new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/unauthenticated_request")
                 );
-                ((HttpHeadersAuthenticatorUtils.HttpHeadersWithAuthenticationContext) validatableHttpRequest.headers())
+                ((HttpHeadersAuthenticatorUtils.HttpHeadersWithAuthenticationContext) authenticableMessage.headers())
                     .setAuthenticationContext(() -> {
                         throw new ElasticsearchException("Boom");
                     });
-                ch.writeInbound(validatableHttpRequest);
+                ch.writeInbound(authenticableMessage);
                 ch.writeInbound(new DefaultLastHttpContent());
                 ch.flushInbound();
             });

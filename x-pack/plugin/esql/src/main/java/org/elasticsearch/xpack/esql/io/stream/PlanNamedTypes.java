@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
@@ -204,6 +205,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, DateFormat.class, PlanNamedTypes::writeDateFormat, PlanNamedTypes::readDateFormat),
             of(ScalarFunction.class, DateTrunc.class, PlanNamedTypes::writeDateTrunc, PlanNamedTypes::readDateTrunc),
             of(ScalarFunction.class, Round.class, PlanNamedTypes::writeRound, PlanNamedTypes::readRound),
+            of(ScalarFunction.class, Pow.class, PlanNamedTypes::writePow, PlanNamedTypes::readPow),
             of(ScalarFunction.class, StartsWith.class, PlanNamedTypes::writeStartsWith, PlanNamedTypes::readStartsWith),
             of(ScalarFunction.class, Substring.class, PlanNamedTypes::writeSubstring, PlanNamedTypes::readSubstring),
             of(ScalarFunction.class, CIDRMatch.class, PlanNamedTypes::writeCIDRMatch, PlanNamedTypes::readCIDRMatch),
@@ -720,6 +722,15 @@ public final class PlanNamedTypes {
     static void writeRound(PlanStreamOutput out, Round round) throws IOException {
         out.writeExpression(round.field());
         out.writeOptionalExpression(round.decimals());
+    }
+
+    static Pow readPow(PlanStreamInput in) throws IOException {
+        return new Pow(Source.EMPTY, in.readExpression(), in.readExpression());
+    }
+
+    static void writePow(PlanStreamOutput out, Pow pow) throws IOException {
+        out.writeExpression(pow.base());
+        out.writeExpression(pow.exponent());
     }
 
     static StartsWith readStartsWith(PlanStreamInput in) throws IOException {

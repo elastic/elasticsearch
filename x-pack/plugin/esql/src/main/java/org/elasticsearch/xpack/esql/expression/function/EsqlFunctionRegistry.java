@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
@@ -64,7 +65,8 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(IsFinite.class, IsFinite::new, "is_finite"),
                 def(IsInfinite.class, IsInfinite::new, "is_infinite"),
                 def(IsNaN.class, IsNaN::new, "is_nan"),
-                def(Round.class, Round::new, "round") },
+                def(Round.class, Round::new, "round"),
+                def(Pow.class, Pow::new, "pow") },
             // string
             new FunctionDefinition[] {
                 def(Length.class, Length::new, "length"),

@@ -97,6 +97,26 @@ s:double
 25976.0
 ;
 
+powHeightSquared
+from employees | sort height asc | limit 20 | eval s = round(pow(height, 2) - 2, 2) | project height, s | sort s desc | limit 4;
+
+height:double | s:double
+1.55          | 0.40
+1.54          | 0.37
+1.53          | 0.34
+1.53          | 0.34
+;
+
+powSalarySquared
+from employees | eval s = pow(salary - 75000, 2) + 10000 | project salary, s | sort salary desc | limit 4;
+
+salary:integer | s:integer
+74999          | 10001
+74970          | 10900
+74572          | 193184
+73851          | 1330201
+;
+
 isFiniteFalse
 row d = 1.0 | eval s = is_finite(d/0);
 
@@ -130,6 +150,41 @@ row d = 1.0 | eval s = is_nan(d);
 
 d:double | s:boolean
 1.0      | false
+;
+
+powDoubleDouble
+row base = 2.0, exponent = 2.0 | eval s = pow(base, exponent);
+
+base:double | exponent:double | s:double
+2.0         | 2.0             | 4.0
+;
+
+powDoubleInt
+row base = 2.0, exponent = 2 | eval s = pow(base, exponent);
+
+base:double | exponent:integer | s:double
+2.0         | 2                | 4.0
+;
+
+powIntInt
+row base = 2, exponent = 2 | eval s = pow(base, exponent);
+
+base:integer | exponent:integer | s:integer
+2            | 2                | 4
+;
+
+powIntIntPlusInt
+row s = 1 + pow(2, 2);
+
+s:integer
+5
+;
+
+powIntIntPlusDouble
+row s = 1.0 + pow(2, 2);
+
+s:double
+5
 ;
 
 mvMax

@@ -2,7 +2,6 @@ apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.authenticated-testclusters'
 
 dependencies {
-//  javaRestTestImplementation(testArtifact(project('../../dlm')))
   javaRestTestImplementation project(":modules:dlm")
   javaRestTestImplementation project(":client:rest-high-level")
 }

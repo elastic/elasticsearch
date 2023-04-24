@@ -1,8 +1,9 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.dlm;
@@ -10,6 +11,7 @@ package org.elasticsearch.dlm;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.Strings;
@@ -80,9 +82,9 @@ public class PermissionsIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
         response = client().performRequest(new Request("DELETE", "_data_stream/" + index + "/_lifecycle"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-        Request deleteRequest = new Request("PUT", "_data_stream/" + index + "/_lifecycle");
-        deleteRequest.setJsonEntity("{}");
-        response = client().performRequest(deleteRequest);
+        Request putRequest = new Request("PUT", "_data_stream/" + index + "/_lifecycle");
+        putRequest.setJsonEntity("{}");
+        response = client().performRequest(putRequest);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
         try (
             RestClient nonDlmManagerClient = buildClient(
@@ -94,10 +96,13 @@ public class PermissionsIT extends ESRestTestCase {
             assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
             response = nonDlmManagerClient.performRequest(new Request("GET", "_data_stream/" + index + "/_lifecycle"));
             assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-            response = nonDlmManagerClient.performRequest(new Request("DELETE", "_data_stream/" + index + "/_lifecycle"));
-            assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
-            response = nonDlmManagerClient.performRequest(deleteRequest);
-            assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
+            ResponseException exception = expectThrows(
+                ResponseException.class,
+                () -> nonDlmManagerClient.performRequest(new Request("DELETE", "_data_stream/" + index + "/_lifecycle"))
+            );
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.FORBIDDEN.getStatus()));
+            exception = expectThrows(ResponseException.class, () -> nonDlmManagerClient.performRequest(putRequest));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.FORBIDDEN.getStatus()));
         }
     }
 

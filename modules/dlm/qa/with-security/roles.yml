@@ -2,9 +2,6 @@ manage_dlm:
   cluster:
     - monitor
   indices:
-    - names: [ 'view-only-*' ]
-      privileges:
-        - view_index_metadata
     - names: [ 'dlm-*' ]
       privileges:
         - monitor
@@ -16,12 +13,6 @@ not_manage_dlm:
   cluster:
     - monitor
   indices:
-    - names: [ 'view-only-*' ]
-      privileges:
-        - view_index_metadata
     - names: [ 'dlm-*' ]
       privileges:
-        - monitor
-        - manage
-        - read
-        - write
+        - view_index_metadata

@@ -10,18 +10,27 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.util.BytesRef;
 
-// Allows keeping track of the old map of a LiveVersionMap that gets evacuated on a refresh
+/**
+ * Keeps track of the old map of a LiveVersionMap that gets evacuated on a refresh
+ */
 public interface LiveVersionMapArchiver {
     /**
+     * Archive the old map evacuated due to a refresh
+     *
      * @param old is the old map that is evacuated on a refresh
      */
     void afterRefresh(LiveVersionMap.VersionLookup old);
 
     /**
+     * Trigger a cleanup of the archive based on the given generation
+     *
      * @param generation the generation of the commit caused by the flush
      */
     void afterFlush(long generation);
 
+    /**
+     * Look up the given uid in the archive
+     */
     VersionValue get(BytesRef uid);
 
     LiveVersionMapArchiver NOOP_ARCHIVER = new LiveVersionMapArchiver() {

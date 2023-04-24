@@ -62,6 +62,12 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // the tombstone
         private final AtomicLong minDeleteTimestamp = new AtomicLong(Long.MAX_VALUE);
 
+        public static VersionLookup merge(VersionLookup v1, VersionLookup v2) {
+            var newMap = v1.map;
+            newMap.putAll(v2.map);
+            return new VersionLookup(newMap);
+        }
+
         private VersionLookup(Map<BytesRef, VersionValue> map) {
             this.map = map;
         }

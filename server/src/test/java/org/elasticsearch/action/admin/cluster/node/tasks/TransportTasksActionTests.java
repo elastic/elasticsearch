@@ -295,7 +295,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
         // Make sure no tasks are running
         for (TestNode node : testNodes) {
-            assertEquals(0, node.transportService.getTaskManager().getTasks().size());
+            try {
+                assertBusy(() -> assertEquals(0, node.transportService.getTaskManager().getTasks().size()));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
         Task task = testNodes[0].transportService.getTaskManager()
             .registerAndExecute("transport", actions[0], request, testNodes[0].transportService.getLocalNodeConnection(), listener);
@@ -305,7 +309,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         return task;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95425")
     public void testRunningTasksCount() throws Exception {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
@@ -408,7 +411,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Make sure that we don't have any lingering tasks
         for (TestNode node : testNodes) {
-            assertEquals(0, node.transportService.getTaskManager().getTasks().size());
+            assertBusy(() -> assertEquals(0, node.transportService.getTaskManager().getTasks().size()));
         }
     }
 

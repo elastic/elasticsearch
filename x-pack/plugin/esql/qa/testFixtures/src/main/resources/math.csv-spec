@@ -173,7 +173,7 @@ base:integer | exponent:integer | s:integer
 powIntIntPlusDouble
 row base = 2, exponent = 2 | eval s = 1.0 + pow(base, exponent);
 
-base:integer | exponent:integer | s:integer
+base:integer | exponent:integer | s:double
 2            | 2                | 5.0
 ;
 

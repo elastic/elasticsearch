@@ -69,13 +69,12 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         this.reverseMuls = reverseMuls;
         this.missingOrders = missingOrders;
         this.earlyTerminated = earlyTerminated;
-        validateAfterKey();
     }
 
     /**
      * Checks that the afterKey formatting does not result in loss of information
      *
-     * Only called when a new InternalComposite() is built directly.  We can't validate afterKeys from
+     * Only called when a new InternalComposite() is built after a reduce.  We can't validate afterKeys from
      * InternalComposites built from a StreamInput because they may be coming from nodes that do not
      * do validation, and errors thrown during StreamInput deserialization can kill a node.  However,
      * InternalComposites that come from remote nodes will always be reduced on the co-ordinator, and
@@ -261,7 +260,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             lastKey = lastBucket.getRawKey();
         }
         reduceContext.consumeBucketsAndMaybeBreak(result.size());
-        return new InternalComposite(
+        InternalComposite reduced = new InternalComposite(
             name,
             size,
             sourceNames,
@@ -273,6 +272,8 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             earlyTerminated,
             metadata
         );
+        reduced.validateAfterKey();
+        return reduced;
     }
 
     @Override

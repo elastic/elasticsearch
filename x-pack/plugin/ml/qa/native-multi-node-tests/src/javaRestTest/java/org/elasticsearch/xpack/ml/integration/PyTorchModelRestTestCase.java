@@ -212,21 +212,21 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     }
 
     protected Response startDeployment(String modelId) throws IOException {
-        return startDeployment(modelId, AllocationStatus.State.STARTED.toString());
+        return startDeployment(modelId, AllocationStatus.State.STARTED);
     }
 
     protected Response startWithDeploymentId(String modelId, String deploymentId) throws IOException {
-        return startDeployment(modelId, deploymentId, AllocationStatus.State.STARTED.toString(), 1, 1, Priority.NORMAL);
+        return startDeployment(modelId, deploymentId, AllocationStatus.State.STARTED, 1, 1, Priority.NORMAL);
     }
 
-    protected Response startDeployment(String modelId, String waitForState) throws IOException {
+    protected Response startDeployment(String modelId, AllocationStatus.State waitForState) throws IOException {
         return startDeployment(modelId, null, waitForState, 1, 1, Priority.NORMAL);
     }
 
     protected Response startDeployment(
         String modelId,
         String deploymentId,
-        String waitForState,
+        AllocationStatus.State waitForState,
         int numberOfAllocations,
         int threadsPerAllocation,
         Priority priority

@@ -720,12 +720,12 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 .boundRemoteIngressAddress()
                 .publishAddress();
             final int numberOfRemoteClusters = randomIntBetween(0, 5);
-            final int numberOfConfigurables = randomIntBetween(0, Math.min(2, numberOfRemoteClusters));
-            final int numberOfBasics = numberOfRemoteClusters - numberOfConfigurables;
+            final int numberOfApiKeySecured = randomIntBetween(0, Math.min(2, numberOfRemoteClusters));
+            final int numberOfCertSecured = numberOfRemoteClusters - numberOfApiKeySecured;
             final List<Boolean> useProxyModes = randomList(numberOfRemoteClusters, numberOfRemoteClusters, ESTestCase::randomBoolean);
 
             // Remote clusters with new configurable model
-            switch (numberOfConfigurables) {
+            switch (numberOfApiKeySecured) {
                 case 0 -> {
                 }
                 case 1 -> setupClusterSettings(CLUSTER_A, remoteClusterServerPortAddress, useProxyModes.get(0));
@@ -733,12 +733,12 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     setupClusterSettings(CLUSTER_A, remoteClusterServerPortAddress, useProxyModes.get(0));
                     setupClusterSettings(CLUSTER_B, remoteClusterServerPortAddress, useProxyModes.get(1));
                 }
-                default -> throw new IllegalArgumentException("invalid number of configurable remote clusters");
+                default -> throw new IllegalArgumentException("invalid number of api_key secured remote clusters");
             }
 
             // Remote clusters with basic model
-            for (int i = 0; i < numberOfBasics; i++) {
-                setupClusterSettings("basic_cluster_" + i, transportPortAddress, useProxyModes.get(i + numberOfConfigurables));
+            for (int i = 0; i < numberOfCertSecured; i++) {
+                setupClusterSettings("basic_cluster_" + i, transportPortAddress, useProxyModes.get(i + numberOfApiKeySecured));
             }
 
             final Request xPackUsageRequest = new Request("GET", "/_xpack/usage");
@@ -750,8 +750,8 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
             final int numberOfProxyModes = (int) useProxyModes.stream().filter(e -> e).count();
             assertThat(path.evaluate("remote_clusters.mode.proxy"), equalTo(numberOfProxyModes));
             assertThat(path.evaluate("remote_clusters.mode.sniff"), equalTo(numberOfRemoteClusters - numberOfProxyModes));
-            assertThat(path.evaluate("remote_clusters.security.basic"), equalTo(numberOfBasics));
-            assertThat(path.evaluate("remote_clusters.security.configurable"), equalTo(numberOfConfigurables));
+            assertThat(path.evaluate("remote_clusters.security.cert"), equalTo(numberOfCertSecured));
+            assertThat(path.evaluate("remote_clusters.security.api_key"), equalTo(numberOfApiKeySecured));
 
             assertThat(path.evaluate("security.remote_cluster_server.available"), is(true));
             assertThat(path.evaluate("security.remote_cluster_server.enabled"), is(false));

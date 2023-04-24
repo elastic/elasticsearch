@@ -305,6 +305,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         return task;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95425")
     public void testRunningTasksCount() throws Exception {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);

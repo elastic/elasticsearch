@@ -447,6 +447,7 @@ public class CompositeRolesStore {
         final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
 
         final Map<Set<String>, Set<IndicesPrivileges>> remoteIndicesPrivilegesByCluster = new HashMap<>();
+        final Set<String> workflowPrivileges = new HashSet<>();
 
         // Keyed by application + resource
         final Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
@@ -470,6 +471,9 @@ public class CompositeRolesStore {
             if (descriptor.hasRemoteIndicesPrivileges()) {
                 groupIndexPrivilegesByCluster(descriptor.getRemoteIndicesPrivileges(), remoteIndicesPrivilegesByCluster);
             }
+            if (descriptor.hasWorkflowPrivileges()) {
+                workflowPrivileges.addAll(List.of(descriptor.getWorkflowPrivileges()));
+            }
 
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
                 Tuple<String, Set<String>> key = new Tuple<>(appPrivilege.getApplication(), newHashSet(appPrivilege.getResources()));
@@ -487,7 +491,8 @@ public class CompositeRolesStore {
         final Privilege runAsPrivilege = runAs.isEmpty() ? Privilege.NONE : new Privilege(runAs, runAs.toArray(Strings.EMPTY_ARRAY));
         final Role.Builder builder = Role.builder(restrictedIndices, roleNames.toArray(Strings.EMPTY_ARRAY))
             .cluster(clusterPrivileges, configurableClusterPrivileges)
-            .runAs(runAsPrivilege);
+            .runAs(runAsPrivilege)
+            .workflows(workflowPrivileges);
         indicesPrivilegesMap.forEach(
             (key, privilege) -> builder.add(
                 fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),

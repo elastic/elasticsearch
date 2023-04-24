@@ -421,9 +421,8 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
-        // transform is red with two issues
-        String noSuchIndexIssue = Strings.format("org.elasticsearch.index.IndexNotFoundException: no such index [%s]", destIndexName);
-        assertBusy(() -> assertRed(transformId, authIssue, noSuchIndexIssue), 10, TimeUnit.SECONDS);
+        // transform is red with one issue
+        assertBusy(() -> assertRed(transformId, authIssue), 10, TimeUnit.SECONDS);
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());
@@ -464,8 +463,8 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
-        // transform's auth state status is still RED, but the health status is GREEN (because dest index exists)
-        assertRed(transformId, authIssue);
+        // transform is red with one issue
+        assertBusy(() -> assertRed(transformId, authIssue), 10, TimeUnit.SECONDS);
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());

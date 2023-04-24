@@ -69,7 +69,6 @@ import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtil
 
 public class TransportPreviewTransformAction extends HandledTransportAction<Request, Response> {
 
-    private static final int NUMBER_OF_PREVIEW_BUCKETS = 100;
     private final SecurityContext securityContext;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
@@ -279,15 +278,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
             mappings.set(deducedMappings);
-            function.preview(
-                parentTaskAssigningClient,
-                timeout,
-                filteredHeaders,
-                source,
-                deducedMappings,
-                NUMBER_OF_PREVIEW_BUCKETS,
-                previewListener
-            );
+            function.preview(parentTaskAssigningClient, timeout, filteredHeaders, source, deducedMappings, previewListener);
         }, listener::onFailure);
 
         function.deduceMappings(parentTaskAssigningClient, filteredHeaders, source, deduceMappingsListener);

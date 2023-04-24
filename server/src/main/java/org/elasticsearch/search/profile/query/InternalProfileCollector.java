@@ -47,15 +47,15 @@ public class InternalProfileCollector implements Collector {
      */
     private final InternalProfileCollector[] children;
 
-    public InternalProfileCollector(Collector collector, String reason, InternalProfileCollector... children) {
+    public InternalProfileCollector(Collector collector, String reason, Collector... children) {
         this.collector = new ProfileCollector(collector);
         this.reason = reason;
         this.collectorName = deriveCollectorName(collector);
         Objects.requireNonNull(children, "children collectors cannot be null");
-        for (InternalProfileCollector child : children) {
-            Objects.requireNonNull(child, "child collector cannot be null");
+        this.children = new InternalProfileCollector[children.length];
+        for (int i = 0; i < children.length; i++) {
+            this.children[i] = (InternalProfileCollector) Objects.requireNonNull(children[i], "child collector cannot be null");
         }
-        this.children = children;
     }
 
     /**

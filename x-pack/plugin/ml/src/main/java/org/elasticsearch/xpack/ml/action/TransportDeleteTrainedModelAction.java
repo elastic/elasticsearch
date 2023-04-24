@@ -134,7 +134,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             }
         }
 
-        if (TrainedModelAssignmentMetadata.fromState(state).isAssigned(request.getId())) {
+        if (TrainedModelAssignmentMetadata.fromState(state).modelIsDeployed(request.getId())) {
             if (request.isForce()) {
                 forceStopDeployment(
                     request.getId(),

@@ -4,12 +4,12 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import java.lang.Integer;
+import java.lang.Double;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -18,18 +18,18 @@ import org.elasticsearch.xpack.ql.expression.Expression;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Pow}.
  * This class is generated. Do not edit it.
  */
-public final class PowIntIntEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator base;
 
   private final EvalOperator.ExpressionEvaluator exponent;
 
-  public PowIntIntEvaluator(EvalOperator.ExpressionEvaluator base,
+  public PowDoubleEvaluator(EvalOperator.ExpressionEvaluator base,
       EvalOperator.ExpressionEvaluator exponent) {
     this.base = base;
     this.exponent = exponent;
   }
 
-  static Integer fold(Expression base, Expression exponent) {
+  static Double fold(Expression base, Expression exponent) {
     Object baseVal = base.fold();
     if (baseVal == null) {
       return null;
@@ -38,7 +38,7 @@ public final class PowIntIntEvaluator implements EvalOperator.ExpressionEvaluato
     if (exponentVal == null) {
       return null;
     }
-    return Pow.process(((Number) baseVal).intValue(), ((Number) exponentVal).intValue());
+    return Pow.process(((Number) baseVal).doubleValue(), ((Number) exponentVal).doubleValue());
   }
 
   @Override
@@ -47,25 +47,25 @@ public final class PowIntIntEvaluator implements EvalOperator.ExpressionEvaluato
     if (baseUncastBlock.areAllValuesNull()) {
       return Block.constantNullBlock(page.getPositionCount());
     }
-    IntBlock baseBlock = (IntBlock) baseUncastBlock;
+    DoubleBlock baseBlock = (DoubleBlock) baseUncastBlock;
     Block exponentUncastBlock = exponent.eval(page);
     if (exponentUncastBlock.areAllValuesNull()) {
       return Block.constantNullBlock(page.getPositionCount());
     }
-    IntBlock exponentBlock = (IntBlock) exponentUncastBlock;
-    IntVector baseVector = baseBlock.asVector();
+    DoubleBlock exponentBlock = (DoubleBlock) exponentUncastBlock;
+    DoubleVector baseVector = baseBlock.asVector();
     if (baseVector == null) {
       return eval(page.getPositionCount(), baseBlock, exponentBlock);
     }
-    IntVector exponentVector = exponentBlock.asVector();
+    DoubleVector exponentVector = exponentBlock.asVector();
     if (exponentVector == null) {
       return eval(page.getPositionCount(), baseBlock, exponentBlock);
     }
     return eval(page.getPositionCount(), baseVector, exponentVector).asBlock();
   }
 
-  public IntBlock eval(int positionCount, IntBlock baseBlock, IntBlock exponentBlock) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
+  public DoubleBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock exponentBlock) {
+    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
       if (baseBlock.isNull(p) || baseBlock.getValueCount(p) != 1) {
         result.appendNull();
@@ -75,21 +75,22 @@ public final class PowIntIntEvaluator implements EvalOperator.ExpressionEvaluato
         result.appendNull();
         continue position;
       }
-      result.appendInt(Pow.process(baseBlock.getInt(baseBlock.getFirstValueIndex(p)), exponentBlock.getInt(exponentBlock.getFirstValueIndex(p))));
+      result.appendDouble(Pow.process(baseBlock.getDouble(baseBlock.getFirstValueIndex(p)), exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p))));
     }
     return result.build();
   }
 
-  public IntVector eval(int positionCount, IntVector baseVector, IntVector exponentVector) {
-    IntVector.Builder result = IntVector.newVectorBuilder(positionCount);
+  public DoubleVector eval(int positionCount, DoubleVector baseVector,
+      DoubleVector exponentVector) {
+    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
-      result.appendInt(Pow.process(baseVector.getInt(p), exponentVector.getInt(p)));
+      result.appendDouble(Pow.process(baseVector.getDouble(p), exponentVector.getDouble(p)));
     }
     return result.build();
   }
 
   @Override
   public String toString() {
-    return "PowIntIntEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
+    return "PowDoubleEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
   }
 }

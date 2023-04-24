@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Map;
 import java.util.Set;
@@ -70,6 +71,8 @@ public class NodeSeenService implements ClusterStateListener {
             .filter(nodeId -> event.state().nodes().nodeExists(nodeId))
             .collect(Collectors.toUnmodifiableSet());
 
+        long now = this.clusterService.threadPool().absoluteTimeInMillis();
+
         if (nodesNotPreviouslySeen.isEmpty() == false) {
             submitUnbatchedTask("shutdown-seen-nodes-updater", new ClusterStateUpdateTask() {
                 @Override
@@ -86,6 +89,7 @@ public class NodeSeenService implements ClusterStateListener {
                             }
                             return singleNodeShutdownMetadata;
                         })
+                        .filter(s -> keepShutdownMetadata(s, now, currentState))
                         .collect(Collectors.toUnmodifiableMap(SingleNodeShutdownMetadata::getNodeId, Function.identity()));
 
                     final NodesShutdownMetadata newNodesMetadata = new NodesShutdownMetadata(newShutdownMetadataMap);
@@ -110,5 +114,28 @@ public class NodeSeenService implements ClusterStateListener {
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
+    }
+
+    /**
+     * The {@link SingleNodeShutdownMetadata} should be kept if an external node is responsible for the shutdown, or the target node still
+     * exists, or the shutdown has been running for less time than the grace period (plus safety factor).
+     */
+    private boolean keepShutdownMetadata(SingleNodeShutdownMetadata shutdown, long nowMillis, ClusterState state) {
+        TimeValue grace = shutdown.getGracefulShutdown();
+        if (grace == null) {
+            return true;
+        }
+        if (state.nodes().nodeExists(shutdown.getNodeId())) {
+            return true;
+        }
+        long timeRunning = nowMillis - shutdown.getStartedAtMillis();
+        if (timeRunning < 0) {
+            if (timeRunning < -1 * 60_000) {
+                return false; // clock skew too big
+            }
+            timeRunning = 0;
+        }
+        long cleanupGrace = grace.millis() + (grace.millis() / 10);
+        return cleanupGrace > timeRunning;
     }
 }

@@ -909,7 +909,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         } else {
             timestamp = getTimestampFromParser(request.source(), request.getContentType());
         }
-        timestamp = timestamp.truncatedTo(ChronoUnit.SECONDS);
+        timestamp = getCanonicalTimestampBound(timestamp);
         Index result = selectTimeSeriesWriteIndex(timestamp, metadata);
         if (result == null) {
             String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
@@ -1053,5 +1053,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         public int hashCode() {
             return Objects.hash(name);
         }
+    }
+
+    public static Instant getCanonicalTimestampBound(Instant i) {
+        return i.truncatedTo(ChronoUnit.SECONDS);
     }
 }

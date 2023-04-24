@@ -133,6 +133,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95501")
     public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
 

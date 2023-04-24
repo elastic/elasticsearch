@@ -476,6 +476,7 @@ public class RRFRankIT extends ESIntegTestCase {
             .addFetchField("text")
             .setSize(19)
             .addAggregation(AggregationBuilders.terms("sums").field("int"))
+            .setStats("search")
             .get();
 
         assertEquals(51, response.getHits().getTotalHits().value);

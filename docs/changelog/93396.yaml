@@ -4,16 +4,16 @@ area: Ranking
 type: feature
 issues: []
 highlight:
-  title: Add support for Reciprocal Rank Fusion to the search API
+  title: Add support for Reciprocal Rank Fusion (RRF) to the search API
   body: |-
-    This change at a high level adds global re-ranking on the coordinating
+    This change at a high level adds global ranking on the coordinating
     node at the end of query reduction prior to the fetch phase. The
-    singular re-ranking model added in this change is reciprocal rank fusion
+    singular ranking model added in this change is reciprocal rank fusion
     (RRF) which follows the basic formula for merging `1...n` sets of
-    results sets together with `sum(1/(k+d))` where k is a ranking constant
-    and d is a document's scored position within a result set from a query.
+    results sets together with `sum(1/(k+d))` where `k` is a ranking constant
+    and `d` is a document's scored position within a result set from a query.
 
-    The API for this change adds a `rerank` top-level element to the search
+    The API for this change adds a `rank` top-level element to the search
     endpoint. An example:
 
     [source,Java]
@@ -41,11 +41,8 @@ highlight:
     }
     ----
 
-    The above example will execute two separate queries for the match query
-    and the kNN query. It will preserve separate result sets up the point
-    where the queries are re-ranked using RRF.
-
-    Currently the API does not support multiple BM25 queries, but there is a
-    natural extension point using a similar pattern to multiple kNN queries.
+    The above example will execute the search query and the knn search separately for
+    It will preserve separate result sets up to the point where the queries are
+    ranked on the coordinating node using RRF.
 
   notable: true

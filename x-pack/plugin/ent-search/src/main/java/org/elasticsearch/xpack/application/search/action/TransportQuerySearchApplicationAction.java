@@ -37,7 +37,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class TransportQuerySearchApplicationAction extends SearchApplicationTransportAction<
-    QuerySearchApplicationAction.Request,
+    SearchApplicationSearchRequest,
     SearchResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportQuerySearchApplicationAction.class);
@@ -63,7 +63,7 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
             QuerySearchApplicationAction.NAME,
             transportService,
             actionFilters,
-            QuerySearchApplicationAction.Request::new,
+            SearchApplicationSearchRequest::new,
             client,
             clusterService,
             namedWriteableRegistry,
@@ -76,7 +76,7 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
     }
 
     @Override
-    protected void doExecute(QuerySearchApplicationAction.Request request, ActionListener<SearchResponse> listener) {
+    protected void doExecute(SearchApplicationSearchRequest request, ActionListener<SearchResponse> listener) {
         systemIndexService.getSearchApplication(request.name(), listener.delegateFailure((l, searchApplication) -> {
             final Script script = searchApplication.searchApplicationTemplate().script();
 
@@ -95,7 +95,7 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
         }));
     }
 
-    private static Map<String, Object> mergeTemplateParams(QuerySearchApplicationAction.Request request, Script script) {
+    private static Map<String, Object> mergeTemplateParams(SearchApplicationSearchRequest request, Script script) {
         Map<String, Object> mergedTemplateParams = new HashMap<>(script.getParams());
         mergedTemplateParams.putAll(request.queryParams());
 

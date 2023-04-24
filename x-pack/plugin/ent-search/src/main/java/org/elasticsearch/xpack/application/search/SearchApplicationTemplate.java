@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction;
-import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction.Request;
 
 import java.io.IOException;
 import java.util.Map;
@@ -28,7 +27,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 /**
  * Search template included in a {@link SearchApplication}. It will be used for searching using the
- * {@link QuerySearchApplicationAction}, overriding the parameters included on it via {@link Request}
+ * {@link QuerySearchApplicationAction}, overriding the parameters included on it via
+ * {@link org.elasticsearch.xpack.application.search.action.SearchApplicationSearchRequest}
  */
 public class SearchApplicationTemplate implements ToXContentObject, Writeable {
 

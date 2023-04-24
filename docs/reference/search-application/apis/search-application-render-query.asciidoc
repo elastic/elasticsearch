@@ -1,0 +1,84 @@
+[role="xpack"]
+[[search-application-render-query]]
+=== Render Search Application Query
+
+preview::[]
+
+++++
+<titleabbrev>Render Search Application Query</titleabbrev>
+++++
+
+Given merged template metadata provided by the <<search-application-render-metadata,render metadata>> call, creates an Elasticsearch query to run.
+
+[[search-application-render-query-request]]
+==== {api-request-title}
+
+`POST _application/search_application/<name>/_render_query`
+
+[[search-application-render-query-prereqs]]
+==== {api-prereq-title}
+
+Requires the `manage_search_application` cluster privilege.
+
+[[search-application-render-query-request-body]]
+==== {api-request-body-title}
+
+`params`::
+(Optional, map of strings to objects)
+Query parameters specific to this request, which will override any defaults specified in the template.
+
+[[search-application-render-query-response-codes]]
+==== {api-response-codes-title}
+
+`404`::
+Search Application `<name>` does not exist.
+
+[[search-application-render-query-example]]
+==== {api-examples-title}
+
+The following example renders a query for a Search Application called `my-app`:
+
+[source,console]
+----
+POST _application/search_application/my-app/_render_query
+{
+  "params": {
+    "value": "my first query",
+    "size": 10,
+    "from": 0,
+    "text_fields": [
+        {
+            "name": "title",
+            "boost": 10
+        },
+        {
+            "name": "text",
+            "boost": 1
+        }
+    ]
+  }
+}
+----
+// TEST[skip:TBD]
+
+A sample response:
+
+[source,console-result]
+----
+{
+    "size": 10,
+    "from": 0,
+    "query": {
+        "multi_match": {
+            "query": "my first query",
+            "fields": [
+                "title^10",
+                "text^1"
+            ]
+        }
+    }
+}
+
+----
+
+

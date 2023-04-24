@@ -468,47 +468,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    // TODO: Remove This method once we stop uploading the old segments file style
-    private static void assertThatObjectStoreIsConsistentWithLastCommitOld(final IndexShard indexShard) {
-        final Store store = indexShard.store();
-        store.incRef();
-        try {
-            var blobContainer = internalCluster().getDataNodeInstance(ObjectStoreService.class)
-                .getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
-
-            final SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
-
-            // can take some time for files to be uploaded to the object store
-            assertBusy(() -> {
-                var localFiles = segmentInfos.files(false);
-                var remoteFiles = blobContainer.listBlobs().keySet();
-                assertThat(
-                    "Expected that all local files " + localFiles + " exist in remote " + remoteFiles,
-                    remoteFiles,
-                    hasItems(localFiles.toArray(String[]::new))
-                );
-                for (String file : segmentInfos.files(false)) {
-                    assertThat("" + file, blobContainer.blobExists(file), is(true));
-                    try (
-                        IndexInput input = store.directory().openInput(file, IOContext.READONCE);
-                        InputStream local = new InputStreamIndexInput(input, input.length());
-                        InputStream remote = blobContainer.readBlob(file)
-                    ) {
-                        assertEquals("File [" + file + "] in object store has a different content than local file ", local, remote);
-                    }
-                }
-            });
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        } finally {
-            store.decRef();
-        }
-    }
-
     private static void assertThatObjectStoreIsConsistentWithLastCommit(final IndexShard indexShard) {
-        // TODO: Remove This call once we stop uploading the old segments file style
-        assertThatObjectStoreIsConsistentWithLastCommitOld(indexShard);
-
         final Store store = indexShard.store();
         store.incRef();
         try {
@@ -524,7 +484,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                 StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
                     new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile))
                 );
-                var localFiles = segmentInfos.files(true);
+                var localFiles = segmentInfos.files(false);
                 var expectedBlobFile = localFiles.stream().map(s -> commit.commitFiles().get(s).blobName()).collect(Collectors.toSet());
                 var remoteFiles = blobContainerForCommit.listBlobs().keySet();
                 assertThat(
@@ -532,7 +492,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                     remoteFiles,
                     hasItems(expectedBlobFile.toArray(String[]::new))
                 );
-                for (String localFile : segmentInfos.files(true)) {
+                for (String localFile : segmentInfos.files(false)) {
                     BlobLocation blobLocation = commit.commitFiles().get(localFile);
                     final BlobContainer blobContainerForFile = objectStoreService.getBlobContainer(
                         indexShard.shardId(),

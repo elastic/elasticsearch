@@ -43,6 +43,21 @@ public class RestPostAnalyticsEventAction extends BaseRestHandler {
         return channel -> client.execute(PostAnalyticsEventAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
     }
 
+    private static InetAddress getClientAddress(RestRequest restRequest, Map<String, List<String>> headers) {
+        InetAddress remoteAddress = restRequest.getHttpChannel().getRemoteAddress().getAddress();
+        if (headers.containsKey(X_FORWARDED_FOR_HEADER)) {
+            final List<String> addresses = headers.get(X_FORWARDED_FOR_HEADER);
+            if (addresses.isEmpty() == false) {
+                try {
+                    remoteAddress = InetAddresses.forString(addresses.get(0));
+                } catch (IllegalArgumentException e) {
+                    // Ignore if malformed IP
+                }
+            }
+        }
+        return remoteAddress;
+    }
+
     private PostAnalyticsEventAction.Request buidRequest(RestRequest restRequest) {
         Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
 
@@ -56,19 +71,8 @@ public class RestPostAnalyticsEventAction extends BaseRestHandler {
         builder.debug(restRequest.paramAsBoolean("debug", false));
 
         final Map<String, List<String>> headers = restRequest.getHeaders();
-        InetAddress remoteAddress = restRequest.getHttpChannel().getRemoteAddress().getAddress();
-        if (headers.containsKey(X_FORWARDED_FOR_HEADER)) {
-            final List<String> addresses = headers.get(X_FORWARDED_FOR_HEADER);
-            if (addresses.isEmpty() == false) {
-                try {
-                    remoteAddress = InetAddresses.forString(addresses.get(0));
-                } catch (IllegalArgumentException e) {
-                    // Ignore if malformed IP
-                }
-            }
-        }
         builder.headers(headers);
-        builder.clientAddress(remoteAddress);
+        builder.clientAddress(getClientAddress(restRequest, headers));
 
         return builder.request();
     }

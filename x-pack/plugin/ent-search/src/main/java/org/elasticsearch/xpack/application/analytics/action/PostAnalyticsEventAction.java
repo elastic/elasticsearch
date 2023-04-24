@@ -96,19 +96,6 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             this.clientAddress = ipAddress;
         }
 
-        private static InetAddress readInetAddress(StreamInput in) throws IOException {
-            final String ipString = in.readOptionalString();
-            if (ipString != null) {
-                try {
-                    return InetAddresses.forString(ipString);
-                } catch (IllegalArgumentException e) {
-                    // Ignore invalid client IP
-                }
-            }
-
-            return null;
-        }
-
         public static RequestBuilder builder(
             String eventCollectionName,
             String eventType,
@@ -216,6 +203,19 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         @Override
         public int hashCode() {
             return Objects.hash(eventCollectionName, eventType, debug, eventTime, xContentType, payload, headers, clientAddress);
+        }
+
+        private static InetAddress readInetAddress(StreamInput in) throws IOException {
+            final String ipString = in.readOptionalString();
+            if (ipString != null) {
+                try {
+                    return InetAddresses.forString(ipString);
+                } catch (IllegalArgumentException e) {
+                    // Ignore invalid client IP
+                }
+            }
+
+            return null;
         }
     }
 

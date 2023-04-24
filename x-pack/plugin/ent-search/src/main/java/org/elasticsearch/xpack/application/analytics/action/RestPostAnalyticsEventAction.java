@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -16,11 +17,15 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 
+import java.net.InetAddress;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostAnalyticsEventAction extends BaseRestHandler {
+
+    public static final String X_FORWARDED_FOR_HEADER = "X-Forwarded-For";
 
     @Override
     public String getName() {
@@ -50,9 +55,20 @@ public class RestPostAnalyticsEventAction extends BaseRestHandler {
 
         builder.debug(restRequest.paramAsBoolean("debug", false));
 
-        // TODO:
-        // 1. Extract ip address (do not forget the X-Forwarded-For header) and pass it to the request.
-        // 2. Extract / sanitize headers (user agent)
+        final Map<String, List<String>> headers = restRequest.getHeaders();
+        InetAddress remoteAddress = restRequest.getHttpChannel().getRemoteAddress().getAddress();
+        if (headers.containsKey(X_FORWARDED_FOR_HEADER)) {
+            final List<String> addresses = headers.get(X_FORWARDED_FOR_HEADER);
+            if (addresses.isEmpty() == false) {
+                try {
+                    remoteAddress = InetAddresses.forString(addresses.get(0));
+                } catch (IllegalArgumentException e) {
+                    // Ignore if malformed IP
+                }
+            }
+        }
+        builder.headers(headers);
+        builder.clientAddress(remoteAddress);
 
         return builder.request();
     }

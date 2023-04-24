@@ -15,8 +15,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,7 +27,10 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -53,15 +59,19 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         private final XContentType xContentType;
 
-        // TODO:
-        // 1. Add optional params for ip and headers
+        private final Map<String, List<String>> headers;
+
+        private final InetAddress clientAddress;
+
         private Request(
             String eventCollectionName,
             String eventType,
             long eventTime,
             XContentType xContentType,
             BytesReference payload,
-            boolean debug
+            boolean debug,
+            @Nullable Map<String, List<String>> headers,
+            @Nullable InetAddress clientAddress
         ) {
             this.eventCollectionName = eventCollectionName;
             this.eventType = eventType;
@@ -69,6 +79,8 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             this.eventTime = eventTime;
             this.xContentType = xContentType;
             this.payload = payload;
+            this.headers = Objects.requireNonNullElse(headers, Map.of());
+            this.clientAddress = clientAddress;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -79,6 +91,22 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             this.eventTime = in.readLong();
             this.xContentType = in.readEnum(XContentType.class);
             this.payload = in.readBytesReference();
+            this.headers = in.readMap(StreamInput::readString, StreamInput::readStringList);
+            InetAddress ipAddress = readInetAddress(in);
+            this.clientAddress = ipAddress;
+        }
+
+        private static InetAddress readInetAddress(StreamInput in) throws IOException {
+            final String ipString = in.readOptionalString();
+            if (ipString != null) {
+                try {
+                    return InetAddresses.forString(ipString);
+                } catch (IllegalArgumentException e) {
+                    // Ignore invalid client IP
+                }
+            }
+
+            return null;
         }
 
         public static RequestBuilder builder(
@@ -115,6 +143,24 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         }
 
         @Override
+        public String userAgent() {
+            return header("User-Agent");
+        }
+
+        private String header(String header) {
+            final List<String> values = headers.get(header);
+            if (values != null && values.isEmpty() == false) {
+                return values.get(0);
+            }
+
+            return null;
+        }
+
+        public InetAddress clientAddress() {
+            return clientAddress;
+        }
+
+        @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
@@ -148,6 +194,8 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
             out.writeLong(eventTime);
             XContentHelper.writeTo(out, xContentType);
             out.writeBytesReference(payload);
+            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeStringCollection);
+            out.writeOptionalString(clientAddress == null ? null : NetworkAddress.format(clientAddress));
         }
 
         @Override
@@ -160,12 +208,14 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
                 && eventTime == that.eventTime
                 && Objects.equals(eventType, that.eventType)
                 && Objects.equals(xContentType, that.xContentType)
-                && Objects.equals(payload, that.payload);
+                && Objects.equals(payload, that.payload)
+                && Objects.equals(headers, that.headers)
+                && Objects.equals(clientAddress, that.clientAddress);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(eventCollectionName, eventType, debug, eventTime, xContentType, payload);
+            return Objects.hash(eventCollectionName, eventType, debug, eventTime, xContentType, payload, headers, clientAddress);
         }
     }
 
@@ -183,6 +233,10 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         private XContentType xContentType;
 
+        private Map<String, List<String>> headers;
+
+        private InetAddress clientAddress;
+
         private RequestBuilder(String eventCollectionName, String eventType, XContentType xContentType, BytesReference payload) {
             this.eventCollectionName = eventCollectionName;
             this.eventType = eventType;
@@ -191,7 +245,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         }
 
         public Request request() {
-            return new Request(eventCollectionName, eventType, eventTime, xContentType, payload, debug);
+            return new Request(eventCollectionName, eventType, eventTime, xContentType, payload, debug, headers, clientAddress);
         }
 
         public RequestBuilder eventCollectionName(String eventCollectionName) {
@@ -221,6 +275,16 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         public RequestBuilder xContentType(XContentType xContentType) {
             this.xContentType = xContentType;
+            return this;
+        }
+
+        public RequestBuilder headers(Map<String, List<String>> headers) {
+            this.headers = headers;
+            return this;
+        }
+
+        public RequestBuilder clientAddress(InetAddress clientAddress) {
+            this.clientAddress = clientAddress;
             return this;
         }
     }

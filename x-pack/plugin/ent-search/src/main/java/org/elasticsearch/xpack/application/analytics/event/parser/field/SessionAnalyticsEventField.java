@@ -27,7 +27,6 @@ public class SessionAnalyticsEventField {
     private static final ObjectParser<MapBuilder<String, String>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         SESSION_FIELD.getPreferredName(),
         MapBuilder::newMapBuilder
-        // TODO: use Context to build session.ip and session.user_agent fields
     );
 
     static {

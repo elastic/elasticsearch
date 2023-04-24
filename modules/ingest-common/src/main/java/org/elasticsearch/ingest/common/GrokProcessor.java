@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.MatcherWatchdog;
+import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -42,7 +43,7 @@ public final class GrokProcessor extends AbstractProcessor {
     GrokProcessor(
         String tag,
         String description,
-        Map<String, String> patternBank,
+        PatternBank patternBank,
         List<String> matchPatterns,
         String matchField,
         boolean traceMatch,
@@ -169,16 +170,12 @@ public final class GrokProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, "patterns", "List of patterns must not be empty");
             }
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "pattern_definitions");
-            Map<String, String> patternBank = new HashMap<>(GrokBuiltinPatterns.get(ecsCompatibility));
-            if (customPatternBank != null) {
-                patternBank.putAll(customPatternBank);
-            }
 
             try {
                 return new GrokProcessor(
                     processorTag,
                     description,
-                    patternBank,
+                    GrokBuiltinPatterns.get(ecsCompatibility).extendWith(customPatternBank),
                     matchPatterns,
                     matchField,
                     traceMatch,
